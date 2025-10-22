@@ -1,0 +1,38 @@
+# Core Dependencies
+python-dotenv==1.0.0
+asyncio==3.4.3
+aiohttp==3.9.3
+
+# Exchange Integration
+ccxt==4.2.0
+
+# AI APIs
+anthropic==0.18.1
+openai==1.12.0
+
+# Telegram
+python-telegram-bot==20.7
+
+# Data Analysis
+pandas==2.2.0
+numpy==1.26.3
+ta==0.11.0
+
+# Database
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+redis==5.0.1
+
+# Utilities
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Logging & Monitoring
+colorlog==6.8.0
+
+# Task Scheduling
+APScheduler==3.10.4
+
+# HTTP Server (for health checks)
+fastapi==0.109.0
+uvicorn==0.27.0
