@@ -323,15 +323,16 @@ class DatabaseClient:
     async def set_ai_cache(self, symbol: str, ai_model: str, timeframe: str, analysis_json: Dict[str, Any], ttl_seconds: int) -> None:
         """Cache AI analysis result."""
         from datetime import timedelta
+        import json
 
         async with self.pool.acquire() as conn:
             expires_at = datetime.now() + timedelta(seconds=ttl_seconds)
 
             await conn.execute("""
                 INSERT INTO ai_analysis_cache (symbol, ai_model, timeframe, analysis_json, confidence, action, expires_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
             """,
-                symbol, ai_model, timeframe, analysis_json,
+                symbol, ai_model, timeframe, json.dumps(analysis_json),
                 analysis_json.get('confidence'), analysis_json.get('action'), expires_at
             )
 
