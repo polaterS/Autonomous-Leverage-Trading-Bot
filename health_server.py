@@ -55,9 +55,8 @@ async def health_check():
                 },
                 "paper_trading": settings.use_paper_trading,
                 "ai_models": {
-                    "claude": bool(settings.claude_api_key),
-                    "deepseek": bool(settings.deepseek_api_key),
-                    "grok": settings.enable_grok and bool(settings.grok_api_key)
+                    "qwen3_max": bool(settings.qwen_api_key),
+                    "deepseek_v32": bool(settings.deepseek_api_key)
                 }
             }
         }

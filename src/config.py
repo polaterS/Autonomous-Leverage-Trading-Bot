@@ -21,10 +21,9 @@ class Settings(BaseSettings):
     binance_api_key: str = Field(..., min_length=1)
     binance_secret_key: str = Field(..., min_length=1)
 
-    # AI API Keys
-    claude_api_key: str = Field(..., min_length=1)
+    # AI API Keys (Qwen3-Max + DeepSeek-V3.2)
+    qwen_api_key: str = Field(..., min_length=1)
     deepseek_api_key: str = Field(..., min_length=1)
-    grok_api_key: Optional[str] = None
 
     # Telegram Configuration
     telegram_bot_token: str = Field(..., min_length=1)
@@ -51,7 +50,6 @@ class Settings(BaseSettings):
 
     # Feature Flags
     use_paper_trading: bool = Field(default=True)
-    enable_grok: bool = Field(default=False)
     enable_debug_logs: bool = Field(default=False)
 
     # Trading Symbols (high liquidity perpetual futures)
