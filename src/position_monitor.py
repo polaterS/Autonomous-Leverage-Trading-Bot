@@ -4,7 +4,7 @@ Checks for stop-loss, take-profit, liquidation risk, and AI exit signals.
 """
 
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from decimal import Decimal
 from datetime import datetime
 from src.config import get_settings

@@ -186,7 +186,7 @@ CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
 24h Volume: ${market_data['volume_24h']:,.0f}
 Market Regime: {market_data['market_regime']}
-Funding Rate: {market_data['funding_rate']['rate']*100:.4f}%
+Funding Rate: {market_data.get('funding_rate', {}).get('rate', 0)*100:.4f}%
 
 TECHNICAL INDICATORS (15m timeframe):
 RSI: {market_data['indicators']['15m']['rsi']:.1f}

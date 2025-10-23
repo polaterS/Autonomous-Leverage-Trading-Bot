@@ -3,7 +3,7 @@ Risk Management System for the trading bot.
 Enforces all safety rules and validates trades before execution.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from decimal import Decimal
 from datetime import date
 from src.config import get_settings

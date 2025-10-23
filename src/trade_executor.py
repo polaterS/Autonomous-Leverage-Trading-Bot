@@ -3,7 +3,7 @@ Trade Executor - Handles actual trade execution.
 Opens positions with proper risk management.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from decimal import Decimal
 from datetime import datetime
 from src.config import get_settings

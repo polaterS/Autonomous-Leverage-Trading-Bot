@@ -94,8 +94,13 @@ class ExchangeClient:
             Dict with 'rate', 'timestamp', etc.
         """
         try:
-            funding_rate = await self.exchange.fetch_funding_rate(symbol)
-            return funding_rate
+            funding_rate_data = await self.exchange.fetch_funding_rate(symbol)
+            # CCXT returns 'fundingRate' (camelCase), normalize to 'rate'
+            return {
+                'rate': funding_rate_data.get('fundingRate', 0.0),
+                'timestamp': funding_rate_data.get('timestamp'),
+                'datetime': funding_rate_data.get('datetime')
+            }
         except Exception as e:
             logger.warning(f"Error fetching funding rate for {symbol}: {e}")
             # Return default if not available
