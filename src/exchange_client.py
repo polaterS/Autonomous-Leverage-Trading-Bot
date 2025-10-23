@@ -164,8 +164,9 @@ class ExchangeClient:
             ticker = await self.fetch_ticker(symbol)
             price = safe_decimal(ticker['last'])
 
+            import time
             order = {
-                'id': f'paper_{int(asyncio.get_event_loop().time())}',
+                'id': f'paper_{int(time.time() * 1000)}',
                 'symbol': symbol,
                 'type': 'market',
                 'side': side,
@@ -175,7 +176,7 @@ class ExchangeClient:
                 'filled': float(amount),
                 'remaining': 0,
                 'status': 'closed',
-                'timestamp': asyncio.get_event_loop().time() * 1000 if False else None,
+                'timestamp': int(time.time() * 1000),
                 'info': {'paper_trade': True}
             }
 
@@ -218,9 +219,10 @@ class ExchangeClient:
             Order info dict
         """
         if self.paper_trading:
+            import time
             logger.info(f"[PAPER] Stop-loss order: {side} {amount} {symbol} @ ${stop_price:.4f}")
             return {
-                'id': f'paper_sl_{int(asyncio.get_event_loop().time() if False else 0)}',
+                'id': f'paper_sl_{int(time.time() * 1000)}',
                 'symbol': symbol,
                 'type': 'stop_market',
                 'side': side,

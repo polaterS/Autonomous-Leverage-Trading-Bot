@@ -5,6 +5,7 @@ Creates all necessary tables and initializes configuration.
 
 import asyncio
 import asyncpg
+import sys
 from src.config import get_settings
 from pathlib import Path
 
@@ -13,23 +14,36 @@ async def setup_database():
     """Create database tables and initial configuration."""
     settings = get_settings()
 
-    print("Connecting to database...")
+    print("=" * 60)
+    print("DATABASE SETUP - Autonomous Leverage Trading Bot")
+    print("=" * 60)
+    print(f"\nConnecting to database at: {settings.database_url.split('@')[-1] if '@' in settings.database_url else 'localhost'}")
 
+    conn = None
     try:
-        # Connect to database
-        conn = await asyncpg.connect(settings.database_url)
+        # Connect to database with timeout
+        conn = await asyncio.wait_for(
+            asyncpg.connect(settings.database_url),
+            timeout=10.0
+        )
 
-        print("Connected successfully!")
-        print("Creating tables...")
+        print("✅ Connected successfully!")
+        print("\nCreating database tables...")
 
         # Read and execute schema
         schema_path = Path(__file__).parent / "schema.sql"
-        with open(schema_path, 'r') as f:
+
+        if not schema_path.exists():
+            print(f"❌ ERROR: schema.sql not found at {schema_path}")
+            sys.exit(1)
+
+        with open(schema_path, 'r', encoding='utf-8') as f:
             schema_sql = f.read()
 
+        # Execute schema
         await conn.execute(schema_sql)
 
-        print("Tables created successfully!")
+        print("✅ Tables created successfully!")
 
         # Update initial configuration with environment values
         await conn.execute("""
@@ -73,12 +87,33 @@ async def setup_database():
         print(f"  Max Consecutive Losses: {config['max_consecutive_losses']}")
 
         await conn.close()
-        print("\nDatabase setup complete!")
+        print("\n" + "=" * 60)
+        print("✅ DATABASE SETUP COMPLETE!")
+        print("=" * 60)
+        print("\nYou can now start the trading bot with: python main.py")
 
+    except asyncio.TimeoutError:
+        print("❌ ERROR: Database connection timeout")
+        print("Please ensure PostgreSQL is running and accessible.")
+        sys.exit(1)
+    except asyncpg.PostgresError as e:
+        print(f"❌ ERROR: Database error: {e}")
+        print("\nTroubleshooting:")
+        print("  1. Check DATABASE_URL in .env file")
+        print("  2. Ensure PostgreSQL is running")
+        print("  3. Verify database credentials")
+        sys.exit(1)
     except Exception as e:
-        print(f"Error setting up database: {e}")
-        raise
+        print(f"❌ ERROR: Unexpected error: {e}")
+        sys.exit(1)
+    finally:
+        if conn:
+            await conn.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(setup_database())
+    try:
+        asyncio.run(setup_database())
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Setup cancelled by user.")
+        sys.exit(0)

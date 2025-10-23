@@ -322,9 +322,9 @@ class DatabaseClient:
 
     async def set_ai_cache(self, symbol: str, ai_model: str, timeframe: str, analysis_json: Dict[str, Any], ttl_seconds: int) -> None:
         """Cache AI analysis result."""
+        from datetime import timedelta
+
         async with self.pool.acquire() as conn:
-            expires_at = datetime.now() + asyncio.get_event_loop().time() + ttl_seconds if False else datetime.now()
-            from datetime import timedelta
             expires_at = datetime.now() + timedelta(seconds=ttl_seconds)
 
             await conn.execute("""

@@ -40,9 +40,44 @@ class AIConsensusEngine:
         else:
             self.grok_client = None
 
+    async def _analyze_with_retry(self, analyze_func, symbol: str, market_data: Dict[str, Any], model_name: str, max_retries: int = 3) -> Optional[Dict[str, Any]]:
+        """
+        Retry wrapper for AI analysis with exponential backoff.
+
+        Args:
+            analyze_func: The analysis function to call
+            symbol: Trading symbol
+            market_data: Market data
+            model_name: Name of the AI model for logging
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            Analysis result or None if all attempts fail
+        """
+        for attempt in range(max_retries):
+            try:
+                result = await asyncio.wait_for(
+                    analyze_func(symbol, market_data),
+                    timeout=self.settings.ai_timeout_seconds
+                )
+                if result:
+                    return result
+            except asyncio.TimeoutError:
+                logger.warning(f"{model_name} timeout on attempt {attempt + 1}/{max_retries}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+            except Exception as e:
+                logger.error(f"{model_name} error on attempt {attempt + 1}/{max_retries}: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+
+        logger.error(f"{model_name} failed after {max_retries} attempts")
+        return None
+
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get AI consensus - require at least 2 out of 3 models to agree.
+        Implements retry logic and graceful degradation.
 
         Args:
             symbol: Trading symbol
@@ -59,16 +94,16 @@ class AIConsensusEngine:
             logger.debug(f"Using cached AI analysis for {symbol}")
             return cached['analysis_json']
 
-        # Get analysis from all models in parallel
+        # Get analysis from all models in parallel with retries
         logger.info(f"Requesting AI analysis for {symbol}...")
 
         tasks = [
-            self._analyze_with_claude(symbol, market_data),
-            self._analyze_with_deepseek(symbol, market_data)
+            self._analyze_with_retry(self._analyze_with_claude, symbol, market_data, "Claude"),
+            self._analyze_with_retry(self._analyze_with_deepseek, symbol, market_data, "DeepSeek")
         ]
 
         if self.grok_client:
-            tasks.append(self._analyze_with_grok(symbol, market_data))
+            tasks.append(self._analyze_with_retry(self._analyze_with_grok, symbol, market_data, "Grok"))
 
         analyses = await asyncio.gather(*tasks, return_exceptions=True)
 

@@ -29,8 +29,8 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
     for col in ['open', 'high', 'low', 'close', 'volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # Fill any NaN values
-    df.fillna(method='ffill', inplace=True)
+    # Fill any NaN values (using modern pandas syntax)
+    df.ffill(inplace=True)
 
     try:
         indicators = {}
