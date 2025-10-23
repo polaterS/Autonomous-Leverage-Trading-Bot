@@ -4,18 +4,18 @@ asyncio==3.4.3
 aiohttp==3.9.3
 
 # Exchange Integration
-ccxt==4.2.0
+ccxt==4.5.12
 
 # AI APIs
-anthropic==0.18.1
-openai==1.12.0
+anthropic==0.42.0
+openai==1.58.1
 
 # Telegram
 python-telegram-bot==20.7
 
 # Data Analysis
-pandas==2.2.0
-numpy==1.26.3
+pandas==2.2.3
+numpy==1.26.4
 ta==0.11.0
 
 # Database
@@ -34,5 +34,5 @@ colorlog==6.8.0
 APScheduler==3.10.4
 
 # HTTP Server (for health checks)
-fastapi==0.109.0
-uvicorn==0.27.0
+fastapi==0.115.5
+uvicorn==0.32.1
