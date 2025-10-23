@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     binance_api_key: str = Field(..., min_length=1)
     binance_secret_key: str = Field(..., min_length=1)
 
-    # AI API Keys (Qwen3-Max + DeepSeek-V3.2)
-    qwen_api_key: str = Field(..., min_length=1)
+    # AI API Keys (Qwen3-Max via OpenRouter + DeepSeek-V3.2)
+    openrouter_api_key: str = Field(..., min_length=1)
     deepseek_api_key: str = Field(..., min_length=1)
 
     # Telegram Configuration

@@ -22,10 +22,10 @@ class AIConsensusEngine:
         self.settings = get_settings()
 
         # Initialize AI clients
-        # Qwen3-Max uses OpenAI-compatible API from Alibaba Cloud DashScope
+        # Qwen3-Max via OpenRouter (OpenAI-compatible API)
         self.qwen_client = openai.AsyncOpenAI(
-            api_key=self.settings.qwen_api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+            api_key=self.settings.openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1"
         )
 
         # DeepSeek uses OpenAI-compatible API
@@ -196,12 +196,12 @@ class AIConsensusEngine:
         return consensus
 
     async def _analyze_with_qwen(self, symbol: str, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Get analysis from Qwen3-Max."""
+        """Get analysis from Qwen3-Max via OpenRouter."""
         try:
             prompt = build_analysis_prompt(symbol, market_data)
 
             response = await self.qwen_client.chat.completions.create(
-                model="qwen3-max",  # or "qwen3-max-2025-09-23" for stable version
+                model="qwen/qwen3-max",  # OpenRouter model identifier
                 messages=[
                     {"role": "system", "content": LEVERAGE_TRADING_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}

@@ -55,7 +55,7 @@ async def health_check():
                 },
                 "paper_trading": settings.use_paper_trading,
                 "ai_models": {
-                    "qwen3_max": bool(settings.qwen_api_key),
+                    "qwen3_max_openrouter": bool(settings.openrouter_api_key),
                     "deepseek_v32": bool(settings.deepseek_api_key)
                 }
             }
