@@ -27,18 +27,22 @@ class MarketScanner:
 
     async def scan_and_execute(self) -> None:
         """
-        Main scanning function:
+        NEW STRATEGY: "Best Opportunity" Selection
+
         1. Scan all symbols
-        2. Get AI analysis for each
-        3. Rank opportunities
-        4. Execute best trade if meets criteria
+        2. Get INDIVIDUAL AI analyses from BOTH models for each symbol
+        3. Collect ALL analyses (2 models × N symbols = 2N analyses)
+        4. Select the SINGLE analysis with HIGHEST confidence
+        5. Execute that trade if it meets minimum criteria
+
+        No consensus required - just pick the best single opportunity!
         """
-        logger.info("🔍 Starting market scan...")
+        logger.info("🔍 Starting market scan (Best Opportunity Strategy)...")
         notifier = get_notifier()
 
         await notifier.send_alert('info', '🔍 Market scan started...')
 
-        opportunities = []
+        all_analyses = []  # Collect ALL individual analyses
 
         for symbol in self.symbols:
             try:
@@ -48,35 +52,34 @@ class MarketScanner:
                 if not market_data:
                     continue
 
-                # Get AI consensus
+                # Get INDIVIDUAL analyses from BOTH models (no consensus)
                 ai_engine = get_ai_engine()
-                ai_analysis = await ai_engine.get_consensus(symbol, market_data)
+                individual_analyses = await ai_engine.get_individual_analyses(symbol, market_data)
 
-                # Skip if hold signal or low confidence
-                if ai_analysis['action'] == 'hold' or not ai_analysis.get('consensus', False):
-                    logger.debug(f"{symbol}: HOLD (confidence: {ai_analysis.get('confidence', 0):.1%})")
-                    continue
+                # Add each analysis to our collection
+                for analysis in individual_analyses:
+                    # Skip HOLD signals
+                    if analysis.get('action') == 'hold':
+                        logger.debug(
+                            f"{symbol} ({analysis.get('model_name', 'AI')}): HOLD "
+                            f"(confidence: {analysis.get('confidence', 0):.1%})"
+                        )
+                        continue
 
-                # Check minimum confidence
-                if ai_analysis.get('confidence', 0) < float(self.settings.min_ai_confidence):
-                    logger.debug(
-                        f"{symbol}: Low confidence "
-                        f"({ai_analysis.get('confidence', 0):.1%} < {float(self.settings.min_ai_confidence):.1%})"
-                    )
-                    continue
-
-                # Calculate opportunity score
-                score = self.calculate_opportunity_score(ai_analysis, market_data)
-
-                if score >= 75:  # Minimum 75/100 score
-                    opportunities.append({
+                    # Add to collection with metadata
+                    all_analyses.append({
                         'symbol': symbol,
-                        'analysis': ai_analysis,
-                        'score': score,
-                        'market_data': market_data
+                        'analysis': analysis,
+                        'market_data': market_data,
+                        'model': analysis.get('model_name', 'unknown'),
+                        'confidence': analysis.get('confidence', 0)
                     })
 
-                    logger.info(f"✨ Opportunity found: {symbol} - {ai_analysis['action'].upper()} (score: {score:.0f})")
+                    logger.info(
+                        f"📊 {symbol} ({analysis.get('model_name', 'AI')}): "
+                        f"{analysis.get('action', 'unknown').upper()} - "
+                        f"Confidence: {analysis.get('confidence', 0):.1%}"
+                    )
 
                 # Rate limiting
                 await asyncio.sleep(1)
@@ -85,37 +88,46 @@ class MarketScanner:
                 logger.error(f"Error analyzing {symbol}: {e}")
                 continue
 
-        # Sort opportunities by score
-        opportunities.sort(key=lambda x: x['score'], reverse=True)
+        # Sort ALL analyses by confidence (highest first)
+        all_analyses.sort(key=lambda x: x['confidence'], reverse=True)
 
-        if opportunities:
-            best = opportunities[0]
-            await notifier.send_scan_result(
-                best['symbol'],
-                best['analysis']['confidence'],
-                best['analysis']['action']
-            )
+        logger.info(f"📈 Total analyses collected: {len(all_analyses)}")
+
+        if all_analyses:
+            # Get the BEST analysis (highest confidence)
+            best = all_analyses[0]
 
             logger.info(
-                f"🎯 Best opportunity: {best['symbol']} "
-                f"(action: {best['analysis']['action']}, score: {best['score']:.0f}, "
-                f"confidence: {best['analysis']['confidence']:.1%})"
+                f"🎯 BEST OPPORTUNITY: {best['symbol']} "
+                f"({best['model'].upper()}) - "
+                f"{best['analysis']['action'].upper()} - "
+                f"Confidence: {best['confidence']:.1%}"
             )
 
-            # Execute trade if score is high enough
-            if best['score'] >= 80:
+            # Check minimum confidence threshold
+            if best['confidence'] >= float(self.settings.min_ai_confidence):
+                await notifier.send_scan_result(
+                    best['symbol'],
+                    best['confidence'],
+                    best['analysis']['action']
+                )
+
+                # Execute the best opportunity
                 await self.execute_trade(best)
             else:
                 await notifier.send_alert(
                     'info',
-                    f"Best opportunity: {best['symbol']} (score: {best['score']:.0f})\n"
-                    f"Not strong enough to trade yet. Waiting for better setup..."
+                    f"Best opportunity: {best['symbol']} ({best['model']}) - "
+                    f"Confidence: {best['confidence']:.1%}\n"
+                    f"Below minimum threshold ({float(self.settings.min_ai_confidence):.1%}). "
+                    f"Waiting for better setup..."
                 )
         else:
-            logger.info("😐 No good opportunities found")
+            logger.info("😐 No good opportunities found (all models recommend HOLD)")
             await notifier.send_alert(
                 'info',
-                '😐 No good opportunities found. Will scan again in 5 minutes.'
+                '😐 No good opportunities found. All AI models recommend HOLD. '
+                'Will scan again in 5 minutes.'
             )
 
     async def gather_market_data(self, symbol: str) -> Dict[str, Any]:

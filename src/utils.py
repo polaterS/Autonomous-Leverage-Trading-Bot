@@ -67,12 +67,14 @@ def calculate_liquidation_price(
     # Simplified liquidation calculation (Binance-like)
     # Actual formula: Liq Price = Entry Price × (1 ± (1 - Maintenance Margin Rate) / Leverage)
 
+    leverage_decimal = Decimal(str(leverage))
+
     if side == 'LONG':
         # For longs, liquidation is below entry
-        liq_price = entry_price * (1 - (1 - maintenance_margin_rate) / leverage)
+        liq_price = entry_price * (1 - (1 - maintenance_margin_rate) / leverage_decimal)
     else:  # SHORT
         # For shorts, liquidation is above entry
-        liq_price = entry_price * (1 + (1 - maintenance_margin_rate) / leverage)
+        liq_price = entry_price * (1 + (1 - maintenance_margin_rate) / leverage_decimal)
 
     return liq_price
 
@@ -93,7 +95,8 @@ def calculate_position_size(
     position_value = capital * position_size_percent
 
     # Calculate quantity
-    quantity = (position_value * leverage) / entry_price
+    leverage_decimal = Decimal(str(leverage))
+    quantity = (position_value * leverage_decimal) / entry_price
 
     return quantity, position_value
 
@@ -128,7 +131,8 @@ def calculate_min_profit_price(
     # Calculate required price change percentage
     # profit = position_value * price_change_pct * leverage
     # price_change_pct = profit / (position_value * leverage)
-    required_price_change_pct = min_profit_usd / (position_value * leverage)
+    leverage_decimal = Decimal(str(leverage))
+    required_price_change_pct = min_profit_usd / (position_value * leverage_decimal)
 
     if side == 'LONG':
         # For longs, profit comes from price increase
@@ -165,12 +169,13 @@ def calculate_pnl(
         price_change_pct = (entry_price - current_price) / entry_price
 
     # Leveraged P&L
-    unrealized_pnl = position_value * price_change_pct * leverage
+    leverage_decimal = Decimal(str(leverage))
+    unrealized_pnl = position_value * price_change_pct * leverage_decimal
 
     return {
         'unrealized_pnl': unrealized_pnl,
         'pnl_percent': float(price_change_pct * 100),
-        'leveraged_pnl_percent': float(price_change_pct * leverage * 100),
+        'leveraged_pnl_percent': float(price_change_pct * leverage_decimal * 100),
         'price_change_pct': float(price_change_pct)
     }
 

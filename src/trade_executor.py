@@ -48,7 +48,7 @@ class TradeExecutor:
         symbol = trade_params['symbol']
         side = trade_params['side']
         leverage = trade_params['leverage']
-        stop_loss_percent = trade_params['stop_loss_percent']
+        stop_loss_percent = Decimal(str(trade_params['stop_loss_percent']))
         entry_price = Decimal(str(trade_params['current_price']))
 
         logger.info(f"Opening position: {symbol} {side} {leverage}x")

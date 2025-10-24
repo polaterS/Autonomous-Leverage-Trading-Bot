@@ -62,7 +62,7 @@ class Settings(BaseSettings):
         'DOGE/USDT:USDT',
         'ADA/USDT:USDT',
         'AVAX/USDT:USDT',
-        'MATIC/USDT:USDT',
+        'POL/USDT:USDT',  # Polygon (formerly MATIC)
         'DOT/USDT:USDT'
     ])
 

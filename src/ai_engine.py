@@ -68,6 +68,40 @@ class AIConsensusEngine:
         logger.error(f"{model_name} failed after {max_retries} attempts")
         return None
 
+    async def get_individual_analyses(self, symbol: str, market_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Get individual analyses from both AI models WITHOUT requiring consensus.
+        Returns all analyses for the "best opportunity" selection strategy.
+
+        Args:
+            symbol: Trading symbol
+            market_data: Market data dict with price, indicators, etc.
+
+        Returns:
+            List of individual analyses from each model
+        """
+        logger.info(f"Requesting individual AI analyses for {symbol}...")
+
+        # Get analysis from both models in parallel with retries
+        tasks = [
+            self._analyze_with_retry(self._analyze_with_qwen, symbol, market_data, "Qwen3-Max"),
+            self._analyze_with_retry(self._analyze_with_deepseek, symbol, market_data, "DeepSeek-V3.2")
+        ]
+
+        analyses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Handle failures gracefully
+        valid_analyses = []
+        for i, analysis in enumerate(analyses):
+            if isinstance(analysis, Exception):
+                model_name = ['Qwen3-Max', 'DeepSeek-V3.2'][i]
+                logger.error(f"{model_name} analysis failed: {analysis}")
+            elif analysis is not None:
+                valid_analyses.append(analysis)
+
+        logger.info(f"Got {len(valid_analyses)}/2 analyses for {symbol}")
+        return valid_analyses
+
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get AI consensus - require at least 2 out of 3 models to agree.

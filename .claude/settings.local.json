@@ -4,7 +4,8 @@
       "Bash(curl:*)",
       "Bash(python -m json.tool:*)",
       "Bash(docker-compose restart:*)",
-      "Bash(docker-compose down:*)"
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose exec trading-bot python:*)"
     ],
     "deny": [],
     "ask": []
