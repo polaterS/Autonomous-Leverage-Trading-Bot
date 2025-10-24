@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
     min_profit_usd: Decimal = Field(default=Decimal("2.50"), gt=0)
-    min_ai_confidence: Decimal = Field(default=Decimal("0.75"), ge=0, le=1)
+    min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)
     scan_interval_seconds: int = Field(default=300, ge=30)
     position_check_seconds: int = Field(default=60, ge=10)
 
