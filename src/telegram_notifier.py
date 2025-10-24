@@ -7,12 +7,20 @@ from telegram import Bot
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from src.config import get_settings
 from src.utils import setup_logging, format_duration
 
 logger = setup_logging()
+
+# Turkey timezone (UTC+3)
+TURKEY_TZ = timezone(timedelta(hours=3))
+
+
+def get_turkey_time() -> datetime:
+    """Get current time in Turkey timezone (UTC+3)."""
+    return datetime.now(TURKEY_TZ)
 
 
 class TelegramNotifier:
@@ -67,7 +75,7 @@ You will receive notifications for all trading activity.
 
 Sit back and monitor your portfolio! 💰
 
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 """
         await self.send_message(message)
 
@@ -92,7 +100,7 @@ Sit back and monitor your portfolio! 💰
 🤖 AI Confidence: <b>{float(position.get('ai_confidence', 0))*100:.0f}%</b>
 🤝 Consensus: <b>{position.get('ai_model_consensus', 'N/A')}</b>
 
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 """
         await self.send_message(message)
 
@@ -114,7 +122,7 @@ Sit back and monitor your portfolio! 💰
 {pnl_emoji} Unrealized P&L: <b>${float(pnl):+.2f}</b>
 
 ⏱️ Duration: {duration_str}
-⏰ {datetime.now().strftime('%H:%M:%S')}
+⏰ {get_turkey_time().strftime('%H:%M:%S')}
 """
         await self.send_message(message)
 
@@ -145,7 +153,7 @@ Sit back and monitor your portfolio! 💰
 📝 Reason: {reason}
 ⏱️ Duration: {duration_str}
 
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 """
         await self.send_message(message)
 
@@ -181,7 +189,7 @@ Sit back and monitor your portfolio! 💰
 🔍 Scanning for opportunities...
 """
 
-        message += f"\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        message += f"\n⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}"
         await self.send_message(message)
 
     async def send_scan_result(self, symbol: str, confidence: float, action: str) -> None:
@@ -197,7 +205,7 @@ Sit back and monitor your portfolio! 💰
 
 {'📈 Initiating trade...' if confidence >= 0.80 else '⏳ Waiting for stronger signal...'}
 
-⏰ {datetime.now().strftime('%H:%M:%S')}
+⏰ {get_turkey_time().strftime('%H:%M:%S')}
 """
         await self.send_message(message)
 
@@ -212,7 +220,7 @@ Sit back and monitor your portfolio! 💰
         }
         emoji = emoji_map.get(alert_type, 'ℹ️')
 
-        message = f"{emoji} <b>{alert_type.upper()}</b>\n\n{message_text}\n\n⏰ {datetime.now().strftime('%H:%M:%S')}"
+        message = f"{emoji} <b>{alert_type.upper()}</b>\n\n{message_text}\n\n⏰ {get_turkey_time().strftime('%H:%M:%S')}"
         await self.send_message(message)
 
     async def send_daily_summary(self, summary_data: Dict[str, Any]) -> None:
@@ -259,7 +267,7 @@ The bot has automatically stopped trading to protect your capital.
 
 Please review your strategy and performance before resuming.
 
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 """
         await self.send_message(message)
 
@@ -275,7 +283,7 @@ Error: {error_message[:500]}
 The bot is attempting to recover automatically.
 If this persists, manual intervention may be required.
 
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 """
         await self.send_message(message)
 
@@ -286,7 +294,7 @@ If this persists, manual intervention may be required.
 
 {warning_message}
 
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 """
         await self.send_message(message)
 
