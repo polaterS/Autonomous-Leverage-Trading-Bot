@@ -27,7 +27,7 @@ class ExchangeClient:
             'secret': self.settings.binance_secret_key,
             'enableRateLimit': True,
             'options': {
-                'defaultType': 'future',  # Use futures
+                'defaultType': 'swap',  # Use USDT-M Perpetual Swaps (fapi)
                 'adjustForTimeDifference': True,
             }
         })
@@ -46,8 +46,28 @@ class ExchangeClient:
 
             if not self.paper_trading:
                 # Test connection
-                balance = await self.exchange.fetch_balance()
-                logger.info(f"Account balance loaded: ${balance.get('USDT', {}).get('free', 0):.2f} USDT")
+                try:
+                    balance = await self.exchange.fetch_balance()
+                    logger.info(f"Account balance loaded: ${balance.get('USDT', {}).get('free', 0):.2f} USDT")
+                except Exception as balance_err:
+                    error_msg = str(balance_err)
+
+                    # Check if it's the -2015 error (Futures account not activated)
+                    if '-2015' in error_msg or 'permissions' in error_msg.lower():
+                        logger.error("=" * 60)
+                        logger.error("BINANCE FUTURES ACCOUNT NOT ACTIVATED")
+                        logger.error("=" * 60)
+                        logger.error("Your API key has 'Enable Futures' permission, but your")
+                        logger.error("Binance account doesn't have Futures trading activated yet.")
+                        logger.error("")
+                        logger.error("To activate:")
+                        logger.error("1. Go to https://www.binance.com/en/futures/BTCUSDT")
+                        logger.error("2. Click 'Open Now' and agree to terms")
+                        logger.error("3. Complete any required verification")
+                        logger.error("4. Restart this bot")
+                        logger.error("=" * 60)
+
+                    raise Exception(f"Futures account not accessible: {balance_err}")
 
         except Exception as e:
             logger.error(f"Failed to initialize exchange: {e}")

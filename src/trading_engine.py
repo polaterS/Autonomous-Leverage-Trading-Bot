@@ -47,7 +47,29 @@ class AutonomousTradingEngine:
             logger.info("🚀 All systems initialized successfully!")
 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize: {e}")
+            error_msg = str(e)
+
+            # Check if it's a Binance Futures account activation issue
+            if '-2015' in error_msg or 'permissions for action' in error_msg:
+                logger.error("=" * 70)
+                logger.error("⚠️  BINANCE FUTURES ACCOUNT NOT ACTIVATED")
+                logger.error("=" * 70)
+                logger.error("")
+                logger.error("Your API key has 'Enable Futures' permission, but your Binance")
+                logger.error("account doesn't have Futures trading activated yet.")
+                logger.error("")
+                logger.error("📋 TO FIX THIS:")
+                logger.error("")
+                logger.error("1. Go to: https://www.binance.com/en/futures/BTCUSDT")
+                logger.error("2. Click 'Open Now' to activate Futures trading")
+                logger.error("3. Agree to the terms and conditions")
+                logger.error("4. Complete any required verification (if prompted)")
+                logger.error("5. Wait 1-2 minutes for activation to complete")
+                logger.error("6. Restart this bot: docker-compose restart trading-bot")
+                logger.error("")
+                logger.error("=" * 70)
+            else:
+                logger.error(f"❌ Failed to initialize: {e}")
             raise
 
     async def run_forever(self):
