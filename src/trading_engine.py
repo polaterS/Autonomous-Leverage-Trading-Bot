@@ -25,7 +25,9 @@ class AutonomousTradingEngine:
         self.settings = get_settings()
         self.is_running = False
         self.error_count = 0
-        self.max_errors = 10
+        self.max_errors = 20  # Increased from 10 - more tolerant to transient errors
+        self.consecutive_errors = 0  # Track consecutive errors separately
+        self.last_successful_cycle = None  # Track last successful operation
 
     async def initialize(self):
         """Initialize all components."""
@@ -119,8 +121,10 @@ class AutonomousTradingEngine:
                     # Check every 5 minutes when no position
                     await asyncio.sleep(self.settings.scan_interval_seconds)
 
-                # Reset error count on successful cycle
+                # Reset error counts on successful cycle
                 self.error_count = 0
+                self.consecutive_errors = 0
+                self.last_successful_cycle = datetime.now()
 
                 # Cleanup expired AI cache periodically
                 if datetime.now().minute % 10 == 0:  # Every 10 minutes
@@ -130,24 +134,86 @@ class AutonomousTradingEngine:
                 logger.info("⏸️  Keyboard interrupt received")
                 break
 
+            except asyncio.TimeoutError:
+                # Transient timeout error - don't count as critical
+                self.consecutive_errors += 1
+                logger.warning(f"⏱️ Operation timeout (consecutive: {self.consecutive_errors})")
+
+                if self.consecutive_errors >= 5:
+                    logger.error(f"Too many consecutive timeouts: {self.consecutive_errors}")
+                    await notifier.send_alert(
+                        'warning',
+                        f"⚠️ Network issues detected\n"
+                        f"Consecutive timeouts: {self.consecutive_errors}\n\n"
+                        f"Bot will retry with exponential backoff."
+                    )
+
+                # Exponential backoff for consecutive errors
+                backoff_time = min(60 * (2 ** min(self.consecutive_errors - 1, 4)), 300)  # Max 5 min
+                await asyncio.sleep(backoff_time)
+
+            except (ConnectionError, OSError) as e:
+                # Network/connection errors - transient, retry with backoff
+                self.consecutive_errors += 1
+                logger.warning(f"🌐 Network error (consecutive: {self.consecutive_errors}): {e}")
+
+                if self.consecutive_errors >= 3:
+                    await notifier.send_alert(
+                        'warning',
+                        f"🌐 Connectivity issues\n"
+                        f"Consecutive errors: {self.consecutive_errors}\n"
+                        f"Type: {type(e).__name__}\n\n"
+                        f"Retrying with backoff..."
+                    )
+
+                backoff_time = min(30 * (2 ** min(self.consecutive_errors - 1, 3)), 180)  # Max 3 min
+                await asyncio.sleep(backoff_time)
+
             except Exception as e:
+                # General errors - count and handle
                 self.error_count += 1
-                logger.error(f"❌ Error in main loop (#{self.error_count}): {e}")
+                self.consecutive_errors += 1
 
-                await notifier.send_error_report('TradingEngine', str(e))
+                error_type = type(e).__name__
+                error_msg = str(e)
 
+                logger.error(
+                    f"❌ Error in main loop (total: {self.error_count}, "
+                    f"consecutive: {self.consecutive_errors}): {error_type}: {error_msg}"
+                )
+
+                # Send error report for non-trivial errors
+                if self.consecutive_errors >= 2:
+                    await notifier.send_error_report('TradingEngine', f"{error_type}: {error_msg}")
+
+                # Check if we should stop
                 if self.error_count >= self.max_errors:
-                    logger.critical(f"🚨 Too many errors ({self.error_count}), stopping bot")
+                    logger.critical(f"🚨 Too many total errors ({self.error_count}), stopping bot")
                     await notifier.send_alert(
                         'critical',
-                        f"🚨 Bot stopped due to too many errors ({self.error_count})\n"
-                        f"Last error: {e}\n\n"
-                        f"Please investigate and restart manually."
+                        f"🚨 Bot stopped due to too many errors\n"
+                        f"Total errors: {self.error_count}\n"
+                        f"Consecutive: {self.consecutive_errors}\n"
+                        f"Last error: {error_type}: {error_msg[:200]}\n\n"
+                        f"Please investigate logs and restart manually."
                     )
                     break
 
-                # Wait before retry
-                await asyncio.sleep(60)
+                if self.consecutive_errors >= 10:
+                    logger.critical(f"🚨 Too many consecutive errors ({self.consecutive_errors}), stopping bot")
+                    await notifier.send_alert(
+                        'critical',
+                        f"🚨 Bot stopped due to repeated failures\n"
+                        f"Consecutive errors: {self.consecutive_errors}\n"
+                        f"Last error: {error_type}: {error_msg[:200]}\n\n"
+                        f"System may be unstable. Manual intervention required."
+                    )
+                    break
+
+                # Exponential backoff
+                backoff_time = min(60 * (2 ** min(self.consecutive_errors - 1, 4)), 300)
+                logger.info(f"Waiting {backoff_time}s before retry...")
+                await asyncio.sleep(backoff_time)
 
         logger.info("🛑 Trading engine stopped")
         await self.cleanup()

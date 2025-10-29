@@ -99,12 +99,45 @@ class TradeExecutor:
             actual_entry_price = Decimal(str(entry_order.get('average', entry_price)))
             exchange_order_id = entry_order.get('id')
 
-            logger.info(f"✅ Entry order executed: {exchange_order_id}")
+            # CRITICAL: Check slippage
+            slippage_percent = abs((actual_entry_price - entry_price) / entry_price) * 100
+            max_slippage = Decimal("0.5")  # 0.5% maximum acceptable slippage
 
-            # Place stop-loss order (best effort - not all exchanges support this automatically)
+            if slippage_percent > max_slippage:
+                logger.error(
+                    f"❌ EXCESSIVE SLIPPAGE: {float(slippage_percent):.3f}% "
+                    f"(max: {float(max_slippage):.3f}%)"
+                )
+
+                # Try to close the position immediately
+                try:
+                    close_side = 'sell' if side == 'LONG' else 'buy'
+                    await exchange.create_market_order(symbol, close_side, quantity)
+                    logger.warning("Position closed due to excessive slippage")
+                except Exception as close_err:
+                    logger.critical(f"Failed to close position after slippage: {close_err}")
+
+                await notifier.send_alert(
+                    'error',
+                    f"Trade cancelled due to excessive slippage:\n"
+                    f"{symbol} {side}\n"
+                    f"Expected: ${float(entry_price):.4f}\n"
+                    f"Executed: ${float(actual_entry_price):.4f}\n"
+                    f"Slippage: {float(slippage_percent):.3f}%\n\n"
+                    f"Position closed immediately."
+                )
+                return False
+
+            logger.info(
+                f"✅ Entry order executed: {exchange_order_id} @ ${float(actual_entry_price):.4f} "
+                f"(slippage: {float(slippage_percent):.3f}%)"
+            )
+
+            # CRITICAL: Place stop-loss order (MANDATORY)
             stop_loss_order_id = None
+            sl_order_side = 'sell' if side == 'LONG' else 'buy'
+
             try:
-                sl_order_side = 'sell' if side == 'LONG' else 'buy'
                 sl_order = await exchange.create_stop_loss_order(
                     symbol,
                     sl_order_side,
@@ -113,8 +146,36 @@ class TradeExecutor:
                 )
                 stop_loss_order_id = sl_order.get('id')
                 logger.info(f"✅ Stop-loss order placed: {stop_loss_order_id}")
+
             except Exception as e:
-                logger.warning(f"Could not place stop-loss order (will monitor manually): {e}")
+                # CRITICAL: Stop-loss placement failed - close position immediately
+                logger.critical(f"🚨 STOP-LOSS PLACEMENT FAILED: {e}")
+
+                try:
+                    # Close the position immediately
+                    close_order = await exchange.create_market_order(symbol, sl_order_side, quantity)
+                    logger.warning("Position closed immediately due to stop-loss placement failure")
+
+                    await notifier.send_alert(
+                        'critical',
+                        f"🚨 CRITICAL: Position closed immediately\n\n"
+                        f"Reason: Stop-loss order placement failed\n"
+                        f"{symbol} {side} - Entry: ${float(actual_entry_price):.4f}\n\n"
+                        f"Error: {str(e)[:200]}\n\n"
+                        f"Position was closed at market to prevent unprotected exposure."
+                    )
+
+                except Exception as close_err:
+                    logger.critical(f"FAILED TO CLOSE POSITION: {close_err}")
+                    await notifier.send_alert(
+                        'critical',
+                        f"🚨🚨🚨 EMERGENCY: MANUAL INTERVENTION REQUIRED\n\n"
+                        f"{symbol} {side} position is OPEN WITHOUT STOP-LOSS\n"
+                        f"Entry: ${float(actual_entry_price):.4f}\n\n"
+                        f"Please close this position manually IMMEDIATELY!"
+                    )
+
+                return False
 
             # Record position in database
             position_data = {
@@ -149,6 +210,92 @@ class TradeExecutor:
         except Exception as e:
             logger.error(f"❌ Failed to open position: {e}")
             await notifier.send_error_report('TradeExecutor', str(e))
+            return False
+
+    async def close_position_partial(
+        self,
+        position: Dict[str, Any],
+        current_price: Decimal,
+        close_percent: float,
+        close_reason: str
+    ) -> bool:
+        """
+        Close a portion of the position (PARTIAL PROFIT TAKING).
+
+        Args:
+            position: Active position data
+            current_price: Current market price
+            close_percent: Percentage to close (0.5 = 50%)
+            close_reason: Reason for partial close
+
+        Returns:
+            True if closed successfully, False otherwise
+        """
+        symbol = position['symbol']
+        side = position['side']
+        full_quantity = Decimal(str(position['quantity']))
+        close_quantity = full_quantity * Decimal(str(close_percent))
+
+        logger.info(
+            f"Partial close ({close_percent*100:.0f}%): {symbol} {side} - "
+            f"Closing {close_quantity:.6f}/{full_quantity:.6f} - Reason: {close_reason}"
+        )
+
+        try:
+            db = await get_db_client()
+            exchange = await get_exchange_client()
+            notifier = get_notifier()
+
+            # Execute partial close order
+            close_order = await exchange.close_position(symbol, side, close_quantity)
+            exit_price = Decimal(str(close_order.get('average', current_price)))
+
+            logger.info(f"✅ Partial position closed at ${exit_price:.4f}")
+
+            # Calculate P&L for closed portion
+            entry_price = Decimal(str(position['entry_price']))
+            leverage = position['leverage']
+            position_value = Decimal(str(position['position_value_usd'])) * Decimal(str(close_percent))
+
+            if side == 'LONG':
+                price_change_pct = (exit_price - entry_price) / entry_price
+            else:  # SHORT
+                price_change_pct = (entry_price - exit_price) / entry_price
+
+            partial_pnl = position_value * price_change_pct * leverage
+
+            # Update capital
+            new_capital = (await db.get_current_capital()) + partial_pnl
+            await db.update_capital(new_capital)
+
+            # Update paper trading balance if applicable
+            if exchange.paper_trading:
+                exchange.update_paper_balance(partial_pnl)
+
+            # Update position in database (reduce quantity)
+            remaining_quantity = full_quantity - close_quantity
+            await db.execute(
+                "UPDATE active_position SET quantity = $1 WHERE id = $2",
+                remaining_quantity, position['id']
+            )
+
+            # Send notification
+            await notifier.send_alert(
+                'success',
+                f"💰 Partial Close ({close_percent*100:.0f}%)\n\n"
+                f"{symbol} {side} {leverage}x\n"
+                f"Exit: ${float(exit_price):.4f}\n"
+                f"P&L: ${float(partial_pnl):+.2f}\n\n"
+                f"Reason: {close_reason}\n"
+                f"Remaining: {close_percent*100:.0f}% still open"
+            )
+
+            logger.info(f"💰 Partial close: P&L ${partial_pnl:+.2f}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to partially close position: {e}")
+            await notifier.send_error_report('TradeExecutor', f"Failed to partial close: {e}")
             return False
 
     async def close_position(

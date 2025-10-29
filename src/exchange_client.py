@@ -32,11 +32,20 @@ class ExchangeClient:
             }
         })
 
+        # Paper trading - REAL SIMULATION (not sandbox mode)
         if self.paper_trading:
-            logger.warning("PAPER TRADING MODE - No real orders will be executed")
-            self.exchange.set_sandbox_mode(True)  # Use testnet if available
+            logger.warning("=" * 60)
+            logger.warning("PAPER TRADING MODE - Full Market Data, Simulated Orders")
+            logger.warning("Real market prices will be used, but NO real orders executed")
+            logger.warning("=" * 60)
 
-        self.paper_balance = Decimal("100.00")  # Virtual balance for paper trading
+        # Paper trading state
+        self.paper_balance = self.settings.initial_capital
+        self.paper_positions = {}  # Track simulated positions
+        self.paper_orders = {}  # Track simulated orders
+
+        # Slippage simulation for paper trading
+        self.paper_slippage_percent = Decimal("0.05")  # 0.05% average slippage
 
     async def initialize(self):
         """Initialize exchange connection and load markets."""
@@ -129,6 +138,7 @@ class ExchangeClient:
     async def fetch_balance(self) -> Decimal:
         """Get current USDT balance."""
         if self.paper_trading:
+            logger.debug(f"[PAPER] Balance: ${self.paper_balance:.2f}")
             return self.paper_balance
 
         try:
@@ -173,7 +183,7 @@ class ExchangeClient:
         params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
-        Create a market order.
+        Create a market order with slippage simulation for paper trading.
 
         Args:
             symbol: Trading pair (e.g., 'BTC/USDT:USDT')
@@ -182,30 +192,51 @@ class ExchangeClient:
             params: Additional parameters
 
         Returns:
-            Order info dict
+            Order info dict with actual execution price (including slippage)
         """
         if self.paper_trading:
-            # Simulate order for paper trading
+            # Get real market price
             ticker = await self.fetch_ticker(symbol)
-            price = safe_decimal(ticker['last'])
+            market_price = safe_decimal(ticker['last'])
+
+            # Simulate realistic slippage (0.03-0.08% depending on side)
+            import random
+            slippage = Decimal(str(random.uniform(0.03, 0.08))) / 100
+
+            # Buying increases price slightly, selling decreases it
+            if side == 'buy':
+                execution_price = market_price * (1 + slippage)
+            else:  # sell
+                execution_price = market_price * (1 - slippage)
 
             import time
+            order_id = f'paper_{int(time.time() * 1000)}_{random.randint(1000, 9999)}'
+
             order = {
-                'id': f'paper_{int(time.time() * 1000)}',
+                'id': order_id,
                 'symbol': symbol,
                 'type': 'market',
                 'side': side,
                 'amount': float(amount),
-                'price': float(price),
-                'average': float(price),
+                'price': float(market_price),  # Market price at time of order
+                'average': float(execution_price),  # Actual execution price with slippage
                 'filled': float(amount),
                 'remaining': 0,
                 'status': 'closed',
                 'timestamp': int(time.time() * 1000),
-                'info': {'paper_trade': True}
+                'info': {
+                    'paper_trade': True,
+                    'market_price': float(market_price),
+                    'slippage_percent': float(slippage * 100),
+                    'slippage_cost': float(abs(execution_price - market_price) * amount)
+                }
             }
 
-            logger.info(f"[PAPER] Market {side} order: {amount} {symbol} @ ${price:.4f}")
+            logger.info(
+                f"[PAPER] Market {side}: {amount:.6f} {symbol} @ "
+                f"${execution_price:.4f} (slippage: {slippage*100:.3f}%, "
+                f"cost: ${abs(execution_price - market_price) * amount:.2f})"
+            )
             return order
 
         try:
@@ -217,7 +248,9 @@ class ExchangeClient:
                 params=params or {}
             )
 
-            logger.info(f"Market {side} order executed: {amount} {symbol} @ ${order.get('average', 0):.4f}")
+            # Log real order execution
+            execution_price = safe_decimal(order.get('average', order.get('price', 0)))
+            logger.info(f"Market {side} order executed: {amount} {symbol} @ ${execution_price:.4f}")
             return order
 
         except Exception as e:
@@ -232,7 +265,7 @@ class ExchangeClient:
         stop_price: Decimal
     ) -> Dict[str, Any]:
         """
-        Create a stop-loss order.
+        Create a stop-loss order with retry logic.
 
         Args:
             symbol: Trading pair
@@ -242,34 +275,57 @@ class ExchangeClient:
 
         Returns:
             Order info dict
+
+        Raises:
+            Exception if order placement fails after retries
         """
         if self.paper_trading:
             import time
-            logger.info(f"[PAPER] Stop-loss order: {side} {amount} {symbol} @ ${stop_price:.4f}")
-            return {
-                'id': f'paper_sl_{int(time.time() * 1000)}',
+            import random
+            order_id = f'paper_sl_{int(time.time() * 1000)}_{random.randint(1000, 9999)}'
+
+            # Store paper stop-loss order for monitoring
+            self.paper_orders[order_id] = {
+                'id': order_id,
                 'symbol': symbol,
                 'type': 'stop_market',
                 'side': side,
+                'amount': float(amount),
                 'stopPrice': float(stop_price),
-                'status': 'open'
+                'status': 'open',
+                'timestamp': int(time.time() * 1000)
             }
 
-        try:
-            order = await self.exchange.create_order(
-                symbol=symbol,
-                type='stop_market',
-                side=side,
-                amount=float(amount),
-                params={'stopPrice': float(stop_price)}
-            )
+            logger.info(f"[PAPER] Stop-loss order placed: {side} {amount:.6f} {symbol} @ ${stop_price:.4f}")
+            return self.paper_orders[order_id]
 
-            logger.info(f"Stop-loss order created: {side} {amount} {symbol} @ ${stop_price:.4f}")
-            return order
+        # Real trading - retry logic for stop-loss placement
+        max_retries = 3
+        last_error = None
 
-        except Exception as e:
-            logger.error(f"Error creating stop-loss order: {e}")
-            raise
+        for attempt in range(max_retries):
+            try:
+                order = await self.exchange.create_order(
+                    symbol=symbol,
+                    type='stop_market',
+                    side=side,
+                    amount=float(amount),
+                    params={'stopPrice': float(stop_price)}
+                )
+
+                logger.info(f"Stop-loss order created: {side} {amount} {symbol} @ ${stop_price:.4f}")
+                return order
+
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Stop-loss placement attempt {attempt + 1}/{max_retries} failed: {e}")
+
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
+
+        # All retries failed
+        logger.error(f"CRITICAL: Stop-loss placement failed after {max_retries} attempts: {last_error}")
+        raise Exception(f"Stop-loss order placement failed: {last_error}")
 
     async def cancel_order(self, order_id: str, symbol: str) -> None:
         """Cancel an open order."""

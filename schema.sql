@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS active_position (
     ai_model_consensus VARCHAR(100),
     ai_confidence DECIMAL(3, 2),
     entry_time TIMESTAMP DEFAULT NOW(),
-    last_check_time TIMESTAMP DEFAULT NOW()
+    last_check_time TIMESTAMP DEFAULT NOW(),
+    partial_close_executed BOOLEAN DEFAULT FALSE
 );
 
 -- Trade History
@@ -63,8 +64,11 @@ CREATE TABLE IF NOT EXISTS trade_history (
     is_winner BOOLEAN
 );
 
+-- Performance indexes for trade_history
 CREATE INDEX IF NOT EXISTS idx_trade_history_time ON trade_history(exit_time DESC);
 CREATE INDEX IF NOT EXISTS idx_trade_history_symbol ON trade_history(symbol);
+CREATE INDEX IF NOT EXISTS idx_trade_history_winner ON trade_history(is_winner, exit_time DESC);
+CREATE INDEX IF NOT EXISTS idx_trade_history_daily_pnl ON trade_history(DATE(exit_time), realized_pnl_usd);
 
 -- AI Analysis Cache
 CREATE TABLE IF NOT EXISTS ai_analysis_cache (
@@ -98,6 +102,9 @@ CREATE TABLE IF NOT EXISTS daily_performance (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Performance index for daily_performance
+CREATE INDEX IF NOT EXISTS idx_daily_perf_date ON daily_performance(date DESC);
+
 -- System Logs & Alerts
 CREATE TABLE IF NOT EXISTS system_logs (
     id SERIAL PRIMARY KEY,
@@ -121,6 +128,10 @@ CREATE TABLE IF NOT EXISTS circuit_breaker_events (
     resolved_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Performance index for circuit breaker lookups
+CREATE INDEX IF NOT EXISTS idx_circuit_breaker_time ON circuit_breaker_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_circuit_breaker_type ON circuit_breaker_events(event_type, resolved_at);
 
 -- Initial configuration insert
 INSERT INTO trading_config (

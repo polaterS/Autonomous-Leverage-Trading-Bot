@@ -1,0 +1,17 @@
+# Windows GUI Application Dependencies
+# Install with: pip install -r requirements_gui.txt
+
+# GUI Framework
+PyQt6==6.6.1
+PyQt6-Charts==6.6.0
+
+# Database
+psycopg2-binary==2.9.9
+redis==5.0.1
+
+# Data Processing
+pandas==2.2.3
+numpy==1.26.4
+
+# Utilities
+python-dotenv==1.0.0

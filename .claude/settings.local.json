@@ -5,7 +5,8 @@
       "Bash(python -m json.tool:*)",
       "Bash(docker-compose restart:*)",
       "Bash(docker-compose down:*)",
-      "Bash(docker-compose exec trading-bot python:*)"
+      "Bash(docker-compose exec trading-bot python:*)",
+      "Bash(python generate_icons.py:*)"
     ],
     "deny": [],
     "ask": []

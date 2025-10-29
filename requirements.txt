@@ -17,10 +17,13 @@ pandas==2.2.3
 numpy==1.26.4
 ta==0.11.0
 
-# Database
+# Database & Cache
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
 redis==5.0.1
+
+# WebSocket (for real-time price feeds)
+websockets==12.0
 
 # Utilities
 pydantic==2.5.3

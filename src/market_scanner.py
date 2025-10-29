@@ -66,13 +66,17 @@ class MarketScanner:
                         )
                         continue
 
+                    # Calculate comprehensive opportunity score
+                    opportunity_score = self.calculate_opportunity_score(analysis, market_data)
+
                     # Add to collection with metadata
                     all_analyses.append({
                         'symbol': symbol,
                         'analysis': analysis,
                         'market_data': market_data,
                         'model': analysis.get('model_name', 'unknown'),
-                        'confidence': analysis.get('confidence', 0)
+                        'confidence': analysis.get('confidence', 0),
+                        'opportunity_score': opportunity_score  # Multi-factor score
                     })
 
                     logger.info(
@@ -88,8 +92,9 @@ class MarketScanner:
                 logger.error(f"Error analyzing {symbol}: {e}")
                 continue
 
-        # Sort ALL analyses by confidence (highest first)
-        all_analyses.sort(key=lambda x: x['confidence'], reverse=True)
+        # Sort ALL analyses by opportunity score (multi-factor) instead of just confidence
+        # This considers: AI confidence, market regime, risk/reward, technical alignment
+        all_analyses.sort(key=lambda x: x['opportunity_score'], reverse=True)
 
         logger.info(f"📈 Total analyses collected: {len(all_analyses)}")
 
@@ -101,11 +106,13 @@ class MarketScanner:
                 f"🎯 BEST OPPORTUNITY: {best['symbol']} "
                 f"({best['model'].upper()}) - "
                 f"{best['analysis']['action'].upper()} - "
-                f"Confidence: {best['confidence']:.1%}"
+                f"Confidence: {best['confidence']:.1%} | "
+                f"Score: {best['opportunity_score']:.1f}/100"
             )
 
-            # Check minimum confidence threshold
-            if best['confidence'] >= float(self.settings.min_ai_confidence):
+            # Check both confidence AND opportunity score thresholds
+            min_score = 65.0  # Minimum 65/100 score required
+            if best['confidence'] >= float(self.settings.min_ai_confidence) and best['opportunity_score'] >= min_score:
                 await notifier.send_scan_result(
                     best['symbol'],
                     best['confidence'],
@@ -185,46 +192,46 @@ class MarketScanner:
         """
         Score opportunity from 0-100 based on multiple factors.
 
-        Scoring breakdown:
-        - AI Confidence: 40 points
-        - AI Consensus strength: 20 points
-        - Market regime appropriateness: 20 points
-        - Risk/Reward ratio: 10 points
-        - Technical alignment: 10 points
+        Improved scoring with weighted factors:
+        - AI Confidence: 35 points (most important)
+        - Market Regime Appropriateness: 25 points (critical for leverage)
+        - Risk/Reward Ratio: 20 points (must be favorable)
+        - Technical Alignment: 15 points (confirm the signal)
+        - Volume Confirmation: 5 points (ensure liquidity)
         """
         score = 0.0
 
-        # AI Confidence (40 points)
+        # FACTOR 1: AI Confidence (35 points)
         confidence = ai_analysis.get('confidence', 0)
-        score += confidence * 40
+        score += confidence * 35
 
-        # AI Consensus strength (20 points)
-        consensus_count = ai_analysis.get('consensus_count', 0)
-        if consensus_count == 3:  # All 3 AIs agree
-            score += 20
-        elif consensus_count == 2:  # 2 out of 3
-            score += 10
-
-        # Market regime appropriateness (20 points)
+        # FACTOR 2: Market Regime Appropriateness (25 points)
         regime = market_data.get('market_regime', 'UNKNOWN')
         action = ai_analysis.get('action', 'hold')
+        side = ai_analysis.get('side')
 
         if regime == 'TRENDING' and action in ['buy', 'sell']:
-            score += 20  # Excellent for leverage
-        elif regime == 'RANGING':
-            score += 10  # Moderate
+            score += 25  # Perfect for leverage trading
+        elif regime == 'RANGING' and action in ['buy', 'sell']:
+            score += 12  # Moderate - mean reversion possible
         elif regime == 'VOLATILE':
-            score += 5   # Risky
+            score += 5   # Risky - high slippage and whipsaw risk
+        else:
+            score += 0   # Unknown regime - no points
 
-        # Risk/Reward ratio (10 points)
+        # FACTOR 3: Risk/Reward Ratio (20 points)
         rr_ratio = ai_analysis.get('risk_reward_ratio', 0)
-        if rr_ratio >= 2.0:
-            score += 10
+        if rr_ratio >= 3.0:
+            score += 20  # Excellent R:R
+        elif rr_ratio >= 2.0:
+            score += 15  # Good R:R
         elif rr_ratio >= 1.5:
-            score += 5
+            score += 10  # Acceptable R:R
+        else:
+            score += 0   # Poor R:R - no points
 
-        # Technical alignment (10 points)
-        # All timeframes should agree with the signal
+        # FACTOR 4: Technical Alignment (15 points)
+        # Check if multiple timeframes agree with the signal
         indicators = market_data.get('indicators', {})
         timeframe_agreement = 0
 
@@ -235,8 +242,23 @@ class MarketScanner:
             elif is_bearish(tf_indicators) and action == 'sell':
                 timeframe_agreement += 1
 
-        score += (timeframe_agreement / 3) * 10
+        # Award points based on alignment
+        if timeframe_agreement == 3:
+            score += 15  # All timeframes agree
+        elif timeframe_agreement == 2:
+            score += 10  # 2 out of 3 agree
+        elif timeframe_agreement == 1:
+            score += 5   # Only 1 timeframe agrees
 
+        # FACTOR 5: Volume Confirmation (5 points)
+        # High volume supports the trade thesis
+        volume_trend = market_data.get('indicators', {}).get('15m', {}).get('volume_trend', 'normal')
+        if volume_trend == 'high':
+            score += 5  # Strong volume confirmation
+        else:
+            score += 2  # Normal volume
+
+        # Cap at 100
         return min(score, 100)
 
     async def execute_trade(self, opportunity: Dict[str, Any]) -> None:

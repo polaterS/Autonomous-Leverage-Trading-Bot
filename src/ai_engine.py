@@ -10,6 +10,7 @@ from decimal import Decimal
 from src.config import get_settings, LEVERAGE_TRADING_SYSTEM_PROMPT, build_analysis_prompt
 from src.utils import setup_logging, parse_ai_response
 from src.database import get_db_client
+from src.redis_client import get_redis_client
 import json
 
 logger = setup_logging()
@@ -114,13 +115,13 @@ class AIConsensusEngine:
         Returns:
             Consensus analysis with action, confidence, and reasoning
         """
-        # Check cache first
-        db = await get_db_client()
-        cached = await db.get_ai_cache(symbol, 'consensus', '5m')
+        # Check Redis cache first (much faster than PostgreSQL)
+        redis = await get_redis_client()
+        cached = await redis.get_cached_ai_analysis(symbol, '5m')
 
         if cached:
-            logger.debug(f"Using cached AI analysis for {symbol}")
-            return cached['analysis_json']
+            logger.debug(f"✅ Using cached AI analysis for {symbol} (from Redis)")
+            return cached
 
         # Get analysis from both models in parallel with retries
         logger.info(f"Requesting AI analysis for {symbol}...")
@@ -216,11 +217,22 @@ class AIConsensusEngine:
             'individual_analyses': valid_analyses  # Store both analyses for reference
         }
 
-        # Cache result
-        await db.set_ai_cache(
-            symbol, 'consensus', '5m', consensus,
+        # Cache result in Redis (fast access for next 5 minutes)
+        redis = await get_redis_client()
+        await redis.cache_ai_analysis(
+            symbol, '5m', consensus,
             self.settings.ai_cache_ttl_seconds
         )
+
+        # Also cache in database for analysis/debugging
+        db = await get_db_client()
+        try:
+            await db.set_ai_cache(
+                symbol, 'consensus', '5m', consensus,
+                self.settings.ai_cache_ttl_seconds
+            )
+        except Exception as e:
+            logger.warning(f"Failed to cache in DB (non-critical): {e}")
 
         logger.info(
             f"AI Consensus for {symbol}: {consensus_action.upper()} "
