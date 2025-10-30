@@ -45,18 +45,36 @@ class MarketScanner:
         await notifier.send_alert('info', '🔍 Market scan started...')
 
         all_analyses = []  # Collect ALL individual analyses
+        telegram_bot = await get_telegram_bot()
+        total_symbols = len(self.symbols)
+        scanned = 0
 
         for symbol in self.symbols:
             try:
+                scanned += 1
+
+                # Send scanning notification
+                await telegram_bot.send_message(
+                    f"🔍 <b>[{scanned}/{total_symbols}]</b> {symbol} taranıyor...",
+                    parse_mode="HTML"
+                )
+
                 # Get market data
                 market_data = await self.gather_market_data(symbol)
 
                 if not market_data:
+                    await telegram_bot.send_message(
+                        f"⚠️ {symbol} - Veri alınamadı, atlanıyor.",
+                        parse_mode="HTML"
+                    )
                     continue
 
                 # Get INDIVIDUAL analyses from BOTH models (no consensus)
                 ai_engine = get_ai_engine()
                 individual_analyses = await ai_engine.get_individual_analyses(symbol, market_data)
+
+                # Check for opportunities
+                has_opportunity = False
 
                 # Add each analysis to our collection
                 for analysis in individual_analyses:
@@ -87,11 +105,29 @@ class MarketScanner:
                         f"Confidence: {analysis.get('confidence', 0):.1%}"
                     )
 
+                    has_opportunity = True
+
+                # Send result notification
+                if has_opportunity:
+                    await telegram_bot.send_message(
+                        f"✅ {symbol} - Fırsat tespit edildi! 📊",
+                        parse_mode="HTML"
+                    )
+                else:
+                    await telegram_bot.send_message(
+                        f"❌ {symbol} - Uygun fırsat bulunamadı.",
+                        parse_mode="HTML"
+                    )
+
                 # Rate limiting
                 await asyncio.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}")
+                await telegram_bot.send_message(
+                    f"❌ {symbol} - Hata: {str(e)[:100]}",
+                    parse_mode="HTML"
+                )
                 continue
 
         # Sort ALL analyses by opportunity score (multi-factor) instead of just confidence
@@ -99,6 +135,15 @@ class MarketScanner:
         all_analyses.sort(key=lambda x: x['opportunity_score'], reverse=True)
 
         logger.info(f"📈 Total analyses collected: {len(all_analyses)}")
+
+        # Send scan summary
+        await telegram_bot.send_message(
+            f"📊 <b>Market Taraması Tamamlandı!</b>\n\n"
+            f"✅ Taranan coin: {total_symbols}\n"
+            f"📈 Fırsat bulunan: {len(all_analyses)}\n\n"
+            f"En iyi fırsat analiz ediliyor...",
+            parse_mode="HTML"
+        )
 
         if all_analyses:
             # Get the BEST analysis (highest confidence)

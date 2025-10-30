@@ -299,7 +299,11 @@ Sorularınız için: @your_support
 <b>⏰ Süre:</b>
 • Açılış: {position['entry_time'].strftime('%Y-%m-%d %H:%M:%S')}
 """
-            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+            # Add close position button
+            keyboard = [[InlineKeyboardButton("❌ Pozisyonu Kapat", callback_data="close_position")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
 
         except Exception as e:
             logger.error(f"Error in positions command: {e}")
@@ -385,6 +389,10 @@ Sorularınız için: @your_support
             await self.handle_stop_bot_button(query)
         elif callback_data == "help":
             await self.handle_help_button(query)
+        elif callback_data == "close_position":
+            await self.handle_close_position_button(query)
+        elif callback_data == "cancel_trade":
+            await self.handle_cancel_trade_button(query)
         elif callback_data.startswith("leverage_"):
             await self.handle_leverage_selection(query, callback_data)
 
@@ -491,6 +499,60 @@ Sorularınız için: @your_support
 Detaylı bilgi için /help yazın.
 """
         await query.edit_message_text(message, parse_mode=ParseMode.HTML)
+
+    async def handle_close_position_button(self, query):
+        """Handle close position button."""
+        try:
+            position = await self.db.get_active_position()
+
+            if not position:
+                await query.edit_message_text(
+                    "❌ Kapatılacak pozisyon bulunamadı.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Close the position
+            from src.trade_executor import get_trade_executor
+            executor = get_trade_executor()
+
+            result = await executor.close_position(
+                position=position,
+                reason="Manual close via Telegram",
+                exit_price=float(position.get('current_price', position['entry_price']))
+            )
+
+            if result.get('success'):
+                pnl = float(result.get('realized_pnl_usd', 0))
+                emoji = "✅" if pnl > 0 else "❌"
+
+                await query.edit_message_text(
+                    f"{emoji} <b>Pozisyon Kapatıldı!</b>\n\n"
+                    f"💎 {position['symbol']} {position['side']} {position['leverage']}x\n"
+                    f"💰 Realized P&L: ${pnl:+.2f}\n\n"
+                    f"Pozisyon manuel olarak kapatıldı.",
+                    parse_mode=ParseMode.HTML
+                )
+            else:
+                await query.edit_message_text(
+                    f"❌ Pozisyon kapatılamadı:\n\n{result.get('error', 'Unknown error')}",
+                    parse_mode=ParseMode.HTML
+                )
+
+        except Exception as e:
+            logger.error(f"Error closing position: {e}")
+            await query.edit_message_text(
+                f"❌ Hata: {str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def handle_cancel_trade_button(self, query):
+        """Handle cancel trade button."""
+        self.pending_trade = None
+        await query.edit_message_text(
+            "❌ Trade iptal edildi.",
+            parse_mode=ParseMode.HTML
+        )
 
     async def handle_leverage_selection(self, query, callback_data):
         """Handle leverage selection from opportunity message."""
