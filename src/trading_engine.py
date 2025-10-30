@@ -233,15 +233,8 @@ class AutonomousTradingEngine:
 
         if not limits_check['can_trade']:
             logger.warning(f"⚠️  Trading disabled: {limits_check['reason']}")
-
-            # Send alert if circuit breaker triggered
-            if limits_check['type'] in ['daily_loss_limit', 'consecutive_losses']:
-                await notifier.send_circuit_breaker_alert(
-                    limits_check['type'],
-                    Decimal("0"),  # Placeholder
-                    Decimal("0")   # Placeholder
-                )
-
+            # Note: Circuit breaker alert removed to prevent spam
+            # User can check status anytime with /status command
             return False
 
         return True
