@@ -1,4 +1,24 @@
-# Autonomous Leverage Trading Bot with Telegram Notifications
+# 🤖 Autonomous Leverage Trading Bot
+
+<div align="center">
+
+![Python](https://img.shields.io/badge/Python-3.11+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)
+
+![GitHub Stars](https://img.shields.io/github/stars/polaterS/Autonomous-Leverage-Trading-Bot?style=for-the-badge&logo=github)
+![GitHub Forks](https://img.shields.io/github/forks/polaterS/Autonomous-Leverage-Trading-Bot?style=for-the-badge&logo=github)
+![GitHub Issues](https://img.shields.io/github/issues/polaterS/Autonomous-Leverage-Trading-Bot?style=for-the-badge&logo=github)
+![GitHub Last Commit](https://img.shields.io/github/last-commit/polaterS/Autonomous-Leverage-Trading-Bot?style=for-the-badge&logo=github)
+
+**A production-ready, fully autonomous cryptocurrency leverage trading bot powered by multiple AI models**
+
+[Features](#features) • [Quick Start](#quick-start) • [Documentation](./SETUP_GUIDE.md) • [GUI Dashboard](./windows_app/README.md)
+
+</div>
+
+---
 
 A fully autonomous cryptocurrency leverage trading bot powered by multiple AI models (Claude, DeepSeek, Grok). The bot continuously analyzes markets, executes trades automatically, and sends real-time updates via Telegram.
 
