@@ -1,0 +1,146 @@
+# Prometheus Alerting Rules for Trading Bot
+
+groups:
+  - name: trading_bot_critical
+    interval: 30s
+    rules:
+      # CRITICAL: Liquidation risk
+      - alert: LiquidationRiskHigh
+        expr: trading_bot_active_position_liquidation_distance_percent < 5
+        for: 1m
+        labels:
+          severity: critical
+          component: risk_manager
+        annotations:
+          summary: "CRITICAL: Position near liquidation"
+          description: "Active position is only {{ $value }}% away from liquidation price. Immediate action required!"
+
+      # CRITICAL: Daily loss limit exceeded
+      - alert: DailyLossLimitExceeded
+        expr: trading_bot_daily_pnl_usd < -10
+        for: 1m
+        labels:
+          severity: critical
+          component: risk_manager
+        annotations:
+          summary: "CRITICAL: Daily loss limit exceeded"
+          description: "Daily P&L is ${{ $value }}, exceeding -$10 limit. Trading should be paused."
+
+      # CRITICAL: Capital below minimum
+      - alert: CapitalBelowMinimum
+        expr: trading_bot_current_capital_usd < 50
+        for: 5m
+        labels:
+          severity: critical
+          component: capital_management
+        annotations:
+          summary: "CRITICAL: Capital below minimum threshold"
+          description: "Current capital is ${{ $value }}, below $50 minimum. Bot may not function correctly."
+
+  - name: trading_bot_warning
+    interval: 1m
+    rules:
+      # WARNING: Consecutive losses
+      - alert: ConsecutiveLossesHigh
+        expr: trading_bot_consecutive_losses >= 3
+        for: 1m
+        labels:
+          severity: warning
+          component: risk_manager
+        annotations:
+          summary: "WARNING: High consecutive losses"
+          description: "Bot has {{ $value }} consecutive losses. Circuit breaker may trigger soon."
+
+      # WARNING: Win rate dropped
+      - alert: WinRateDropped
+        expr: trading_bot_win_rate_percent < 40
+        for: 10m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "WARNING: Win rate below 40%"
+          description: "Win rate is {{ $value }}%, below expected 50%+. Strategy may need adjustment."
+
+      # WARNING: AI latency high
+      - alert: AILatencyHigh
+        expr: histogram_quantile(0.95, rate(trading_bot_ai_latency_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: ai_engine
+        annotations:
+          summary: "WARNING: AI API latency is high"
+          description: "AI API p95 latency is {{ $value }}s, above 10s threshold. May impact trading decisions."
+
+      # WARNING: Exchange API errors
+      - alert: ExchangeAPIErrorsHigh
+        expr: rate(trading_bot_exchange_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: exchange_client
+        annotations:
+          summary: "WARNING: High exchange API error rate"
+          description: "Exchange API error rate is {{ $value }}/s. Connection issues may exist."
+
+      # WARNING: Position duration too long
+      - alert: PositionDurationTooLong
+        expr: trading_bot_active_position_duration_seconds > 86400
+        for: 1m
+        labels:
+          severity: warning
+          component: position_monitor
+        annotations:
+          summary: "WARNING: Position open for >24 hours"
+          description: "Active position has been open for {{ $value }}s (>24h). Consider manual review."
+
+  - name: trading_bot_info
+    interval: 5m
+    rules:
+      # INFO: Bot uptime
+      - alert: BotRestartDetected
+        expr: increase(trading_bot_restarts_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: info
+          component: system
+        annotations:
+          summary: "INFO: Bot restarted"
+          description: "Bot has restarted {{ $value }} times in the last 10 minutes."
+
+      # INFO: Circuit breaker triggered
+      - alert: CircuitBreakerTriggered
+        expr: increase(trading_bot_circuit_breakers_triggered_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: info
+          component: risk_manager
+        annotations:
+          summary: "INFO: Circuit breaker activated"
+          description: "Circuit breaker {{ $labels.event_type }} was triggered. Trading may be paused."
+
+  - name: trading_bot_performance
+    interval: 5m
+    rules:
+      # Performance: Slippage too high
+      - alert: SlippageTooHigh
+        expr: histogram_quantile(0.95, rate(trading_bot_slippage_percent_bucket[1h])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          component: trade_executor
+        annotations:
+          summary: "WARNING: High trade slippage"
+          description: "p95 slippage is {{ $value }}%, above 0.5% threshold. May indicate liquidity issues."
+
+      # Performance: Low trade frequency
+      - alert: NoTradesRecently
+        expr: increase(trading_bot_trades_total[24h]) == 0
+        for: 1h
+        labels:
+          severity: info
+          component: market_scanner
+        annotations:
+          summary: "INFO: No trades in last 24 hours"
+          description: "Bot hasn't executed any trades in 24h. May indicate low market opportunities or configuration issue."

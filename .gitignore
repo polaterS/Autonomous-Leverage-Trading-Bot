@@ -1,6 +1,10 @@
 # Environment variables
 .env
 
+# Secrets and encryption keys
+.master.key
+*.key
+
 # Python
 __pycache__/
 *.py[cod]
@@ -50,6 +54,7 @@ docker-compose.override.yml
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Database dumps
 *.sql.gz

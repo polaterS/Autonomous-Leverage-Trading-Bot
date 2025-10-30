@@ -10,13 +10,15 @@ services:
     depends_on:
       - postgres
       - redis
+      - prometheus
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
     networks:
       - trading-network
     ports:
-      - "8000:8000"
+      - "8000:8000"   # Health check endpoint
+      - "8001:8001"   # Prometheus metrics endpoint
 
   postgres:
     image: postgres:15-alpine
@@ -46,6 +48,45 @@ services:
     ports:
       - "6379:6379"
 
+  # ==================== MONITORING SERVICES (NEW) ====================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: trading-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - trading-network
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: trading-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - trading-network
+    ports:
+      - "3000:3000"
+
 networks:
   trading-network:
     driver: bridge
@@ -53,3 +94,5 @@ networks:
 volumes:
   postgres-data:
   redis-data:
+  prometheus-data:
+  grafana-data:

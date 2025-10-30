@@ -1,0 +1,214 @@
+{
+  "dashboard": {
+    "title": "Autonomous Trading Bot - Production Dashboard",
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Current Capital ($)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "trading_bot_current_capital_usd",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 100, "color": "yellow"},
+                {"value": 150, "color": "green"}
+              ]
+            },
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Today's P&L ($)",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "trading_bot_daily_pnl_usd",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": -10, "color": "red"},
+                {"value": 0, "color": "yellow"},
+                {"value": 5, "color": "green"}
+              ]
+            },
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Win Rate (%)",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "trading_bot_win_rate_percent",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 50, "color": "yellow"},
+                {"value": 60, "color": "green"}
+              ]
+            },
+            "max": 100,
+            "min": 0,
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Position P&L ($)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "trading_bot_active_position_pnl_usd",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": -5, "color": "red"},
+                {"value": 0, "color": "yellow"},
+                {"value": 2.5, "color": "green"}
+              ]
+            },
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Capital Over Time",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "trading_bot_current_capital_usd",
+          "refId": "A",
+          "legendFormat": "Capital"
+        }],
+        "yaxes": [
+          {"format": "currencyUSD", "label": "Capital ($)"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Trade P&L Distribution",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "histogram_quantile(0.5, trading_bot_trade_pnl_usd)",
+          "refId": "A",
+          "legendFormat": "Median P&L"
+        }, {
+          "expr": "histogram_quantile(0.95, trading_bot_trade_pnl_usd)",
+          "refId": "B",
+          "legendFormat": "95th Percentile"
+        }],
+        "yaxes": [
+          {"format": "currencyUSD"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Trade Count (Win/Loss)",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 12, "w": 8, "h": 6},
+        "targets": [{
+          "expr": "sum(increase(trading_bot_trades_total{result=\"win\"}[24h]))",
+          "refId": "A",
+          "legendFormat": "Winners"
+        }, {
+          "expr": "sum(increase(trading_bot_trades_total{result=\"loss\"}[24h]))",
+          "refId": "B",
+          "legendFormat": "Losers"
+        }]
+      },
+      {
+        "id": 8,
+        "title": "AI Latency (p95)",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 12, "w": 8, "h": 6},
+        "targets": [{
+          "expr": "histogram_quantile(0.95, rate(trading_bot_ai_latency_seconds_bucket[5m]))",
+          "refId": "A",
+          "legendFormat": "{{model}}"
+        }],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Liquidation Distance (%)",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 12, "w": 8, "h": 6},
+        "targets": [{
+          "expr": "trading_bot_active_position_liquidation_distance_percent",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "green"}
+              ]
+            },
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Circuit Breakers Triggered",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 18, "w": 24, "h": 6},
+        "targets": [{
+          "expr": "increase(trading_bot_circuit_breakers_triggered_total[24h]) > 0",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }],
+        "transformations": [{
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true},
+            "renameByName": {
+              "event_type": "Event Type",
+              "Value": "Count"
+            }
+          }
+        }]
+      }
+    ]
+  }
+}

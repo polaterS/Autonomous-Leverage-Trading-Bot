@@ -1,12 +1,22 @@
 """
-WebSocket client for real-time price feeds from Binance Futures.
-Much more efficient than REST API polling for price monitoring.
+WebSocket Client for Real-Time Price Updates.
+Production-ready implementation with automatic reconnection and error handling.
+
+Features:
+- Real-time ticker updates (price, volume)
+- Automatic reconnection on disconnection with exponential backoff
+- Multiple symbol subscriptions with independent connections
+- Callback-based architecture for event handling
+- Thread-safe price cache with Redis integration
+- Health monitoring and metrics
 """
 
 import asyncio
 import json
+import websockets
 from typing import Dict, Any, Optional, Callable, Set
 from decimal import Decimal
+from datetime import datetime
 from src.config import get_settings
 from src.utils import setup_logging
 from src.redis_client import get_redis_client
@@ -16,50 +26,68 @@ logger = setup_logging()
 
 class WebSocketPriceClient:
     """
-    Real-time price feed via Binance WebSocket.
-    Subscribes to price updates for active positions and scanned symbols.
+    Production-ready WebSocket client for Binance Futures.
+
+    Improvements over basic implementation:
+    - Proper websockets library integration
+    - Per-symbol WebSocket connections for reliability
+    - Exponential backoff reconnection strategy
+    - Comprehensive error handling
+    - Price cache with TTL
+    - Health monitoring
     """
 
     def __init__(self):
         self.settings = get_settings()
-        self.ws_url = "wss://fstream.binance.com/ws"
-        self.websocket = None
-        self.subscribed_symbols: Set[str] = set()
-        self.price_cache: Dict[str, Decimal] = {}
-        self.callbacks: Dict[str, list] = {}  # symbol -> list of callbacks
+        self.ws_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
+        self.subscriptions: Dict[str, Set[Callable]] = {}  # symbol -> set of callbacks
+        self.price_cache: Dict[str, Dict[str, Any]] = {}  # symbol -> {price, timestamp, data}
         self.is_running = False
+        self._tasks: Set[asyncio.Task] = set()
+        self._health_check_task: Optional[asyncio.Task] = None
 
     async def connect(self):
-        """Connect to Binance WebSocket (will be implemented with actual WS library)."""
-        try:
-            # Note: This is a simplified version. In production, use 'websockets' library
-            # pip install websockets
-            import websockets
+        """Initialize WebSocket client and start health monitoring."""
+        self.is_running = True
+        logger.info("✅ WebSocket client initialized (ready for symbol subscriptions)")
 
-            self.websocket = await websockets.connect(self.ws_url)
-            self.is_running = True
-            logger.info("✅ WebSocket connected to Binance")
-
-            # Start message handler
-            asyncio.create_task(self._handle_messages())
-
-        except ImportError:
-            logger.warning(
-                "WebSockets library not installed. WebSocket features disabled. "
-                "Install with: pip install websockets"
-            )
-            self.websocket = None
-
-        except Exception as e:
-            logger.error(f"Failed to connect to WebSocket: {e}")
-            self.websocket = None
+        # Start health check task
+        self._health_check_task = asyncio.create_task(self._health_monitor())
 
     async def close(self):
-        """Close WebSocket connection."""
+        """Close all WebSocket connections gracefully."""
         self.is_running = False
-        if self.websocket:
-            await self.websocket.close()
-            logger.info("WebSocket connection closed")
+        logger.info("Closing WebSocket client...")
+
+        # Stop health monitoring
+        if self._health_check_task and not self._health_check_task.done():
+            self._health_check_task.cancel()
+            try:
+                await self._health_check_task
+            except asyncio.CancelledError:
+                pass
+
+        # Cancel all stream tasks
+        for task in self._tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for tasks to complete
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+
+        # Close all WebSocket connections
+        for symbol, ws in list(self.ws_connections.items()):
+            try:
+                await ws.close()
+                logger.info(f"WebSocket closed for {symbol}")
+            except Exception as e:
+                logger.warning(f"Error closing WebSocket for {symbol}: {e}")
+
+        self.ws_connections.clear()
+        self.subscriptions.clear()
+        self.price_cache.clear()
+        logger.info("✅ All WebSocket connections closed")
 
     async def subscribe_symbol(self, symbol: str, callback: Optional[Callable] = None):
         """

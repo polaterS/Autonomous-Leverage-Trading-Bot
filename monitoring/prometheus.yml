@@ -1,0 +1,34 @@
+# Prometheus Configuration for Trading Bot Monitoring
+
+global:
+  scrape_interval: 15s  # Scrape targets every 15 seconds
+  evaluation_interval: 15s  # Evaluate rules every 15 seconds
+  external_labels:
+    monitor: 'trading-bot'
+    environment: 'production'
+
+# Alerting configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - 'alertmanager:9093'
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "/etc/prometheus/alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Trading Bot metrics
+  - job_name: 'trading-bot'
+    static_configs:
+      - targets: ['trading-bot:8001']
+        labels:
+          instance: 'trading-bot-main'
+          service: 'autonomous-trading-bot'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

@@ -1,8 +1,14 @@
 """
 Trade Executor - Handles actual trade execution.
 Opens positions with proper risk management.
+
+ENHANCED with:
+- Retry logic for slippage recovery (5 attempts with exponential backoff)
+- Critical failure notifications with manual intervention alerts
+- Comprehensive error logging to database
 """
 
+import asyncio
 from typing import Dict, Any, Optional
 from decimal import Decimal
 from datetime import datetime
@@ -109,23 +115,64 @@ class TradeExecutor:
                     f"(max: {float(max_slippage):.3f}%)"
                 )
 
-                # Try to close the position immediately
-                try:
-                    close_side = 'sell' if side == 'LONG' else 'buy'
-                    await exchange.create_market_order(symbol, close_side, quantity)
-                    logger.warning("Position closed due to excessive slippage")
-                except Exception as close_err:
-                    logger.critical(f"Failed to close position after slippage: {close_err}")
+                # ENHANCED: Retry-based emergency close with exponential backoff
+                close_side = 'sell' if side == 'LONG' else 'buy'
+                max_close_attempts = 5
+                close_success = False
 
-                await notifier.send_alert(
-                    'error',
-                    f"Trade cancelled due to excessive slippage:\n"
-                    f"{symbol} {side}\n"
-                    f"Expected: ${float(entry_price):.4f}\n"
-                    f"Executed: ${float(actual_entry_price):.4f}\n"
-                    f"Slippage: {float(slippage_percent):.3f}%\n\n"
-                    f"Position closed immediately."
-                )
+                for attempt in range(max_close_attempts):
+                    try:
+                        logger.warning(f"Emergency close attempt {attempt + 1}/{max_close_attempts}")
+                        await exchange.create_market_order(symbol, close_side, quantity)
+                        logger.info(f"✅ Position closed successfully (attempt {attempt + 1})")
+                        close_success = True
+                        break
+                    except Exception as close_err:
+                        logger.error(f"Close attempt {attempt + 1} failed: {close_err}")
+                        if attempt < max_close_attempts - 1:
+                            # Exponential backoff
+                            backoff_time = 2 ** attempt  # 1s, 2s, 4s, 8s
+                            logger.info(f"Retrying in {backoff_time}s...")
+                            await asyncio.sleep(backoff_time)
+
+                if close_success:
+                    await notifier.send_alert(
+                        'warning',
+                        f"⚠️ Trade cancelled due to excessive slippage:\n"
+                        f"{symbol} {side}\n"
+                        f"Expected: ${float(entry_price):.4f}\n"
+                        f"Executed: ${float(actual_entry_price):.4f}\n"
+                        f"Slippage: {float(slippage_percent):.3f}%\n\n"
+                        f"✅ Position closed successfully after slippage detection."
+                    )
+                else:
+                    # CRITICAL: All close attempts failed!
+                    logger.critical(
+                        f"🚨🚨🚨 CRITICAL: Failed to close position after {max_close_attempts} attempts!"
+                    )
+                    await notifier.send_alert(
+                        'critical',
+                        f"🚨🚨🚨 EMERGENCY - MANUAL INTERVENTION REQUIRED!\n\n"
+                        f"Position {symbol} {side} could NOT be closed after excessive slippage.\n"
+                        f"Excessive slippage: {float(slippage_percent):.3f}%\n"
+                        f"Entry price: ${float(actual_entry_price):.4f}\n\n"
+                        f"⚠️ CLOSE THIS POSITION MANUALLY IMMEDIATELY!\n"
+                        f"Quantity: {float(quantity):.6f}\n"
+                        f"Side: {close_side.upper()}"
+                    )
+                    # Mark in database for manual intervention
+                    await db.log_event(
+                        'CRITICAL',
+                        'TradeExecutor',
+                        'Emergency close failed after slippage',
+                        {
+                            'symbol': symbol,
+                            'side': side,
+                            'quantity': float(quantity),
+                            'slippage_percent': float(slippage_percent),
+                            'requires_manual_close': True
+                        }
+                    )
                 return False
 
             logger.info(

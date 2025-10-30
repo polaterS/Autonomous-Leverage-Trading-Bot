@@ -6,7 +6,21 @@
       "Bash(docker-compose restart:*)",
       "Bash(docker-compose down:*)",
       "Bash(docker-compose exec trading-bot python:*)",
-      "Bash(python generate_icons.py:*)"
+      "Bash(python generate_icons.py:*)",
+      "Bash(pip install:*)",
+      "Bash(if not exist .env copy .env.example .env)",
+      "Bash(dir .env)",
+      "Bash(python -m src.secrets_manager:*)",
+      "Bash(python:*)",
+      "Bash(dir:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose stop:*)",
+      "Bash(git add:*)",
+      "Bash(del nul)"
     ],
     "deny": [],
     "ask": []

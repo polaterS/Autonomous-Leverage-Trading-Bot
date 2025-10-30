@@ -38,3 +38,15 @@ APScheduler==3.10.4
 # HTTP Server (for health checks)
 fastapi==0.115.5
 uvicorn==0.32.1
+
+# Security & Encryption (NEW)
+cryptography==42.0.5
+
+# Metrics & Monitoring (NEW)
+prometheus-client==0.20.0
+
+# Testing (NEW)
+pytest==8.0.2
+pytest-asyncio==0.23.5
+pytest-mock==3.12.0
+pytest-cov==4.1.0

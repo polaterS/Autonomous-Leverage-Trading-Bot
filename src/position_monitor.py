@@ -1,6 +1,11 @@
 """
 Position Monitor - Continuously monitors open positions.
 Checks for stop-loss, take-profit, liquidation risk, and AI exit signals.
+
+ENHANCED with:
+- Real-time WebSocket price updates (primary method)
+- REST API fallback for reliability
+- Sub-second position monitoring
 """
 
 import asyncio
@@ -14,6 +19,7 @@ from src.risk_manager import get_risk_manager
 from src.trade_executor import get_trade_executor
 from src.telegram_notifier import get_notifier
 from src.ai_engine import get_ai_engine
+from src.websocket_client import get_ws_client
 from src.utils import setup_logging, calculate_pnl
 from src.indicators import calculate_indicators, detect_market_regime
 
@@ -21,12 +27,18 @@ logger = setup_logging()
 
 
 class PositionMonitor:
-    """Monitors open positions and manages exit conditions."""
+    """
+    Monitors open positions and manages exit conditions.
+
+    NEW: WebSocket-based real-time monitoring for sub-second updates.
+    """
 
     def __init__(self):
         self.settings = get_settings()
         self.last_update_time = None
         self.last_ai_check_time = None
+        self.use_websocket = True  # Primary method
+        self._ws_monitoring_task: Optional[asyncio.Task] = None
 
     async def check_position(self, position: Dict[str, Any]) -> None:
         """
