@@ -655,31 +655,44 @@ Detaylı bilgi için /help yazın.
         if 'adjusted_stop_loss_percent' in validation:
             analysis['stop_loss_percent'] = validation['adjusted_stop_loss_percent']
 
-        # Execute the trade
+        # Execute the trade using open_position
         executor = get_trade_executor()
-        result = await executor.execute_trade(
-            symbol=symbol,
-            side=analysis['side'],
-            leverage=leverage,
-            stop_loss_percent=analysis['stop_loss_percent'],
-            entry_price=market_data['current_price'],
-            ai_confidence=analysis.get('confidence', 0),
-            reasoning=analysis.get('reasoning', '')
-        )
 
-        if result['success']:
-            logger.info(f"✅ Trade executed successfully: {result}")
+        # Prepare trade_params for open_position
+        trade_params = {
+            'symbol': symbol,
+            'side': analysis['side'],
+            'leverage': leverage,
+            'stop_loss_percent': analysis['stop_loss_percent'],
+            'current_price': market_data['current_price']
+        }
+
+        success = await executor.open_position(trade_params, analysis, market_data)
+
+        if success:
+            logger.info(f"✅ Trade executed successfully")
+
+            # Calculate stop loss price for display
+            from decimal import Decimal
+            entry_price = Decimal(str(market_data['current_price']))
+            stop_loss_pct = Decimal(str(analysis['stop_loss_percent'])) / 100
+
+            if analysis['side'] == 'LONG':
+                stop_loss_price = entry_price * (1 - stop_loss_pct)
+            else:
+                stop_loss_price = entry_price * (1 + stop_loss_pct)
+
             await query.edit_message_text(
                 f"✅ Position açıldı!\n\n"
                 f"💎 {symbol} {analysis['side']} {leverage}x\n"
-                f"💵 Entry: ${result.get('entry_price', 0):.4f}\n"
-                f"🛑 Stop Loss: ${result.get('stop_loss_price', 0):.4f}",
+                f"💵 Entry: ${float(entry_price):.4f}\n"
+                f"🛑 Stop Loss: ${float(stop_loss_price):.4f}",
                 parse_mode=ParseMode.HTML
             )
         else:
-            logger.error(f"❌ Trade execution failed: {result.get('error', 'Unknown error')}")
+            logger.error(f"❌ Trade execution failed")
             await query.edit_message_text(
-                f"❌ Position açılamadı:\n\n{result.get('error', 'Unknown error')}",
+                f"❌ Position açılamadı. Lütfen logları kontrol edin.",
                 parse_mode=ParseMode.HTML
             )
 
