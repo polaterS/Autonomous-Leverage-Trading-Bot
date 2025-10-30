@@ -615,18 +615,31 @@ Detaylı bilgi için /help yazın.
         # Update leverage in analysis
         analysis['suggested_leverage'] = leverage
 
-        # Adaptive stop-loss based on leverage (SAME as in send_multi_leverage_opportunity)
-        # ALWAYS within 5-10% range as required by risk manager
-        if leverage >= 30:
-            analysis['stop_loss_percent'] = 5.0  # 5% for extreme leverage (30x-50x)
-        elif leverage >= 20:
-            analysis['stop_loss_percent'] = 6.0  # 6% for very high leverage (20x-25x)
-        elif leverage >= 10:
-            analysis['stop_loss_percent'] = 7.0  # 7% for high leverage (10x-15x)
-        elif leverage >= 5:
-            analysis['stop_loss_percent'] = 8.0  # 8% for medium leverage (5x)
-        else:
-            analysis['stop_loss_percent'] = 10.0  # 10% for low leverage (2x-3x)
+        # Get current capital from database
+        from src.database import get_db_client
+        db = await get_db_client()
+        config = await db.get_trading_config()
+        capital = float(config.get('current_capital', 100))
+
+        # BINANCE FUTURES CONSTANTS (SAME as in send_multi_leverage_opportunity)
+        TRADING_FEE_RATE = 0.0004  # 0.04% taker fee
+        MAX_LOSS_USD = 10.0  # Maximum loss per trade in USD
+
+        # Calculate stop-loss based on MAX $10 LOSS LIMIT
+        position_size = capital * 0.8  # 80% of capital (initial margin)
+        position_value = position_size * leverage  # Notional value
+        total_fees = position_value * TRADING_FEE_RATE * 2  # Entry + exit fees
+
+        max_loss_after_fees = MAX_LOSS_USD - total_fees
+        if max_loss_after_fees <= 0:
+            max_loss_after_fees = 1.0  # Fallback to $1 minimum
+
+        # Calculate max price movement percentage
+        max_price_movement_pct = max_loss_after_fees / (leverage * position_size)
+
+        # Cap between 5-10% for risk manager compatibility
+        stop_loss_percent = min(10.0, max(5.0, max_price_movement_pct * 100))
+        analysis['stop_loss_percent'] = stop_loss_percent
 
         # Validate with risk manager
         risk_manager = get_risk_manager()
@@ -746,33 +759,49 @@ Detaylı bilgi için /help yazın.
 
         buttons = []
 
+        # BINANCE FUTURES CONSTANTS
+        TRADING_FEE_RATE = 0.0004  # 0.04% taker fee
+        MAINTENANCE_MARGIN_RATE = 0.004  # 0.4% for positions < 50k USDT
+        MAX_LOSS_USD = 10.0  # Maximum loss per trade in USD
+
         for leverage in leverages:
             # Calculate for this leverage
-            position_size = capital * 0.8  # 80% of capital
-            position_value = position_size * leverage
+            position_size = capital * 0.8  # 80% of capital (initial margin)
+            position_value = position_size * leverage  # Notional value
 
-            # Stop-loss calculation (ALWAYS within 5-10% range as required by risk manager)
-            # Higher leverage = tighter stop-loss (closer to 5%)
-            # Lower leverage = wider stop-loss (closer to 10%)
-            if leverage >= 30:
-                stop_loss_percent = 0.05  # 5% for extreme leverage (30x-50x)
-            elif leverage >= 20:
-                stop_loss_percent = 0.06  # 6% for very high leverage (20x-25x)
-            elif leverage >= 10:
-                stop_loss_percent = 0.07  # 7% for high leverage (10x-15x)
-            elif leverage >= 5:
-                stop_loss_percent = 0.08  # 8% for medium leverage (5x)
-            else:
-                stop_loss_percent = 0.10  # 10% for low leverage (2x-3x)
+            # Maintenance Margin (minimum to avoid liquidation)
+            maintenance_margin = position_value * MAINTENANCE_MARGIN_RATE
 
+            # Trading Fees (entry + exit)
+            total_fees = position_value * TRADING_FEE_RATE * 2
+
+            # Calculate stop-loss based on MAX $10 LOSS LIMIT
+            # Real Loss = (Price Movement % × Leverage × Position Size) + Fees
+            # We want: Real Loss <= $10
+            # So: Price Movement % <= (10 - Fees) / (Leverage × Position Size)
+
+            max_loss_after_fees = MAX_LOSS_USD - total_fees
+            if max_loss_after_fees <= 0:
+                # Fees alone exceed $10, skip this leverage
+                continue
+
+            # Calculate max price movement percentage
+            max_price_movement_pct = max_loss_after_fees / (leverage * position_size)
+
+            # Cap between 5-10% for risk manager compatibility
+            stop_loss_percent = min(0.10, max(0.05, max_price_movement_pct))
+
+            # Calculate prices
             if side == "LONG":
                 stop_loss_price = current_price * (1 - stop_loss_percent)
-                liquidation_price = current_price * (1 - 0.95/leverage)
-                take_profit_price = current_price * (1 + stop_loss_percent * 2)  # 2x risk/reward
+                # Real Binance liquidation formula
+                liquidation_price = current_price * (1 - (position_size - maintenance_margin) / position_value)
+                take_profit_price = current_price * (1 + stop_loss_percent * 2)
             else:
                 stop_loss_price = current_price * (1 + stop_loss_percent)
-                liquidation_price = current_price * (1 + 0.95/leverage)
-                take_profit_price = current_price * (1 - stop_loss_percent * 2)  # 2x risk/reward
+                # Real Binance liquidation formula for SHORT
+                liquidation_price = current_price * (1 + (position_size - maintenance_margin) / position_value)
+                take_profit_price = current_price * (1 - stop_loss_percent * 2)
 
             # Risk assessment
             if leverage <= 5:
@@ -784,21 +813,26 @@ Detaylı bilgi için /help yazın.
             elif leverage <= 30:
                 risk = "🔴 Çok Yüksek"
             else:
-                risk = "💀 EXTREMe"
+                risk = "💀 EXTREME"
 
-            # Calculate potential profit/loss
-            potential_loss = position_size * (stop_loss_percent * leverage)
-            potential_profit = potential_loss * 2  # 2:1 risk/reward
+            # Calculate REAL losses/profits (including all costs)
+            price_loss = stop_loss_percent * leverage * position_size
+            real_max_loss = price_loss + total_fees  # Total loss including fees
+
+            price_profit = stop_loss_percent * 2 * leverage * position_size
+            real_max_profit = price_profit - total_fees  # Profit after fees
 
             message += f"""
 <b>[{leverage}x Kaldıraç]</b> {risk}
 ├ 📍 Giriş: ${current_price:.4f}
-├ 🛑 Stop-Loss: ${stop_loss_price:.4f} ({stop_loss_percent*100:.1f}%)
-├ 🎯 Take-Profit: ${take_profit_price:.4f} ({stop_loss_percent*2*100:.1f}%)
+├ 🛑 Stop-Loss: ${stop_loss_price:.4f} ({stop_loss_percent*100:.2f}%)
+├ 🎯 Take-Profit: ${take_profit_price:.4f} ({stop_loss_percent*2*100:.2f}%)
 ├ ⚠️  Liquidation: ${liquidation_price:.4f}
-├ 💰 Pozisyon Değeri: ${position_value:.0f}
-├ 📉 Max Kayıp: ${potential_loss:.2f}
-└ 📈 Hedef Kar: ${potential_profit:.2f}
+├ 💰 Pozisyon: ${position_value:.0f} USDT ({leverage}x)
+├ 💵 Teminat: ${position_size:.2f} USDT
+├ 🏦 Komisyon: ${total_fees:.2f} USDT (giriş+çıkış)
+├ 📉 GERÇEK Max Kayıp: ${real_max_loss:.2f} USDT
+└ 📈 GERÇEK Hedef Kar: ${real_max_profit:.2f} USDT
 
 """
 

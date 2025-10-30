@@ -33,7 +33,8 @@
       "Bash(taskkill:*)",
       "Bash(wmic process where \"name=''python.exe''\" delete)",
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -Bc \"import pathlib, shutil; [shutil.rmtree(p) for p in pathlib.Path(''.'').rglob(''__pycache__'')]\")",
-      "Bash(timeout /t 3 /nobreak)"
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -B main.py)"
     ],
     "deny": [],
     "ask": []
