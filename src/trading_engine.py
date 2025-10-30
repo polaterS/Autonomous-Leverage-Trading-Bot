@@ -113,14 +113,12 @@ class AutonomousTradingEngine:
                     await asyncio.sleep(self.settings.position_check_seconds)
 
                 else:
-                    # No position - scan for opportunities
-                    logger.info("🔍 No active position, scanning markets...")
+                    # No position - wait for manual /scan command
+                    logger.info("💤 No active position, waiting for manual scan command...")
 
-                    scanner = get_market_scanner()
-                    await scanner.scan_and_execute()
-
-                    # Check every 5 minutes when no position
-                    await asyncio.sleep(self.settings.scan_interval_seconds)
+                    # Sleep for 60 seconds, then check again
+                    # Bot will only scan when user runs /scan command via Telegram
+                    await asyncio.sleep(60)
 
                 # Reset error counts on successful cycle
                 self.error_count = 0

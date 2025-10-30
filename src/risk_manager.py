@@ -77,22 +77,10 @@ class RiskManager:
                 'adjusted_params': None
             }
 
-        # RULE 5: Daily loss limit check
-        daily_pnl = await db.get_daily_pnl(date.today())
-        max_daily_loss = current_capital * self.settings.daily_loss_limit_percent
-
-        if daily_pnl < -max_daily_loss:
-            await db.record_circuit_breaker(
-                'daily_loss_limit',
-                daily_pnl,
-                -max_daily_loss,
-                'Trading suspended until next day'
-            )
-            return {
-                'approved': False,
-                'reason': f'Daily loss limit reached: ${daily_pnl:.2f} (limit: ${-max_daily_loss:.2f})',
-                'adjusted_params': None
-            }
+        # RULE 5: Daily loss limit check - DISABLED
+        # User wants per-trade $10 loss limit (handled in stop-loss), not daily limit
+        # Daily loss limit is now disabled to allow multiple trades per day
+        # Each trade has its own $10 max loss via stop-loss calculation
 
         # RULE 6: Consecutive losses check
         consecutive_losses = await db.get_consecutive_losses()
@@ -221,22 +209,16 @@ class RiskManager:
         """
         Check if daily trading limits have been reached.
 
+        NOTE: Daily loss limit DISABLED - user wants per-trade $10 limit only.
+
         Returns:
             Dict with 'can_trade': bool, 'reason': str
         """
         db = await get_db_client()
 
-        # Check daily loss limit
-        current_capital = await db.get_current_capital()
-        daily_pnl = await db.get_daily_pnl(date.today())
-        max_daily_loss = current_capital * self.settings.daily_loss_limit_percent
-
-        if daily_pnl < -max_daily_loss:
-            return {
-                'can_trade': False,
-                'reason': f'Daily loss limit reached: ${daily_pnl:.2f}',
-                'type': 'daily_loss_limit'
-            }
+        # Daily loss limit check - DISABLED
+        # User preference: Each trade has its own $10 max loss (via stop-loss)
+        # No daily cumulative limit
 
         # Check consecutive losses
         consecutive_losses = await db.get_consecutive_losses()
