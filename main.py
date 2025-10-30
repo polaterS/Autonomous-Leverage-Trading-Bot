@@ -8,6 +8,7 @@ import signal
 import sys
 import os
 from src.trading_engine import get_trading_engine
+from src.telegram_bot import get_telegram_bot
 from src.utils import setup_logging
 from src.config import get_settings
 
@@ -49,10 +50,24 @@ async def main():
     # Create and initialize trading engine
     engine = get_trading_engine()
 
+    # Initialize telegram bot
+    telegram_bot = None
+    try:
+        telegram_bot = await get_telegram_bot()
+        logger.info("✅ Interactive Telegram bot initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Telegram bot: {e}")
+        logger.warning("Continuing without Telegram bot...")
+
     # Setup signal handlers for graceful shutdown
     def signal_handler(sig, frame):
         logger.info(f"Signal {sig} received, shutting down...")
         engine.stop()
+        if telegram_bot:
+            try:
+                asyncio.create_task(telegram_bot.shutdown())
+            except:
+                pass
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -86,9 +101,18 @@ async def main():
             logger.critical(f"Failed to initialize engine: {e}")
         sys.exit(1)
 
-    # Run forever
+    # Run both trading engine and telegram bot concurrently
     try:
-        await engine.run_forever()
+        if telegram_bot:
+            logger.info("🚀 Starting trading engine and Telegram bot...")
+            # Run both in parallel
+            await asyncio.gather(
+                engine.run_forever(),
+                telegram_bot.run()
+            )
+        else:
+            logger.info("🚀 Starting trading engine only...")
+            await engine.run_forever()
     except Exception as e:
         logger.critical(f"Fatal error: {e}")
         sys.exit(1)

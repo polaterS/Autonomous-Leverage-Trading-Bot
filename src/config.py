@@ -35,10 +35,10 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)
-    max_leverage: int = Field(default=5, ge=1, le=10)
+    max_leverage: int = Field(default=50, ge=1, le=50)  # Support up to 50x leverage
     position_size_percent: Decimal = Field(default=Decimal("0.80"), gt=0, le=1)
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% for extreme leverage
+    max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% for low leverage
     min_profit_usd: Decimal = Field(default=Decimal("2.50"), gt=0)
     min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)
     scan_interval_seconds: int = Field(default=300, ge=30)
@@ -52,8 +52,9 @@ class Settings(BaseSettings):
     use_paper_trading: bool = Field(default=True)
     enable_debug_logs: bool = Field(default=False)
 
-    # Trading Symbols (high liquidity perpetual futures)
+    # Trading Symbols (high liquidity perpetual futures) - 35 coins
     trading_symbols: list[str] = Field(default=[
+        # Top 10 - Highest Market Cap
         'BTC/USDT:USDT',    # Bitcoin - Largest market cap
         'ETH/USDT:USDT',    # Ethereum - Smart contracts leader
         'SOL/USDT:USDT',    # Solana - High performance blockchain
@@ -62,18 +63,39 @@ class Settings(BaseSettings):
         'DOGE/USDT:USDT',   # Dogecoin - Meme coin leader
         'ADA/USDT:USDT',    # Cardano - Proof of stake platform
         'AVAX/USDT:USDT',   # Avalanche - Fast blockchain
-        'POL/USDT:USDT',    # Polygon - Ethereum scaling
-        'DOT/USDT:USDT',    # Polkadot - Interoperability
+        'TON/USDT:USDT',    # Toncoin - Telegram blockchain
+        'TRX/USDT:USDT',    # Tron - Content sharing platform
+
+        # DeFi & Infrastructure (11-20)
         'LINK/USDT:USDT',   # Chainlink - Oracle network
-        'ATOM/USDT:USDT',   # Cosmos - Internet of blockchains
         'UNI/USDT:USDT',    # Uniswap - DEX leader
-        'LTC/USDT:USDT',    # Litecoin - Silver to Bitcoin's gold
-        'NEAR/USDT:USDT',   # Near Protocol - Scalable blockchain
+        'AAVE/USDT:USDT',   # Aave - Lending protocol
+        'MKR/USDT:USDT',    # Maker - Decentralized stablecoin
+        'GRT/USDT:USDT',    # The Graph - Indexing protocol
+        'RUNE/USDT:USDT',   # THORChain - Cross-chain DEX
+        'INJ/USDT:USDT',    # Injective - DeFi derivatives
+        'ATOM/USDT:USDT',   # Cosmos - Internet of blockchains
+        'DOT/USDT:USDT',    # Polkadot - Interoperability
+        'FTM/USDT:USDT',    # Fantom - Fast smart contracts
+
+        # Layer 2 & Scaling (21-27)
+        'POL/USDT:USDT',    # Polygon - Ethereum scaling
         'ARB/USDT:USDT',    # Arbitrum - Layer 2 scaling
         'OP/USDT:USDT',     # Optimism - Layer 2 solution
-        'SUI/USDT:USDT',    # Sui - New high-performance blockchain
+        'IMX/USDT:USDT',    # Immutable X - NFT Layer 2
+        'APT/USDT:USDT',    # Aptos - New Layer 1
+        'SUI/USDT:USDT',    # Sui - High-performance blockchain
+        'STX/USDT:USDT',    # Stacks - Bitcoin Layer 2
+
+        # Emerging & AI Projects (28-35)
         'FET/USDT:USDT',    # Fetch.ai - AI + Blockchain
-        'INJ/USDT:USDT'     # Injective - DeFi derivatives
+        'NEAR/USDT:USDT',   # Near Protocol - Scalable blockchain
+        'ICP/USDT:USDT',    # Internet Computer - Web3
+        'FIL/USDT:USDT',    # Filecoin - Decentralized storage
+        'ALGO/USDT:USDT',   # Algorand - Pure proof of stake
+        'VET/USDT:USDT',    # VeChain - Supply chain
+        'HBAR/USDT:USDT',   # Hedera - Enterprise blockchain
+        'LTC/USDT:USDT'     # Litecoin - Silver to Bitcoin's gold
     ])
 
     # AI Configuration

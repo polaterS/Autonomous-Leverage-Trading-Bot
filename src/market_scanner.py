@@ -12,6 +12,8 @@ from src.ai_engine import get_ai_engine
 from src.risk_manager import get_risk_manager
 from src.trade_executor import get_trade_executor
 from src.telegram_notifier import get_notifier
+from src.telegram_bot import get_telegram_bot
+from src.database import get_db_client
 from src.utils import setup_logging, is_bullish, is_bearish
 from src.indicators import calculate_indicators, detect_market_regime
 
@@ -119,8 +121,8 @@ class MarketScanner:
                     best['analysis']['action']
                 )
 
-                # Execute the best opportunity
-                await self.execute_trade(best)
+                # Send multi-leverage opportunity to telegram for user selection
+                await self.send_opportunity_for_selection(best)
             else:
                 await notifier.send_alert(
                     'info',
@@ -260,6 +262,42 @@ class MarketScanner:
 
         # Cap at 100
         return min(score, 100)
+
+    async def send_opportunity_for_selection(self, opportunity: Dict[str, Any]) -> None:
+        """
+        Send the best opportunity to telegram bot with multi-leverage options.
+
+        Args:
+            opportunity: Best opportunity dict with symbol, analysis, market_data, model
+        """
+        symbol = opportunity['symbol']
+        analysis = opportunity['analysis']
+        market_data = opportunity['market_data']
+        model_name = opportunity.get('model', 'AI')
+
+        logger.info(f"📱 Sending multi-leverage opportunity to Telegram: {symbol} {analysis['side']}")
+
+        # Get current capital from database
+        db = await get_db_client()
+        config = await db.get_trading_config()
+        capital = float(config.get('current_capital', 100))
+
+        # Get telegram bot
+        telegram_bot = await get_telegram_bot()
+
+        # Send multi-leverage opportunity
+        await telegram_bot.send_multi_leverage_opportunity(
+            symbol=symbol,
+            side=analysis['side'],
+            current_price=float(market_data['current_price']),
+            ai_confidence=analysis.get('confidence', 0),
+            ai_models=[model_name],  # List of AI models that agreed
+            capital=capital,
+            analysis=analysis,
+            market_data=market_data
+        )
+
+        logger.info(f"✅ Multi-leverage opportunity sent to Telegram. Waiting for user selection...")
 
     async def execute_trade(self, opportunity: Dict[str, Any]) -> None:
         """
