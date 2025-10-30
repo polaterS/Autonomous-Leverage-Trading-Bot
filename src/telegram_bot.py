@@ -690,9 +690,10 @@ Detaylı bilgi için /help yazın.
                 parse_mode=ParseMode.HTML
             )
         else:
-            logger.error(f"❌ Trade execution failed")
+            logger.error(f"❌ Trade execution failed or position closed immediately")
             await query.edit_message_text(
-                f"❌ Position açılamadı. Lütfen logları kontrol edin.",
+                f"❌ Trade başarısız oldu veya pozisyon hemen kapatıldı.\n\n"
+                f"Yukarıdaki bildirimleri kontrol edin (slippage, risk limitleri vb.).",
                 parse_mode=ParseMode.HTML
             )
 
