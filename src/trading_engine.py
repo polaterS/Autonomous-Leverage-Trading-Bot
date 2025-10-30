@@ -5,6 +5,7 @@ Manages the infinite loop, coordinates all components, handles errors.
 
 import asyncio
 from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional
 from src.config import get_settings
 from src.database import get_db_client
