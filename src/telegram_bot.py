@@ -532,16 +532,18 @@ Detaylı bilgi için /help yazın.
 
             # Close the position
             from src.trade_executor import get_trade_executor
+            from decimal import Decimal
             executor = get_trade_executor()
 
-            result = await executor.close_position(
+            current_price = Decimal(str(position.get('current_price', position['entry_price'])))
+            success = await executor.close_position(
                 position=position,
-                reason="Manual close via Telegram",
-                exit_price=float(position.get('current_price', position['entry_price']))
+                current_price=current_price,
+                close_reason="Manual close via Telegram"
             )
 
-            if result.get('success'):
-                pnl = float(result.get('realized_pnl_usd', 0))
+            if success:
+                pnl = float(position.get('unrealized_pnl_usd', 0))
                 emoji = "✅" if pnl > 0 else "❌"
 
                 await query.edit_message_text(
@@ -553,7 +555,7 @@ Detaylı bilgi için /help yazın.
                 )
             else:
                 await query.edit_message_text(
-                    f"❌ Pozisyon kapatılamadı:\n\n{result.get('error', 'Unknown error')}",
+                    "❌ Pozisyon kapatılamadı. Lütfen tekrar deneyin.",
                     parse_mode=ParseMode.HTML
                 )
 
@@ -610,15 +612,18 @@ Detaylı bilgi için /help yazın.
         # Update leverage in analysis
         analysis['suggested_leverage'] = leverage
 
-        # Adaptive stop-loss based on leverage
-        if leverage <= 5:
-            analysis['stop_loss_percent'] = 15.0
-        elif leverage <= 10:
-            analysis['stop_loss_percent'] = 10.0
-        elif leverage <= 20:
-            analysis['stop_loss_percent'] = 5.0
+        # Adaptive stop-loss based on leverage (SAME as in send_multi_leverage_opportunity)
+        # ALWAYS within 5-10% range as required by risk manager
+        if leverage >= 30:
+            analysis['stop_loss_percent'] = 5.0  # 5% for extreme leverage (30x-50x)
+        elif leverage >= 20:
+            analysis['stop_loss_percent'] = 6.0  # 6% for very high leverage (20x-25x)
+        elif leverage >= 10:
+            analysis['stop_loss_percent'] = 7.0  # 7% for high leverage (10x-15x)
+        elif leverage >= 5:
+            analysis['stop_loss_percent'] = 8.0  # 8% for medium leverage (5x)
         else:
-            analysis['stop_loss_percent'] = 3.0
+            analysis['stop_loss_percent'] = 10.0  # 10% for low leverage (2x-3x)
 
         # Validate with risk manager
         risk_manager = get_risk_manager()
@@ -727,22 +732,28 @@ Detaylı bilgi için /help yazın.
             position_size = capital * 0.8  # 80% of capital
             position_value = position_size * leverage
 
-            # Stop-loss calculation (adaptive based on leverage)
-            if leverage <= 5:
-                stop_loss_percent = 0.15  # 15% for low leverage
-            elif leverage <= 10:
-                stop_loss_percent = 0.10  # 10% for medium leverage
-            elif leverage <= 20:
-                stop_loss_percent = 0.05  # 5% for high leverage
+            # Stop-loss calculation (ALWAYS within 5-10% range as required by risk manager)
+            # Higher leverage = tighter stop-loss (closer to 5%)
+            # Lower leverage = wider stop-loss (closer to 10%)
+            if leverage >= 30:
+                stop_loss_percent = 0.05  # 5% for extreme leverage (30x-50x)
+            elif leverage >= 20:
+                stop_loss_percent = 0.06  # 6% for very high leverage (20x-25x)
+            elif leverage >= 10:
+                stop_loss_percent = 0.07  # 7% for high leverage (10x-15x)
+            elif leverage >= 5:
+                stop_loss_percent = 0.08  # 8% for medium leverage (5x)
             else:
-                stop_loss_percent = 0.03  # 3% for extreme leverage
+                stop_loss_percent = 0.10  # 10% for low leverage (2x-3x)
 
             if side == "LONG":
                 stop_loss_price = current_price * (1 - stop_loss_percent)
                 liquidation_price = current_price * (1 - 0.95/leverage)
+                take_profit_price = current_price * (1 + stop_loss_percent * 2)  # 2x risk/reward
             else:
                 stop_loss_price = current_price * (1 + stop_loss_percent)
                 liquidation_price = current_price * (1 + 0.95/leverage)
+                take_profit_price = current_price * (1 - stop_loss_percent * 2)  # 2x risk/reward
 
             # Risk assessment
             if leverage <= 5:
@@ -756,9 +767,19 @@ Detaylı bilgi için /help yazın.
             else:
                 risk = "💀 EXTREMe"
 
+            # Calculate potential profit/loss
+            potential_loss = position_size * (stop_loss_percent * leverage)
+            potential_profit = potential_loss * 2  # 2:1 risk/reward
+
             message += f"""
-<b>[{leverage}x]</b> Stop: ${stop_loss_price:.4f} ({stop_loss_percent*100:.0f}%) | Liq: ${liquidation_price:.4f}
-      Pozisyon: ${position_value:.0f} | {risk}
+<b>[{leverage}x Kaldıraç]</b> {risk}
+├ 📍 Giriş: ${current_price:.4f}
+├ 🛑 Stop-Loss: ${stop_loss_price:.4f} ({stop_loss_percent*100:.1f}%)
+├ 🎯 Take-Profit: ${take_profit_price:.4f} ({stop_loss_percent*2*100:.1f}%)
+├ ⚠️  Liquidation: ${liquidation_price:.4f}
+├ 💰 Pozisyon Değeri: ${position_value:.0f}
+├ 📉 Max Kayıp: ${potential_loss:.2f}
+└ 📈 Hedef Kar: ${potential_profit:.2f}
 
 """
 
