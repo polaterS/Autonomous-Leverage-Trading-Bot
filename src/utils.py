@@ -32,6 +32,13 @@ def setup_logging(debug: bool = False) -> logging.Logger:
 
     log_level = logging.DEBUG if debug else logging.INFO
 
+    # Create logger
+    logger = logging.getLogger('trading_bot')
+
+    # If logger already has handlers, don't add more (prevent duplicates)
+    if logger.handlers:
+        return logger
+
     # Create color formatter with Turkey Time
     formatter = TurkeyTimeFormatter(
         "%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -49,8 +56,6 @@ def setup_logging(debug: bool = False) -> logging.Logger:
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
 
-    # Create logger
-    logger = logging.getLogger('trading_bot')
     logger.setLevel(log_level)
     logger.addHandler(handler)
 
