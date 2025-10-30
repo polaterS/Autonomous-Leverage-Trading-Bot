@@ -54,10 +54,9 @@ class DashboardWidget(QWidget):
 
         self.init_ui()
 
-        # Auto-refresh timer (every 2 seconds)
+        # Auto-refresh timer (every 2 seconds) - will be started by MainWindow
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refresh_data)
-        self.refresh_timer.start(2000)  # 2 seconds
 
         # Initial load
         self.refresh_data()

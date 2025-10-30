@@ -46,6 +46,13 @@ class MainWindow(QMainWindow):
         self.status_timer.timeout.connect(self.update_status_bar)
         self.status_timer.start(2000)  # Update every 2 seconds
 
+        # Active tab tracking for performance
+        self.current_tab_index = 0
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
+        # Start dashboard timer (first tab is active by default)
+        self.dashboard_tab.refresh_timer.start(2000)
+
     def init_ui(self):
         """Initialize the main window UI."""
         self.setWindowTitle("🤖 Autonomous Trading Bot Dashboard")
@@ -133,6 +140,31 @@ class MainWindow(QMainWindow):
         docs_action = QAction("Documentation", self)
         docs_action.triggered.connect(self.show_documentation)
         help_menu.addAction(docs_action)
+
+    def on_tab_changed(self, index):
+        """Handle tab change - stop inactive tab timers for performance."""
+        self.current_tab_index = index
+
+        # Stop all widget timers first
+        self.dashboard_tab.refresh_timer.stop()
+        self.trades_tab.refresh_timer.stop()
+        self.charts_tab.refresh_timer.stop()
+        self.logs_tab.refresh_timer.stop()
+
+        # Start only active tab timer
+        if index == 0:  # Dashboard
+            self.dashboard_tab.refresh_timer.start(2000)
+        elif index == 1:  # Trades
+            self.trades_tab.refresh_timer.start(5000)
+            self.trades_tab.refresh_data()  # Refresh immediately
+        elif index == 2:  # Charts
+            self.charts_tab.refresh_timer.start(30000)
+            self.charts_tab.refresh_data()  # Refresh immediately
+        elif index == 3:  # Logs
+            self.logs_tab.refresh_timer.start(1000)
+            # Load recent logs immediately
+            if not self.logs_tab.log_display.toPlainText():
+                self.logs_tab.load_recent_logs()
 
     def update_status_bar(self):
         """Update status bar with current information."""

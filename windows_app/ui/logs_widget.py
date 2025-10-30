@@ -19,13 +19,12 @@ class LogsWidget(QWidget):
 
         self.init_ui()
 
-        # Auto-refresh timer (every 1 second)
+        # Auto-refresh timer (every 1 second) - will be started by MainWindow
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refresh_logs)
-        self.refresh_timer.start(1000)
 
-        # Initial load
-        self.load_recent_logs()
+        # Initial load (delayed - will load when tab is activated)
+        # self.load_recent_logs()
 
     def init_ui(self):
         """Initialize UI components."""

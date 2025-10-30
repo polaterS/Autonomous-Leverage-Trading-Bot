@@ -19,12 +19,12 @@ class ChartsWidget(QWidget):
 
         self.init_ui()
 
-        # Auto-refresh
+        # Auto-refresh timer - will be started by MainWindow
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refresh_data)
-        self.refresh_timer.start(30000)  # 30 seconds
 
-        self.refresh_data()
+        # Initial load (delayed - will load when tab is activated)
+        # self.refresh_data()
 
     def init_ui(self):
         """Initialize UI."""

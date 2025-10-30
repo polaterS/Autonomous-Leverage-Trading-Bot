@@ -75,12 +75,13 @@ class LogController:
     - Performance metrics extraction
     """
 
-    def __init__(self, log_file_path: Optional[str] = None):
+    def __init__(self, log_file_path: Optional[str] = None, use_docker: bool = True):
         """
         Initialize log controller.
 
         Args:
             log_file_path: Path to log file (default: bot.log in project root)
+            use_docker: Read logs from Docker container (default: True)
         """
         if log_file_path:
             self.log_file = Path(log_file_path)
@@ -88,7 +89,10 @@ class LogController:
             # Default log file location
             self.log_file = Path(__file__).parent.parent.parent / "bot.log"
 
+        self.use_docker = use_docker
+        self.docker_container_name = "autonomous-trading-bot"
         self.last_position = 0
+        self.docker_log_cache = []  # Cache for Docker logs
         self.statistics = LogStatistics()
         self._stream_callbacks: List[Callable] = []
         self._event_callbacks: Dict[str, List[Callable]] = defaultdict(list)
@@ -106,6 +110,9 @@ class LogController:
         Returns:
             List of log lines or ParsedLog objects
         """
+        if self.use_docker:
+            return self._get_docker_logs(lines, parse)
+
         if not self.log_file.exists():
             logger.warning(f"Log file not found: {self.log_file}")
             return []
@@ -123,6 +130,35 @@ class LogController:
             logger.error(f"Error reading log file: {e}")
             return []
 
+    def _get_docker_logs(self, lines: int = 100, parse: bool = False) -> List[Any]:
+        """Get logs from Docker container."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "logs", "--tail", str(lines), self.docker_container_name],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode != 0:
+                return []
+
+            # Combine stdout and stderr
+            all_output = result.stdout + result.stderr
+            log_lines = [line.strip() for line in all_output.split('\n') if line.strip()]
+
+            # Update cache
+            self.docker_log_cache = log_lines
+
+            if parse:
+                return [self.parse_log_line_advanced(line) for line in log_lines]
+            return log_lines
+
+        except Exception as e:
+            logger.error(f"Error reading Docker logs: {e}")
+            return []
+
     def get_new_logs(self, parse: bool = False, notify: bool = True) -> List[Any]:
         """
         Get new log lines since last read (for real-time monitoring).
@@ -134,6 +170,9 @@ class LogController:
         Returns:
             List of new log lines or ParsedLog objects
         """
+        if self.use_docker:
+            return self._get_new_docker_logs(parse, notify)
+
         if not self.log_file.exists():
             return []
 
@@ -165,6 +204,38 @@ class LogController:
 
         except Exception as e:
             logger.error(f"Error reading new logs: {e}")
+            return []
+
+    def _get_new_docker_logs(self, parse: bool = False, notify: bool = True) -> List[Any]:
+        """Get new logs from Docker container since last check."""
+        try:
+            # Get latest logs
+            current_logs = self._get_docker_logs(lines=500, parse=False)
+
+            # Find new logs
+            if not self.docker_log_cache:
+                new_logs = current_logs
+            else:
+                # Get logs that weren't in cache
+                new_logs = [log for log in current_logs if log not in self.docker_log_cache]
+
+            # Update cache
+            self.docker_log_cache = current_logs
+
+            # Update statistics
+            for log in new_logs:
+                self._update_statistics(log)
+
+            # Notify callbacks
+            if notify and new_logs:
+                self._notify_new_logs(new_logs)
+
+            if parse:
+                return [self.parse_log_line_advanced(line) for line in new_logs]
+            return new_logs
+
+        except Exception as e:
+            logger.error(f"Error reading new Docker logs: {e}")
             return []
 
     # ==================== Search and filter ====================
