@@ -3,7 +3,7 @@ Dashboard Widget - Real-time trading metrics and position monitoring.
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                              QFrame, QGridLayout, QPushButton, QGroupBox)
+                              QFrame, QGridLayout, QPushButton, QGroupBox, QMessageBox)
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont
 from ..controllers.db_controller import DatabaseController
@@ -302,15 +302,87 @@ class DashboardWidget(QWidget):
 
     def start_bot(self):
         """Start the trading bot."""
-        if self.bot.start_bot():
-            print("Bot started successfully")
+        self.start_btn.setEnabled(False)
+        self.start_btn.setText("Starting...")
+
+        try:
+            if self.bot.start_bot():
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    "✅ Bot started successfully!\n\nThe trading bot is now running."
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Failed",
+                    "❌ Failed to start bot.\n\nPlease check:\n- Docker is running\n- Database is accessible\n- No existing bot instance"
+                )
+        finally:
+            self.start_btn.setText("▶ Start Bot")
+            self.refresh_data()
 
     def stop_bot(self):
         """Stop the trading bot."""
-        if self.bot.stop_bot():
-            print("Bot stopped successfully")
+        # Confirm stop
+        reply = QMessageBox.question(
+            self,
+            "Confirm Stop",
+            "Are you sure you want to stop the trading bot?\n\n⚠️ Any active positions will remain open.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.stop_btn.setEnabled(False)
+            self.stop_btn.setText("Stopping...")
+
+            try:
+                if self.bot.stop_bot():
+                    QMessageBox.information(
+                        self,
+                        "Success",
+                        "✅ Bot stopped successfully!"
+                    )
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Failed",
+                        "❌ Failed to stop bot.\n\nPlease check the logs for details."
+                    )
+            finally:
+                self.stop_btn.setText("■ Stop Bot")
+                self.refresh_data()
 
     def restart_bot(self):
         """Restart the trading bot."""
-        if self.bot.restart_bot():
-            print("Bot restarted successfully")
+        # Confirm restart
+        reply = QMessageBox.question(
+            self,
+            "Confirm Restart",
+            "Are you sure you want to restart the trading bot?\n\nThis will temporarily stop trading.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.restart_btn.setEnabled(False)
+            self.restart_btn.setText("Restarting...")
+
+            try:
+                if self.bot.restart_bot():
+                    QMessageBox.information(
+                        self,
+                        "Success",
+                        "✅ Bot restarted successfully!"
+                    )
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Failed",
+                        "❌ Failed to restart bot.\n\nPlease try stopping and starting manually."
+                    )
+            finally:
+                self.restart_btn.setText("↻ Restart")
+                self.restart_btn.setEnabled(True)
+                self.refresh_data()

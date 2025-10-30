@@ -81,7 +81,7 @@ class DatabaseController:
             min_conn: Minimum connections in pool
             max_conn: Maximum connections in pool
         """
-        self.db_url = os.getenv('DATABASE_URL', 'postgresql://trading_user:changeme123@localhost:5432/trading_bot')
+        self.db_url = os.getenv('DATABASE_URL', 'postgresql://trading_user:changeme123@localhost:5433/trading_bot')
         self.pool: Optional[pool.SimpleConnectionPool] = None
         self.min_conn = min_conn
         self.max_conn = max_conn

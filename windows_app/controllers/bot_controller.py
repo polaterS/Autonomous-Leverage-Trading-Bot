@@ -59,16 +59,20 @@ class BotController:
     - Comprehensive metrics and logging
     """
 
-    def __init__(self, auto_restart: bool = False, max_restarts: int = 5):
+    def __init__(self, auto_restart: bool = False, max_restarts: int = 5, use_docker: bool = True):
         """
         Initialize bot controller.
 
         Args:
             auto_restart: Automatically restart on crashes
             max_restarts: Maximum consecutive restarts before giving up
+            use_docker: Use Docker container for bot (default: True)
         """
         self.bot_process: Optional[subprocess.Popen] = None
         self.bot_script_path = Path(__file__).parent.parent.parent / "main.py"
+        self.project_root = Path(__file__).parent.parent.parent
+        self.use_docker = use_docker
+        self.docker_container_name = "autonomous-trading-bot"
         self.lifecycle = BotLifecycle()
         self.auto_restart = auto_restart
         self.max_restarts = max_restarts
@@ -79,11 +83,24 @@ class BotController:
 
     def is_running(self) -> bool:
         """Check if bot is currently running."""
-        if self.bot_process is None:
-            return False
-
-        # Check if process is still alive
-        return self.bot_process.poll() is None
+        if self.use_docker:
+            # Check if Docker container is running
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "-f", "{{.State.Running}}", self.docker_container_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                return result.returncode == 0 and result.stdout.strip() == "true"
+            except Exception as e:
+                logger.error(f"Error checking Docker container status: {e}")
+                return False
+        else:
+            # Check local process
+            if self.bot_process is None:
+                return False
+            return self.bot_process.poll() is None
 
     def start_bot(self, validate_first: bool = True) -> bool:
         """
@@ -100,24 +117,47 @@ class BotController:
             return False
 
         try:
-            # Pre-start validation
-            if validate_first and not self._validate_startup():
-                logger.error("Startup validation failed")
-                return False
+            if self.use_docker:
+                # Start Docker container
+                logger.info(f"Starting Docker container: {self.docker_container_name}")
+                result = subprocess.run(
+                    ["docker-compose", "up", "-d", "trading-bot"],
+                    cwd=str(self.project_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
 
-            # Start bot as subprocess
-            self.bot_process = subprocess.Popen(
-                ["python", str(self.bot_script_path)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
-            )
+                if result.returncode != 0:
+                    logger.error(f"Failed to start Docker container: {result.stderr}")
+                    return False
+
+                # Wait for container to be running
+                time.sleep(2)
+
+                if not self.is_running():
+                    logger.error("Container started but not running")
+                    return False
+
+            else:
+                # Pre-start validation for local bot
+                if validate_first and not self._validate_startup():
+                    logger.error("Startup validation failed")
+                    return False
+
+                # Start bot as subprocess
+                self.bot_process = subprocess.Popen(
+                    ["python", str(self.bot_script_path)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
+                )
 
             # Update lifecycle
             self.lifecycle.start_time = datetime.now()
             self.lifecycle.stop_time = None
 
-            logger.info(f"Bot started with PID: {self.bot_process.pid}")
+            logger.info("Bot started successfully")
             self._notify_status_change("started")
 
             return True
@@ -142,7 +182,7 @@ class BotController:
             return False
 
         try:
-            # Safety check for active positions
+            # Safety check for active positions (only if not force)
             if check_position and not force:
                 if self._has_active_position():
                     logger.warning("Active position detected - use force=True to override")
@@ -153,21 +193,36 @@ class BotController:
                 uptime = (datetime.now() - self.lifecycle.start_time).total_seconds()
                 self.lifecycle.total_uptime_seconds += uptime
 
-            if force:
-                # Force kill
-                logger.warning("Force killing bot process")
-                self.bot_process.kill()
-            else:
-                # Graceful shutdown
-                logger.info("Gracefully stopping bot")
-                if os.name == 'nt':  # Windows
-                    os.kill(self.bot_process.pid, signal.CTRL_BREAK_EVENT)
-                else:  # Unix
-                    self.bot_process.terminate()
+            if self.use_docker:
+                # Stop Docker container
+                logger.info(f"Stopping Docker container: {self.docker_container_name}")
+                result = subprocess.run(
+                    ["docker-compose", "stop", "trading-bot"],
+                    cwd=str(self.project_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
 
-            # Wait for process to exit
-            self.bot_process.wait(timeout=30)
-            self.bot_process = None
+                if result.returncode != 0:
+                    logger.error(f"Failed to stop Docker container: {result.stderr}")
+                    return False
+
+            else:
+                # Stop local process
+                if force:
+                    logger.warning("Force killing bot process")
+                    self.bot_process.kill()
+                else:
+                    logger.info("Gracefully stopping bot")
+                    if os.name == 'nt':  # Windows
+                        os.kill(self.bot_process.pid, signal.CTRL_BREAK_EVENT)
+                    else:  # Unix
+                        self.bot_process.terminate()
+
+                # Wait for process to exit
+                self.bot_process.wait(timeout=30)
+                self.bot_process = None
 
             # Update lifecycle
             self.lifecycle.stop_time = datetime.now()
@@ -177,13 +232,19 @@ class BotController:
             return True
 
         except subprocess.TimeoutExpired:
-            # Force kill if graceful shutdown failed
-            logger.warning("Graceful shutdown timed out, force killing")
-            self.bot_process.kill()
-            self.bot_process.wait(timeout=5)
-            self.bot_process = None
+            logger.warning("Graceful shutdown timed out, force stopping")
+            if self.use_docker:
+                subprocess.run(
+                    ["docker-compose", "kill", "trading-bot"],
+                    cwd=str(self.project_root),
+                    timeout=10
+                )
+            else:
+                self.bot_process.kill()
+                self.bot_process.wait(timeout=5)
+                self.bot_process = None
             self.lifecycle.stop_time = datetime.now()
-            logger.info("Bot force killed after timeout")
+            logger.info("Bot force stopped after timeout")
             return True
 
         except Exception as e:
@@ -217,7 +278,20 @@ class BotController:
 
     def get_bot_pid(self) -> Optional[int]:
         """Get bot process ID."""
-        if self.is_running():
+        if self.use_docker and self.is_running():
+            try:
+                # Get container PID
+                result = subprocess.run(
+                    ["docker", "inspect", "-f", "{{.State.Pid}}", self.docker_container_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    return int(result.stdout.strip())
+            except:
+                pass
+        elif self.bot_process:
             return self.bot_process.pid
         return None
 
@@ -234,9 +308,38 @@ class BotController:
             }
 
         try:
-            process = psutil.Process(self.bot_process.pid)
-            cpu_percent = process.cpu_percent(interval=0.1)
-            memory_mb = process.memory_info().rss / 1024 / 1024
+            if self.use_docker:
+                # Get Docker container stats
+                result = subprocess.run(
+                    ["docker", "stats", self.docker_container_name, "--no-stream", "--format", "{{.CPUPerc}},{{.MemUsage}}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+
+                if result.returncode == 0:
+                    stats = result.stdout.strip().split(',')
+                    cpu_percent = float(stats[0].rstrip('%'))
+                    # Parse memory (e.g., "123.4MiB / 2GiB")
+                    mem_parts = stats[1].split('/')
+                    mem_str = mem_parts[0].strip()
+                    if 'MiB' in mem_str:
+                        memory_mb = float(mem_str.replace('MiB', ''))
+                    elif 'GiB' in mem_str:
+                        memory_mb = float(mem_str.replace('GiB', '')) * 1024
+                    else:
+                        memory_mb = 0.0
+                else:
+                    cpu_percent = 0.0
+                    memory_mb = 0.0
+
+                pid = self.get_bot_pid()
+            else:
+                # Get local process stats
+                process = psutil.Process(self.bot_process.pid)
+                cpu_percent = process.cpu_percent(interval=0.1)
+                memory_mb = process.memory_info().rss / 1024 / 1024
+                pid = self.bot_process.pid
 
             # Calculate uptime
             uptime_seconds = 0.0
@@ -250,7 +353,7 @@ class BotController:
 
             return {
                 'running': True,
-                'pid': self.bot_process.pid,
+                'pid': pid,
                 'cpu_percent': cpu_percent,
                 'memory_mb': memory_mb,
                 'uptime_seconds': uptime_seconds,
@@ -259,7 +362,7 @@ class BotController:
                 'crash_count': self.lifecycle.crash_count
             }
 
-        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+        except (psutil.NoSuchProcess, psutil.AccessDenied, Exception) as e:
             logger.error(f"Error getting bot status: {e}")
             return {
                 'running': False,
