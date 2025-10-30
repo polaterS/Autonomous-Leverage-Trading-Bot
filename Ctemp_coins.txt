@@ -1,0 +1,180 @@
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:15 - trading_bot - INFO - Requesting individual AI analyses for LTC/USDT:USDT...[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:23 - trading_bot - INFO - Got 2/2 analyses for LTC/USDT:USDT[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:26 - trading_bot - INFO - Requesting individual AI analyses for NEAR/USDT:USDT...[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:35 - trading_bot - INFO - Got 2/2 analyses for NEAR/USDT:USDT[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:37 - trading_bot - INFO - Requesting individual AI analyses for ARB/USDT:USDT...[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:47 - trading_bot - INFO - Got 2/2 analyses for ARB/USDT:USDT[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:50 - trading_bot - INFO - Requesting individual AI analyses for OP/USDT:USDT...[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:20:58 - trading_bot - INFO - Got 2/2 analyses for OP/USDT:USDT[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:01 - trading_bot - INFO - Requesting individual AI analyses for SUI/USDT:USDT...[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:09 - trading_bot - INFO - Got 2/2 analyses for SUI/USDT:USDT[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:12 - trading_bot - INFO - Requesting individual AI analyses for FET/USDT:USDT...[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:20 - trading_bot - INFO - Got 2/2 analyses for FET/USDT:USDT[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:23 - trading_bot - INFO - Requesting individual AI analyses for INJ/USDT:USDT...[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:32 - trading_bot - INFO - Got 2/2 analyses for INJ/USDT:USDT[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m
+[32m2025-10-30 12:21:33 - trading_bot - INFO - 📈 Total analyses collected: 1[0m

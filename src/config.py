@@ -54,16 +54,26 @@ class Settings(BaseSettings):
 
     # Trading Symbols (high liquidity perpetual futures)
     trading_symbols: list[str] = Field(default=[
-        'BTC/USDT:USDT',
-        'ETH/USDT:USDT',
-        'SOL/USDT:USDT',
-        'BNB/USDT:USDT',
-        'XRP/USDT:USDT',
-        'DOGE/USDT:USDT',
-        'ADA/USDT:USDT',
-        'AVAX/USDT:USDT',
-        'POL/USDT:USDT',  # Polygon (formerly MATIC)
-        'DOT/USDT:USDT'
+        'BTC/USDT:USDT',    # Bitcoin - Largest market cap
+        'ETH/USDT:USDT',    # Ethereum - Smart contracts leader
+        'SOL/USDT:USDT',    # Solana - High performance blockchain
+        'BNB/USDT:USDT',    # Binance Coin - Exchange token
+        'XRP/USDT:USDT',    # Ripple - Cross-border payments
+        'DOGE/USDT:USDT',   # Dogecoin - Meme coin leader
+        'ADA/USDT:USDT',    # Cardano - Proof of stake platform
+        'AVAX/USDT:USDT',   # Avalanche - Fast blockchain
+        'POL/USDT:USDT',    # Polygon - Ethereum scaling
+        'DOT/USDT:USDT',    # Polkadot - Interoperability
+        'LINK/USDT:USDT',   # Chainlink - Oracle network
+        'ATOM/USDT:USDT',   # Cosmos - Internet of blockchains
+        'UNI/USDT:USDT',    # Uniswap - DEX leader
+        'LTC/USDT:USDT',    # Litecoin - Silver to Bitcoin's gold
+        'NEAR/USDT:USDT',   # Near Protocol - Scalable blockchain
+        'ARB/USDT:USDT',    # Arbitrum - Layer 2 scaling
+        'OP/USDT:USDT',     # Optimism - Layer 2 solution
+        'SUI/USDT:USDT',    # Sui - New high-performance blockchain
+        'FET/USDT:USDT',    # Fetch.ai - AI + Blockchain
+        'INJ/USDT:USDT'     # Injective - DeFi derivatives
     ])
 
     # AI Configuration

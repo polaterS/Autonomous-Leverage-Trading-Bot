@@ -8,6 +8,23 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional, Dict, Any
 import json
+import time
+
+
+class TurkeyTimeFormatter(colorlog.ColoredFormatter):
+    """Custom formatter that uses Turkey Time (UTC+3)."""
+
+    def formatTime(self, record, datefmt=None):
+        """Override formatTime to use Turkey Time (UTC+3)."""
+        # Convert timestamp to Turkey Time (UTC+3)
+        dt = datetime.fromtimestamp(record.created)
+        turkey_offset = timedelta(hours=3)
+        turkey_time = dt + turkey_offset
+
+        if datefmt:
+            return turkey_time.strftime(datefmt)
+        else:
+            return turkey_time.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def setup_logging(debug: bool = False) -> logging.Logger:
@@ -15,8 +32,8 @@ def setup_logging(debug: bool = False) -> logging.Logger:
 
     log_level = logging.DEBUG if debug else logging.INFO
 
-    # Create color formatter
-    formatter = colorlog.ColoredFormatter(
+    # Create color formatter with Turkey Time
+    formatter = TurkeyTimeFormatter(
         "%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt='%Y-%m-%d %H:%M:%S',
         log_colors={

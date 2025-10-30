@@ -14,7 +14,7 @@
 
 **A production-ready, fully autonomous cryptocurrency leverage trading bot powered by multiple AI models**
 
-[Features](#features) • [Quick Start](#quick-start) • [Documentation](./SETUP_GUIDE.md) • [GUI Dashboard](./windows_app/README.md)
+[Features](#features) • [Quick Start](#quick-start) • [Documentation](./SETUP_GUIDE.md) • [Telegram Notifications](#telegram-commands)
 
 </div>
 
