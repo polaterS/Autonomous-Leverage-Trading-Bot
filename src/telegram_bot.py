@@ -258,14 +258,18 @@ Sorularınız için: @your_support
     async def cmd_positions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /positions command."""
         try:
+            logger.info("📋 /positions command called")
             position = await self.db.get_active_position()
 
             if not position:
+                logger.info("No active position found")
                 await update.message.reply_text(
                     "❌ Şu anda açık pozisyon bulunmuyor.",
                     parse_mode=ParseMode.HTML
                 )
                 return
+
+            logger.info(f"Active position found: {position['symbol']} {position['side']}")
 
             entry_price = float(position['entry_price'])
             current_price = float(position.get('current_price', entry_price))
@@ -303,7 +307,9 @@ Sorularınız için: @your_support
             keyboard = [[InlineKeyboardButton("❌ Pozisyonu Kapat", callback_data="close_position")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
+            logger.info("📍 Sending position info with close button")
             await update.message.reply_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            logger.info("✅ Position message sent successfully")
 
         except Exception as e:
             logger.error(f"Error in positions command: {e}")
@@ -341,13 +347,25 @@ Sorularınız için: @your_support
             await update.message.reply_text(f"❌ Hata: {e}")
 
     async def cmd_scan(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /scan command."""
+        """Handle /scan command - triggers immediate market scan."""
+        logger.info("🔍 /scan command called - triggering market scan")
         await update.message.reply_text(
             "🔍 Market taraması başlatılıyor...\n\nBu işlem 5-6 dakika sürebilir.",
             parse_mode=ParseMode.HTML
         )
-        # Actual scan will be triggered by trading engine
-        # This just sends a notification
+
+        # Actually trigger the market scan
+        try:
+            from src.market_scanner import get_market_scanner
+            scanner = get_market_scanner()
+            await scanner.scan_and_execute()
+            logger.info("✅ Market scan completed successfully")
+        except Exception as e:
+            logger.error(f"Error during market scan: {e}")
+            await update.message.reply_text(
+                f"❌ Market taraması sırasında hata oluştu: {str(e)[:100]}",
+                parse_mode=ParseMode.HTML
+            )
 
     async def cmd_start_bot(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /startbot command."""

@@ -54,10 +54,12 @@ class MarketScanner:
                 scanned += 1
 
                 # Send scanning notification
+                logger.info(f"📨 Sending scan notification for {symbol} ({scanned}/{total_symbols})")
                 await telegram_bot.send_message(
                     f"🔍 <b>[{scanned}/{total_symbols}]</b> {symbol} taranıyor...",
                     parse_mode="HTML"
                 )
+                logger.debug(f"✅ Scan notification sent for {symbol}")
 
                 # Get market data
                 market_data = await self.gather_market_data(symbol)
