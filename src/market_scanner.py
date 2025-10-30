@@ -53,22 +53,14 @@ class MarketScanner:
             try:
                 scanned += 1
 
-                # Send scanning notification
-                logger.info(f"📨 Sending scan notification for {symbol} ({scanned}/{total_symbols})")
-                await telegram_bot.send_message(
-                    f"🔍 <b>[{scanned}/{total_symbols}]</b> {symbol} taranıyor...",
-                    parse_mode="HTML"
-                )
-                logger.debug(f"✅ Scan notification sent for {symbol}")
+                # Log progress (no Telegram spam)
+                logger.info(f"📨 Scanning {symbol} ({scanned}/{total_symbols})")
 
                 # Get market data
                 market_data = await self.gather_market_data(symbol)
 
                 if not market_data:
-                    await telegram_bot.send_message(
-                        f"⚠️ {symbol} - Veri alınamadı, atlanıyor.",
-                        parse_mode="HTML"
-                    )
+                    logger.warning(f"⚠️ {symbol} - Could not fetch data, skipping")
                     continue
 
                 # Get INDIVIDUAL analyses from BOTH models (no consensus)
@@ -109,27 +101,17 @@ class MarketScanner:
 
                     has_opportunity = True
 
-                # Send result notification
+                # Log result (no Telegram spam)
                 if has_opportunity:
-                    await telegram_bot.send_message(
-                        f"✅ {symbol} - Fırsat tespit edildi! 📊",
-                        parse_mode="HTML"
-                    )
+                    logger.info(f"✅ {symbol} - Opportunity found!")
                 else:
-                    await telegram_bot.send_message(
-                        f"❌ {symbol} - Uygun fırsat bulunamadı.",
-                        parse_mode="HTML"
-                    )
+                    logger.debug(f"❌ {symbol} - No suitable opportunity")
 
                 # Rate limiting
                 await asyncio.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}")
-                await telegram_bot.send_message(
-                    f"❌ {symbol} - Hata: {str(e)[:100]}",
-                    parse_mode="HTML"
-                )
                 continue
 
         # Sort ALL analyses by opportunity score (multi-factor) instead of just confidence

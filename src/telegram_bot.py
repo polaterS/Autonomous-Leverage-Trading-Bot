@@ -592,7 +592,8 @@ Detaylı bilgi için /help yazın.
                 await self._execute_pending_trade(leverage, query)
             except Exception as e:
                 logger.error(f"Failed to execute trade: {e}")
-                await query.edit_message_text(
+                await query.answer("❌ Hata")
+                await query.message.reply_text(
                     f"❌ Trade execution failed: {str(e)}",
                     parse_mode=ParseMode.HTML
                 )
@@ -600,6 +601,8 @@ Detaylı bilgi için /help yazın.
 
     async def _execute_pending_trade(self, leverage: int, query):
         """Execute the pending trade with selected leverage."""
+        from decimal import Decimal
+
         if not self.pending_trade:
             return
 
@@ -640,7 +643,8 @@ Detaylı bilgi için /help yazın.
 
         if not validation['approved']:
             logger.warning(f"❌ Trade rejected by risk manager: {validation['reason']}")
-            await query.edit_message_text(
+            await query.answer("❌ Trade reddedildi")
+            await query.message.reply_text(
                 f"❌ Trade reddedildi:\n\n{validation['reason']}",
                 parse_mode=ParseMode.HTML
             )
@@ -673,7 +677,6 @@ Detaylı bilgi için /help yazın.
             logger.info(f"✅ Trade executed successfully")
 
             # Calculate stop loss price for display
-            from decimal import Decimal
             entry_price = Decimal(str(market_data['current_price']))
             stop_loss_pct = Decimal(str(analysis['stop_loss_percent'])) / 100
 
@@ -682,7 +685,8 @@ Detaylı bilgi için /help yazın.
             else:
                 stop_loss_price = entry_price * (1 + stop_loss_pct)
 
-            await query.edit_message_text(
+            await query.answer("✅ Position açıldı!")
+            await query.message.reply_text(
                 f"✅ Position açıldı!\n\n"
                 f"💎 {symbol} {analysis['side']} {leverage}x\n"
                 f"💵 Entry: ${float(entry_price):.4f}\n"
@@ -691,7 +695,8 @@ Detaylı bilgi için /help yazın.
             )
         else:
             logger.error(f"❌ Trade execution failed or position closed immediately")
-            await query.edit_message_text(
+            await query.answer("❌ Trade başarısız")
+            await query.message.reply_text(
                 f"❌ Trade başarısız oldu veya pozisyon hemen kapatıldı.\n\n"
                 f"Yukarıdaki bildirimleri kontrol edin (slippage, risk limitleri vb.).",
                 parse_mode=ParseMode.HTML
