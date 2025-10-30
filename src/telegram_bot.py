@@ -308,7 +308,7 @@ Sorularınız için: @your_support
     async def cmd_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /history command."""
         try:
-            trades = await self.db.get_trade_history(limit=10)
+            trades = await self.db.get_recent_trades(limit=10)
 
             if not trades:
                 await update.message.reply_text(
@@ -438,7 +438,7 @@ Sorularınız için: @your_support
 
     async def handle_history_button(self, query):
         """Handle history button."""
-        trades = await self.db.get_trade_history(limit=5)
+        trades = await self.db.get_recent_trades(limit=5)
 
         if not trades:
             await query.edit_message_text("❌ Henüz kapalı pozisyon yok.")
