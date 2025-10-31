@@ -274,6 +274,7 @@ async def generate_interactive_html_chart(
             ),
             height=800,
             hovermode='x unified',
+            dragmode='pan',  # Default to pan mode (TradingView style)
             font=dict(family="Trebuchet MS", size=11, color="#D1D4DC"),
             paper_bgcolor='#131722',
             plot_bgcolor='#131722',
@@ -291,7 +292,7 @@ async def generate_interactive_html_chart(
             margin=dict(l=10, r=10, t=50, b=10)
         )
 
-        # Update axes - Clean TradingView style
+        # Update axes - Clean TradingView style with Y-axis zoom
         fig.update_xaxes(
             showgrid=True,
             gridwidth=0.5,
@@ -301,6 +302,7 @@ async def generate_interactive_html_chart(
             linecolor='#1E222D',
             rangeslider_visible=True,  # TradingView-style range slider!
             rangeslider_thickness=0.05,
+            fixedrange=False,  # Allow X-axis zoom
             row=2, col=1
         )
 
@@ -310,7 +312,14 @@ async def generate_interactive_html_chart(
             gridcolor='#1E222D',
             showline=True,
             linewidth=1,
-            linecolor='#1E222D'
+            linecolor='#1E222D',
+            fixedrange=False,  # Allow Y-axis zoom (TradingView-style!)
+            side='right',  # Price scale on right side
+            showspikes=True,  # Show crosshair on hover
+            spikemode='across',
+            spikesnap='cursor',
+            spikecolor='#666',
+            spikethickness=1
         )
 
         # Generate HTML - TradingView-style interactions
@@ -319,10 +328,17 @@ async def generate_interactive_html_chart(
             config={
                 'displayModeBar': True,
                 'displaylogo': False,
-                'scrollZoom': True,  # Mouse wheel zoom like TradingView!
+                'scrollZoom': True,  # Mouse wheel zoom (both X and Y axis)
                 'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
                 'doubleClick': 'reset',
-                'responsive': True
+                'responsive': True,
+                'toImageButtonOptions': {
+                    'format': 'png',
+                    'filename': f'{symbol}_chart',
+                    'height': 800,
+                    'width': 1400,
+                    'scale': 2
+                }
             }
         )
 
