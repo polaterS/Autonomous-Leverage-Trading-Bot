@@ -71,36 +71,34 @@ class AIConsensusEngine:
 
     async def get_individual_analyses(self, symbol: str, market_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Get individual analyses from both AI models WITHOUT requiring consensus.
-        Returns all analyses for the "best opportunity" selection strategy.
+        Get individual analyses from DeepSeek model.
+        (Qwen3-Max disabled due to API key issues)
 
         Args:
             symbol: Trading symbol
             market_data: Market data dict with price, indicators, etc.
 
         Returns:
-            List of individual analyses from each model
+            List of individual analyses (currently just DeepSeek)
         """
-        logger.info(f"Requesting individual AI analyses for {symbol}...")
+        logger.info(f"Requesting AI analysis for {symbol} (DeepSeek only)...")
 
-        # Get analysis from both models in parallel with retries
-        tasks = [
-            self._analyze_with_retry(self._analyze_with_qwen, symbol, market_data, "Qwen3-Max"),
-            self._analyze_with_retry(self._analyze_with_deepseek, symbol, market_data, "DeepSeek-V3.2")
-        ]
-
-        analyses = await asyncio.gather(*tasks, return_exceptions=True)
+        # Get analysis from DeepSeek only
+        analysis = await self._analyze_with_retry(
+            self._analyze_with_deepseek,
+            symbol,
+            market_data,
+            "DeepSeek-V3.2"
+        )
 
         # Handle failures gracefully
         valid_analyses = []
-        for i, analysis in enumerate(analyses):
-            if isinstance(analysis, Exception):
-                model_name = ['Qwen3-Max', 'DeepSeek-V3.2'][i]
-                logger.error(f"{model_name} analysis failed: {analysis}")
-            elif analysis is not None:
-                valid_analyses.append(analysis)
+        if analysis is not None:
+            valid_analyses.append(analysis)
+        else:
+            logger.error(f"DeepSeek analysis failed for {symbol}")
 
-        logger.info(f"Got {len(valid_analyses)}/2 analyses for {symbol}")
+        logger.info(f"Got {len(valid_analyses)}/1 analyses for {symbol}")
         return valid_analyses
 
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -123,98 +121,46 @@ class AIConsensusEngine:
             logger.debug(f"✅ Using cached AI analysis for {symbol} (from Redis)")
             return cached
 
-        # Get analysis from both models in parallel with retries
-        logger.info(f"Requesting AI analysis for {symbol}...")
+        # Get analysis from DeepSeek only (Qwen3-Max disabled)
+        logger.info(f"Requesting AI analysis for {symbol} (DeepSeek only)...")
 
-        tasks = [
-            self._analyze_with_retry(self._analyze_with_qwen, symbol, market_data, "Qwen3-Max"),
-            self._analyze_with_retry(self._analyze_with_deepseek, symbol, market_data, "DeepSeek-V3.2")
-        ]
+        analysis = await self._analyze_with_retry(
+            self._analyze_with_deepseek,
+            symbol,
+            market_data,
+            "DeepSeek-V3.2"
+        )
 
-        analyses = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Handle any failures gracefully
-        valid_analyses = []
-        for i, analysis in enumerate(analyses):
-            if isinstance(analysis, Exception):
-                model_name = ['Qwen3-Max', 'DeepSeek-V3.2'][i] if i < 2 else f'Model {i}'
-                logger.error(f"{model_name} analysis failed: {analysis}")
-            elif analysis is not None:
-                valid_analyses.append(analysis)
-
-        # For 2-model system, need both models to respond
-        if len(valid_analyses) < 2:
-            logger.warning(f"Insufficient AI responses for {symbol}: {len(valid_analyses)}/2")
+        # Handle failure
+        if analysis is None:
+            logger.warning(f"DeepSeek failed for {symbol}")
             return {
                 'action': 'hold',
                 'side': None,
                 'confidence': 0.0,
                 'consensus': False,
-                'consensus_count': len(valid_analyses),
-                'reason': 'Insufficient AI responses - need both models',
+                'consensus_count': 0,
+                'reason': 'AI analysis failed',
                 'suggested_leverage': 2,
                 'stop_loss_percent': 7.0,
                 'risk_reward_ratio': 0.0,
-                'reasoning': 'Both AI models must respond for consensus',
-                'models_used': [a.get('model_name', 'unknown') for a in valid_analyses]
+                'reasoning': 'DeepSeek API unavailable',
+                'models_used': []
             }
 
-        # Count votes (2-model system: both must agree for buy/sell)
-        buy_votes = sum(1 for a in valid_analyses if a.get('action') == 'buy')
-        sell_votes = sum(1 for a in valid_analyses if a.get('action') == 'sell')
-        hold_votes = sum(1 for a in valid_analyses if a.get('action') == 'hold')
-
-        logger.info(f"AI Votes for {symbol}: Buy={buy_votes}, Sell={sell_votes}, Hold={hold_votes}")
-
-        # Determine consensus (requires both models to agree)
-        if buy_votes == 2:
-            consensus_action = 'buy'
-            consensus_side = 'LONG'
-        elif sell_votes == 2:
-            consensus_action = 'sell'
-            consensus_side = 'SHORT'
-        else:
-            # If models disagree or both say hold, we hold
-            consensus_action = 'hold'
-            consensus_side = None
-
-        # Get agreeing models (for 2-model system)
-        agreeing_models = [a for a in valid_analyses if a.get('action') == consensus_action]
-
-        # For 2-model system: if both agree on buy/sell, use their average
-        # If they disagree (hold), use lower confidence
-        if len(agreeing_models) == 2:
-            # Both models agree - average their metrics
-            avg_confidence = sum(a.get('confidence', 0) for a in agreeing_models) / 2
-            avg_leverage = int(sum(a.get('suggested_leverage', 3) for a in agreeing_models) / 2)
-            avg_stop_loss = sum(a.get('stop_loss_percent', 7.0) for a in agreeing_models) / 2
-            avg_risk_reward = sum(a.get('risk_reward_ratio', 0) for a in agreeing_models) / 2
-        else:
-            # Models disagree - use conservative values
-            avg_confidence = 0.0
-            avg_leverage = 2
-            avg_stop_loss = 7.0
-            avg_risk_reward = 0.0
-
-        # Combine reasoning from both models
-        combined_reasoning = " | ".join([
-            f"{a.get('model_name', 'AI')}: {a.get('reasoning', 'N/A')[:50]}"
-            for a in valid_analyses
-        ])
-
-        # Build consensus response
+        # Single model - use its values directly
         consensus = {
-            'action': consensus_action,
-            'side': consensus_side,
-            'confidence': round(avg_confidence, 2),
-            'consensus': len(agreeing_models) == 2,  # True only if both models agree
-            'consensus_count': len(agreeing_models),
-            'suggested_leverage': max(2, min(5, avg_leverage)),  # Clamp to 2-5
-            'stop_loss_percent': max(5.0, min(10.0, avg_stop_loss)),  # Clamp to 5-10%
-            'risk_reward_ratio': round(avg_risk_reward, 2),
-            'reasoning': combined_reasoning,
-            'models_used': [a.get('model_name', 'unknown') for a in valid_analyses],
-            'individual_analyses': valid_analyses  # Store both analyses for reference
+            'action': analysis.get('action', 'hold'),
+            'side': analysis.get('side'),
+            'confidence': round(analysis.get('confidence', 0), 2),
+            'consensus': True,  # Single model always "agrees" with itself
+            'consensus_count': 1,
+            'suggested_leverage': max(2, min(5, analysis.get('suggested_leverage', 3))),
+            'stop_loss_percent': max(5.0, min(10.0, analysis.get('stop_loss_percent', 7.0))),
+            'risk_reward_ratio': round(analysis.get('risk_reward_ratio', 0), 2),
+            'reasoning': analysis.get('reasoning', 'N/A'),
+            'models_used': ['deepseek'],
+            'individual_analyses': [analysis]
         }
 
         # Cache result in Redis (fast access for next 5 minutes)
