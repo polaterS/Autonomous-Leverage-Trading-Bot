@@ -394,7 +394,7 @@ Risk Level: {market_data.get('funding_analysis', {}).get('risk_level', 'low').up
 
 ⚡ DIVERGENCE DETECTION (Strongest Reversal Signal):
 Divergence Detected: {market_data.get('divergence', {}).get('has_divergence', False)}
-Type: {market_data.get('divergence', {}).get('type', 'none').upper()}
+Type: {str(market_data.get('divergence', {}).get('type', 'none')).upper()}
 Strength: {market_data.get('divergence', {}).get('strength', 0):.2f}
 Indicator: {market_data.get('divergence', {}).get('indicator', 'N/A')}
 Details: {market_data.get('divergence', {}).get('details', 'N/A')}
@@ -403,7 +403,7 @@ Details: {market_data.get('divergence', {}).get('details', 'N/A')}
 
 📊 ORDER FLOW ANALYSIS (Big Money Positioning):
 Bid/Ask Imbalance: {market_data.get('order_flow', {}).get('imbalance', 0):.2f}%
-Signal: {market_data.get('order_flow', {}).get('signal', 'neutral').upper()}
+Signal: {str(market_data.get('order_flow', {}).get('signal', 'neutral')).upper()}
 Buy Pressure: {market_data.get('order_flow', {}).get('buy_pressure', 0.5)*100:.1f}%
 Large Bid Wall: {f"${market_data.get('order_flow', {}).get('large_bid_wall', {}).get('price', 0):.4f}" if market_data.get('order_flow', {}).get('large_bid_wall') else "None"}
 Large Ask Wall: {f"${market_data.get('order_flow', {}).get('large_ask_wall', {}).get('price', 0):.4f}" if market_data.get('order_flow', {}).get('large_ask_wall') else "None"}
@@ -411,7 +411,7 @@ Large Ask Wall: {f"${market_data.get('order_flow', {}).get('large_ask_wall', {})
 → Large order walls = Institutional support/resistance
 
 🐋 SMART MONEY CONCEPTS (Institutional Edge):
-Signal: {market_data.get('smart_money', {}).get('smart_money_signal', 'neutral').upper()}
+Signal: {str(market_data.get('smart_money', {}).get('smart_money_signal', 'neutral')).upper()}
 Order Blocks: {market_data.get('smart_money', {}).get('order_block_count', 0)}
 Fair Value Gaps: {len(market_data.get('smart_money', {}).get('fair_value_gaps', []))}
 Liquidity Grab Detected: {market_data.get('smart_money', {}).get('liquidity_grab_detected', False)}
@@ -421,7 +421,7 @@ Liquidity Grab Detected: {market_data.get('smart_money', {}).get('liquidity_grab
 
 📈 VOLATILITY ANALYSIS (Adaptive Risk Management):
 ATR: {market_data.get('volatility', {}).get('atr_percent', 0):.2f}%
-Volatility Level: {market_data.get('volatility', {}).get('volatility_level', 'unknown').upper()}
+Volatility Level: {str(market_data.get('volatility', {}).get('volatility_level', 'unknown')).upper()}
 Recommended Stop: {market_data.get('volatility', {}).get('recommended_stop_pct', 7):.1f}%
 Breakout Detected: {market_data.get('volatility', {}).get('breakout_detected', False)}
 Upper Band: ${market_data.get('volatility', {}).get('upper_band', 0):.4f}
