@@ -206,11 +206,11 @@ class TradingViewChartGenerator:
             # Detect support/resistance levels
             current_price = float(df['close'].iloc[-1])
             support_resistance = detect_support_resistance_levels(ohlcv_data, current_price)
-            support_levels = support_resistance.get('support_levels', [])
-            resistance_levels = support_resistance.get('resistance_levels', [])
+            support_levels = support_resistance.get('swing_lows', [])
+            resistance_levels = support_resistance.get('swing_highs', [])
 
-            logger.info(f"🔍 Support levels: {support_levels[:3]}")
-            logger.info(f"🔍 Resistance levels: {resistance_levels[:3]}")
+            logger.info(f"🔍 Support levels (swing_lows): {support_levels[:3]}")
+            logger.info(f"🔍 Resistance levels (swing_highs): {resistance_levels[:3]}")
 
             # Detect trend lines
             trend_lines = self.detect_trend_lines(df)
