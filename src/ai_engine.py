@@ -233,14 +233,19 @@ class AIConsensusEngine:
             )
 
             content = response.choices[0].message.content
+
+            # DEBUG: Log raw AI response
+            logger.info(f"🔍 DeepSeek RAW response for {symbol}: {content[:200]}...")
+
             analysis = parse_ai_response(content)
 
             if analysis:
                 analysis['model_name'] = 'deepseek'
-                logger.debug(f"DeepSeek analysis: {analysis.get('action')} ({analysis.get('confidence', 0):.0%})")
+                logger.info(f"✅ DeepSeek parsed: action={analysis.get('action')}, confidence={analysis.get('confidence', 0):.2f}, side={analysis.get('side')}")
                 return analysis
             else:
-                logger.warning("Failed to parse DeepSeek response")
+                logger.warning(f"❌ Failed to parse DeepSeek response for {symbol}")
+                logger.warning(f"   Raw content: {content}")
                 return None
 
         except Exception as e:
