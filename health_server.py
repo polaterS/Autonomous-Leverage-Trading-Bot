@@ -16,8 +16,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 app = FastAPI(title="Trading Bot Health API", version="1.0.0")
 
-# Import chart server endpoints
-from src.chart_server import _charts_storage, _cleanup_expired_charts
+# Import chart server components
+from src.chart_server import CHARTS_DIR, _cleanup_expired_charts
+from pathlib import Path
+import json
 
 startup_time = datetime.now()
 
@@ -180,34 +182,55 @@ async def get_chart(chart_id: str):
     """
     _cleanup_expired_charts()
 
-    if chart_id not in _charts_storage:
+    # Check filesystem
+    html_file = CHARTS_DIR / f"{chart_id}.html"
+    metadata_file = CHARTS_DIR / f"{chart_id}.json"
+
+    if not html_file.exists() or not metadata_file.exists():
         raise HTTPException(status_code=404, detail="Chart not found or expired")
 
-    chart_data = _charts_storage[chart_id]
+    # Read metadata
+    try:
+        metadata = json.loads(metadata_file.read_text())
+        expires_at = datetime.fromisoformat(metadata['expires_at'])
 
-    # Check if expired
-    if chart_data['expires_at'] < datetime.now():
-        del _charts_storage[chart_id]
-        raise HTTPException(status_code=410, detail="Chart expired")
+        # Check if expired
+        if expires_at < datetime.now():
+            html_file.unlink()
+            metadata_file.unlink()
+            raise HTTPException(status_code=410, detail="Chart expired")
 
-    return HTMLResponse(content=chart_data['html'])
+        # Read and serve HTML
+        html_content = html_file.read_text(encoding='utf-8')
+        return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/charts")
 async def list_charts():
     """List all active charts."""
     _cleanup_expired_charts()
-    return {
-        "total_charts": len(_charts_storage),
-        "charts": [
-            {
+
+    # List from filesystem
+    charts = []
+    for metadata_file in CHARTS_DIR.glob("*.json"):
+        try:
+            metadata = json.loads(metadata_file.read_text())
+            chart_id = metadata_file.stem
+            charts.append({
                 "id": chart_id,
-                "symbol": data['symbol'],
-                "created_at": data['created_at'].isoformat(),
-                "expires_at": data['expires_at'].isoformat()
-            }
-            for chart_id, data in _charts_storage.items()
-        ]
+                "symbol": metadata['symbol'],
+                "created_at": metadata['created_at'],
+                "expires_at": metadata['expires_at']
+            })
+        except Exception:
+            pass
+
+    return {
+        "total_charts": len(charts),
+        "charts": charts
     }
 
 
