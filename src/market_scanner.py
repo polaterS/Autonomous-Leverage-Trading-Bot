@@ -15,7 +15,14 @@ from src.telegram_notifier import get_notifier
 from src.telegram_bot import get_telegram_bot
 from src.database import get_db_client
 from src.utils import setup_logging, is_bullish, is_bearish
-from src.indicators import calculate_indicators, detect_market_regime
+from src.indicators import (
+    calculate_indicators,
+    detect_market_regime,
+    detect_support_resistance_levels,
+    calculate_volume_profile,
+    calculate_fibonacci_levels,
+    analyze_funding_rate_trend
+)
 
 logger = setup_logging()
 
@@ -197,9 +204,35 @@ class MarketScanner:
             # Market regime detection
             regime = detect_market_regime(ohlcv_1h)
 
+            current_price = ticker['last']
+
+            # ADVANCED INDICATORS (Institutional-Grade Analysis)
+            # 1. Support/Resistance Levels (Key liquidity zones)
+            support_resistance = detect_support_resistance_levels(ohlcv_1h, current_price)
+
+            # 2. Volume Profile (POC and value areas)
+            volume_profile = calculate_volume_profile(ohlcv_1h)
+
+            # 3. Fibonacci Levels (Retracement and extension targets)
+            fibonacci = calculate_fibonacci_levels(ohlcv_4h, current_price)
+
+            # 4. Funding Rate Trend (Overleveraged position detection)
+            # Fetch historical funding rates (last 8 hours)
+            funding_history = []
+            try:
+                funding_history_data = await exchange.fetch_funding_rate_history(symbol, limit=8)
+                funding_history = [f['fundingRate'] for f in funding_history_data if f.get('fundingRate') is not None]
+            except:
+                pass
+
+            if not funding_history:
+                funding_history = [funding_rate] if funding_rate else [0.0]
+
+            funding_analysis = analyze_funding_rate_trend(funding_history)
+
             return {
                 'symbol': symbol,
-                'current_price': ticker['last'],
+                'current_price': current_price,
                 'volume_24h': ticker.get('quoteVolume', 0),
                 'ohlcv': {
                     '15m': ohlcv_15m[-20:],  # Last 20 candles
@@ -212,7 +245,12 @@ class MarketScanner:
                     '4h': indicators_4h
                 },
                 'funding_rate': funding_rate,
-                'market_regime': regime
+                'market_regime': regime,
+                # ADVANCED INSTITUTIONAL INDICATORS
+                'support_resistance': support_resistance,
+                'volume_profile': volume_profile,
+                'fibonacci': fibonacci,
+                'funding_analysis': funding_analysis
             }
 
         except Exception as e:

@@ -244,6 +244,386 @@ def detect_market_regime(ohlcv_data: List[List]) -> str:
         return 'UNKNOWN'
 
 
+def detect_support_resistance_levels(ohlcv_data: List[List], current_price: float) -> Dict[str, Any]:
+    """
+    Detect key support and resistance levels using pivot points and swing highs/lows.
+
+    Institutional traders watch these levels for:
+    - Entry/exit points
+    - Stop-loss placement
+    - Liquidation cluster zones
+
+    Args:
+        ohlcv_data: List of [timestamp, open, high, low, close, volume]
+        current_price: Current market price
+
+    Returns:
+        Dict with support/resistance levels and distance percentages
+    """
+    if not ohlcv_data or len(ohlcv_data) < 20:
+        return {
+            'nearest_support': current_price * 0.98,
+            'nearest_resistance': current_price * 1.02,
+            'support_distance_pct': 2.0,
+            'resistance_distance_pct': 2.0,
+            'key_levels': []
+        }
+
+    try:
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Find swing highs (resistance) and swing lows (support)
+        # A swing high is a high that's higher than N highs before and after it
+        swing_period = 5
+
+        swing_highs = []
+        swing_lows = []
+
+        for i in range(swing_period, len(df) - swing_period):
+            # Check if this is a swing high
+            is_swing_high = True
+            is_swing_low = True
+
+            for j in range(1, swing_period + 1):
+                if df['high'].iloc[i] <= df['high'].iloc[i - j] or df['high'].iloc[i] <= df['high'].iloc[i + j]:
+                    is_swing_high = False
+                if df['low'].iloc[i] >= df['low'].iloc[i - j] or df['low'].iloc[i] >= df['low'].iloc[i + j]:
+                    is_swing_low = False
+
+            if is_swing_high:
+                swing_highs.append(float(df['high'].iloc[i]))
+            if is_swing_low:
+                swing_lows.append(float(df['low'].iloc[i]))
+
+        # Also add recent highs/lows
+        recent_high = float(df['high'].tail(20).max())
+        recent_low = float(df['low'].tail(20).min())
+
+        if recent_high not in swing_highs:
+            swing_highs.append(recent_high)
+        if recent_low not in swing_lows:
+            swing_lows.append(recent_low)
+
+        # Find nearest support and resistance
+        supports_below = [s for s in swing_lows if s < current_price]
+        resistances_above = [r for r in swing_highs if r > current_price]
+
+        nearest_support = max(supports_below) if supports_below else current_price * 0.97
+        nearest_resistance = min(resistances_above) if resistances_above else current_price * 1.03
+
+        # Calculate distances
+        support_distance_pct = abs(current_price - nearest_support) / current_price * 100
+        resistance_distance_pct = abs(nearest_resistance - current_price) / current_price * 100
+
+        # Combine all key levels
+        all_levels = sorted(set(swing_highs + swing_lows))
+
+        return {
+            'nearest_support': nearest_support,
+            'nearest_resistance': nearest_resistance,
+            'support_distance_pct': support_distance_pct,
+            'resistance_distance_pct': resistance_distance_pct,
+            'key_levels': all_levels[-10:],  # Last 10 key levels
+            'swing_highs': swing_highs[-5:],  # Last 5 swing highs
+            'swing_lows': swing_lows[-5:]  # Last 5 swing lows
+        }
+
+    except Exception as e:
+        return {
+            'nearest_support': current_price * 0.98,
+            'nearest_resistance': current_price * 1.02,
+            'support_distance_pct': 2.0,
+            'resistance_distance_pct': 2.0,
+            'key_levels': []
+        }
+
+
+def calculate_volume_profile(ohlcv_data: List[List]) -> Dict[str, Any]:
+    """
+    Calculate Volume Profile to identify high-volume price levels (value areas).
+
+    Institutional concept: Price tends to return to high-volume nodes (fair value).
+    - POC (Point of Control): Price level with highest volume
+    - Value Area High/Low: 70% of volume distribution
+
+    Args:
+        ohlcv_data: List of OHLCV candles
+
+    Returns:
+        Dict with POC, value areas, and volume distribution
+    """
+    if not ohlcv_data or len(ohlcv_data) < 20:
+        return {
+            'poc': 0.0,  # Point of Control
+            'value_area_high': 0.0,
+            'value_area_low': 0.0,
+            'high_volume_nodes': []
+        }
+
+    try:
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        for col in ['close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Create price bins (1% intervals)
+        min_price = df['close'].min()
+        max_price = df['close'].max()
+        num_bins = 50
+
+        price_bins = np.linspace(min_price, max_price, num_bins)
+        volume_at_price = np.zeros(num_bins - 1)
+
+        # Distribute volume to price bins
+        for i in range(len(df)):
+            price = df['close'].iloc[i]
+            volume = df['volume'].iloc[i]
+
+            # Find which bin this price falls into
+            bin_idx = np.digitize(price, price_bins) - 1
+            if 0 <= bin_idx < len(volume_at_price):
+                volume_at_price[bin_idx] += volume
+
+        # Find Point of Control (highest volume)
+        poc_idx = np.argmax(volume_at_price)
+        poc_price = (price_bins[poc_idx] + price_bins[poc_idx + 1]) / 2
+
+        # Find Value Area (70% of total volume)
+        total_volume = np.sum(volume_at_price)
+        target_volume = total_volume * 0.70
+
+        # Start from POC and expand
+        va_indices = [poc_idx]
+        accumulated_volume = volume_at_price[poc_idx]
+
+        left_idx = poc_idx - 1
+        right_idx = poc_idx + 1
+
+        while accumulated_volume < target_volume and (left_idx >= 0 or right_idx < len(volume_at_price)):
+            left_vol = volume_at_price[left_idx] if left_idx >= 0 else 0
+            right_vol = volume_at_price[right_idx] if right_idx < len(volume_at_price) else 0
+
+            if left_vol > right_vol and left_idx >= 0:
+                va_indices.append(left_idx)
+                accumulated_volume += left_vol
+                left_idx -= 1
+            elif right_idx < len(volume_at_price):
+                va_indices.append(right_idx)
+                accumulated_volume += right_vol
+                right_idx += 1
+            else:
+                break
+
+        va_indices = sorted(va_indices)
+        value_area_low = price_bins[va_indices[0]]
+        value_area_high = price_bins[va_indices[-1] + 1]
+
+        # Find high volume nodes (above 80th percentile)
+        volume_threshold = np.percentile(volume_at_price, 80)
+        high_volume_nodes = []
+
+        for i, vol in enumerate(volume_at_price):
+            if vol >= volume_threshold:
+                node_price = (price_bins[i] + price_bins[i + 1]) / 2
+                high_volume_nodes.append(float(node_price))
+
+        return {
+            'poc': float(poc_price),
+            'value_area_high': float(value_area_high),
+            'value_area_low': float(value_area_low),
+            'high_volume_nodes': high_volume_nodes
+        }
+
+    except Exception as e:
+        return {
+            'poc': 0.0,
+            'value_area_high': 0.0,
+            'value_area_low': 0.0,
+            'high_volume_nodes': []
+        }
+
+
+def calculate_fibonacci_levels(ohlcv_data: List[List], current_price: float) -> Dict[str, Any]:
+    """
+    Calculate Fibonacci retracement and extension levels.
+
+    Institutional traders use Fibonacci levels for:
+    - Identifying potential reversal zones
+    - Setting profit targets
+    - Finding confluence with other indicators
+
+    Key Levels: 0.236, 0.382, 0.5, 0.618, 0.786 (retracements)
+                1.272, 1.618 (extensions)
+
+    Args:
+        ohlcv_data: List of OHLCV candles
+        current_price: Current market price
+
+    Returns:
+        Dict with Fibonacci levels and nearest level
+    """
+    if not ohlcv_data or len(ohlcv_data) < 20:
+        return {
+            'trend': 'unknown',
+            'swing_high': current_price,
+            'swing_low': current_price,
+            'fib_levels': {},
+            'nearest_fib_level': 0.5,
+            'nearest_fib_price': current_price
+        }
+
+    try:
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        for col in ['high', 'low', 'close']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Find recent swing high and swing low
+        swing_high = float(df['high'].tail(50).max())
+        swing_low = float(df['low'].tail(50).min())
+
+        # Determine trend direction
+        recent_close = float(df['close'].iloc[-1])
+        trend = 'uptrend' if recent_close > (swing_high + swing_low) / 2 else 'downtrend'
+
+        # Calculate Fibonacci levels
+        diff = swing_high - swing_low
+
+        if trend == 'uptrend':
+            # Retracement from high to low
+            fib_levels = {
+                '0.0': swing_high,
+                '0.236': swing_high - (diff * 0.236),
+                '0.382': swing_high - (diff * 0.382),
+                '0.5': swing_high - (diff * 0.5),
+                '0.618': swing_high - (diff * 0.618),
+                '0.786': swing_high - (diff * 0.786),
+                '1.0': swing_low,
+                '1.272': swing_low - (diff * 0.272),
+                '1.618': swing_low - (diff * 0.618)
+            }
+        else:
+            # Retracement from low to high
+            fib_levels = {
+                '0.0': swing_low,
+                '0.236': swing_low + (diff * 0.236),
+                '0.382': swing_low + (diff * 0.382),
+                '0.5': swing_low + (diff * 0.5),
+                '0.618': swing_low + (diff * 0.618),
+                '0.786': swing_low + (diff * 0.786),
+                '1.0': swing_high,
+                '1.272': swing_high + (diff * 0.272),
+                '1.618': swing_high + (diff * 0.618)
+            }
+
+        # Find nearest Fibonacci level to current price
+        distances = {level: abs(price - current_price) for level, price in fib_levels.items()}
+        nearest_level = min(distances, key=distances.get)
+        nearest_price = fib_levels[nearest_level]
+
+        return {
+            'trend': trend,
+            'swing_high': swing_high,
+            'swing_low': swing_low,
+            'fib_levels': {k: float(v) for k, v in fib_levels.items()},
+            'nearest_fib_level': float(nearest_level),
+            'nearest_fib_price': float(nearest_price),
+            'nearest_distance_pct': abs(current_price - nearest_price) / current_price * 100
+        }
+
+    except Exception as e:
+        return {
+            'trend': 'unknown',
+            'swing_high': current_price,
+            'swing_low': current_price,
+            'fib_levels': {},
+            'nearest_fib_level': 0.5,
+            'nearest_fib_price': current_price
+        }
+
+
+def analyze_funding_rate_trend(funding_rate_history: List[float]) -> Dict[str, Any]:
+    """
+    Analyze funding rate trends to detect overleveraged positions.
+
+    Crypto-specific edge:
+    - Positive funding: Longs pay shorts → Overleveraged longs (SHORT opportunity)
+    - Negative funding: Shorts pay longs → Overleveraged shorts (LONG opportunity)
+    - Trend matters: Rising funding = increasing leverage = squeeze risk
+
+    Args:
+        funding_rate_history: List of recent funding rates (as decimals)
+
+    Returns:
+        Dict with trend analysis and trading implications
+    """
+    if not funding_rate_history or len(funding_rate_history) < 3:
+        return {
+            'current_rate': 0.0,
+            'avg_rate': 0.0,
+            'trend': 'neutral',
+            'trading_implication': 'neutral',
+            'risk_level': 'low'
+        }
+
+    try:
+        current_rate = funding_rate_history[-1]
+        avg_rate = np.mean(funding_rate_history)
+
+        # Calculate trend (linear regression slope)
+        x = np.arange(len(funding_rate_history))
+        y = np.array(funding_rate_history)
+
+        # Simple linear fit
+        coeffs = np.polyfit(x, y, 1)
+        slope = coeffs[0]
+
+        # Determine trend
+        if slope > 0.0001:
+            trend = 'rising'
+        elif slope < -0.0001:
+            trend = 'falling'
+        else:
+            trend = 'stable'
+
+        # Trading implications
+        if current_rate > 0.05:  # 0.05% = high positive funding
+            if trend == 'rising':
+                trading_implication = 'strong_short_opportunity'
+                risk_level = 'high'
+            else:
+                trading_implication = 'short_opportunity'
+                risk_level = 'moderate'
+        elif current_rate < -0.05:  # High negative funding
+            if trend == 'falling':
+                trading_implication = 'strong_long_opportunity'
+                risk_level = 'high'
+            else:
+                trading_implication = 'long_opportunity'
+                risk_level = 'moderate'
+        else:
+            trading_implication = 'neutral'
+            risk_level = 'low'
+
+        return {
+            'current_rate': float(current_rate),
+            'avg_rate': float(avg_rate),
+            'trend': trend,
+            'trading_implication': trading_implication,
+            'risk_level': risk_level,
+            'slope': float(slope)
+        }
+
+    except Exception as e:
+        return {
+            'current_rate': 0.0,
+            'avg_rate': 0.0,
+            'trend': 'neutral',
+            'trading_implication': 'neutral',
+            'risk_level': 'low'
+        }
+
+
 def get_default_indicators() -> Dict[str, Any]:
     """Return default indicators when calculation fails."""
     return {

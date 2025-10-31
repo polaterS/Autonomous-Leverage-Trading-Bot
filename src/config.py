@@ -358,6 +358,38 @@ Price: ${market_data['current_price']:.4f}
 Market Regime: {market_data['market_regime']}
 Funding Rate: {market_data.get('funding_rate', {}).get('rate', 0)*100:.4f}%
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 INSTITUTIONAL-GRADE ADVANCED INDICATORS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📍 SUPPORT/RESISTANCE LEVELS (Key Liquidity Zones):
+Nearest Support: ${market_data.get('support_resistance', {}).get('nearest_support', 0):.4f} ({market_data.get('support_resistance', {}).get('support_distance_pct', 0):.2f}% below)
+Nearest Resistance: ${market_data.get('support_resistance', {}).get('nearest_resistance', 0):.4f} ({market_data.get('support_resistance', {}).get('resistance_distance_pct', 0):.2f}% above)
+→ Watch for bounces at support or rejections at resistance
+
+📊 VOLUME PROFILE (High-Volume Price Levels):
+POC (Point of Control): ${market_data.get('volume_profile', {}).get('poc', 0):.4f}
+Value Area High: ${market_data.get('volume_profile', {}).get('value_area_high', 0):.4f}
+Value Area Low: ${market_data.get('volume_profile', {}).get('value_area_low', 0):.4f}
+→ Price tends to return to POC (fair value magnet)
+
+🌊 FIBONACCI LEVELS (Retracement Targets):
+Trend: {market_data.get('fibonacci', {}).get('trend', 'unknown').upper()}
+Swing High: ${market_data.get('fibonacci', {}).get('swing_high', 0):.4f}
+Swing Low: ${market_data.get('fibonacci', {}).get('swing_low', 0):.4f}
+Nearest Fib Level: {market_data.get('fibonacci', {}).get('nearest_fib_level', 0)} @ ${market_data.get('fibonacci', {}).get('nearest_fib_price', 0):.4f}
+→ Use Fib levels for entry/exit confluence
+
+💰 FUNDING RATE ANALYSIS (Overleveraged Position Detection):
+Current Rate: {market_data.get('funding_analysis', {}).get('current_rate', 0)*100:.4f}%
+Trend: {market_data.get('funding_analysis', {}).get('trend', 'neutral').upper()}
+Trading Implication: {market_data.get('funding_analysis', {}).get('trading_implication', 'neutral').upper()}
+Risk Level: {market_data.get('funding_analysis', {}).get('risk_level', 'low').upper()}
+→ High positive funding = SHORT opportunity (overleveraged longs)
+→ High negative funding = LONG opportunity (overleveraged shorts)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 TECHNICAL INDICATORS (15m timeframe):
 RSI: {market_data['indicators']['15m']['rsi']:.1f}
 MACD: {market_data['indicators']['15m']['macd']:.4f}
