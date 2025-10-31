@@ -690,11 +690,21 @@ Coin seçin:
             # Store HTML and get chart ID
             chart_id = store_chart(html_content, symbol)
 
-            # Get Railway URL from environment or use localhost for local testing
-            base_url = os.getenv('RAILWAY_PUBLIC_DOMAIN', 'http://localhost:8000')
-            if not base_url.startswith('http'):
-                base_url = f"https://{base_url}"
+            # Get Railway URL from environment
+            # Railway provides RAILWAY_PUBLIC_DOMAIN or we can construct from RAILWAY_STATIC_URL
+            railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+
+            if railway_domain:
+                # Clean up domain (remove protocol if present)
+                railway_domain = railway_domain.replace('https://', '').replace('http://', '')
+                base_url = f"https://{railway_domain}"
+            else:
+                # Fallback: try to get from Railway environment
+                base_url = "https://autonomous-leverage-trading-bot-production.up.railway.app"
+
             interactive_url = f"{base_url}/chart/{chart_id}"
+
+            logger.info(f"🔗 Interactive chart URL: {interactive_url}")
 
             # Prepare caption
             price_change = ((ohlcv_data[-1][4] - ohlcv_data[0][1]) / ohlcv_data[0][1]) * 100
