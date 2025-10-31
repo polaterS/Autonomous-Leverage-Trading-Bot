@@ -186,8 +186,8 @@ class TradingViewChartGenerator:
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
 
-            # Calculate indicators
-            indicators_15m = calculate_indicators(ohlcv_data, '15m')
+            # Calculate indicators (not used in chart, we calculate them directly)
+            # indicators_15m = calculate_indicators(ohlcv_data)
 
             # Add EMAs to DataFrame
             df['EMA12'] = df['close'].ewm(span=12, adjust=False).mean()
