@@ -23,6 +23,7 @@ from src.database import DatabaseClient
 from src.utils import format_duration
 from src.risk_manager import get_risk_manager
 from src.trade_executor import get_trade_executor
+from src.chart_generator import get_chart_generator
 
 logger = logging.getLogger('trading_bot')
 
@@ -60,6 +61,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("positions", self.cmd_positions))
         self.application.add_handler(CommandHandler("history", self.cmd_history))
         self.application.add_handler(CommandHandler("scan", self.cmd_scan))
+        self.application.add_handler(CommandHandler("chart", self.cmd_chart))
         self.application.add_handler(CommandHandler("stopbot", self.cmd_stop_bot))
         self.application.add_handler(CommandHandler("startbot", self.cmd_start_bot))
 
@@ -117,6 +119,9 @@ class TradingTelegramBot:
                 InlineKeyboardButton("🔍 Market Tara", callback_data="scan"),
             ],
             [
+                InlineKeyboardButton("📈 Grafik Oluştur", callback_data="chart"),
+            ],
+            [
                 InlineKeyboardButton("▶️ Bot Başlat", callback_data="start_bot"),
                 InlineKeyboardButton("■ Bot Durdur", callback_data="stop_bot"),
             ],
@@ -136,8 +141,11 @@ Hoş geldiniz! Bot komutları:
 /positions - Açık pozisyonlarım
 /history - Kapalı pozisyonlar
 
-<b>🎮 Bot Kontrol:</b>
+<b>📈 Analiz Araçları:</b>
+/chart - TradingView benzeri grafik oluştur
 /scan - Manuel market tarama
+
+<b>🎮 Bot Kontrol:</b>
 /startbot - Botu başlat
 /stopbot - Botu durdur
 
@@ -346,6 +354,61 @@ Sorularınız için: @your_support
             logger.error(f"Error in history command: {e}")
             await update.message.reply_text(f"❌ Hata: {e}")
 
+    async def cmd_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /chart command - show coin selection menu."""
+        logger.info("📈 /chart command called")
+
+        # Popular coins (top 20 from settings)
+        popular_coins = [
+            'BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT', 'BNB/USDT:USDT',
+            'XRP/USDT:USDT', 'DOGE/USDT:USDT', 'ADA/USDT:USDT', 'AVAX/USDT:USDT',
+            'TON/USDT:USDT', 'TRX/USDT:USDT', 'LINK/USDT:USDT', 'UNI/USDT:USDT',
+            'AAVE/USDT:USDT', 'MKR/USDT:USDT', 'GRT/USDT:USDT', 'INJ/USDT:USDT',
+            'ATOM/USDT:USDT', 'DOT/USDT:USDT', 'POL/USDT:USDT', 'ARB/USDT:USDT'
+        ]
+
+        # Create coin selection buttons (4 coins per row)
+        keyboard = []
+        row = []
+        for i, coin in enumerate(popular_coins):
+            # Display name (remove :USDT suffix for cleaner look)
+            display_name = coin.replace('/USDT:USDT', '')
+            # Callback data (encode coin)
+            callback_data = f"chart_{coin.replace('/', '_').replace(':', '_')}"
+
+            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
+
+            # Create new row every 4 coins
+            if (i + 1) % 4 == 0:
+                keyboard.append(row)
+                row = []
+
+        # Add remaining coins
+        if row:
+            keyboard.append(row)
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        message = """
+📈 <b>GRAFİK OLUŞTURUCU</b>
+
+Ultra profesyonel TradingView benzeri grafik:
+• 📊 Candlestick chart (15m timeframe)
+• 📍 Destek/Direnç seviyeleri
+• 📈 Trend çizgileri (otomatik tespit)
+• 📉 EMA 12, 26, 50
+• 📊 RSI & MACD indikatörleri
+• 💹 Volume analizi
+
+Coin seçin:
+"""
+
+        await update.message.reply_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup
+        )
+
     async def cmd_scan(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /scan command - triggers immediate market scan."""
         logger.info("🔍 /scan command called - triggering market scan")
@@ -401,6 +464,10 @@ Sorularınız için: @your_support
             await self.handle_history_button(query)
         elif callback_data == "scan":
             await self.handle_scan_button(query)
+        elif callback_data == "chart":
+            await self.handle_chart_button(query)
+        elif callback_data.startswith("chart_"):
+            await self.handle_chart_generation(query, callback_data)
         elif callback_data == "start_bot":
             await self.handle_start_bot_button(query)
         elif callback_data == "stop_bot":
@@ -510,6 +577,7 @@ Sorularınız için: @your_support
 /status - Bot durumu
 /positions - Aktif pozisyonlar
 /history - Geçmiş
+/chart - TradingView grafik
 /scan - Market tara
 /startbot - Başlat
 /stopbot - Durdur
@@ -517,6 +585,124 @@ Sorularınız için: @your_support
 Detaylı bilgi için /help yazın.
 """
         await query.edit_message_text(message, parse_mode=ParseMode.HTML)
+
+    async def handle_chart_button(self, query):
+        """Handle chart button - show coin selection."""
+        # Reuse cmd_chart logic
+        popular_coins = [
+            'BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT', 'BNB/USDT:USDT',
+            'XRP/USDT:USDT', 'DOGE/USDT:USDT', 'ADA/USDT:USDT', 'AVAX/USDT:USDT',
+            'TON/USDT:USDT', 'TRX/USDT:USDT', 'LINK/USDT:USDT', 'UNI/USDT:USDT',
+            'AAVE/USDT:USDT', 'MKR/USDT:USDT', 'GRT/USDT:USDT', 'INJ/USDT:USDT',
+            'ATOM/USDT:USDT', 'DOT/USDT:USDT', 'POL/USDT:USDT', 'ARB/USDT:USDT'
+        ]
+
+        keyboard = []
+        row = []
+        for i, coin in enumerate(popular_coins):
+            display_name = coin.replace('/USDT:USDT', '')
+            callback_data = f"chart_{coin.replace('/', '_').replace(':', '_')}"
+            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
+            if (i + 1) % 4 == 0:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        message = """
+📈 <b>GRAFİK OLUŞTURUCU</b>
+
+Ultra profesyonel TradingView benzeri grafik:
+• 📊 Candlestick chart (15m timeframe)
+• 📍 Destek/Direnç seviyeleri
+• 📈 Trend çizgileri (otomatik tespit)
+• 📉 EMA 12, 26, 50
+• 📊 RSI & MACD indikatörleri
+• 💹 Volume analizi
+
+Coin seçin:
+"""
+        await query.edit_message_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+    async def handle_chart_generation(self, query, callback_data: str):
+        """Handle chart generation for selected coin."""
+        try:
+            # Extract symbol from callback data
+            # Format: chart_BTC_USDT_USDT -> BTC/USDT:USDT
+            parts = callback_data.replace('chart_', '').split('_')
+            if len(parts) == 3:
+                symbol = f"{parts[0]}/{parts[1]}:{parts[2]}"
+            else:
+                await query.edit_message_text("❌ Geçersiz coin formatı")
+                return
+
+            logger.info(f"📈 Generating chart for {symbol}")
+
+            # Show loading message
+            await query.edit_message_text(
+                f"📊 <b>{symbol}</b> için grafik oluşturuluyor...\n\n"
+                f"⏳ Bu işlem 10-15 saniye sürebilir...",
+                parse_mode=ParseMode.HTML
+            )
+
+            # Fetch OHLCV data from exchange
+            from src.market_scanner import get_exchange
+            exchange = get_exchange()
+            ohlcv_data = await exchange.fetch_ohlcv(symbol, '15m', limit=100)
+
+            if not ohlcv_data or len(ohlcv_data) < 50:
+                await query.edit_message_text(
+                    f"❌ {symbol} için yeterli veri bulunamadı",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Generate chart
+            chart_generator = get_chart_generator()
+            chart_bytes = await chart_generator.generate_chart(
+                symbol=symbol,
+                ohlcv_data=ohlcv_data,
+                timeframe='15m',
+                show_indicators=True,
+                width=16,
+                height=12
+            )
+
+            # Send chart as photo
+            current_price = ohlcv_data[-1][4]  # Close price
+            price_change = ((ohlcv_data[-1][4] - ohlcv_data[0][1]) / ohlcv_data[0][1]) * 100
+            emoji = "📈" if price_change >= 0 else "📉"
+
+            caption = f"""
+{emoji} <b>{symbol}</b>
+💵 Fiyat: ${current_price:.4f} ({price_change:+.2f}%)
+📊 Timeframe: 15 dakika (100 mum)
+⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
+
+🎨 TradingView benzeri ultra profesyonel grafik
+"""
+
+            # Delete loading message
+            await query.message.delete()
+
+            # Send photo
+            await self.application.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=chart_bytes,
+                caption=caption,
+                parse_mode=ParseMode.HTML
+            )
+
+            logger.info(f"✅ Chart sent successfully for {symbol}")
+
+        except Exception as e:
+            logger.error(f"❌ Error generating chart: {e}")
+            await query.edit_message_text(
+                f"❌ Grafik oluşturulurken hata oluştu:\n\n{str(e)[:200]}",
+                parse_mode=ParseMode.HTML
+            )
 
     async def handle_close_position_button(self, query):
         """Handle close position button."""
