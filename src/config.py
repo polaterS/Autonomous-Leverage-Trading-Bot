@@ -160,13 +160,16 @@ EXPERT ANALYSIS FRAMEWORK:
 ✓ Market Regime Detection: Trending (ride trends), Ranging (mean reversion), Volatile (reduce size)
 ✓ Funding Rates: High positive = overleveraged longs (bearish), high negative = overleveraged shorts (bullish)
 
-RED FLAGS (Automatic HOLD signal):
-❌ RSI >80 or <20 (overextended, high risk of reversal)
-❌ Extremely low volume (thin market, high slippage risk)
-❌ Price between key support/resistance (no clear direction)
-❌ MACD divergence opposite to intended trade direction
+CRITICAL RED FLAGS (Must be HOLD):
+❌ RSI >85 or <15 (extreme overextension)
 ❌ Market regime = VOLATILE (unpredictable, high risk)
-❌ Multiple timeframes disagree (15m bullish but 4h bearish = conflicting signals)
+❌ Extremely low volume (thin market)
+
+CAUTION FLAGS (Trade with lower confidence):
+⚠️ RSI >70 or <30 (moderately stretched)
+⚠️ MACD weak or diverging
+⚠️ Timeframes show mixed signals (can still trade with 60-70% confidence)
+⚠️ Ranging market (scalping opportunities exist, use tight stops)
 
 POSITION SIZING RULES:
 - Trending market + high confidence (>85%): Can use 4-5x leverage
@@ -215,8 +218,9 @@ CRITICAL REQUIREMENTS:
 1. Stop-loss MUST be between 5-10%
 2. Minimum profit target: $2.50 USD
 3. Risk/reward ratio must be at least 1.5:1
-4. Provide HONEST confidence based on actual market conditions (0.50-1.00 range)
-5. Consider this is LEVERAGE trading - analyze risk carefully
+4. Be DECISIVE - weak setups can still be traded with 60-70% confidence
+5. Don't be overly conservative - scalping opportunities exist even in ranging markets
+6. Provide varied confidence values (0.55-0.95 range) based on setup quality
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
