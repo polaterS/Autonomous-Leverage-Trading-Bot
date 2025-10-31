@@ -292,55 +292,55 @@ class TradingViewChartGenerator:
             # Get main axis (price chart)
             ax_main = axes[0]
 
-            # Draw support levels (with z-order to appear on top)
+            # Draw support levels (with z-order to appear on top) - ULTRA VISIBLE
             for i, level in enumerate(support_levels[:3]):  # Top 3 support levels
                 ax_main.axhline(
                     y=level,
-                    color=self.colors['support'],
+                    color='#00FF41',  # Bright neon green
                     linestyle='--',
-                    linewidth=2.5,
-                    alpha=0.9,
+                    linewidth=4,  # Thicker
+                    alpha=1.0,  # Fully opaque
                     zorder=10,
-                    label=f'Support ${level:.2f}' if i == 0 else ''
+                    label=f'SUPPORT ${level:.2f}' if i == 0 else ''
                 )
-                # Add price label on the right
+                # Add price label on the right - BIGGER AND BOLDER
                 ax_main.text(
                     len(df) + 2,
                     level,
-                    f' S: ${level:.2f}',
-                    color=self.colors['support'],
-                    fontsize=10,
+                    f' SUPPORT: ${level:.2f}',
+                    color='#00FF41',
+                    fontsize=12,
                     va='center',
                     fontweight='bold',
                     zorder=11,
-                    bbox=dict(boxstyle='round,pad=0.4', facecolor=self.colors['support'], edgecolor='none', alpha=0.3)
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='#00FF41', edgecolor='#00FF41', linewidth=2, alpha=0.4)
                 )
 
-            # Draw resistance levels (with z-order to appear on top)
+            # Draw resistance levels (with z-order to appear on top) - ULTRA VISIBLE
             for i, level in enumerate(resistance_levels[:3]):  # Top 3 resistance levels
                 ax_main.axhline(
                     y=level,
-                    color=self.colors['resistance'],
+                    color='#FF1744',  # Bright neon red
                     linestyle='--',
-                    linewidth=2.5,
-                    alpha=0.9,
+                    linewidth=4,  # Thicker
+                    alpha=1.0,  # Fully opaque
                     zorder=10,
-                    label=f'Resistance ${level:.2f}' if i == 0 else ''
+                    label=f'RESISTANCE ${level:.2f}' if i == 0 else ''
                 )
-                # Add price label on the right
+                # Add price label on the right - BIGGER AND BOLDER
                 ax_main.text(
                     len(df) + 2,
                     level,
-                    f' R: ${level:.2f}',
-                    color=self.colors['resistance'],
-                    fontsize=10,
+                    f' RESISTANCE: ${level:.2f}',
+                    color='#FF1744',
+                    fontsize=12,
                     va='center',
                     fontweight='bold',
                     zorder=11,
-                    bbox=dict(boxstyle='round,pad=0.4', facecolor=self.colors['resistance'], edgecolor='none', alpha=0.3)
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='#FF1744', edgecolor='#FF1744', linewidth=2, alpha=0.4)
                 )
 
-            # Draw uptrend line (with z-order)
+            # Draw uptrend line (with z-order) - ULTRA VISIBLE
             if trend_lines['uptrend']:
                 slope, intercept = trend_lines['uptrend']
                 x_range = range(len(df))
@@ -348,15 +348,15 @@ class TradingViewChartGenerator:
                 ax_main.plot(
                     x_range,
                     y_values,
-                    color=self.colors['trend_up'],
+                    color='#00E676',  # Bright neon green
                     linestyle='-',
-                    linewidth=3,
-                    alpha=0.9,
+                    linewidth=5,  # Much thicker
+                    alpha=1.0,  # Fully opaque
                     zorder=9,
-                    label='📈 Uptrend'
+                    label='📈 UPTREND'
                 )
 
-            # Draw downtrend line (with z-order)
+            # Draw downtrend line (with z-order) - ULTRA VISIBLE
             if trend_lines['downtrend']:
                 slope, intercept = trend_lines['downtrend']
                 x_range = range(len(df))
@@ -364,12 +364,12 @@ class TradingViewChartGenerator:
                 ax_main.plot(
                     x_range,
                     y_values,
-                    color=self.colors['trend_down'],
+                    color='#FF1744',  # Bright neon red
                     linestyle='-',
-                    linewidth=3,
-                    alpha=0.9,
+                    linewidth=5,  # Much thicker
+                    alpha=1.0,  # Fully opaque
                     zorder=9,
-                    label='📉 Downtrend'
+                    label='📉 DOWNTREND'
                 )
 
             # Add legend

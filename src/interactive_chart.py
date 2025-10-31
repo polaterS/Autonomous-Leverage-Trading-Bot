@@ -7,12 +7,69 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from src.utils import setup_logging
 from src.indicators import detect_support_resistance_levels
 
 logger = setup_logging()
+
+
+def detect_trend_lines(df: pd.DataFrame, lookback: int = 20) -> Dict[str, Optional[Tuple[float, float]]]:
+    """
+    Detect trend lines by connecting swing highs/lows.
+
+    Returns:
+        Dict with 'uptrend' and 'downtrend' line parameters (slope, intercept)
+    """
+    try:
+        highs = df['high'].values
+        lows = df['low'].values
+
+        # Find swing highs
+        swing_highs = []
+        for i in range(lookback, len(highs) - lookback):
+            if highs[i] == max(highs[i-lookback:i+lookback+1]):
+                swing_highs.append((i, highs[i]))
+
+        # Find swing lows
+        swing_lows = []
+        for i in range(lookback, len(lows) - lookback):
+            if lows[i] == min(lows[i-lookback:i+lookback+1]):
+                swing_lows.append((i, lows[i]))
+
+        uptrend_line = None
+        downtrend_line = None
+
+        # Uptrend line
+        if len(swing_lows) >= 2:
+            recent_lows = swing_lows[-3:] if len(swing_lows) >= 3 else swing_lows
+            x_coords = [point[0] for point in recent_lows]
+            y_coords = [point[1] for point in recent_lows]
+
+            if len(x_coords) >= 2:
+                coeffs = np.polyfit(x_coords, y_coords, 1)
+                slope, intercept = coeffs[0], coeffs[1]
+                if slope > 0:
+                    uptrend_line = (slope, intercept)
+
+        # Downtrend line
+        if len(swing_highs) >= 2:
+            recent_highs = swing_highs[-3:] if len(swing_highs) >= 3 else swing_highs
+            x_coords = [point[0] for point in recent_highs]
+            y_coords = [point[1] for point in recent_highs]
+
+            if len(x_coords) >= 2:
+                coeffs = np.polyfit(x_coords, y_coords, 1)
+                slope, intercept = coeffs[0], coeffs[1]
+                if slope < 0:
+                    downtrend_line = (slope, intercept)
+
+        return {'uptrend': uptrend_line, 'downtrend': downtrend_line}
+
+    except Exception as e:
+        logger.error(f"Error detecting trend lines: {e}")
+        return {'uptrend': None, 'downtrend': None}
 
 
 async def generate_interactive_html_chart(
@@ -112,29 +169,82 @@ async def generate_interactive_html_chart(
             row=1, col=1
         )
 
-        # Support levels
-        for level in support_levels[:3]:
+        # Support levels - ULTRA BOLD AND VISIBLE
+        for i, level in enumerate(support_levels[:3]):
             fig.add_hline(
                 y=level,
                 line_dash="dash",
-                line_color="#4CAF50",
-                line_width=2,
-                annotation_text=f"S: ${level:.2f}",
+                line_color="#00FF41",  # Bright neon green
+                line_width=4,  # Thicker
+                annotation_text=f"<b>SUPPORT: ${level:.2f}</b>",
                 annotation_position="right",
+                annotation=dict(
+                    font=dict(size=14, color="#00FF41", family="Arial Black"),
+                    bgcolor="rgba(0, 255, 65, 0.2)",
+                    bordercolor="#00FF41",
+                    borderwidth=2
+                ),
                 row=1, col=1
             )
 
-        # Resistance levels
-        for level in resistance_levels[:3]:
+        # Resistance levels - ULTRA BOLD AND VISIBLE
+        for i, level in enumerate(resistance_levels[:3]):
             fig.add_hline(
                 y=level,
                 line_dash="dash",
-                line_color="#F44336",
-                line_width=2,
-                annotation_text=f"R: ${level:.2f}",
+                line_color="#FF1744",  # Bright neon red
+                line_width=4,  # Thicker
+                annotation_text=f"<b>RESISTANCE: ${level:.2f}</b>",
                 annotation_position="right",
+                annotation=dict(
+                    font=dict(size=14, color="#FF1744", family="Arial Black"),
+                    bgcolor="rgba(255, 23, 68, 0.2)",
+                    bordercolor="#FF1744",
+                    borderwidth=2
+                ),
                 row=1, col=1
             )
+
+        # Detect and draw trend lines
+        trend_lines = detect_trend_lines(df)
+
+        # Uptrend line - BRIGHT GREEN
+        if trend_lines['uptrend']:
+            slope, intercept = trend_lines['uptrend']
+            x_range = list(range(len(df)))
+            y_values = [slope * x + intercept for x in x_range]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=df['timestamp'],
+                    y=y_values,
+                    name='📈 UPTREND',
+                    line=dict(color='#00E676', width=5, dash='solid'),  # Bright green, thick
+                    mode='lines',
+                    showlegend=True
+                ),
+                row=1, col=1
+            )
+            logger.info("✅ Uptrend line added to interactive chart")
+
+        # Downtrend line - BRIGHT RED
+        if trend_lines['downtrend']:
+            slope, intercept = trend_lines['downtrend']
+            x_range = list(range(len(df)))
+            y_values = [slope * x + intercept for x in x_range]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=df['timestamp'],
+                    y=y_values,
+                    name='📉 DOWNTREND',
+                    line=dict(color='#FF1744', width=5, dash='solid'),  # Bright red, thick
+                    mode='lines',
+                    showlegend=True
+                ),
+                row=1, col=1
+            )
+            logger.info("✅ Downtrend line added to interactive chart")
 
         # Volume
         colors = ['#26A69A' if row['close'] >= row['open'] else '#EF5350' for _, row in df.iterrows()]
