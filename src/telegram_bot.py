@@ -997,8 +997,8 @@ Coin seçin:
         MAX_LOSS_USD = 10.0  # Maximum loss per trade in USD
 
         for leverage in leverages:
-            # Calculate for this leverage
-            position_size = capital * 0.8  # 80% of capital (initial margin)
+            # Fixed collateral: Always 100 USDT
+            position_size = 100.0  # Fixed 100 USDT collateral (user requirement)
             position_value = position_size * leverage  # Notional value
 
             # Maintenance Margin (minimum to avoid liquidation)
@@ -1008,20 +1008,18 @@ Coin seçin:
             total_fees = position_value * TRADING_FEE_RATE * 2
 
             # Calculate stop-loss based on MAX $10 LOSS LIMIT
-            # Real Loss = (Price Movement % × Leverage × Position Size) + Fees
-            # We want: Real Loss <= $10
-            # So: Price Movement % <= (10 - Fees) / (Leverage × Position Size)
+            # Real Loss = (Stop-Loss % × Leverage × Position Size) + Fees
+            # We want: Real Loss = $10 (exactly)
+            # So: Stop-Loss % = (10 - Fees) / (Leverage × Position Size)
 
             max_loss_after_fees = MAX_LOSS_USD - total_fees
             if max_loss_after_fees <= 0:
                 # Fees alone exceed $10, skip this leverage
                 continue
 
-            # Calculate max price movement percentage
-            max_price_movement_pct = max_loss_after_fees / (leverage * position_size)
-
-            # Cap between 5-10% for risk manager compatibility
-            stop_loss_percent = min(0.10, max(0.05, max_price_movement_pct))
+            # Calculate exact stop-loss percentage for $10 loss
+            # NO CAPS - let it be as tight as needed for high leverage
+            stop_loss_percent = max_loss_after_fees / (leverage * position_size)
 
             # Calculate prices
             if side == "LONG":
