@@ -699,8 +699,8 @@ Coin seçin:
                 railway_domain = railway_domain.replace('https://', '').replace('http://', '')
                 base_url = f"https://{railway_domain}"
             else:
-                # Fallback: try to get from Railway environment
-                base_url = "https://autonomous-leverage-trading-bot-production.up.railway.app"
+                # Fallback: use current Railway domain
+                base_url = "https://worker-production-0db8.up.railway.app"
 
             interactive_url = f"{base_url}/chart/{chart_id}"
 
