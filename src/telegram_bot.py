@@ -648,8 +648,8 @@ Coin seçin:
             )
 
             # Fetch OHLCV data from exchange
-            from src.market_scanner import get_exchange
-            exchange = get_exchange()
+            from src.exchange_client import get_exchange_client
+            exchange = await get_exchange_client()
             ohlcv_data = await exchange.fetch_ohlcv(symbol, '15m', limit=100)
 
             if not ohlcv_data or len(ohlcv_data) < 50:
