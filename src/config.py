@@ -205,14 +205,18 @@ Respond ONLY with valid JSON. No additional text or explanations outside the JSO
 
 def build_analysis_prompt(symbol: str, market_data: dict) -> str:
     """Build comprehensive prompt for AI analysis."""
+    import time
+    timestamp = int(time.time())
+
     return f"""You are a professional cryptocurrency leverage trader analyzing {symbol} for a leveraged trade.
+Analysis ID: {symbol}_{timestamp}
 
 CRITICAL REQUIREMENTS:
 1. Stop-loss MUST be between 5-10%
 2. Minimum profit target: $2.50 USD
 3. Risk/reward ratio must be at least 1.5:1
-4. Only recommend trades with 75%+ confidence
-5. Consider this is LEVERAGE trading - be conservative
+4. Provide HONEST confidence based on actual market conditions (0.50-1.00 range)
+5. Consider this is LEVERAGE trading - analyze risk carefully
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}

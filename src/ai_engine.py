@@ -228,8 +228,9 @@ class AIConsensusEngine:
                     {"role": "system", "content": LEVERAGE_TRADING_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=2048
+                temperature=0.7,  # Increased from 0.3 for more varied responses
+                max_tokens=2048,
+                top_p=0.9  # Add sampling diversity
             )
 
             content = response.choices[0].message.content
