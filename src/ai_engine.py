@@ -181,8 +181,8 @@ class AIConsensusEngine:
             logger.warning(f"Failed to cache in DB (non-critical): {e}")
 
         logger.info(
-            f"AI Consensus for {symbol}: {consensus_action.upper()} "
-            f"(confidence: {avg_confidence:.1%}, models: {len(agreeing_models)})"
+            f"✅ AI Analysis for {symbol}: {consensus['action'].upper()} "
+            f"(confidence: {consensus['confidence']:.1%}, confluence: {consensus.get('confluence_count', 0)} factors)"
         )
 
         return consensus

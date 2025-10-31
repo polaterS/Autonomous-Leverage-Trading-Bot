@@ -431,6 +431,46 @@ Lower Band: ${market_data.get('volatility', {}).get('lower_band', 0):.4f}
 → Breakout = Strong trend beginning
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 PHASE 2 ULTRA PROFESSIONAL FEATURES (CONFLUENCE & MOMENTUM)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💪 MOMENTUM STRENGTH (Rate of Change Analysis):
+Direction: {str(market_data.get('momentum', {}).get('momentum_direction', 'neutral')).upper()}
+Strength: {market_data.get('momentum', {}).get('momentum_strength', 0):.1f}/100
+Accelerating: {'YES ⚡' if market_data.get('momentum', {}).get('is_accelerating', False) else 'NO'}
+1h ROC: {market_data.get('momentum', {}).get('roc_1h', 0):.2f}%
+4h ROC: {market_data.get('momentum', {}).get('roc_4h', 0):.2f}%
+12h ROC: {market_data.get('momentum', {}).get('roc_12h', 0):.2f}%
+→ Accelerating momentum = Strong trend continuation
+→ Decelerating momentum = Trend weakening, be cautious
+
+₿ BTC CORRELATION ANALYSIS (Independent Move Detection):
+Correlation: {market_data.get('btc_correlation', {}).get('correlation', 0):.2f} ({market_data.get('btc_correlation', {}).get('correlation_strength', 'unknown').upper()})
+Independent Move Possible: {'YES 🎯' if market_data.get('btc_correlation', {}).get('independent_move', False) else 'NO'}
+Recommendation: {market_data.get('btc_correlation', {}).get('recommendation', 'N/A')}
+→ Low correlation (<0.4) = Altcoin can move independently of BTC
+→ High correlation (>0.8) = Trade BTC instead for better liquidity
+
+🎯 CONFLUENCE ANALYSIS REQUIREMENTS:
+You MUST calculate how many factors support your direction:
+- Support/Resistance proximity
+- Divergence signals
+- Order flow bias
+- Smart money concepts
+- Volume profile (POC)
+- Fibonacci levels
+- Funding rate
+- Volatility breakout
+- Multi-timeframe RSI alignment
+- Momentum acceleration
+- BTC correlation independence
+
+→ 7+ factors = 85%+ confidence (STRONG SETUP)
+→ 5-6 factors = 75-84% confidence (GOOD SETUP)
+→ 3-4 factors = 65-74% confidence (DECENT SETUP)
+→ <3 factors = <65% confidence (WEAK SETUP - HOLD)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 TECHNICAL INDICATORS (15m timeframe):
 RSI: {market_data['indicators']['15m']['rsi']:.1f}
@@ -454,10 +494,38 @@ Trend: {market_data['indicators']['4h']['trend']}
 
 Analyze this data and provide your recommendation.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  ENHANCED REASONING REQUIREMENTS (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your reasoning MUST explicitly mention:
+1. Which TIER 1 features influenced your decision (divergence, order flow, smart money, volatility)
+2. How MOMENTUM analysis affected confidence (accelerating vs decelerating)
+3. Whether BTC CORRELATION matters for this trade
+4. How many CONFLUENCE FACTORS support your direction (count them!)
+5. Which timeframes align (15m, 1h, 4h agreement)
+
+Example reasoning:
+"Strong LONG setup with 7 confluence factors: (1) Bullish divergence on RSI, (2) Order flow +12% bullish,
+(3) Smart money order block at $3,800, (4) Momentum accelerating (1h>4h>12h ROC), (5) Low BTC correlation
+(0.32) allows independent move, (6) Price at Fib 0.618 support, (7) Funding rate -0.03% favors longs.
+All 3 timeframes bullish. Volatility moderate, using 7% stop. High confidence."
+
+BAD reasoning (DO NOT DO THIS):
+"Price looks good, RSI oversold, MACD crossing up. Moderate confidence."
+
 RESPONSE FORMAT (JSON only, no explanations outside JSON):
 {{
     "action": "buy" | "sell" | "hold",
     "confidence": 0.0-1.0,
+    "confidence_breakdown": {{
+        "base_technical": 0.0-1.0,
+        "tier1_boost": 0.0-0.15,
+        "momentum_adjustment": -0.1-0.1,
+        "confluence_factor": 0.0-0.1,
+        "btc_correlation_impact": -0.05-0.05
+    }},
+    "confluence_count": 0-11,
     "side": "LONG" | "SHORT" | null,
     "suggested_leverage": 2-5,
     "stop_loss_percent": 5.0-10.0,
@@ -465,6 +533,6 @@ RESPONSE FORMAT (JSON only, no explanations outside JSON):
     "stop_loss_price": 0.0,
     "take_profit_price": 0.0,
     "risk_reward_ratio": 0.0,
-    "reasoning": "brief explanation (max 100 words)",
+    "reasoning": "MUST mention confluence count, TIER 1 features used, momentum status, BTC correlation (max 150 words)",
     "key_factors": ["factor1", "factor2", "factor3"]
 }}"""

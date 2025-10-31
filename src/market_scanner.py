@@ -25,7 +25,10 @@ from src.indicators import (
     detect_divergences,
     analyze_order_flow,
     detect_smart_money_concepts,
-    calculate_volatility_bands
+    calculate_volatility_bands,
+    calculate_confluence_score,
+    calculate_momentum_strength,
+    calculate_btc_correlation
 )
 
 logger = setup_logging()
@@ -40,17 +43,18 @@ class MarketScanner:
 
     async def scan_and_execute(self) -> None:
         """
-        NEW STRATEGY: "Best Opportunity" Selection
+        ULTRA PROFESSIONAL STRATEGY: "Best Opportunity" with Market Breadth
 
         1. Scan all symbols
-        2. Get INDIVIDUAL AI analyses from BOTH models for each symbol
-        3. Collect ALL analyses (2 models × N symbols = 2N analyses)
-        4. Select the SINGLE analysis with HIGHEST confidence
-        5. Execute that trade if it meets minimum criteria
+        2. Calculate market breadth (% bullish/bearish)
+        3. Get INDIVIDUAL AI analyses for each symbol
+        4. Calculate confluence scores
+        5. Select the SINGLE analysis with HIGHEST confidence + confluence
+        6. Execute that trade if it meets minimum criteria
 
-        No consensus required - just pick the best single opportunity!
+        Elite institutional approach!
         """
-        logger.info("🔍 Starting market scan (Best Opportunity Strategy)...")
+        logger.info("🔍 Starting market scan (Ultra Professional Strategy)...")
         notifier = get_notifier()
 
         await notifier.send_alert('info', '🔍 Market scan started...')
@@ -59,6 +63,11 @@ class MarketScanner:
         telegram_bot = await get_telegram_bot()
         total_symbols = len(self.symbols)
         scanned = 0
+
+        # Market breadth counters
+        bullish_count = 0
+        bearish_count = 0
+        neutral_count = 0
 
         for symbol in self.symbols:
             try:
@@ -83,8 +92,17 @@ class MarketScanner:
 
                 # Add each analysis to our collection
                 for analysis in individual_analyses:
+                    # Track market breadth
+                    action = analysis.get('action', 'hold')
+                    if action == 'buy':
+                        bullish_count += 1
+                    elif action == 'sell':
+                        bearish_count += 1
+                    else:
+                        neutral_count += 1
+
                     # Skip HOLD signals
-                    if analysis.get('action') == 'hold':
+                    if action == 'hold':
                         logger.debug(
                             f"{symbol} ({analysis.get('model_name', 'AI')}): HOLD "
                             f"(confidence: {analysis.get('confidence', 0):.1%})"
@@ -94,6 +112,10 @@ class MarketScanner:
                     # Calculate comprehensive opportunity score
                     opportunity_score = self.calculate_opportunity_score(analysis, market_data)
 
+                    # Calculate CONFLUENCE SCORE (multi-factor agreement)
+                    side = analysis.get('side', 'LONG')
+                    confluence = calculate_confluence_score(market_data, side)
+
                     # Add to collection with metadata
                     all_analyses.append({
                         'symbol': symbol,
@@ -101,13 +123,15 @@ class MarketScanner:
                         'market_data': market_data,
                         'model': analysis.get('model_name', 'unknown'),
                         'confidence': analysis.get('confidence', 0),
-                        'opportunity_score': opportunity_score  # Multi-factor score
+                        'opportunity_score': opportunity_score,  # Multi-factor score
+                        'confluence': confluence  # NEW: Confluence analysis
                     })
 
                     logger.info(
                         f"📊 {symbol} ({analysis.get('model_name', 'AI')}): "
                         f"{analysis.get('action', 'unknown').upper()} - "
-                        f"Confidence: {analysis.get('confidence', 0):.1%}"
+                        f"Confidence: {analysis.get('confidence', 0):.1%} | "
+                        f"Confluence: {confluence.get('score', 0):.0f}% ({confluence.get('confluence_count', 0)} factors)"
                     )
 
                     has_opportunity = True
@@ -125,17 +149,46 @@ class MarketScanner:
                 logger.error(f"Error analyzing {symbol}: {e}")
                 continue
 
+        # Calculate MARKET BREADTH (market sentiment)
+        total_scanned = bullish_count + bearish_count + neutral_count
+        if total_scanned > 0:
+            bullish_pct = (bullish_count / total_scanned) * 100
+            bearish_pct = (bearish_count / total_scanned) * 100
+            neutral_pct = (neutral_count / total_scanned) * 100
+        else:
+            bullish_pct = bearish_pct = neutral_pct = 0
+
+        # Determine market sentiment
+        if bullish_pct > 60:
+            market_sentiment = "STRONG BULLISH"
+        elif bullish_pct > 40:
+            market_sentiment = "BULLISH"
+        elif bearish_pct > 60:
+            market_sentiment = "STRONG BEARISH"
+        elif bearish_pct > 40:
+            market_sentiment = "BEARISH"
+        else:
+            market_sentiment = "NEUTRAL/MIXED"
+
+        logger.info(f"📊 MARKET BREADTH: {bullish_pct:.0f}% bullish, {bearish_pct:.0f}% bearish, {neutral_pct:.0f}% neutral")
+        logger.info(f"🎯 MARKET SENTIMENT: {market_sentiment}")
+
         # Sort ALL analyses by opportunity score (multi-factor) instead of just confidence
         # This considers: AI confidence, market regime, risk/reward, technical alignment
         all_analyses.sort(key=lambda x: x['opportunity_score'], reverse=True)
 
         logger.info(f"📈 Total analyses collected: {len(all_analyses)}")
 
-        # Send scan summary
+        # Send scan summary with market breadth
         await telegram_bot.send_message(
             f"📊 <b>Market Taraması Tamamlandı!</b>\n\n"
             f"✅ Taranan coin: {total_symbols}\n"
             f"📈 Fırsat bulunan: {len(all_analyses)}\n\n"
+            f"🎯 <b>Market Breadth:</b>\n"
+            f"📈 Bullish: {bullish_pct:.0f}% ({bullish_count} coins)\n"
+            f"📉 Bearish: {bearish_pct:.0f}% ({bearish_count} coins)\n"
+            f"➖ Neutral: {neutral_pct:.0f}% ({neutral_count} coins)\n"
+            f"💡 Sentiment: <b>{market_sentiment}</b>\n\n"
             f"En iyi fırsat analiz ediliyor...",
             parse_mode="HTML"
         )
@@ -256,6 +309,21 @@ class MarketScanner:
             # Volatility Bands (adaptive risk management)
             volatility = calculate_volatility_bands(ohlcv_1h, current_price)
 
+            # PHASE 2 CRITICAL FEATURES (ULTRA PROFESSIONAL)
+
+            # Momentum Strength (rate of change analysis)
+            momentum = calculate_momentum_strength(ohlcv_15m)
+
+            # BTC Correlation Analysis (if not BTC itself)
+            btc_correlation = {'correlation': 0.0, 'correlation_strength': 'n/a', 'independent_move': True, 'recommendation': 'N/A (BTC itself)'}
+            if symbol != 'BTC/USDT:USDT':
+                try:
+                    # Fetch BTC data for correlation
+                    btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=100)
+                    btc_correlation = calculate_btc_correlation(symbol, ohlcv_15m, btc_ohlcv)
+                except:
+                    pass
+
             return {
                 'symbol': symbol,
                 'current_price': current_price,
@@ -281,7 +349,10 @@ class MarketScanner:
                 'divergence': divergence,
                 'order_flow': order_flow,
                 'smart_money': smart_money,
-                'volatility': volatility
+                'volatility': volatility,
+                # PHASE 2 ULTRA PROFESSIONAL FEATURES
+                'momentum': momentum,
+                'btc_correlation': btc_correlation
             }
 
         except Exception as e:

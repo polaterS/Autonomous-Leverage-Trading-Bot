@@ -1105,6 +1105,318 @@ def calculate_volatility_bands(ohlcv_data: List[List], current_price: float) -> 
         }
 
 
+def calculate_confluence_score(market_data: Dict[str, Any], side: str) -> Dict[str, Any]:
+    """
+    Calculate confluence score - how many factors agree on direction.
+
+    CONFLUENCE = Multiple independent factors confirming the same direction
+    Higher confluence = Higher confidence!
+
+    Args:
+        market_data: Complete market data with all indicators
+        side: 'LONG' or 'SHORT'
+
+    Returns:
+        Dict with confluence score and factor breakdown
+    """
+    try:
+        bullish_factors = []
+        bearish_factors = []
+
+        # Factor 1: Divergence
+        divergence = market_data.get('divergence', {})
+        if divergence.get('has_divergence'):
+            if divergence.get('type') == 'bullish':
+                bullish_factors.append(f"Bullish divergence ({divergence.get('indicator')})")
+            elif divergence.get('type') == 'bearish':
+                bearish_factors.append(f"Bearish divergence ({divergence.get('indicator')})")
+
+        # Factor 2: Support/Resistance
+        sr = market_data.get('support_resistance', {})
+        support_dist = sr.get('support_distance_pct', 100)
+        resistance_dist = sr.get('resistance_distance_pct', 100)
+
+        if support_dist < 2:  # Within 2% of support
+            bullish_factors.append(f"At support (${sr.get('nearest_support', 0):.2f})")
+        if resistance_dist < 2:  # Within 2% of resistance
+            bearish_factors.append(f"At resistance (${sr.get('nearest_resistance', 0):.2f})")
+
+        # Factor 3: Order Flow
+        order_flow = market_data.get('order_flow', {})
+        signal = order_flow.get('signal', 'neutral')
+        if signal in ['strong_bullish', 'bullish']:
+            bullish_factors.append(f"Order flow {signal} ({order_flow.get('imbalance', 0):.1f}%)")
+        elif signal in ['strong_bearish', 'bearish']:
+            bearish_factors.append(f"Order flow {signal} ({order_flow.get('imbalance', 0):.1f}%)")
+
+        # Factor 4: Smart Money
+        smart_money = market_data.get('smart_money', {})
+        sm_signal = smart_money.get('smart_money_signal', 'neutral')
+        if sm_signal == 'bullish':
+            bullish_factors.append(f"Smart money bullish ({smart_money.get('order_block_count', 0)} order blocks)")
+        elif sm_signal == 'bearish':
+            bearish_factors.append(f"Smart money bearish ({smart_money.get('order_block_count', 0)} order blocks)")
+
+        # Factor 5: Volume Profile (POC)
+        volume_profile = market_data.get('volume_profile', {})
+        poc = volume_profile.get('poc', 0)
+        current_price = market_data.get('current_price', 0)
+        if poc > 0 and current_price > 0:
+            poc_distance = abs(current_price - poc) / current_price * 100
+            if poc_distance < 1:  # Within 1% of POC
+                bullish_factors.append(f"At POC/Fair Value (${poc:.2f})")
+
+        # Factor 6: Fibonacci
+        fibonacci = market_data.get('fibonacci', {})
+        fib_distance = fibonacci.get('nearest_distance_pct', 100)
+        if fib_distance < 1:  # Within 1% of Fib level
+            fib_level = fibonacci.get('nearest_fib_level', 0)
+            if fib_level in [0.382, 0.5, 0.618]:  # Key retracement levels
+                bullish_factors.append(f"At Fibonacci {fib_level} level")
+
+        # Factor 7: Funding Rate
+        funding = market_data.get('funding_analysis', {})
+        funding_impl = funding.get('trading_implication', 'neutral')
+        if 'long_opportunity' in funding_impl:
+            bullish_factors.append(f"Funding rate favorable for LONG")
+        elif 'short_opportunity' in funding_impl:
+            bearish_factors.append(f"Funding rate favorable for SHORT")
+
+        # Factor 8: Volatility Breakout
+        volatility = market_data.get('volatility', {})
+        if volatility.get('breakout_detected'):
+            # Breakout is directional - check trend
+            trend = market_data.get('indicators', {}).get('1h', {}).get('trend', 'unknown')
+            if trend == 'uptrend':
+                bullish_factors.append("Volatility breakout (uptrend)")
+            elif trend == 'downtrend':
+                bearish_factors.append("Volatility breakout (downtrend)")
+
+        # Factor 9: Multi-timeframe RSI
+        rsi_15m = market_data.get('indicators', {}).get('15m', {}).get('rsi', 50)
+        rsi_1h = market_data.get('indicators', {}).get('1h', {}).get('rsi', 50)
+        rsi_4h = market_data.get('indicators', {}).get('4h', {}).get('rsi', 50)
+
+        if rsi_15m < 35 and rsi_1h < 40:
+            bullish_factors.append(f"Oversold (RSI 15m:{rsi_15m:.0f}, 1h:{rsi_1h:.0f})")
+        if rsi_15m > 65 and rsi_1h > 60:
+            bearish_factors.append(f"Overbought (RSI 15m:{rsi_15m:.0f}, 1h:{rsi_1h:.0f})")
+
+        # Calculate confluence score
+        if side == 'LONG':
+            confluence_count = len(bullish_factors)
+            conflicting_count = len(bearish_factors)
+            factors = bullish_factors
+        else:  # SHORT
+            confluence_count = len(bearish_factors)
+            conflicting_count = len(bullish_factors)
+            factors = bearish_factors
+
+        total_factors = confluence_count + conflicting_count
+        if total_factors > 0:
+            confluence_score = (confluence_count / total_factors) * 100
+        else:
+            confluence_score = 50  # Neutral
+
+        return {
+            'score': float(confluence_score),
+            'confluence_count': confluence_count,
+            'conflicting_count': conflicting_count,
+            'factors': factors,
+            'strength': 'strong' if confluence_score >= 75 else 'moderate' if confluence_score >= 60 else 'weak'
+        }
+
+    except Exception as e:
+        return {
+            'score': 50.0,
+            'confluence_count': 0,
+            'conflicting_count': 0,
+            'factors': [],
+            'strength': 'unknown'
+        }
+
+
+def calculate_momentum_strength(ohlcv_data: List[List]) -> Dict[str, Any]:
+    """
+    Calculate momentum strength and rate of change across timeframes.
+
+    MOMENTUM STRENGTH = Is momentum accelerating or decelerating?
+    - Accelerating = Strong trend, ride it!
+    - Decelerating = Momentum fading, be cautious!
+
+    Args:
+        ohlcv_data: List of OHLCV candles
+
+    Returns:
+        Dict with momentum analysis
+    """
+    if not ohlcv_data or len(ohlcv_data) < 50:
+        return {
+            'momentum_direction': 'neutral',
+            'momentum_strength': 0.0,
+            'is_accelerating': False,
+            'roc_1h': 0.0,
+            'roc_4h': 0.0,
+            'roc_12h': 0.0
+        }
+
+    try:
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['close'] = pd.to_numeric(df['close'], errors='coerce')
+
+        current_price = df['close'].iloc[-1]
+
+        # Calculate Rate of Change (ROC) for different periods
+        # 1h = ~4 candles (15m timeframe)
+        # 4h = ~16 candles
+        # 12h = ~48 candles
+
+        if len(df) >= 4:
+            price_1h_ago = df['close'].iloc[-4]
+            roc_1h = ((current_price - price_1h_ago) / price_1h_ago) * 100
+        else:
+            roc_1h = 0
+
+        if len(df) >= 16:
+            price_4h_ago = df['close'].iloc[-16]
+            roc_4h = ((current_price - price_4h_ago) / price_4h_ago) * 100
+        else:
+            roc_4h = 0
+
+        if len(df) >= 48:
+            price_12h_ago = df['close'].iloc[-48]
+            roc_12h = ((current_price - price_12h_ago) / price_12h_ago) * 100
+        else:
+            roc_12h = 0
+
+        # Determine momentum direction
+        avg_roc = (roc_1h + roc_4h + roc_12h) / 3
+        if avg_roc > 1:
+            momentum_direction = 'bullish'
+        elif avg_roc < -1:
+            momentum_direction = 'bearish'
+        else:
+            momentum_direction = 'neutral'
+
+        # Check if momentum is accelerating
+        # Accelerating = short-term ROC > long-term ROC
+        is_accelerating = False
+        if momentum_direction == 'bullish':
+            is_accelerating = roc_1h > roc_4h and roc_4h > roc_12h
+        elif momentum_direction == 'bearish':
+            is_accelerating = roc_1h < roc_4h and roc_4h < roc_12h
+
+        # Momentum strength (0-100)
+        momentum_strength = min(abs(avg_roc) * 10, 100)
+
+        return {
+            'momentum_direction': momentum_direction,
+            'momentum_strength': float(momentum_strength),
+            'is_accelerating': is_accelerating,
+            'roc_1h': float(roc_1h),
+            'roc_4h': float(roc_4h),
+            'roc_12h': float(roc_12h)
+        }
+
+    except Exception as e:
+        return {
+            'momentum_direction': 'neutral',
+            'momentum_strength': 0.0,
+            'is_accelerating': False,
+            'roc_1h': 0.0,
+            'roc_4h': 0.0,
+            'roc_12h': 0.0
+        }
+
+
+def calculate_btc_correlation(symbol: str, symbol_ohlcv: List[List], btc_ohlcv: List[List]) -> Dict[str, Any]:
+    """
+    Calculate correlation between symbol and BTC.
+
+    BTC CORRELATION = Does this coin follow BTC?
+    - High correlation (>0.8): Trade BTC instead, not this coin
+    - Low correlation (<0.4): Independent move possible!
+    - Negative correlation: Inverse relationship (rare but valuable)
+
+    Args:
+        symbol: Trading symbol
+        symbol_ohlcv: Symbol's OHLCV data
+        btc_ohlcv: BTC's OHLCV data
+
+    Returns:
+        Dict with correlation analysis
+    """
+    if not symbol_ohlcv or not btc_ohlcv or len(symbol_ohlcv) < 20 or len(btc_ohlcv) < 20:
+        return {
+            'correlation': 0.5,
+            'correlation_strength': 'unknown',
+            'independent_move': False,
+            'recommendation': 'Insufficient data'
+        }
+
+    try:
+        # Get last 20 closes for both
+        symbol_df = pd.DataFrame(symbol_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        btc_df = pd.DataFrame(btc_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+
+        symbol_df['close'] = pd.to_numeric(symbol_df['close'], errors='coerce')
+        btc_df['close'] = pd.to_numeric(btc_df['close'], errors='coerce')
+
+        # Get last 20 candles
+        symbol_prices = symbol_df['close'].tail(20).pct_change().dropna()
+        btc_prices = btc_df['close'].tail(20).pct_change().dropna()
+
+        # Ensure same length
+        min_len = min(len(symbol_prices), len(btc_prices))
+        if min_len < 10:
+            return {
+                'correlation': 0.5,
+                'correlation_strength': 'unknown',
+                'independent_move': False,
+                'recommendation': 'Insufficient data'
+            }
+
+        symbol_prices = symbol_prices.tail(min_len)
+        btc_prices = btc_prices.tail(min_len)
+
+        # Calculate Pearson correlation
+        correlation = symbol_prices.corr(btc_prices)
+
+        # Determine strength
+        abs_corr = abs(correlation)
+        if abs_corr > 0.8:
+            correlation_strength = 'very_high'
+            independent_move = False
+            recommendation = "High BTC correlation - consider trading BTC instead"
+        elif abs_corr > 0.6:
+            correlation_strength = 'high'
+            independent_move = False
+            recommendation = "Follows BTC closely - watch BTC direction"
+        elif abs_corr > 0.4:
+            correlation_strength = 'moderate'
+            independent_move = False
+            recommendation = "Moderate BTC correlation"
+        else:
+            correlation_strength = 'low'
+            independent_move = True
+            recommendation = "Low BTC correlation - independent move possible!"
+
+        return {
+            'correlation': float(correlation),
+            'correlation_strength': correlation_strength,
+            'independent_move': independent_move,
+            'recommendation': recommendation
+        }
+
+    except Exception as e:
+        return {
+            'correlation': 0.5,
+            'correlation_strength': 'unknown',
+            'independent_move': False,
+            'recommendation': f'Error: {e}'
+        }
+
+
 def get_default_indicators() -> Dict[str, Any]:
     """Return default indicators when calculation fails."""
     return {
