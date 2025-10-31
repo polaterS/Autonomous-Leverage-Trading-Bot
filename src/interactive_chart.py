@@ -98,7 +98,9 @@ async def generate_interactive_html_chart(
             ohlcv_data,
             columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
         )
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        # Convert to Turkey time (UTC+3)
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
+        df['timestamp'] = df['timestamp'].dt.tz_convert('Europe/Istanbul')
 
         # Calculate indicators
         df['EMA12'] = df['close'].ewm(span=12, adjust=False).mean()
@@ -124,7 +126,7 @@ async def generate_interactive_html_chart(
             rows=4, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
-            subplot_titles=(f'{symbol} - 15m Chart', 'Volume', 'RSI', 'MACD'),
+            subplot_titles=(f'{symbol} - 15m Chart (Turkey Time UTC+3)', 'Volume', 'RSI', 'MACD'),
             row_heights=[0.5, 0.15, 0.15, 0.2]
         )
 
@@ -300,7 +302,7 @@ async def generate_interactive_html_chart(
         # Update layout - TradingView dark theme
         fig.update_layout(
             template='plotly_dark',
-            title=f"{symbol} - Interactive Chart",
+            title=f"{symbol} - Interactive Chart (Turkey Time UTC+3) - Real-Time Data",
             xaxis_rangeslider_visible=False,
             height=1000,
             hovermode='x unified',

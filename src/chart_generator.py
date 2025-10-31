@@ -7,7 +7,7 @@ import mplfinance as mpf
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from PIL import Image
@@ -185,7 +185,9 @@ class TradingViewChartGenerator:
                 ohlcv_data,
                 columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
             )
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            # Convert to Turkey time (UTC+3)
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
+            df['timestamp'] = df['timestamp'].dt.tz_convert('Europe/Istanbul')
             df.set_index('timestamp', inplace=True)
 
             # Calculate indicators (not used in chart, we calculate them directly)
@@ -280,7 +282,7 @@ class TradingViewChartGenerator:
                 style=self.style,
                 volume=True,
                 addplot=apds,
-                title=f"\n{symbol} - {timeframe} Chart",
+                title=f"\n{symbol} - {timeframe} Chart (Turkey Time UTC+3)",
                 ylabel='Price (USDT)',
                 ylabel_lower='Volume',
                 figsize=(width, height),
@@ -393,8 +395,10 @@ class TradingViewChartGenerator:
                 bbox=dict(boxstyle='round,pad=0.5', facecolor=self.colors['background'], edgecolor=price_color, linewidth=2, alpha=0.9)
             )
 
-            # Add timestamp
-            timestamp_text = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            # Add timestamp - Turkey Time
+            turkey_tz = timezone(timedelta(hours=3))
+            turkey_time = datetime.now(turkey_tz)
+            timestamp_text = f"Generated: {turkey_time.strftime('%Y-%m-%d %H:%M:%S')} (Turkey Time UTC+3)"
             fig.text(
                 0.99, 0.01,
                 timestamp_text,
