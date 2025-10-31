@@ -653,7 +653,7 @@ Coin seçin:
             # Fetch OHLCV data from exchange
             from src.exchange_client import get_exchange_client
             exchange = await get_exchange_client()
-            ohlcv_data = await exchange.fetch_ohlcv(symbol, '15m', limit=100)
+            ohlcv_data = await exchange.fetch_ohlcv(symbol, '15m', limit=500)
 
             if not ohlcv_data or len(ohlcv_data) < 50:
                 await query.edit_message_text(
@@ -677,8 +677,8 @@ Coin seçin:
             from src.indicators import detect_support_resistance_levels
             current_price = float(ohlcv_data[-1][4])
             support_resistance = detect_support_resistance_levels(ohlcv_data, current_price)
-            support_levels = support_resistance.get('support_levels', [])
-            resistance_levels = support_resistance.get('resistance_levels', [])
+            support_levels = support_resistance.get('swing_lows', [])
+            resistance_levels = support_resistance.get('swing_highs', [])
 
             html_content = await generate_interactive_html_chart(
                 symbol=symbol,
@@ -714,16 +714,18 @@ Coin seçin:
 {emoji} <b>{symbol}</b>
 
 💵 <b>Fiyat:</b> ${current_price:.2f} ({price_change:+.2f}%)
-📊 <b>Timeframe:</b> 15 dakika (100 mum)
+📊 <b>Timeframe:</b> 15 dakika (500 mum - ~5 gün geçmiş)
 ⏰ <b>Zaman:</b> {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 
 🎨 <b>TradingView benzeri ultra profesyonel grafik</b>
+📈 <b>Destek/Direnç Seviyeleri:</b> Yeşil ve kırmızı kesikli çizgiler
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🖱️ <b>İNTERAKTİF GRAFİK:</b>
 <a href="{interactive_url}">📊 Tıkla ve İnteraktif Grafiği Aç</a>
 
-✨ Zoom, pan, hover tooltips
+✨ Zoom, pan, hover tooltips ile detaylı analiz
+✨ Geçmişe doğru kaydırarak 5 günlük veriyi incele
 ✨ 24 saat aktif kalacak
 ━━━━━━━━━━━━━━━━━━━━━━━━
 """
