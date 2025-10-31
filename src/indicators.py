@@ -1417,6 +1417,423 @@ def calculate_btc_correlation(symbol: str, symbol_ohlcv: List[List], btc_ohlcv: 
         }
 
 
+def calculate_multi_timeframe_indicators(
+    ohlcv_5m: List[List],
+    ohlcv_15m: List[List],
+    ohlcv_1h: List[List],
+    ohlcv_4h: List[List]
+) -> Dict[str, Any]:
+    """
+    Calculate indicators across multiple timeframes for confluence analysis.
+
+    MULTI-TIMEFRAME CONFLUENCE = Professional trading edge!
+    - 5m: Micro structure, precise entries
+    - 15m: Primary execution timeframe
+    - 1h: Trend bias filter
+    - 4h: Macro trend and major support/resistance
+
+    Args:
+        ohlcv_5m: 5-minute OHLCV data
+        ohlcv_15m: 15-minute OHLCV data
+        ohlcv_1h: 1-hour OHLCV data
+        ohlcv_4h: 4-hour OHLCV data
+
+    Returns:
+        Dict with multi-timeframe analysis and confluence signals
+    """
+    try:
+        # Calculate indicators for each timeframe
+        indicators_5m = calculate_indicators(ohlcv_5m)
+        indicators_15m = calculate_indicators(ohlcv_15m)
+        indicators_1h = calculate_indicators(ohlcv_1h)
+        indicators_4h = calculate_indicators(ohlcv_4h)
+
+        # Analyze timeframe alignment
+        current_price = indicators_15m['close']
+
+        # Check trend alignment
+        trend_5m = indicators_5m.get('trend', 'unknown')
+        trend_15m = indicators_15m.get('trend', 'unknown')
+        trend_1h = indicators_1h.get('trend', 'unknown')
+        trend_4h = indicators_4h.get('trend', 'unknown')
+
+        # Count bullish vs bearish timeframes
+        bullish_count = sum([
+            1 for t in [trend_5m, trend_15m, trend_1h, trend_4h]
+            if t == 'uptrend'
+        ])
+        bearish_count = sum([
+            1 for t in [trend_5m, trend_15m, trend_1h, trend_4h]
+            if t == 'downtrend'
+        ])
+
+        # Determine overall trend alignment
+        if bullish_count >= 3:
+            trend_alignment = 'strong_bullish'
+            alignment_score = (bullish_count / 4) * 100
+        elif bearish_count >= 3:
+            trend_alignment = 'strong_bearish'
+            alignment_score = (bearish_count / 4) * 100
+        elif bullish_count == 2 and bearish_count == 2:
+            trend_alignment = 'conflicted'
+            alignment_score = 50
+        else:
+            trend_alignment = 'mixed'
+            alignment_score = 60
+
+        # Check EMA50 alignment (price above/below EMA50 on higher timeframes)
+        ema50_1h = indicators_1h.get('sma_50', current_price)
+        ema50_4h = indicators_4h.get('sma_50', current_price)
+
+        price_above_ema50_1h = current_price > ema50_1h
+        price_above_ema50_4h = current_price > ema50_4h
+
+        # Check RSI alignment for overbought/oversold
+        rsi_5m = indicators_5m.get('rsi', 50)
+        rsi_15m = indicators_15m.get('rsi', 50)
+        rsi_1h = indicators_1h.get('rsi', 50)
+        rsi_4h = indicators_4h.get('rsi', 50)
+
+        # Oversold across timeframes (potential long)
+        oversold_count = sum([
+            1 for rsi in [rsi_15m, rsi_1h, rsi_4h]
+            if rsi < 35
+        ])
+
+        # Overbought across timeframes (potential short)
+        overbought_count = sum([
+            1 for rsi in [rsi_15m, rsi_1h, rsi_4h]
+            if rsi > 65
+        ])
+
+        # Higher timeframe bias (1h + 4h must agree for high-confidence trades)
+        higher_tf_bullish = (
+            price_above_ema50_1h and
+            price_above_ema50_4h and
+            rsi_1h > 45 and
+            rsi_4h > 45
+        )
+
+        higher_tf_bearish = (
+            not price_above_ema50_1h and
+            not price_above_ema50_4h and
+            rsi_1h < 55 and
+            rsi_4h < 55
+        )
+
+        # Trading recommendations based on confluence
+        if trend_alignment == 'strong_bullish' and higher_tf_bullish:
+            trading_bias = 'LONG_ONLY'
+            confidence_multiplier = 1.3
+            recommendation = "✅ STRONG BULLISH CONFLUENCE - All timeframes aligned for LONG"
+        elif trend_alignment == 'strong_bearish' and higher_tf_bearish:
+            trading_bias = 'SHORT_ONLY'
+            confidence_multiplier = 1.3
+            recommendation = "✅ STRONG BEARISH CONFLUENCE - All timeframes aligned for SHORT"
+        elif trend_alignment == 'conflicted':
+            trading_bias = 'AVOID'
+            confidence_multiplier = 0.5
+            recommendation = "⚠️ CONFLICTING TIMEFRAMES - Avoid trading, wait for clarity"
+        elif higher_tf_bullish and trend_1h == 'uptrend':
+            trading_bias = 'LONG_PREFERRED'
+            confidence_multiplier = 1.1
+            recommendation = "LONG PREFERRED - Higher timeframes bullish, 1h confirms"
+        elif higher_tf_bearish and trend_1h == 'downtrend':
+            trading_bias = 'SHORT_PREFERRED'
+            confidence_multiplier = 1.1
+            recommendation = "SHORT PREFERRED - Higher timeframes bearish, 1h confirms"
+        else:
+            trading_bias = 'NEUTRAL'
+            confidence_multiplier = 0.8
+            recommendation = "NEUTRAL - Mixed signals, reduce position size"
+
+        return {
+            'timeframes': {
+                '5m': indicators_5m,
+                '15m': indicators_15m,
+                '1h': indicators_1h,
+                '4h': indicators_4h
+            },
+            'confluence_analysis': {
+                'trend_alignment': trend_alignment,
+                'alignment_score': float(alignment_score),
+                'bullish_timeframes': bullish_count,
+                'bearish_timeframes': bearish_count,
+                'higher_tf_bullish': higher_tf_bullish,
+                'higher_tf_bearish': higher_tf_bearish,
+                'trading_bias': trading_bias,
+                'confidence_multiplier': float(confidence_multiplier),
+                'recommendation': recommendation
+            },
+            'rsi_analysis': {
+                '5m': float(rsi_5m),
+                '15m': float(rsi_15m),
+                '1h': float(rsi_1h),
+                '4h': float(rsi_4h),
+                'oversold_timeframes': oversold_count,
+                'overbought_timeframes': overbought_count
+            },
+            'trend_summary': {
+                '5m': trend_5m,
+                '15m': trend_15m,
+                '1h': trend_1h,
+                '4h': trend_4h
+            },
+            'ema50_analysis': {
+                'price': float(current_price),
+                'ema50_1h': float(ema50_1h),
+                'ema50_4h': float(ema50_4h),
+                'above_1h': price_above_ema50_1h,
+                'above_4h': price_above_ema50_4h
+            }
+        }
+
+    except Exception as e:
+        return {
+            'error': str(e),
+            'timeframes': {},
+            'confluence_analysis': {
+                'trend_alignment': 'unknown',
+                'trading_bias': 'AVOID',
+                'confidence_multiplier': 0.5,
+                'recommendation': f'Error calculating multi-timeframe analysis: {e}'
+            }
+        }
+
+
+def analyze_open_interest(
+    oi_history: List[Dict[str, Any]],
+    price_history: List[float],
+    current_price: float
+) -> Dict[str, Any]:
+    """
+    Analyze Open Interest and its relationship with price for trend strength.
+
+    OPEN INTEREST = Total Outstanding Contracts
+    - OI rising + Price rising = STRONG BULLISH (new longs entering)
+    - OI rising + Price falling = STRONG BEARISH (new shorts entering)
+    - OI falling + Price rising = WEAK RALLY (longs closing)
+    - OI falling + Price falling = WEAK DUMP (shorts closing)
+
+    Args:
+        oi_history: List of OI data points with 'openInterest' and 'timestamp'
+        price_history: Corresponding price data
+        current_price: Current market price
+
+    Returns:
+        Dict with OI analysis and trading implications
+    """
+    try:
+        if not oi_history or len(oi_history) < 3:
+            return {
+                'current_oi': 0.0,
+                'oi_change_pct': 0.0,
+                'price_change_pct': 0.0,
+                'trend_strength': 'unknown',
+                'signal': 'neutral',
+                'trading_implication': 'Insufficient OI data',
+                'confidence_boost': 0.0
+            }
+
+        # Extract OI values
+        oi_values = [float(d.get('openInterest', 0)) for d in oi_history]
+
+        if len(oi_values) < 2 or len(price_history) < 2:
+            return {
+                'current_oi': oi_values[-1] if oi_values else 0.0,
+                'oi_change_pct': 0.0,
+                'price_change_pct': 0.0,
+                'trend_strength': 'unknown',
+                'signal': 'neutral',
+                'trading_implication': 'Insufficient data',
+                'confidence_boost': 0.0
+            }
+
+        current_oi = oi_values[-1]
+        prev_oi = oi_values[0]
+
+        # Calculate OI change
+        oi_change_pct = ((current_oi - prev_oi) / prev_oi) * 100 if prev_oi > 0 else 0
+
+        # Calculate price change
+        price_change_pct = ((current_price - price_history[0]) / price_history[0]) * 100 if price_history[0] > 0 else 0
+
+        # Determine trend strength and signal
+        oi_rising = oi_change_pct > 2  # OI increased by >2%
+        oi_falling = oi_change_pct < -2  # OI decreased by >2%
+        price_rising = price_change_pct > 0.5  # Price increased
+        price_falling = price_change_pct < -0.5  # Price decreased
+
+        # Analyze combinations
+        if oi_rising and price_rising:
+            trend_strength = 'STRONG_BULLISH'
+            signal = 'strong_buy'
+            trading_implication = '✅ STRONG UPTREND - New longs entering, high conviction buyers'
+            confidence_boost = 0.15  # +15% confidence
+        elif oi_rising and price_falling:
+            trend_strength = 'STRONG_BEARISH'
+            signal = 'strong_sell'
+            trading_implication = '✅ STRONG DOWNTREND - New shorts entering, high conviction sellers'
+            confidence_boost = 0.15
+        elif oi_falling and price_rising:
+            trend_strength = 'WEAK_BULLISH'
+            signal = 'weak_buy'
+            trading_implication = '⚠️ WEAK RALLY - Longs closing positions, reversal risk'
+            confidence_boost = -0.10  # -10% confidence (risky)
+        elif oi_falling and price_falling:
+            trend_strength = 'WEAK_BEARISH'
+            signal = 'weak_sell'
+            trading_implication = '⚠️ WEAK DUMP - Shorts closing positions, bounce possible'
+            confidence_boost = -0.10
+        else:
+            trend_strength = 'NEUTRAL'
+            signal = 'neutral'
+            trading_implication = 'OI and price moving sideways, no clear trend'
+            confidence_boost = 0.0
+
+        return {
+            'current_oi': float(current_oi),
+            'oi_change_pct': float(oi_change_pct),
+            'price_change_pct': float(price_change_pct),
+            'trend_strength': trend_strength,
+            'signal': signal,
+            'trading_implication': trading_implication,
+            'confidence_boost': float(confidence_boost),
+            'oi_rising': oi_rising,
+            'price_rising': price_rising
+        }
+
+    except Exception as e:
+        return {
+            'current_oi': 0.0,
+            'oi_change_pct': 0.0,
+            'price_change_pct': 0.0,
+            'trend_strength': 'unknown',
+            'signal': 'neutral',
+            'trading_implication': f'Error: {e}',
+            'confidence_boost': 0.0
+        }
+
+
+def estimate_liquidation_levels(
+    current_price: float,
+    ohlcv_data: List[List],
+    typical_leverage: int = 10
+) -> Dict[str, Any]:
+    """
+    Estimate liquidation cluster zones based on recent price action.
+
+    LIQUIDATION HEATMAP = Where leveraged positions get liquidated
+    - Long liquidations cluster BELOW recent support (stop hunts)
+    - Short liquidations cluster ABOVE recent resistance (stop hunts)
+    - Price tends to move TOWARD liquidation clusters (liquidity magnet)
+
+    Args:
+        current_price: Current market price
+        ohlcv_data: Recent OHLCV data
+        typical_leverage: Typical leverage used (default 10x)
+
+    Returns:
+        Dict with estimated liquidation zones
+    """
+    try:
+        if not ohlcv_data or len(ohlcv_data) < 20:
+            return {
+                'long_liquidation_zones': [],
+                'short_liquidation_zones': [],
+                'nearest_long_liq': current_price * 0.90,
+                'nearest_short_liq': current_price * 1.10,
+                'magnet_direction': 'none',
+                'trading_implication': 'Insufficient data for liquidation estimation'
+            }
+
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        for col in ['high', 'low', 'close']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Find recent swing lows (long liquidation zones)
+        swing_period = 5
+        swing_lows = []
+        swing_highs = []
+
+        for i in range(swing_period, len(df) - swing_period):
+            is_swing_low = True
+            is_swing_high = True
+
+            for j in range(1, swing_period + 1):
+                if df['low'].iloc[i] >= df['low'].iloc[i - j] or df['low'].iloc[i] >= df['low'].iloc[i + j]:
+                    is_swing_low = False
+                if df['high'].iloc[i] <= df['high'].iloc[i - j] or df['high'].iloc[i] <= df['high'].iloc[i + j]:
+                    is_swing_high = False
+
+            if is_swing_low:
+                swing_lows.append(float(df['low'].iloc[i]))
+            if is_swing_high:
+                swing_highs.append(float(df['high'].iloc[i]))
+
+        # Estimate long liquidation zones (below swing lows)
+        # At 10x leverage, ~9% move liquidates position
+        liquidation_buffer = 0.09 / typical_leverage * 10  # Scale based on leverage
+
+        long_liq_zones = []
+        for low in swing_lows[-5:]:  # Last 5 swing lows
+            liq_price = low * (1 - liquidation_buffer)
+            if liq_price < current_price:
+                long_liq_zones.append({
+                    'price': float(liq_price),
+                    'distance_pct': abs(current_price - liq_price) / current_price * 100
+                })
+
+        # Estimate short liquidation zones (above swing highs)
+        short_liq_zones = []
+        for high in swing_highs[-5:]:  # Last 5 swing highs
+            liq_price = high * (1 + liquidation_buffer)
+            if liq_price > current_price:
+                short_liq_zones.append({
+                    'price': float(liq_price),
+                    'distance_pct': abs(liq_price - current_price) / current_price * 100
+                })
+
+        # Find nearest liquidation zones
+        nearest_long_liq = min([z['price'] for z in long_liq_zones]) if long_liq_zones else current_price * 0.90
+        nearest_short_liq = min([z['price'] for z in short_liq_zones]) if short_liq_zones else current_price * 1.10
+
+        # Determine magnet direction (which cluster is closer)
+        long_liq_distance = abs(current_price - nearest_long_liq) / current_price * 100
+        short_liq_distance = abs(nearest_short_liq - current_price) / current_price * 100
+
+        if long_liq_distance < 3 and long_liq_distance < short_liq_distance:
+            magnet_direction = 'downward'
+            trading_implication = '⚠️ DOWNWARD MAGNET - Long liquidations nearby, possible dump to liquidate longs'
+        elif short_liq_distance < 3 and short_liq_distance < long_liq_distance:
+            magnet_direction = 'upward'
+            trading_implication = '⚠️ UPWARD MAGNET - Short liquidations nearby, possible pump to liquidate shorts'
+        else:
+            magnet_direction = 'balanced'
+            trading_implication = 'Liquidation clusters balanced, no strong magnet effect'
+
+        return {
+            'long_liquidation_zones': long_liq_zones[:3],  # Top 3 zones
+            'short_liquidation_zones': short_liq_zones[:3],
+            'nearest_long_liq': float(nearest_long_liq),
+            'nearest_short_liq': float(nearest_short_liq),
+            'long_liq_distance_pct': float(long_liq_distance),
+            'short_liq_distance_pct': float(short_liq_distance),
+            'magnet_direction': magnet_direction,
+            'trading_implication': trading_implication
+        }
+
+    except Exception as e:
+        return {
+            'long_liquidation_zones': [],
+            'short_liquidation_zones': [],
+            'nearest_long_liq': current_price * 0.90,
+            'nearest_short_liq': current_price * 1.10,
+            'magnet_direction': 'none',
+            'trading_implication': f'Error: {e}'
+        }
+
+
 def get_default_indicators() -> Dict[str, Any]:
     """Return default indicators when calculation fails."""
     return {

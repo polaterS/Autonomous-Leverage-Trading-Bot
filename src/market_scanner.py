@@ -17,6 +17,7 @@ from src.database import get_db_client
 from src.utils import setup_logging, is_bullish, is_bearish
 from src.indicators import (
     calculate_indicators,
+    calculate_multi_timeframe_indicators,
     detect_market_regime,
     detect_support_resistance_levels,
     calculate_volume_profile,
@@ -28,7 +29,9 @@ from src.indicators import (
     calculate_volatility_bands,
     calculate_confluence_score,
     calculate_momentum_strength,
-    calculate_btc_correlation
+    calculate_btc_correlation,
+    analyze_open_interest,
+    estimate_liquidation_levels
 )
 
 logger = setup_logging()
@@ -242,7 +245,8 @@ class MarketScanner:
         try:
             exchange = await get_exchange_client()
 
-            # OHLCV data (multiple timeframes)
+            # OHLCV data (multiple timeframes) - ENHANCED with 5m
+            ohlcv_5m = await exchange.fetch_ohlcv(symbol, '5m', limit=100)
             ohlcv_15m = await exchange.fetch_ohlcv(symbol, '15m', limit=100)
             ohlcv_1h = await exchange.fetch_ohlcv(symbol, '1h', limit=100)
             ohlcv_4h = await exchange.fetch_ohlcv(symbol, '4h', limit=50)
@@ -253,7 +257,12 @@ class MarketScanner:
             # Funding rate
             funding_rate = await exchange.fetch_funding_rate(symbol)
 
-            # Technical indicators
+            # MULTI-TIMEFRAME CONFLUENCE ANALYSIS (Professional Edge!)
+            mtf_analysis = calculate_multi_timeframe_indicators(
+                ohlcv_5m, ohlcv_15m, ohlcv_1h, ohlcv_4h
+            )
+
+            # Technical indicators (legacy - kept for compatibility)
             indicators_15m = calculate_indicators(ohlcv_15m)
             indicators_1h = calculate_indicators(ohlcv_1h)
             indicators_4h = calculate_indicators(ohlcv_4h)
@@ -324,12 +333,33 @@ class MarketScanner:
                 except:
                     pass
 
+            # PHASE 3 ULTRA PROFESSIONAL FEATURES (OPEN INTEREST & LIQUIDATIONS)
+
+            # Open Interest Analysis (Trend Strength Confirmation)
+            open_interest_data = {'trend_strength': 'unknown', 'signal': 'neutral', 'confidence_boost': 0.0, 'trading_implication': 'OI data not available'}
+            try:
+                # Fetch Open Interest history (last 24 hours, 1h intervals)
+                oi_history = await exchange.fetch_open_interest_history(symbol, '1h', limit=24)
+
+                if oi_history and len(oi_history) >= 3:
+                    # Extract price history for the same period
+                    price_history = [float(candle[4]) for candle in ohlcv_1h[-len(oi_history):]]
+
+                    open_interest_data = analyze_open_interest(oi_history, price_history, current_price)
+                    logger.debug(f"{symbol} OI Analysis: {open_interest_data.get('trend_strength', 'unknown')} - {open_interest_data.get('trading_implication', '')}")
+            except Exception as e:
+                logger.debug(f"{symbol} - Could not fetch Open Interest: {e}")
+
+            # Liquidation Heatmap (Liquidity Magnet Detection)
+            liquidation_map = estimate_liquidation_levels(current_price, ohlcv_1h, typical_leverage=10)
+
             return {
                 'symbol': symbol,
                 'current_price': current_price,
                 'volume_24h': ticker.get('quoteVolume', 0),
                 'ohlcv': {
-                    '15m': ohlcv_15m[-20:],  # Last 20 candles
+                    '5m': ohlcv_5m[-20:],    # Last 20 candles
+                    '15m': ohlcv_15m[-20:],
                     '1h': ohlcv_1h[-20:],
                     '4h': ohlcv_4h[-20:]
                 },
@@ -340,6 +370,8 @@ class MarketScanner:
                 },
                 'funding_rate': funding_rate,
                 'market_regime': regime,
+                # MULTI-TIMEFRAME CONFLUENCE (ULTRA PROFESSIONAL!)
+                'multi_timeframe': mtf_analysis,
                 # ADVANCED INSTITUTIONAL INDICATORS
                 'support_resistance': support_resistance,
                 'volume_profile': volume_profile,
@@ -352,7 +384,10 @@ class MarketScanner:
                 'volatility': volatility,
                 # PHASE 2 ULTRA PROFESSIONAL FEATURES
                 'momentum': momentum,
-                'btc_correlation': btc_correlation
+                'btc_correlation': btc_correlation,
+                # PHASE 3 ULTRA PROFESSIONAL FEATURES (OI & LIQUIDATIONS)
+                'open_interest': open_interest_data,
+                'liquidation_map': liquidation_map
             }
 
         except Exception as e:

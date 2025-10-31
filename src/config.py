@@ -471,6 +471,113 @@ You MUST calculate how many factors support your direction:
 → <3 factors = <65% confidence (WEAK SETUP - HOLD)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 MULTI-TIMEFRAME CONFLUENCE (ULTRA PROFESSIONAL EDGE!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trend Alignment: {market_data.get('multi_timeframe', {}).get('confluence_analysis', {}).get('trend_alignment', 'unknown').upper()}
+Alignment Score: {market_data.get('multi_timeframe', {}).get('confluence_analysis', {}).get('alignment_score', 0):.0f}%
+Trading Bias: {market_data.get('multi_timeframe', {}).get('confluence_analysis', {}).get('trading_bias', 'NEUTRAL')}
+Confidence Multiplier: {market_data.get('multi_timeframe', {}).get('confluence_analysis', {}).get('confidence_multiplier', 1.0):.2f}x
+Recommendation: {market_data.get('multi_timeframe', {}).get('confluence_analysis', {}).get('recommendation', 'N/A')}
+
+📊 Trend Summary:
+- 5m: {market_data.get('multi_timeframe', {}).get('trend_summary', {}).get('5m', 'unknown').upper()}
+- 15m: {market_data.get('multi_timeframe', {}).get('trend_summary', {}).get('15m', 'unknown').upper()}
+- 1h: {market_data.get('multi_timeframe', {}).get('trend_summary', {}).get('1h', 'unknown').upper()}
+- 4h: {market_data.get('multi_timeframe', {}).get('trend_summary', {}).get('4h', 'unknown').upper()}
+
+📈 RSI Multi-Timeframe:
+- 5m RSI: {market_data.get('multi_timeframe', {}).get('rsi_analysis', {}).get('5m', 50):.0f}
+- 15m RSI: {market_data.get('multi_timeframe', {}).get('rsi_analysis', {}).get('15m', 50):.0f}
+- 1h RSI: {market_data.get('multi_timeframe', {}).get('rsi_analysis', {}).get('1h', 50):.0f}
+- 4h RSI: {market_data.get('multi_timeframe', {}).get('rsi_analysis', {}).get('4h', 50):.0f}
+Oversold Timeframes: {market_data.get('multi_timeframe', {}).get('rsi_analysis', {}).get('oversold_timeframes', 0)}
+Overbought Timeframes: {market_data.get('multi_timeframe', {}).get('rsi_analysis', {}).get('overbought_timeframes', 0)}
+
+💡 EMA50 Positioning (Higher Timeframe Bias):
+- Price: ${market_data.get('multi_timeframe', {}).get('ema50_analysis', {}).get('price', 0):.4f}
+- 1h EMA50: ${market_data.get('multi_timeframe', {}).get('ema50_analysis', {}).get('ema50_1h', 0):.4f} ({'ABOVE ✅' if market_data.get('multi_timeframe', {}).get('ema50_analysis', {}).get('above_1h', False) else 'BELOW ❌'})
+- 4h EMA50: ${market_data.get('multi_timeframe', {}).get('ema50_analysis', {}).get('ema50_4h', 0):.4f} ({'ABOVE ✅' if market_data.get('multi_timeframe', {}).get('ema50_analysis', {}).get('above_4h', False) else 'BELOW ❌'})
+
+⚠️ CRITICAL TRADING RULES BASED ON CONFLUENCE:
+1. STRONG BULLISH CONFLUENCE (Trading Bias: LONG_ONLY):
+   → ALL timeframes bullish + price above 1h & 4h EMA50
+   → CONFIDENCE MULTIPLIER: 1.3x
+   → ONLY take LONG trades, SKIP shorts
+
+2. STRONG BEARISH CONFLUENCE (Trading Bias: SHORT_ONLY):
+   → ALL timeframes bearish + price below 1h & 4h EMA50
+   → CONFIDENCE MULTIPLIER: 1.3x
+   → ONLY take SHORT trades, SKIP longs
+
+3. CONFLICTING TIMEFRAMES (Trading Bias: AVOID):
+   → Timeframes disagree (2 bull, 2 bear)
+   → CONFIDENCE MULTIPLIER: 0.5x
+   → SKIP THIS COIN - Wait for clarity
+
+4. LONG PREFERRED (Trading Bias: LONG_PREFERRED):
+   → Higher timeframes bullish + 1h uptrend
+   → CONFIDENCE MULTIPLIER: 1.1x
+   → Favor longs, be cautious with shorts
+
+5. SHORT PREFERRED (Trading Bias: SHORT_PREFERRED):
+   → Higher timeframes bearish + 1h downtrend
+   → CONFIDENCE MULTIPLIER: 1.1x
+   → Favor shorts, be cautious with longs
+
+6. NEUTRAL (Trading Bias: NEUTRAL):
+   → Mixed signals
+   → CONFIDENCE MULTIPLIER: 0.8x
+   → Reduce position size, tight stops
+
+🎯 HOW TO USE MULTI-TIMEFRAME DATA:
+→ Apply the confidence multiplier to your base confidence
+→ If trading bias is "AVOID", automatically return "hold" action
+→ If trading bias is "LONG_ONLY" and you see SHORT opportunity, skip it
+→ If trading bias is "SHORT_ONLY" and you see LONG opportunity, skip it
+→ Use higher timeframe EMA50 as directional filter
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏦 OPEN INTEREST & LIQUIDATION HEATMAP (PHASE 3 ULTRA EDGE!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 OPEN INTEREST ANALYSIS (Trend Strength Confirmation):
+Trend Strength: {market_data.get('open_interest', {}).get('trend_strength', 'unknown').upper()}
+Signal: {market_data.get('open_interest', {}).get('signal', 'neutral').upper()}
+OI Change: {market_data.get('open_interest', {}).get('oi_change_pct', 0):.2f}%
+Price Change: {market_data.get('open_interest', {}).get('price_change_pct', 0):.2f}%
+Confidence Boost: {market_data.get('open_interest', {}).get('confidence_boost', 0)*100:+.0f}%
+Trading Implication: {market_data.get('open_interest', {}).get('trading_implication', 'N/A')}
+
+⚠️ OI INTERPRETATION RULES:
+→ STRONG_BULLISH: OI rising + Price rising = High conviction buyers, BOOST confidence by +15%
+→ STRONG_BEARISH: OI rising + Price falling = High conviction sellers, BOOST confidence by +15%
+→ WEAK_BULLISH: OI falling + Price rising = Longs closing, REDUCE confidence by -10% (reversal risk)
+→ WEAK_BEARISH: OI falling + Price falling = Shorts closing, REDUCE confidence by -10% (bounce risk)
+
+💀 LIQUIDATION HEATMAP (Liquidity Magnet Effect):
+Nearest Long Liquidation: ${market_data.get('liquidation_map', {}).get('nearest_long_liq', 0):.4f} ({market_data.get('liquidation_map', {}).get('long_liq_distance_pct', 0):.1f}% below)
+Nearest Short Liquidation: ${market_data.get('liquidation_map', {}).get('nearest_short_liq', 0):.4f} ({market_data.get('liquidation_map', {}).get('short_liq_distance_pct', 0):.1f}% above)
+Magnet Direction: {market_data.get('liquidation_map', {}).get('magnet_direction', 'balanced').upper()}
+Trading Implication: {market_data.get('liquidation_map', {}).get('trading_implication', 'N/A')}
+
+Long Liquidation Zones: {', '.join([f"${z['price']:.4f} ({z['distance_pct']:.1f}%)" for z in market_data.get('liquidation_map', {}).get('long_liquidation_zones', [])]) or 'None detected'}
+Short Liquidation Zones: {', '.join([f"${z['price']:.4f} ({z['distance_pct']:.1f}%)" for z in market_data.get('liquidation_map', {}).get('short_liquidation_zones', [])]) or 'None detected'}
+
+⚡ LIQUIDATION TRADING RULES:
+→ DOWNWARD MAGNET: Long liquidations <3% away = Possible dump to sweep longs, AVOID longing, FAVOR shorts
+→ UPWARD MAGNET: Short liquidations <3% away = Possible pump to sweep shorts, AVOID shorting, FAVOR longs
+→ BALANCED: No strong magnet = Trade based on other factors
+→ Price tends to move TOWARD liquidation clusters before reversing (liquidity grab pattern)
+
+🎯 HOW TO USE OI + LIQUIDATION DATA:
+1. Apply OI confidence_boost to your base confidence score
+2. If OI shows STRONG trend + magnet confirms direction = ULTRA HIGH confidence
+3. If OI shows WEAK trend = Reduce confidence, expect reversal
+4. If liquidation magnet opposes your trade = Reduce position size or skip
+5. Best setups: OI confirms + liquidation magnet aligns + multi-timeframe agrees
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 TECHNICAL INDICATORS (15m timeframe):
 RSI: {market_data['indicators']['15m']['rsi']:.1f}

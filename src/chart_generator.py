@@ -218,63 +218,21 @@ class TradingViewChartGenerator:
             trend_lines = self.detect_trend_lines(df)
             logger.info(f"🔍 Trend lines: uptrend={trend_lines['uptrend'] is not None}, downtrend={trend_lines['downtrend'] is not None}")
 
-            # Build additional plots
+            # Build additional plots - MINIMALIST (only EMAs)
             apds = []
 
-            # EMAs on main chart
+            # EMAs on main chart - TradingView style (thin lines)
             ema_plots = [
-                mpf.make_addplot(df['EMA12'], color=self.colors['ema_fast'], width=1.5, label='EMA 12'),
-                mpf.make_addplot(df['EMA26'], color=self.colors['ema_slow'], width=1.5, label='EMA 26'),
-                mpf.make_addplot(df['EMA50'], color=self.colors['ema_long'], width=1.5, label='EMA 50'),
+                mpf.make_addplot(df['EMA12'], color=self.colors['ema_fast'], width=1.2, label='EMA 12', alpha=0.8),
+                mpf.make_addplot(df['EMA26'], color=self.colors['ema_slow'], width=1.2, label='EMA 26', alpha=0.8),
+                mpf.make_addplot(df['EMA50'], color=self.colors['ema_long'], width=1.2, label='EMA 50', alpha=0.8),
             ]
             apds.extend(ema_plots)
 
-            # RSI panel
-            if show_indicators:
-                rsi_plot = mpf.make_addplot(
-                    df['RSI'],
-                    panel=1,
-                    color=self.colors['rsi'],
-                    ylabel='RSI',
-                    width=1.5,
-                    ylim=(0, 100)
-                )
-                apds.append(rsi_plot)
+            # NO RSI/MACD panels - Keep it clean like TradingView!
 
-                # RSI overbought/oversold lines
-                rsi_upper = pd.Series([70] * len(df), index=df.index)
-                rsi_lower = pd.Series([30] * len(df), index=df.index)
-                apds.append(mpf.make_addplot(rsi_upper, panel=1, color='#666', linestyle='--', width=0.8))
-                apds.append(mpf.make_addplot(rsi_lower, panel=1, color='#666', linestyle='--', width=0.8))
-
-                # MACD panel
-                macd_plot = mpf.make_addplot(
-                    df['MACD'],
-                    panel=2,
-                    color=self.colors['macd'],
-                    ylabel='MACD',
-                    width=1.5
-                )
-                macd_signal_plot = mpf.make_addplot(
-                    df['MACD_signal'],
-                    panel=2,
-                    color=self.colors['macd_signal'],
-                    width=1.5
-                )
-                # MACD histogram
-                colors_hist = [self.colors['bull'] if val >= 0 else self.colors['bear'] for val in df['MACD_hist']]
-                macd_hist_plot = mpf.make_addplot(
-                    df['MACD_hist'],
-                    panel=2,
-                    type='bar',
-                    color=colors_hist,
-                    alpha=0.4,
-                    width=0.7
-                )
-                apds.extend([macd_plot, macd_signal_plot, macd_hist_plot])
-
-            # Create figure
-            panel_ratios = (4, 1, 1) if show_indicators else (1,)
+            # Create figure - MINIMALIST (only main chart + volume)
+            panel_ratios = (4, 1)  # 80% price, 20% volume
 
             fig, axes = mpf.plot(
                 df,
@@ -294,55 +252,55 @@ class TradingViewChartGenerator:
             # Get main axis (price chart)
             ax_main = axes[0]
 
-            # Draw support levels (with z-order to appear on top) - ULTRA VISIBLE
+            # Draw support levels - TradingView style (clean and minimal)
             for i, level in enumerate(support_levels[:3]):  # Top 3 support levels
                 ax_main.axhline(
                     y=level,
-                    color='#00FF41',  # Bright neon green
+                    color='#4CAF50',  # TradingView green
                     linestyle='--',
-                    linewidth=4,  # Thicker
-                    alpha=1.0,  # Fully opaque
+                    linewidth=1.5,
+                    alpha=0.7,
                     zorder=10,
-                    label=f'SUPPORT ${level:.2f}' if i == 0 else ''
+                    label=f'Support ${level:.2f}' if i == 0 else ''
                 )
-                # Add price label on the right - BIGGER AND BOLDER
+                # Add minimal price label on the right
                 ax_main.text(
-                    len(df) + 2,
+                    len(df) - 1,
                     level,
-                    f' SUPPORT: ${level:.2f}',
-                    color='#00FF41',
-                    fontsize=12,
+                    f' ${level:.2f}',
+                    color='#4CAF50',
+                    fontsize=8,
                     va='center',
-                    fontweight='bold',
+                    ha='left',
                     zorder=11,
-                    bbox=dict(boxstyle='round,pad=0.5', facecolor='#00FF41', edgecolor='#00FF41', linewidth=2, alpha=0.4)
+                    alpha=0.8
                 )
 
-            # Draw resistance levels (with z-order to appear on top) - ULTRA VISIBLE
+            # Draw resistance levels - TradingView style (clean and minimal)
             for i, level in enumerate(resistance_levels[:3]):  # Top 3 resistance levels
                 ax_main.axhline(
                     y=level,
-                    color='#FF1744',  # Bright neon red
+                    color='#F44336',  # TradingView red
                     linestyle='--',
-                    linewidth=4,  # Thicker
-                    alpha=1.0,  # Fully opaque
+                    linewidth=1.5,
+                    alpha=0.7,
                     zorder=10,
-                    label=f'RESISTANCE ${level:.2f}' if i == 0 else ''
+                    label=f'Resistance ${level:.2f}' if i == 0 else ''
                 )
-                # Add price label on the right - BIGGER AND BOLDER
+                # Add minimal price label on the right
                 ax_main.text(
-                    len(df) + 2,
+                    len(df) - 1,
                     level,
-                    f' RESISTANCE: ${level:.2f}',
-                    color='#FF1744',
-                    fontsize=12,
+                    f' ${level:.2f}',
+                    color='#F44336',
+                    fontsize=8,
                     va='center',
-                    fontweight='bold',
+                    ha='left',
                     zorder=11,
-                    bbox=dict(boxstyle='round,pad=0.5', facecolor='#FF1744', edgecolor='#FF1744', linewidth=2, alpha=0.4)
+                    alpha=0.8
                 )
 
-            # Draw uptrend line (with z-order) - ULTRA VISIBLE
+            # Draw uptrend line - TradingView style (clean)
             if trend_lines['uptrend']:
                 slope, intercept = trend_lines['uptrend']
                 x_range = range(len(df))
@@ -350,15 +308,15 @@ class TradingViewChartGenerator:
                 ax_main.plot(
                     x_range,
                     y_values,
-                    color='#00E676',  # Bright neon green
+                    color='#26A69A',  # TradingView green
                     linestyle='-',
-                    linewidth=5,  # Much thicker
-                    alpha=1.0,  # Fully opaque
+                    linewidth=2,
+                    alpha=0.7,
                     zorder=9,
-                    label='📈 UPTREND'
+                    label='Uptrend'
                 )
 
-            # Draw downtrend line (with z-order) - ULTRA VISIBLE
+            # Draw downtrend line - TradingView style (clean)
             if trend_lines['downtrend']:
                 slope, intercept = trend_lines['downtrend']
                 x_range = range(len(df))
@@ -366,12 +324,12 @@ class TradingViewChartGenerator:
                 ax_main.plot(
                     x_range,
                     y_values,
-                    color='#FF1744',  # Bright neon red
+                    color='#EF5350',  # TradingView red
                     linestyle='-',
-                    linewidth=5,  # Much thicker
-                    alpha=1.0,  # Fully opaque
+                    linewidth=2,
+                    alpha=0.7,
                     zorder=9,
-                    label='📉 DOWNTREND'
+                    label='Downtrend'
                 )
 
             # Add legend
