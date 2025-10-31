@@ -20,6 +20,18 @@ async def main():
     # Get settings to trigger warnings
     settings = get_settings()
 
+    # Auto-setup database tables if needed (for Railway deployment)
+    try:
+        from setup_database import setup_database
+        logger.info("Checking database setup...")
+        await setup_database()
+    except Exception as e:
+        # If tables already exist, setup_database will succeed anyway
+        # Only fail if it's a connection error
+        if "already exists" not in str(e).lower():
+            logger.error(f"Database setup check failed: {e}")
+            # Continue anyway - might be tables already exist
+
     # Show risk warning if not paper trading
     if not settings.use_paper_trading:
         print("\n" + "=" * 60)
