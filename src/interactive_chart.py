@@ -121,13 +121,13 @@ async def generate_interactive_html_chart(
         df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
         df['MACD_hist'] = df['MACD'] - df['MACD_signal']
 
-        # Create subplots (4 rows: price, volume, RSI, MACD)
+        # Create subplots - MINIMALIST TRADINGVIEW STYLE (Price + Volume only)
         fig = make_subplots(
-            rows=4, cols=1,
+            rows=2, cols=1,
             shared_xaxes=True,
-            vertical_spacing=0.03,
-            subplot_titles=(f'{symbol} - 15m Chart (Turkey Time UTC+3)', 'Volume', 'RSI', 'MACD'),
-            row_heights=[0.5, 0.15, 0.15, 0.2]
+            vertical_spacing=0.02,
+            subplot_titles=(f'{symbol} - 15m (Turkey Time UTC+3)', 'Volume'),
+            row_heights=[0.7, 0.3]
         )
 
         # Candlestick chart
@@ -145,12 +145,13 @@ async def generate_interactive_html_chart(
             row=1, col=1
         )
 
-        # EMAs
+        # EMAs - TradingView style (thinner lines)
         fig.add_trace(
             go.Scatter(
                 x=df['timestamp'], y=df['EMA12'],
                 name='EMA 12',
-                line=dict(color='#2962FF', width=2)
+                line=dict(color='#2962FF', width=1.2),
+                opacity=0.8
             ),
             row=1, col=1
         )
@@ -158,7 +159,8 @@ async def generate_interactive_html_chart(
             go.Scatter(
                 x=df['timestamp'], y=df['EMA26'],
                 name='EMA 26',
-                line=dict(color='#FF6D00', width=2)
+                line=dict(color='#FF6D00', width=1.2),
+                opacity=0.8
             ),
             row=1, col=1
         )
@@ -166,43 +168,42 @@ async def generate_interactive_html_chart(
             go.Scatter(
                 x=df['timestamp'], y=df['EMA50'],
                 name='EMA 50',
-                line=dict(color='#FFD600', width=2)
+                line=dict(color='#FFD600', width=1.2),
+                opacity=0.8
             ),
             row=1, col=1
         )
 
-        # Support levels - ULTRA BOLD AND VISIBLE
+        # Support levels - TradingView style (clean and subtle)
         for i, level in enumerate(support_levels[:3]):
             fig.add_hline(
                 y=level,
-                line_dash="dash",
-                line_color="#00FF41",  # Bright neon green
-                line_width=4,  # Thicker
-                annotation_text=f"<b>SUPPORT: ${level:.2f}</b>",
+                line_dash="dot",
+                line_color="#4CAF50",  # TradingView green
+                line_width=1.5,
+                annotation_text=f"S: ${level:.2f}",
                 annotation_position="right",
                 annotation=dict(
-                    font=dict(size=14, color="#00FF41", family="Arial Black"),
-                    bgcolor="rgba(0, 255, 65, 0.2)",
-                    bordercolor="#00FF41",
-                    borderwidth=2
+                    font=dict(size=10, color="#4CAF50"),
+                    bgcolor="rgba(76, 175, 80, 0.1)",
+                    borderpad=2
                 ),
                 row=1, col=1
             )
 
-        # Resistance levels - ULTRA BOLD AND VISIBLE
+        # Resistance levels - TradingView style (clean and subtle)
         for i, level in enumerate(resistance_levels[:3]):
             fig.add_hline(
                 y=level,
-                line_dash="dash",
-                line_color="#FF1744",  # Bright neon red
-                line_width=4,  # Thicker
-                annotation_text=f"<b>RESISTANCE: ${level:.2f}</b>",
+                line_dash="dot",
+                line_color="#F44336",  # TradingView red
+                line_width=1.5,
+                annotation_text=f"R: ${level:.2f}",
                 annotation_position="right",
                 annotation=dict(
-                    font=dict(size=14, color="#FF1744", family="Arial Black"),
-                    bgcolor="rgba(255, 23, 68, 0.2)",
-                    bordercolor="#FF1744",
-                    borderwidth=2
+                    font=dict(size=10, color="#F44336"),
+                    bgcolor="rgba(244, 67, 54, 0.1)",
+                    borderpad=2
                 ),
                 row=1, col=1
             )
@@ -210,7 +211,7 @@ async def generate_interactive_html_chart(
         # Detect and draw trend lines
         trend_lines = detect_trend_lines(df)
 
-        # Uptrend line - BRIGHT GREEN
+        # Uptrend line - TradingView style (subtle and professional)
         if trend_lines['uptrend']:
             slope, intercept = trend_lines['uptrend']
             x_range = list(range(len(df)))
@@ -220,16 +221,17 @@ async def generate_interactive_html_chart(
                 go.Scatter(
                     x=df['timestamp'],
                     y=y_values,
-                    name='📈 UPTREND',
-                    line=dict(color='#00E676', width=5, dash='solid'),  # Bright green, thick
+                    name='Uptrend',
+                    line=dict(color='#26A69A', width=2, dash='solid'),
                     mode='lines',
-                    showlegend=True
+                    showlegend=True,
+                    opacity=0.7
                 ),
                 row=1, col=1
             )
             logger.info("✅ Uptrend line added to interactive chart")
 
-        # Downtrend line - BRIGHT RED
+        # Downtrend line - TradingView style (subtle and professional)
         if trend_lines['downtrend']:
             slope, intercept = trend_lines['downtrend']
             x_range = list(range(len(df)))
@@ -239,97 +241,88 @@ async def generate_interactive_html_chart(
                 go.Scatter(
                     x=df['timestamp'],
                     y=y_values,
-                    name='📉 DOWNTREND',
-                    line=dict(color='#FF1744', width=5, dash='solid'),  # Bright red, thick
+                    name='Downtrend',
+                    line=dict(color='#EF5350', width=2, dash='solid'),
                     mode='lines',
-                    showlegend=True
+                    showlegend=True,
+                    opacity=0.7
                 ),
                 row=1, col=1
             )
             logger.info("✅ Downtrend line added to interactive chart")
 
-        # Volume
+        # Volume - TradingView style
         colors = ['#26A69A' if row['close'] >= row['open'] else '#EF5350' for _, row in df.iterrows()]
         fig.add_trace(
             go.Bar(
                 x=df['timestamp'], y=df['volume'],
                 name='Volume',
-                marker_color=colors
+                marker_color=colors,
+                opacity=0.5
             ),
             row=2, col=1
         )
 
-        # RSI
-        fig.add_trace(
-            go.Scatter(
-                x=df['timestamp'], y=df['RSI'],
-                name='RSI',
-                line=dict(color='#9C27B0', width=2)
-            ),
-            row=3, col=1
-        )
-        fig.add_hline(y=70, line_dash="dot", line_color="gray", row=3, col=1)
-        fig.add_hline(y=30, line_dash="dot", line_color="gray", row=3, col=1)
-
-        # MACD
-        fig.add_trace(
-            go.Scatter(
-                x=df['timestamp'], y=df['MACD'],
-                name='MACD',
-                line=dict(color='#2196F3', width=2)
-            ),
-            row=4, col=1
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=df['timestamp'], y=df['MACD_signal'],
-                name='Signal',
-                line=dict(color='#FF9800', width=2)
-            ),
-            row=4, col=1
-        )
-        # MACD histogram
-        hist_colors = ['#26A69A' if val >= 0 else '#EF5350' for val in df['MACD_hist']]
-        fig.add_trace(
-            go.Bar(
-                x=df['timestamp'], y=df['MACD_hist'],
-                name='Histogram',
-                marker_color=hist_colors
-            ),
-            row=4, col=1
-        )
-
-        # Update layout - TradingView dark theme
+        # Update layout - TRADINGVIEW MINIMALIST STYLE
         fig.update_layout(
             template='plotly_dark',
-            title=f"{symbol} - Interactive Chart (Turkey Time UTC+3) - Real-Time Data",
-            xaxis_rangeslider_visible=False,
-            height=1000,
+            title=dict(
+                text=f"{symbol} - 15m Chart (Turkey Time UTC+3)",
+                font=dict(size=16, color='#D1D4DC'),
+                x=0.5,
+                xanchor='center'
+            ),
+            height=800,
             hovermode='x unified',
-            font=dict(family="Arial", size=12, color="#D1D4DC"),
+            font=dict(family="Trebuchet MS", size=11, color="#D1D4DC"),
             paper_bgcolor='#131722',
             plot_bgcolor='#131722',
             showlegend=True,
             legend=dict(
                 orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01,
+                bgcolor="rgba(19, 23, 34, 0.8)",
+                bordercolor="#1E222D",
+                borderwidth=1
+            ),
+            margin=dict(l=10, r=10, t=50, b=10)
         )
 
-        # Update axes
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#1E222D')
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#1E222D')
+        # Update axes - Clean TradingView style
+        fig.update_xaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='#1E222D',
+            showline=True,
+            linewidth=1,
+            linecolor='#1E222D',
+            rangeslider_visible=True,  # TradingView-style range slider!
+            rangeslider_thickness=0.05,
+            row=2, col=1
+        )
 
-        # Generate HTML
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='#1E222D',
+            showline=True,
+            linewidth=1,
+            linecolor='#1E222D'
+        )
+
+        # Generate HTML - TradingView-style interactions
         html_content = fig.to_html(
             include_plotlyjs='cdn',
             config={
                 'displayModeBar': True,
                 'displaylogo': False,
-                'modeBarButtonsToRemove': ['lasso2d', 'select2d']
+                'scrollZoom': True,  # Mouse wheel zoom like TradingView!
+                'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+                'doubleClick': 'reset',
+                'responsive': True
             }
         )
 
