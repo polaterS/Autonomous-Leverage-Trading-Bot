@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     database_url: str = Field(..., min_length=1)
-    redis_url: str = Field(default="redis://localhost:6379/0")
+    redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)
