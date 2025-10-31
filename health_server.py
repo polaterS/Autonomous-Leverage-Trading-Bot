@@ -4,7 +4,7 @@ Provides detailed system status, database health, and trading metrics.
 """
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from datetime import datetime, date
 from decimal import Decimal
 import asyncio
@@ -15,6 +15,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 app = FastAPI(title="Trading Bot Health API", version="1.0.0")
+
+# Import chart server endpoints
+from src.chart_server import _charts_storage, _cleanup_expired_charts
 
 startup_time = datetime.now()
 
@@ -164,6 +167,50 @@ async def get_metrics():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/chart/{chart_id}", response_class=HTMLResponse)
+async def get_chart(chart_id: str):
+    """
+    Serve interactive chart HTML.
+
+    Args:
+        chart_id: Unique chart identifier
+
+    Returns:
+        HTML content of the chart
+    """
+    _cleanup_expired_charts()
+
+    if chart_id not in _charts_storage:
+        raise HTTPException(status_code=404, detail="Chart not found or expired")
+
+    chart_data = _charts_storage[chart_id]
+
+    # Check if expired
+    if chart_data['expires_at'] < datetime.now():
+        del _charts_storage[chart_id]
+        raise HTTPException(status_code=410, detail="Chart expired")
+
+    return HTMLResponse(content=chart_data['html'])
+
+
+@app.get("/charts")
+async def list_charts():
+    """List all active charts."""
+    _cleanup_expired_charts()
+    return {
+        "total_charts": len(_charts_storage),
+        "charts": [
+            {
+                "id": chart_id,
+                "symbol": data['symbol'],
+                "created_at": data['created_at'].isoformat(),
+                "expires_at": data['expires_at'].isoformat()
+            }
+            for chart_id, data in _charts_storage.items()
+        ]
+    }
+
+
 @app.get("/")
 async def root():
     """Root endpoint with service info."""
@@ -174,7 +221,9 @@ async def root():
         "endpoints": {
             "/health": "System health check",
             "/status": "Trading bot status",
-            "/metrics": "Performance metrics"
+            "/metrics": "Performance metrics",
+            "/chart/{chart_id}": "Get interactive chart",
+            "/charts": "List all charts"
         },
         "uptime": format_uptime((datetime.now() - startup_time).total_seconds())
     }

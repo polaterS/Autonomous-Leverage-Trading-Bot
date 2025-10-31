@@ -24,6 +24,9 @@ from src.utils import format_duration
 from src.risk_manager import get_risk_manager
 from src.trade_executor import get_trade_executor
 from src.chart_generator import get_chart_generator
+from src.interactive_chart import generate_interactive_html_chart
+from src.chart_server import store_chart
+import os
 
 logger = logging.getLogger('trading_bot')
 
@@ -659,7 +662,7 @@ Coin seçin:
                 )
                 return
 
-            # Generate chart
+            # Generate static chart (PNG)
             chart_generator = get_chart_generator()
             chart_bytes = await chart_generator.generate_chart(
                 symbol=symbol,
@@ -670,24 +673,55 @@ Coin seçin:
                 height=12
             )
 
-            # Send chart as photo
-            current_price = ohlcv_data[-1][4]  # Close price
+            # Generate interactive HTML chart
+            from src.indicators import detect_support_resistance_levels
+            current_price = float(ohlcv_data[-1][4])
+            support_resistance = detect_support_resistance_levels(ohlcv_data, current_price)
+            support_levels = support_resistance.get('support_levels', [])
+            resistance_levels = support_resistance.get('resistance_levels', [])
+
+            html_content = await generate_interactive_html_chart(
+                symbol=symbol,
+                ohlcv_data=ohlcv_data,
+                support_levels=support_levels,
+                resistance_levels=resistance_levels
+            )
+
+            # Store HTML and get chart ID
+            chart_id = store_chart(html_content, symbol)
+
+            # Get Railway URL from environment or use localhost for local testing
+            base_url = os.getenv('RAILWAY_PUBLIC_DOMAIN', 'http://localhost:8000')
+            if not base_url.startswith('http'):
+                base_url = f"https://{base_url}"
+            interactive_url = f"{base_url}/chart/{chart_id}"
+
+            # Prepare caption
             price_change = ((ohlcv_data[-1][4] - ohlcv_data[0][1]) / ohlcv_data[0][1]) * 100
             emoji = "📈" if price_change >= 0 else "📉"
 
             caption = f"""
 {emoji} <b>{symbol}</b>
-💵 Fiyat: ${current_price:.4f} ({price_change:+.2f}%)
-📊 Timeframe: 15 dakika (100 mum)
-⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
 
-🎨 TradingView benzeri ultra profesyonel grafik
+💵 <b>Fiyat:</b> ${current_price:.2f} ({price_change:+.2f}%)
+📊 <b>Timeframe:</b> 15 dakika (100 mum)
+⏰ <b>Zaman:</b> {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
+
+🎨 <b>TradingView benzeri ultra profesyonel grafik</b>
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+🖱️ <b>İNTERAKTİF GRAFİK:</b>
+<a href="{interactive_url}">📊 Tıkla ve İnteraktif Grafiği Aç</a>
+
+✨ Zoom, pan, hover tooltips
+✨ 24 saat aktif kalacak
+━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
             # Delete loading message
             await query.message.delete()
 
-            # Send photo
+            # Send photo with interactive link
             await self.application.bot.send_photo(
                 chat_id=query.message.chat_id,
                 photo=chart_bytes,
@@ -695,7 +729,7 @@ Coin seçin:
                 parse_mode=ParseMode.HTML
             )
 
-            logger.info(f"✅ Chart sent successfully for {symbol}")
+            logger.info(f"✅ Chart sent successfully for {symbol} (ID: {chart_id})")
 
         except Exception as e:
             logger.error(f"❌ Error generating chart: {e}")

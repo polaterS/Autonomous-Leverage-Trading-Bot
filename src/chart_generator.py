@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from PIL import Image
 import io
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from src.utils import setup_logging
 from src.indicators import (
     calculate_indicators,
@@ -207,8 +209,12 @@ class TradingViewChartGenerator:
             support_levels = support_resistance.get('support_levels', [])
             resistance_levels = support_resistance.get('resistance_levels', [])
 
+            logger.info(f"🔍 Support levels: {support_levels[:3]}")
+            logger.info(f"🔍 Resistance levels: {resistance_levels[:3]}")
+
             # Detect trend lines
             trend_lines = self.detect_trend_lines(df)
+            logger.info(f"🔍 Trend lines: uptrend={trend_lines['uptrend'] is not None}, downtrend={trend_lines['downtrend'] is not None}")
 
             # Build additional plots
             apds = []
@@ -286,51 +292,55 @@ class TradingViewChartGenerator:
             # Get main axis (price chart)
             ax_main = axes[0]
 
-            # Draw support levels
-            for level in support_levels[:3]:  # Top 3 support levels
+            # Draw support levels (with z-order to appear on top)
+            for i, level in enumerate(support_levels[:3]):  # Top 3 support levels
                 ax_main.axhline(
                     y=level,
                     color=self.colors['support'],
                     linestyle='--',
-                    linewidth=1.5,
-                    alpha=0.7,
-                    label=f'Support ${level:.4f}'
+                    linewidth=2.5,
+                    alpha=0.9,
+                    zorder=10,
+                    label=f'Support ${level:.2f}' if i == 0 else ''
                 )
-                # Add price label
+                # Add price label on the right
                 ax_main.text(
-                    len(df) - 1,
+                    len(df) + 2,
                     level,
-                    f' ${level:.4f}',
+                    f' S: ${level:.2f}',
                     color=self.colors['support'],
-                    fontsize=9,
+                    fontsize=10,
                     va='center',
                     fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor=self.colors['background'], edgecolor=self.colors['support'], alpha=0.8)
+                    zorder=11,
+                    bbox=dict(boxstyle='round,pad=0.4', facecolor=self.colors['support'], edgecolor='none', alpha=0.3)
                 )
 
-            # Draw resistance levels
-            for level in resistance_levels[:3]:  # Top 3 resistance levels
+            # Draw resistance levels (with z-order to appear on top)
+            for i, level in enumerate(resistance_levels[:3]):  # Top 3 resistance levels
                 ax_main.axhline(
                     y=level,
                     color=self.colors['resistance'],
                     linestyle='--',
-                    linewidth=1.5,
-                    alpha=0.7,
-                    label=f'Resistance ${level:.4f}'
+                    linewidth=2.5,
+                    alpha=0.9,
+                    zorder=10,
+                    label=f'Resistance ${level:.2f}' if i == 0 else ''
                 )
-                # Add price label
+                # Add price label on the right
                 ax_main.text(
-                    len(df) - 1,
+                    len(df) + 2,
                     level,
-                    f' ${level:.4f}',
+                    f' R: ${level:.2f}',
                     color=self.colors['resistance'],
-                    fontsize=9,
+                    fontsize=10,
                     va='center',
                     fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor=self.colors['background'], edgecolor=self.colors['resistance'], alpha=0.8)
+                    zorder=11,
+                    bbox=dict(boxstyle='round,pad=0.4', facecolor=self.colors['resistance'], edgecolor='none', alpha=0.3)
                 )
 
-            # Draw uptrend line
+            # Draw uptrend line (with z-order)
             if trend_lines['uptrend']:
                 slope, intercept = trend_lines['uptrend']
                 x_range = range(len(df))
@@ -340,12 +350,13 @@ class TradingViewChartGenerator:
                     y_values,
                     color=self.colors['trend_up'],
                     linestyle='-',
-                    linewidth=2.5,
-                    alpha=0.8,
-                    label='Uptrend'
+                    linewidth=3,
+                    alpha=0.9,
+                    zorder=9,
+                    label='📈 Uptrend'
                 )
 
-            # Draw downtrend line
+            # Draw downtrend line (with z-order)
             if trend_lines['downtrend']:
                 slope, intercept = trend_lines['downtrend']
                 x_range = range(len(df))
@@ -355,9 +366,10 @@ class TradingViewChartGenerator:
                     y_values,
                     color=self.colors['trend_down'],
                     linestyle='-',
-                    linewidth=2.5,
-                    alpha=0.8,
-                    label='Downtrend'
+                    linewidth=3,
+                    alpha=0.9,
+                    zorder=9,
+                    label='📉 Downtrend'
                 )
 
             # Add legend
