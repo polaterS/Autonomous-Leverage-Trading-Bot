@@ -202,7 +202,8 @@ class TradingViewChartGenerator:
             df['MACD_hist'] = hist
 
             # Detect support/resistance levels
-            support_resistance = detect_support_resistance_levels(ohlcv_data)
+            current_price = float(df['close'].iloc[-1])
+            support_resistance = detect_support_resistance_levels(ohlcv_data, current_price)
             support_levels = support_resistance.get('support_levels', [])
             resistance_levels = support_resistance.get('resistance_levels', [])
 
