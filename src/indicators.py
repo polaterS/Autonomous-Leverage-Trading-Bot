@@ -624,6 +624,487 @@ def analyze_funding_rate_trend(funding_rate_history: List[float]) -> Dict[str, A
         }
 
 
+def detect_divergences(ohlcv_data: List[List]) -> Dict[str, Any]:
+    """
+    Detect bullish and bearish divergences between price and indicators.
+
+    PROFESSIONAL DIVERGENCE DETECTION:
+    - Bullish Divergence: Price makes lower low, RSI/MACD makes higher low → REVERSAL UP
+    - Bearish Divergence: Price makes higher high, RSI/MACD makes lower high → REVERSAL DOWN
+
+    These are among THE STRONGEST reversal signals in technical analysis!
+
+    Args:
+        ohlcv_data: List of OHLCV candles
+
+    Returns:
+        Dict with divergence signals and strength
+    """
+    if not ohlcv_data or len(ohlcv_data) < 30:
+        return {
+            'has_divergence': False,
+            'type': None,
+            'strength': 0,
+            'indicator': None,
+            'details': 'Insufficient data'
+        }
+
+    try:
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        for col in ['high', 'low', 'close']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Calculate RSI and MACD
+        rsi_values = []
+        for i in range(14, len(df)):
+            prices_slice = df['close'].iloc[i-14:i+1]
+            delta = prices_slice.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            rsi_values.append(float(rsi.iloc[-1]))
+
+        # Get recent price lows and highs (last 20 candles)
+        recent_data = df.tail(20)
+        recent_rsi = rsi_values[-20:] if len(rsi_values) >= 20 else rsi_values
+
+        if len(recent_rsi) < 10:
+            return {
+                'has_divergence': False,
+                'type': None,
+                'strength': 0,
+                'indicator': None,
+                'details': 'Insufficient RSI data'
+            }
+
+        # Find price lows and highs
+        price_lows = []
+        price_highs = []
+        rsi_lows = []
+        rsi_highs = []
+
+        for i in range(2, len(recent_data) - 2):
+            # Local low (lower than 2 candles before and after)
+            if (recent_data['low'].iloc[i] < recent_data['low'].iloc[i-1] and
+                recent_data['low'].iloc[i] < recent_data['low'].iloc[i-2] and
+                recent_data['low'].iloc[i] < recent_data['low'].iloc[i+1] and
+                recent_data['low'].iloc[i] < recent_data['low'].iloc[i+2]):
+                price_lows.append((i, float(recent_data['low'].iloc[i])))
+                if i < len(recent_rsi):
+                    rsi_lows.append((i, recent_rsi[i]))
+
+            # Local high
+            if (recent_data['high'].iloc[i] > recent_data['high'].iloc[i-1] and
+                recent_data['high'].iloc[i] > recent_data['high'].iloc[i-2] and
+                recent_data['high'].iloc[i] > recent_data['high'].iloc[i+1] and
+                recent_data['high'].iloc[i] > recent_data['high'].iloc[i+2]):
+                price_highs.append((i, float(recent_data['high'].iloc[i])))
+                if i < len(recent_rsi):
+                    rsi_highs.append((i, recent_rsi[i]))
+
+        # Check for BULLISH divergence (price lower low, RSI higher low)
+        if len(price_lows) >= 2 and len(rsi_lows) >= 2:
+            last_price_low = price_lows[-1][1]
+            prev_price_low = price_lows[-2][1]
+            last_rsi_low = rsi_lows[-1][1]
+            prev_rsi_low = rsi_lows[-2][1]
+
+            # Bullish divergence: price makes lower low, RSI makes higher low
+            if last_price_low < prev_price_low and last_rsi_low > prev_rsi_low:
+                strength = min((last_rsi_low - prev_rsi_low) / 10, 1.0)  # Normalize to 0-1
+                return {
+                    'has_divergence': True,
+                    'type': 'bullish',
+                    'strength': float(strength),
+                    'indicator': 'RSI',
+                    'details': f'Price: {prev_price_low:.4f}→{last_price_low:.4f}, RSI: {prev_rsi_low:.1f}→{last_rsi_low:.1f}'
+                }
+
+        # Check for BEARISH divergence (price higher high, RSI lower high)
+        if len(price_highs) >= 2 and len(rsi_highs) >= 2:
+            last_price_high = price_highs[-1][1]
+            prev_price_high = price_highs[-2][1]
+            last_rsi_high = rsi_highs[-1][1]
+            prev_rsi_high = rsi_highs[-2][1]
+
+            # Bearish divergence: price makes higher high, RSI makes lower high
+            if last_price_high > prev_price_high and last_rsi_high < prev_rsi_high:
+                strength = min((prev_rsi_high - last_rsi_high) / 10, 1.0)
+                return {
+                    'has_divergence': True,
+                    'type': 'bearish',
+                    'strength': float(strength),
+                    'indicator': 'RSI',
+                    'details': f'Price: {prev_price_high:.4f}→{last_price_high:.4f}, RSI: {prev_rsi_high:.1f}→{last_rsi_high:.1f}'
+                }
+
+        return {
+            'has_divergence': False,
+            'type': None,
+            'strength': 0,
+            'indicator': None,
+            'details': 'No divergence detected'
+        }
+
+    except Exception as e:
+        return {
+            'has_divergence': False,
+            'type': None,
+            'strength': 0,
+            'indicator': None,
+            'details': f'Error: {e}'
+        }
+
+
+def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) -> Dict[str, Any]:
+    """
+    Analyze order flow and market depth for institutional positioning.
+
+    ORDER FLOW = Where big money is positioned!
+    - Bid/Ask imbalance: More bids = buyers in control (bullish)
+    - Large order walls: Support/Resistance levels where institutions sit
+    - Trade flow: Are large trades buying or selling?
+
+    Args:
+        order_book: {'bids': [[price, size], ...], 'asks': [[price, size], ...]}
+        recent_trades: List of recent trades with size and side
+
+    Returns:
+        Dict with order flow analysis
+    """
+    try:
+        if not order_book or 'bids' not in order_book or 'asks' not in order_book:
+            return {
+                'imbalance': 0.0,
+                'imbalance_ratio': 1.0,
+                'signal': 'neutral',
+                'large_bid_wall': None,
+                'large_ask_wall': None,
+                'buy_pressure': 0.5
+            }
+
+        bids = order_book.get('bids', [])[:20]  # Top 20 bids
+        asks = order_book.get('asks', [])[:20]  # Top 20 asks
+
+        if not bids or not asks:
+            return {
+                'imbalance': 0.0,
+                'imbalance_ratio': 1.0,
+                'signal': 'neutral',
+                'large_bid_wall': None,
+                'large_ask_wall': None,
+                'buy_pressure': 0.5
+            }
+
+        # Calculate total bid and ask volume
+        total_bid_volume = sum(float(bid[1]) for bid in bids)
+        total_ask_volume = sum(float(ask[1]) for ask in asks)
+
+        # Bid/Ask imbalance
+        if total_ask_volume > 0:
+            imbalance_ratio = total_bid_volume / total_ask_volume
+        else:
+            imbalance_ratio = 1.0
+
+        imbalance = (total_bid_volume - total_ask_volume) / (total_bid_volume + total_ask_volume) * 100
+
+        # Determine signal
+        if imbalance > 20:  # More than 20% more bids
+            signal = 'strong_bullish'
+        elif imbalance > 10:
+            signal = 'bullish'
+        elif imbalance < -20:
+            signal = 'strong_bearish'
+        elif imbalance < -10:
+            signal = 'bearish'
+        else:
+            signal = 'neutral'
+
+        # Detect large order walls (institutional orders)
+        avg_bid_size = total_bid_volume / len(bids) if bids else 0
+        avg_ask_size = total_ask_volume / len(asks) if asks else 0
+
+        large_bid_wall = None
+        large_ask_wall = None
+
+        # Find bid walls (3x larger than average)
+        for bid in bids[:5]:  # Check top 5 levels
+            if float(bid[1]) > avg_bid_size * 3:
+                large_bid_wall = {'price': float(bid[0]), 'size': float(bid[1])}
+                break
+
+        # Find ask walls
+        for ask in asks[:5]:
+            if float(ask[1]) > avg_ask_size * 3:
+                large_ask_wall = {'price': float(ask[0]), 'size': float(ask[1])}
+                break
+
+        # Analyze recent trades for buy/sell pressure
+        buy_pressure = 0.5  # Default neutral
+        if recent_trades and len(recent_trades) > 0:
+            buy_volume = sum(float(t.get('amount', 0)) for t in recent_trades if t.get('side') == 'buy')
+            sell_volume = sum(float(t.get('amount', 0)) for t in recent_trades if t.get('side') == 'sell')
+            total_volume = buy_volume + sell_volume
+            if total_volume > 0:
+                buy_pressure = buy_volume / total_volume
+
+        return {
+            'imbalance': float(imbalance),
+            'imbalance_ratio': float(imbalance_ratio),
+            'signal': signal,
+            'large_bid_wall': large_bid_wall,
+            'large_ask_wall': large_ask_wall,
+            'buy_pressure': float(buy_pressure),
+            'total_bid_volume': float(total_bid_volume),
+            'total_ask_volume': float(total_ask_volume)
+        }
+
+    except Exception as e:
+        return {
+            'imbalance': 0.0,
+            'imbalance_ratio': 1.0,
+            'signal': 'neutral',
+            'large_bid_wall': None,
+            'large_ask_wall': None,
+            'buy_pressure': 0.5
+        }
+
+
+def detect_smart_money_concepts(ohlcv_data: List[List], current_price: float) -> Dict[str, Any]:
+    """
+    Detect Smart Money Concepts (SMC) - follow institutional traders, not retail!
+
+    SMART MONEY CONCEPTS:
+    1. ORDER BLOCKS: Where institutions entered (high-volume rejection zones)
+    2. FAIR VALUE GAPS (FVG): Price imbalances that tend to be filled
+    3. LIQUIDITY GRABS: Stop hunts before reversals (fake breakouts)
+
+    Args:
+        ohlcv_data: List of OHLCV candles
+        current_price: Current market price
+
+    Returns:
+        Dict with Smart Money signals
+    """
+    if not ohlcv_data or len(ohlcv_data) < 20:
+        return {
+            'order_blocks': [],
+            'fair_value_gaps': [],
+            'liquidity_grab_detected': False,
+            'market_structure': 'unknown',
+            'smart_money_signal': 'neutral'
+        }
+
+    try:
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        order_blocks = []
+        fair_value_gaps = []
+
+        # Detect ORDER BLOCKS (last 20 candles)
+        # Order block = High volume candle followed by strong rejection
+        recent_df = df.tail(20)
+        avg_volume = recent_df['volume'].mean()
+
+        for i in range(1, len(recent_df) - 1):
+            candle_volume = recent_df['volume'].iloc[i]
+            candle_close = recent_df['close'].iloc[i]
+            candle_open = recent_df['open'].iloc[i]
+            next_close = recent_df['close'].iloc[i + 1]
+
+            # Bullish order block: High volume down candle followed by reversal up
+            if (candle_volume > avg_volume * 1.5 and
+                candle_close < candle_open and  # Red candle
+                next_close > candle_close):      # Reversal
+
+                order_blocks.append({
+                    'type': 'bullish',
+                    'price_high': float(recent_df['high'].iloc[i]),
+                    'price_low': float(recent_df['low'].iloc[i]),
+                    'distance_pct': abs(current_price - float(recent_df['low'].iloc[i])) / current_price * 100
+                })
+
+            # Bearish order block: High volume up candle followed by reversal down
+            elif (candle_volume > avg_volume * 1.5 and
+                  candle_close > candle_open and  # Green candle
+                  next_close < candle_close):      # Reversal
+
+                order_blocks.append({
+                    'type': 'bearish',
+                    'price_high': float(recent_df['high'].iloc[i]),
+                    'price_low': float(recent_df['low'].iloc[i]),
+                    'distance_pct': abs(current_price - float(recent_df['high'].iloc[i])) / current_price * 100
+                })
+
+        # Detect FAIR VALUE GAPS (FVG)
+        # FVG = Gap between candles that hasn't been filled (imbalance)
+        for i in range(len(recent_df) - 2):
+            candle1_high = recent_df['high'].iloc[i]
+            candle1_low = recent_df['low'].iloc[i]
+            candle3_high = recent_df['high'].iloc[i + 2]
+            candle3_low = recent_df['low'].iloc[i + 2]
+
+            # Bullish FVG: Gap up (candle 3 low > candle 1 high)
+            if candle3_low > candle1_high:
+                gap_size = (candle3_low - candle1_high) / candle1_high * 100
+                if gap_size > 0.5:  # At least 0.5% gap
+                    fair_value_gaps.append({
+                        'type': 'bullish',
+                        'gap_top': float(candle3_low),
+                        'gap_bottom': float(candle1_high),
+                        'gap_size_pct': float(gap_size),
+                        'filled': current_price < candle3_low
+                    })
+
+            # Bearish FVG: Gap down (candle 3 high < candle 1 low)
+            elif candle3_high < candle1_low:
+                gap_size = (candle1_low - candle3_high) / candle3_high * 100
+                if gap_size > 0.5:
+                    fair_value_gaps.append({
+                        'type': 'bearish',
+                        'gap_top': float(candle1_low),
+                        'gap_bottom': float(candle3_high),
+                        'gap_size_pct': float(gap_size),
+                        'filled': current_price > candle1_low
+                    })
+
+        # Detect LIQUIDITY GRAB (stop hunt before reversal)
+        liquidity_grab_detected = False
+        last_10 = df.tail(10)
+
+        # Check if price recently spiked beyond previous high/low then reversed (stop hunt)
+        if len(last_10) >= 5:
+            recent_high = last_10['high'].iloc[-5:].max()
+            previous_high = last_10['high'].iloc[-10:-5].max()
+            current_close = last_10['close'].iloc[-1]
+
+            # Bearish liquidity grab: Spike above previous high, then drop
+            if recent_high > previous_high * 1.005 and current_close < recent_high * 0.995:
+                liquidity_grab_detected = True
+
+        # Determine overall smart money signal
+        bullish_signals = sum(1 for ob in order_blocks if ob['type'] == 'bullish')
+        bearish_signals = sum(1 for ob in order_blocks if ob['type'] == 'bearish')
+
+        if bullish_signals > bearish_signals:
+            smart_money_signal = 'bullish'
+        elif bearish_signals > bullish_signals:
+            smart_money_signal = 'bearish'
+        else:
+            smart_money_signal = 'neutral'
+
+        return {
+            'order_blocks': order_blocks[-3:],  # Last 3 order blocks
+            'fair_value_gaps': fair_value_gaps[-3:],  # Last 3 FVGs
+            'liquidity_grab_detected': liquidity_grab_detected,
+            'smart_money_signal': smart_money_signal,
+            'order_block_count': len(order_blocks)
+        }
+
+    except Exception as e:
+        return {
+            'order_blocks': [],
+            'fair_value_gaps': [],
+            'liquidity_grab_detected': False,
+            'smart_money_signal': 'neutral',
+            'order_block_count': 0
+        }
+
+
+def calculate_volatility_bands(ohlcv_data: List[List], current_price: float) -> Dict[str, Any]:
+    """
+    Calculate ATR-based dynamic volatility bands for adaptive risk management.
+
+    VOLATILITY BANDS = Adaptive Stop-Loss and Entry Ranges
+    - High volatility → Wider stops needed, avoid tight entries
+    - Low volatility → Tighter stops, better for scalping
+    - Volatility breakouts → Strong trend signals
+
+    Args:
+        ohlcv_data: List of OHLCV candles
+        current_price: Current market price
+
+    Returns:
+        Dict with volatility analysis
+    """
+    if not ohlcv_data or len(ohlcv_data) < 20:
+        return {
+            'atr': 0.0,
+            'atr_percent': 0.0,
+            'volatility_level': 'unknown',
+            'upper_band': current_price * 1.02,
+            'lower_band': current_price * 0.98,
+            'breakout_detected': False
+        }
+
+    try:
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        for col in ['high', 'low', 'close']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Calculate ATR (14-period)
+        atr = calculate_atr(df, period=14)
+        atr_percent = (atr / current_price) * 100
+
+        # Determine volatility level
+        if atr_percent < 1.0:
+            volatility_level = 'very_low'
+            multiplier = 1.5
+        elif atr_percent < 2.0:
+            volatility_level = 'low'
+            multiplier = 2.0
+        elif atr_percent < 3.0:
+            volatility_level = 'normal'
+            multiplier = 2.5
+        elif atr_percent < 5.0:
+            volatility_level = 'high'
+            multiplier = 3.0
+        else:
+            volatility_level = 'extreme'
+            multiplier = 4.0
+
+        # Calculate volatility bands (current_price ± ATR * multiplier)
+        upper_band = current_price + (atr * multiplier)
+        lower_band = current_price - (atr * multiplier)
+
+        # Detect volatility breakout (ATR increasing rapidly)
+        recent_atr = []
+        for i in range(max(0, len(df) - 20), len(df)):
+            if i >= 14:
+                period_atr = calculate_atr(df.iloc[:i+1], period=14)
+                recent_atr.append(period_atr)
+
+        breakout_detected = False
+        if len(recent_atr) >= 5:
+            atr_change = (recent_atr[-1] - recent_atr[-5]) / recent_atr[-5]
+            if atr_change > 0.3:  # 30% increase in ATR
+                breakout_detected = True
+
+        return {
+            'atr': float(atr),
+            'atr_percent': float(atr_percent),
+            'volatility_level': volatility_level,
+            'upper_band': float(upper_band),
+            'lower_band': float(lower_band),
+            'band_width_pct': float((upper_band - lower_band) / current_price * 100),
+            'breakout_detected': breakout_detected,
+            'recommended_stop_pct': float(min(atr_percent * 2, 10.0))  # 2x ATR or max 10%
+        }
+
+    except Exception as e:
+        return {
+            'atr': 0.0,
+            'atr_percent': 0.0,
+            'volatility_level': 'unknown',
+            'upper_band': current_price * 1.02,
+            'lower_band': current_price * 0.98,
+            'breakout_detected': False
+        }
+
+
 def get_default_indicators() -> Dict[str, Any]:
     """Return default indicators when calculation fails."""
     return {

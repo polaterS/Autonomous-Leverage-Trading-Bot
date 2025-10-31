@@ -21,7 +21,11 @@ from src.indicators import (
     detect_support_resistance_levels,
     calculate_volume_profile,
     calculate_fibonacci_levels,
-    analyze_funding_rate_trend
+    analyze_funding_rate_trend,
+    detect_divergences,
+    analyze_order_flow,
+    detect_smart_money_concepts,
+    calculate_volatility_bands
 )
 
 logger = setup_logging()
@@ -230,6 +234,28 @@ class MarketScanner:
 
             funding_analysis = analyze_funding_rate_trend(funding_history)
 
+            # 5. TIER 1 CRITICAL FEATURES (Professional Edge)
+
+            # Divergence Detection (strongest reversal signals)
+            divergence = detect_divergences(ohlcv_1h)
+
+            # Order Flow Analysis (big money positioning)
+            order_book = None
+            recent_trades = []
+            try:
+                order_book = await exchange.fetch_order_book(symbol, limit=20)
+                recent_trades = await exchange.fetch_trades(symbol, limit=50)
+            except:
+                pass
+
+            order_flow = analyze_order_flow(order_book, recent_trades)
+
+            # Smart Money Concepts (institutional edge)
+            smart_money = detect_smart_money_concepts(ohlcv_4h, current_price)
+
+            # Volatility Bands (adaptive risk management)
+            volatility = calculate_volatility_bands(ohlcv_1h, current_price)
+
             return {
                 'symbol': symbol,
                 'current_price': current_price,
@@ -250,7 +276,12 @@ class MarketScanner:
                 'support_resistance': support_resistance,
                 'volume_profile': volume_profile,
                 'fibonacci': fibonacci,
-                'funding_analysis': funding_analysis
+                'funding_analysis': funding_analysis,
+                # TIER 1 CRITICAL PROFESSIONAL FEATURES
+                'divergence': divergence,
+                'order_flow': order_flow,
+                'smart_money': smart_money,
+                'volatility': volatility
             }
 
         except Exception as e:
