@@ -98,9 +98,16 @@ class TradeExecutor:
             await exchange.set_leverage(symbol, leverage)
             await exchange.set_margin_mode(symbol, 'isolated')
 
-            # Execute entry order
+            # 📊 EXECUTION QUALITY MONITORING: Track fill time and slippage
+            order_start_time = datetime.now()
             order_side = 'buy' if side == 'LONG' else 'sell'
+
+            # Execute entry order
             entry_order = await exchange.create_market_order(symbol, order_side, quantity)
+
+            # Calculate fill time
+            order_fill_time = datetime.now()
+            fill_time_ms = int((order_fill_time - order_start_time).total_seconds() * 1000)
 
             actual_entry_price = Decimal(str(entry_order.get('average', entry_price)))
             exchange_order_id = entry_order.get('id')
@@ -108,6 +115,9 @@ class TradeExecutor:
             # CRITICAL: Check slippage
             slippage_percent = abs((actual_entry_price - entry_price) / entry_price) * 100
             max_slippage = Decimal("0.5")  # 0.5% maximum acceptable slippage
+
+            # Log execution quality metrics
+            logger.info(f"📊 Execution Quality: Fill time: {fill_time_ms}ms, Slippage: {float(slippage_percent):.3f}%")
 
             if slippage_percent > max_slippage:
                 logger.error(
@@ -241,7 +251,14 @@ class TradeExecutor:
                 'exchange_order_id': exchange_order_id,
                 'stop_loss_order_id': stop_loss_order_id,
                 'ai_model_consensus': '+'.join(ai_analysis.get('models_used', [])),
-                'ai_confidence': Decimal(str(ai_analysis.get('confidence', 0)))
+                'ai_confidence': Decimal(str(ai_analysis.get('confidence', 0))),
+
+                # 📊 EXECUTION QUALITY METRICS (NEW!)
+                'slippage_percent': slippage_percent,
+                'fill_time_ms': fill_time_ms,
+                'expected_entry_price': entry_price,
+                'order_start_timestamp': order_start_time,
+                'order_fill_timestamp': order_fill_time
             }
 
             position_id = await db.create_active_position(position_data)
@@ -381,11 +398,23 @@ class TradeExecutor:
                 except Exception as e:
                     logger.warning(f"Could not cancel stop-loss order: {e}")
 
+            # 📊 EXECUTION QUALITY MONITORING: Track exit fill time and slippage
+            exit_start_time = datetime.now()
+
             # Execute close order
             close_order = await exchange.close_position(symbol, side, quantity)
+
+            # Calculate exit fill time
+            exit_fill_time = datetime.now()
+            exit_fill_time_ms = int((exit_fill_time - exit_start_time).total_seconds() * 1000)
+
             exit_price = Decimal(str(close_order.get('average', current_price)))
 
+            # Calculate exit slippage
+            exit_slippage_percent = abs((exit_price - current_price) / current_price) * 100
+
             logger.info(f"✅ Position closed at ${exit_price:.4f}")
+            logger.info(f"📊 Exit Execution Quality: Fill time: {exit_fill_time_ms}ms, Slippage: {float(exit_slippage_percent):.3f}%")
 
             # Calculate final P&L
             entry_price = Decimal(str(position['entry_price']))
@@ -426,7 +455,15 @@ class TradeExecutor:
                 'trade_duration_seconds': int(trade_duration),
                 'ai_model_consensus': position.get('ai_model_consensus'),
                 'ai_confidence': position.get('ai_confidence'),
-                'entry_time': position.get('entry_time', datetime.now())
+                'entry_time': position.get('entry_time', datetime.now()),
+
+                # 📊 EXECUTION QUALITY METRICS (NEW!)
+                'entry_slippage_percent': position.get('slippage_percent', 0),
+                'entry_fill_time_ms': position.get('fill_time_ms', 0),
+                'exit_slippage_percent': exit_slippage_percent,
+                'exit_fill_time_ms': exit_fill_time_ms,
+                'avg_slippage_percent': (position.get('slippage_percent', 0) + exit_slippage_percent) / 2,
+                'total_fill_time_ms': position.get('fill_time_ms', 0) + exit_fill_time_ms
             }
 
             await db.record_trade(trade_data)

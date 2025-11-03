@@ -36,6 +36,49 @@ class AIConsensusEngine:
             base_url="https://api.deepseek.com"
         )
 
+    def _calculate_adaptive_cache_ttl(self, market_data: Dict[str, Any]) -> int:
+        """
+        Calculate adaptive cache TTL based on market volatility.
+
+        High volatility = shorter cache (market changes fast)
+        Low volatility = longer cache (market stable)
+
+        Returns:
+            Cache TTL in seconds
+        """
+        try:
+            # Extract ATR% from volatility analysis
+            volatility = market_data.get('volatility_analysis', {})
+            atr_percent = volatility.get('atr_percent', 2.0)  # Default to normal
+
+            # Adaptive TTL based on volatility
+            if atr_percent >= 4.0:
+                # EXTREME volatility - 2 minutes cache
+                ttl = 120
+                logger.debug(f"🔥 Extreme volatility (ATR {atr_percent:.2f}%) → Cache TTL: {ttl}s")
+            elif atr_percent >= 3.0:
+                # HIGH volatility - 3 minutes cache
+                ttl = 180
+                logger.debug(f"⚡ High volatility (ATR {atr_percent:.2f}%) → Cache TTL: {ttl}s")
+            elif atr_percent >= 1.5:
+                # NORMAL volatility - 5 minutes cache (default)
+                ttl = 300
+                logger.debug(f"📊 Normal volatility (ATR {atr_percent:.2f}%) → Cache TTL: {ttl}s")
+            elif atr_percent >= 0.8:
+                # LOW volatility - 8 minutes cache
+                ttl = 480
+                logger.debug(f"😴 Low volatility (ATR {atr_percent:.2f}%) → Cache TTL: {ttl}s")
+            else:
+                # VERY LOW volatility - 10 minutes cache
+                ttl = 600
+                logger.debug(f"💤 Very low volatility (ATR {atr_percent:.2f}%) → Cache TTL: {ttl}s")
+
+            return ttl
+
+        except Exception as e:
+            logger.warning(f"Failed to calculate adaptive TTL: {e}, using default")
+            return self.settings.ai_cache_ttl_seconds  # Fallback to default
+
     async def _analyze_with_retry(self, analyze_func, symbol: str, market_data: Dict[str, Any], model_name: str, max_retries: int = 3) -> Optional[Dict[str, Any]]:
         """
         Retry wrapper for AI analysis with exponential backoff.
@@ -188,11 +231,14 @@ class AIConsensusEngine:
             'individual_analyses': [analysis]
         }
 
-        # Cache result in Redis (fast access for next 5 minutes)
+        # 🎯 ADAPTIVE CACHE TTL: Adjust based on market volatility
+        adaptive_ttl = self._calculate_adaptive_cache_ttl(market_data)
+
+        # Cache result in Redis (fast access with adaptive duration)
         redis = await get_redis_client()
         await redis.cache_ai_analysis(
             symbol, '5m', consensus,
-            self.settings.ai_cache_ttl_seconds
+            adaptive_ttl
         )
 
         # Also cache in database for analysis/debugging
@@ -200,10 +246,12 @@ class AIConsensusEngine:
         try:
             await db.set_ai_cache(
                 symbol, 'consensus', '5m', consensus,
-                self.settings.ai_cache_ttl_seconds
+                adaptive_ttl
             )
         except Exception as e:
             logger.warning(f"Failed to cache in DB (non-critical): {e}")
+
+        logger.info(f"💾 Cached AI analysis for {symbol} (TTL: {adaptive_ttl}s)")
 
         logger.info(
             f"✅ AI Analysis for {symbol}: {consensus['action'].upper()} "
