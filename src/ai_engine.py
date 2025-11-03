@@ -174,6 +174,45 @@ class AIConsensusEngine:
                         f"(Δ {ml_result['ml_adjustment']:+.1%})"
                     )
 
+                    # 🎯 ML OVERRIDE: If ML boost pushed confidence above threshold, override action
+                    if analysis['confidence'] >= 0.60 and analysis['action'] == 'hold':
+                        # Determine direction from multi-timeframe analysis
+                        multi_tf = market_data.get('multi_timeframe', {})
+                        alignment = multi_tf.get('agreement', 'unknown')
+
+                        if 'bullish' in alignment.lower():
+                            analysis['action'] = 'buy'
+                            analysis['side'] = 'LONG'
+                            logger.info(
+                                f"🎯 ML Override: {symbol} 'hold' → 'buy' "
+                                f"(ML confidence: {analysis['confidence']:.1%}, {alignment})"
+                            )
+                        elif 'bearish' in alignment.lower():
+                            analysis['action'] = 'sell'
+                            analysis['side'] = 'SHORT'
+                            logger.info(
+                                f"🎯 ML Override: {symbol} 'hold' → 'sell' "
+                                f"(ML confidence: {analysis['confidence']:.1%}, {alignment})"
+                            )
+                        else:
+                            # No clear direction, check 1h trend as fallback
+                            trend_1h = market_data.get('indicators', {}).get('1h', {}).get('trend', 'unknown')
+                            if trend_1h == 'bullish':
+                                analysis['action'] = 'buy'
+                                analysis['side'] = 'LONG'
+                                logger.info(
+                                    f"🎯 ML Override: {symbol} 'hold' → 'buy' "
+                                    f"(ML confidence: {analysis['confidence']:.1%}, 1h {trend_1h})"
+                                )
+                            elif trend_1h == 'bearish':
+                                analysis['action'] = 'sell'
+                                analysis['side'] = 'SHORT'
+                                logger.info(
+                                    f"🎯 ML Override: {symbol} 'hold' → 'sell' "
+                                    f"(ML confidence: {analysis['confidence']:.1%}, 1h {trend_1h})"
+                                )
+                            # else: keep hold if truly no direction
+
                 except Exception as ml_error:
                     logger.warning(f"ML enhancement failed for {model_name} on {symbol}: {ml_error}")
 
