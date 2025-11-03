@@ -176,42 +176,73 @@ class AIConsensusEngine:
 
                     # 🎯 ML OVERRIDE: If ML boost pushed confidence above threshold, override action
                     if analysis['confidence'] >= 0.60 and analysis['action'] == 'hold':
-                        # Determine direction from multi-timeframe analysis
+                        logger.info(
+                            f"🔍 ML Override Check: {symbol} conf={analysis['confidence']:.1%}, "
+                            f"action={analysis['action']}, attempting override..."
+                        )
+
+                        # Determine direction from multiple sources (priority order)
                         multi_tf = market_data.get('multi_timeframe', {})
                         alignment = multi_tf.get('agreement', 'unknown')
+                        indicators_1h = market_data.get('indicators', {}).get('1h', {})
+                        trend_1h = indicators_1h.get('trend', 'unknown')
+                        rsi_1h = indicators_1h.get('rsi', 50)  # Default neutral
 
+                        direction = None
+                        reason = ""
+
+                        # Priority 1: Multi-timeframe alignment
                         if 'bullish' in alignment.lower():
+                            direction = 'buy'
+                            reason = f"multi-TF {alignment}"
+                        elif 'bearish' in alignment.lower():
+                            direction = 'sell'
+                            reason = f"multi-TF {alignment}"
+
+                        # Priority 2: 1h trend
+                        elif trend_1h == 'bullish':
+                            direction = 'buy'
+                            reason = f"1h trend {trend_1h}"
+                        elif trend_1h == 'bearish':
+                            direction = 'sell'
+                            reason = f"1h trend {trend_1h}"
+
+                        # Priority 3: RSI extremes (aggressive for neutral markets)
+                        elif rsi_1h < 35:  # Oversold = buy opportunity
+                            direction = 'buy'
+                            reason = f"RSI oversold ({rsi_1h:.0f})"
+                        elif rsi_1h > 65:  # Overbought = sell opportunity
+                            direction = 'sell'
+                            reason = f"RSI overbought ({rsi_1h:.0f})"
+
+                        # Priority 4: Slight RSI bias (less aggressive)
+                        elif rsi_1h < 45:  # Below neutral = slight buy bias
+                            direction = 'buy'
+                            reason = f"RSI below neutral ({rsi_1h:.0f})"
+                        elif rsi_1h > 55:  # Above neutral = slight sell bias
+                            direction = 'sell'
+                            reason = f"RSI above neutral ({rsi_1h:.0f})"
+
+                        # Apply override if direction found
+                        if direction == 'buy':
                             analysis['action'] = 'buy'
                             analysis['side'] = 'LONG'
                             logger.info(
                                 f"🎯 ML Override: {symbol} 'hold' → 'buy' "
-                                f"(ML confidence: {analysis['confidence']:.1%}, {alignment})"
+                                f"(ML conf: {analysis['confidence']:.1%}, {reason})"
                             )
-                        elif 'bearish' in alignment.lower():
+                        elif direction == 'sell':
                             analysis['action'] = 'sell'
                             analysis['side'] = 'SHORT'
                             logger.info(
                                 f"🎯 ML Override: {symbol} 'hold' → 'sell' "
-                                f"(ML confidence: {analysis['confidence']:.1%}, {alignment})"
+                                f"(ML conf: {analysis['confidence']:.1%}, {reason})"
                             )
                         else:
-                            # No clear direction, check 1h trend as fallback
-                            trend_1h = market_data.get('indicators', {}).get('1h', {}).get('trend', 'unknown')
-                            if trend_1h == 'bullish':
-                                analysis['action'] = 'buy'
-                                analysis['side'] = 'LONG'
-                                logger.info(
-                                    f"🎯 ML Override: {symbol} 'hold' → 'buy' "
-                                    f"(ML confidence: {analysis['confidence']:.1%}, 1h {trend_1h})"
-                                )
-                            elif trend_1h == 'bearish':
-                                analysis['action'] = 'sell'
-                                analysis['side'] = 'SHORT'
-                                logger.info(
-                                    f"🎯 ML Override: {symbol} 'hold' → 'sell' "
-                                    f"(ML confidence: {analysis['confidence']:.1%}, 1h {trend_1h})"
-                                )
-                            # else: keep hold if truly no direction
+                            logger.info(
+                                f"⚠️ ML Override SKIPPED: {symbol} - No clear direction "
+                                f"(TF: {alignment}, 1h: {trend_1h}, RSI: {rsi_1h:.0f})"
+                            )
 
                 except Exception as ml_error:
                     logger.warning(f"ML enhancement failed for {model_name} on {symbol}: {ml_error}")
