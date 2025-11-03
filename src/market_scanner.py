@@ -342,6 +342,14 @@ class MarketScanner:
             # Current ticker
             ticker = await exchange.fetch_ticker(symbol)
 
+            # 🎯 #6: Update price for correlation tracking
+            try:
+                from src.ml_pattern_learner import get_ml_learner
+                ml_learner = await get_ml_learner()
+                ml_learner.update_price_for_correlation(symbol, ticker['last'])
+            except Exception as e:
+                logger.debug(f"Failed to update correlation price for {symbol}: {e}")
+
             # Funding rate
             funding_rate = await exchange.fetch_funding_rate(symbol)
 

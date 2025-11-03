@@ -115,7 +115,15 @@ class MLPatternLearner:
             'deepseek': 0.50
         }
 
-        logger.info("✅ ML Pattern Learner initialized with statistical validation + multi-model ensemble")
+        # 🎯 #6: CROSS-SYMBOL CORRELATION MATRIX
+        # Track rolling price history for correlation calculation
+        self.price_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))  # Last 100 prices
+        self.correlation_matrix: Dict[str, Dict[str, float]] = {}  # symbol1 -> symbol2 -> correlation
+        self.last_correlation_update: Optional[datetime] = None
+        self.correlation_update_interval_minutes: int = 60  # Update every hour
+        self.max_correlation_threshold: float = 0.70  # Max allowed correlation for new positions
+
+        logger.info("✅ ML Pattern Learner initialized with statistical validation + multi-model ensemble + correlation tracking")
 
 
     async def initialize(self):
@@ -825,6 +833,159 @@ class MLPatternLearner:
         )
 
         return consensus
+
+    # 🎯 #6: CROSS-SYMBOL CORRELATION METHODS
+
+    def update_price_for_correlation(self, symbol: str, price: float):
+        """
+        🎯 #6: Update price history for correlation tracking.
+
+        Call this periodically (e.g., every 5 minutes) to build price history.
+
+        Args:
+            symbol: Trading symbol
+            price: Current price
+        """
+        self.price_history[symbol].append(price)
+
+        # Auto-update correlation matrix if enough time has passed
+        if self.last_correlation_update is None:
+            self.last_correlation_update = datetime.now()
+        elif (datetime.now() - self.last_correlation_update).seconds >= self.correlation_update_interval_minutes * 60:
+            self.calculate_correlation_matrix()
+            self.last_correlation_update = datetime.now()
+
+    def calculate_correlation_matrix(self):
+        """
+        🎯 #6: Calculate pairwise correlations between all tracked symbols.
+
+        Uses Pearson correlation on price returns (not raw prices).
+        Requires at least 30 data points per symbol.
+        """
+        # Get symbols with enough data
+        valid_symbols = [s for s, prices in self.price_history.items() if len(prices) >= 30]
+
+        if len(valid_symbols) < 2:
+            logger.debug("Not enough symbols for correlation matrix (need at least 2 with 30+ prices)")
+            return
+
+        # Calculate returns for each symbol
+        returns = {}
+        for symbol in valid_symbols:
+            prices = np.array(list(self.price_history[symbol]))
+            # Calculate percentage returns
+            price_returns = np.diff(prices) / prices[:-1]
+            returns[symbol] = price_returns
+
+        # Calculate pairwise correlations
+        new_matrix = defaultdict(dict)
+
+        for i, sym1 in enumerate(valid_symbols):
+            for sym2 in valid_symbols[i+1:]:
+                # Find common length (in case they differ)
+                min_len = min(len(returns[sym1]), len(returns[sym2]))
+                r1 = returns[sym1][-min_len:]
+                r2 = returns[sym2][-min_len:]
+
+                # Pearson correlation
+                if len(r1) >= 30:  # Need enough samples
+                    correlation = np.corrcoef(r1, r2)[0, 1]
+
+                    # Store both directions
+                    new_matrix[sym1][sym2] = correlation
+                    new_matrix[sym2][sym1] = correlation
+
+        self.correlation_matrix = dict(new_matrix)
+
+        # Log high correlations
+        high_corr_pairs = []
+        for sym1, correlations in self.correlation_matrix.items():
+            for sym2, corr in correlations.items():
+                if abs(corr) > 0.80 and sym1 < sym2:  # Avoid duplicates
+                    high_corr_pairs.append((sym1, sym2, corr))
+
+        if high_corr_pairs:
+            logger.info(f"🔗 High correlations detected:")
+            for sym1, sym2, corr in high_corr_pairs[:5]:  # Show top 5
+                logger.info(f"   {sym1} ↔ {sym2}: {corr:+.2f}")
+
+    def check_correlation_risk(self, new_symbol: str, active_positions: List[Dict]) -> Dict[str, Any]:
+        """
+        🎯 #6: Check if opening a position in new_symbol would create over-correlation.
+
+        Prevents portfolio concentration in highly correlated assets.
+
+        Args:
+            new_symbol: Symbol we want to trade
+            active_positions: List of currently open positions
+
+        Returns:
+            Dict with 'safe': bool, 'reason': str, 'avg_correlation': float
+        """
+        if not active_positions:
+            # No existing positions, safe to trade
+            return {
+                'safe': True,
+                'reason': 'No existing positions',
+                'avg_correlation': 0.0,
+                'correlations': {}
+            }
+
+        if new_symbol not in self.correlation_matrix:
+            # Not enough data to calculate correlation, allow but warn
+            logger.warning(f"⚠️ No correlation data for {new_symbol}, allowing trade")
+            return {
+                'safe': True,
+                'reason': f'Insufficient correlation data for {new_symbol}',
+                'avg_correlation': 0.0,
+                'correlations': {}
+            }
+
+        # Calculate correlation with each active position
+        correlations = {}
+        total_corr = 0.0
+        count = 0
+
+        for pos in active_positions:
+            pos_symbol = pos['symbol']
+
+            if pos_symbol in self.correlation_matrix.get(new_symbol, {}):
+                corr = self.correlation_matrix[new_symbol][pos_symbol]
+                correlations[pos_symbol] = corr
+                total_corr += abs(corr)  # Use absolute correlation
+                count += 1
+
+                logger.debug(f"🔗 Correlation {new_symbol} ↔ {pos_symbol}: {corr:+.2f}")
+
+        if count == 0:
+            # No correlation data with existing positions
+            return {
+                'safe': True,
+                'reason': 'No correlation data with existing positions',
+                'avg_correlation': 0.0,
+                'correlations': correlations
+            }
+
+        # Calculate average absolute correlation
+        avg_correlation = total_corr / count
+
+        # Check if over-correlated
+        if avg_correlation > self.max_correlation_threshold:
+            return {
+                'safe': False,
+                'reason': f'Average correlation {avg_correlation:.1%} > threshold {self.max_correlation_threshold:.1%}',
+                'avg_correlation': avg_correlation,
+                'correlations': correlations,
+                'most_correlated': max(correlations.items(), key=lambda x: abs(x[1])) if correlations else None
+            }
+
+        # Safe to trade
+        return {
+            'safe': True,
+            'reason': f'Average correlation {avg_correlation:.1%} within safe limits',
+            'avg_correlation': avg_correlation,
+            'correlations': correlations
+        }
 
 
     async def analyze_opportunity(

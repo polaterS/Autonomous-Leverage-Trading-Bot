@@ -88,6 +88,37 @@ class RiskManager:
                     'adjusted_params': None
                 }
 
+        # 🎯 #6: RULE 4B: CROSS-SYMBOL CORRELATION CHECK
+        # Prevent over-concentration in highly correlated assets
+        try:
+            from src.ml_pattern_learner import get_ml_learner
+            ml_learner = await get_ml_learner()
+
+            correlation_check = ml_learner.check_correlation_risk(
+                trade_params['symbol'],
+                active_positions
+            )
+
+            if not correlation_check['safe']:
+                logger.warning(
+                    f"🔗 Correlation risk detected for {trade_params['symbol']}: "
+                    f"{correlation_check['reason']}"
+                )
+                return {
+                    'approved': False,
+                    'reason': f"Correlation risk: {correlation_check['reason']}",
+                    'adjusted_params': None,
+                    'correlation_details': correlation_check
+                }
+            else:
+                logger.info(
+                    f"✅ Correlation check passed: {correlation_check['reason']} "
+                    f"(avg: {correlation_check['avg_correlation']:.1%})"
+                )
+        except Exception as e:
+            # Non-critical: allow trade if correlation check fails
+            logger.warning(f"Correlation check failed (allowing trade): {e}")
+
         # RULE 5: Daily loss limit check - DISABLED
         # User wants per-trade $10 loss limit (handled in stop-loss), not daily limit
         # Daily loss limit is now disabled to allow multiple trades per day
