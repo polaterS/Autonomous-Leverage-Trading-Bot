@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 from collections import defaultdict, deque
+from scipy import stats  # For statistical validation
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,13 @@ class MLPatternLearner:
         self.total_trades_analyzed: int = 0
         self.learning_rate: float = 0.1  # How fast to adapt
 
-        logger.info("✅ ML Pattern Learner initialized")
+        # 📊 STATISTICAL VALIDATION (NEW!)
+        # Track win/loss outcomes per feature for t-test validation
+        self.feature_outcomes: Dict[str, List[int]] = defaultdict(list)  # 1 = win, 0 = loss
+        self.pattern_outcomes: Dict[str, List[int]] = defaultdict(list)
+        self.min_sample_size: int = 30  # Minimum trades before trusting pattern
+
+        logger.info("✅ ML Pattern Learner initialized with statistical validation")
 
 
     async def initialize(self):
@@ -148,6 +155,9 @@ class MLPatternLearner:
                     self.winning_patterns[keyword] += 1
                 else:
                     self.losing_patterns[keyword] += 1
+
+                # 📊 Track outcome for statistical validation
+                self.pattern_outcomes[keyword].append(1 if is_winner else 0)
 
             # Update feature scores based on trade outcome
             if 'divergence' in patterns.lower():
@@ -219,13 +229,16 @@ class MLPatternLearner:
 
 
     def _update_feature_score(self, feature: str, is_winner: bool):
-        """Update feature importance score using exponential moving average"""
+        """Update feature importance score using exponential moving average + track for statistical validation"""
         # Award +1 for win, -1 for loss
         reward = 1.0 if is_winner else -1.0
 
         # EMA update: new_score = (1 - lr) * old_score + lr * reward
         current_score = self.feature_scores.get(feature, 0.0)
         self.feature_scores[feature] = (1 - self.learning_rate) * current_score + self.learning_rate * reward
+
+        # 📊 Track outcome for statistical validation
+        self.feature_outcomes[feature].append(1 if is_winner else 0)
 
 
     async def _detect_market_regime(self):
@@ -265,6 +278,96 @@ class MLPatternLearner:
         logger.info(f"📊 Market regime detected: {self.current_regime} "
                    f"(Win rate: {win_rate:.1%}, Avg PnL: {avg_pnl:.2f}%, Volatility: {pnl_volatility:.2f}%)")
 
+
+    def _is_pattern_statistically_significant(self, pattern: str) -> Tuple[bool, float, str]:
+        """
+        Test if a pattern's win rate is statistically significant using t-test.
+
+        Returns:
+            Tuple of (is_significant, p_value, interpretation)
+        """
+        outcomes = self.pattern_outcomes.get(pattern, [])
+
+        # Need minimum sample size
+        if len(outcomes) < self.min_sample_size:
+            return (False, 1.0, f"Insufficient data ({len(outcomes)}/{self.min_sample_size} trades)")
+
+        # Calculate win rate
+        win_rate = sum(outcomes) / len(outcomes)
+
+        # H0: Win rate = 0.5 (random chance)
+        # H1: Win rate ≠ 0.5 (pattern has predictive power)
+        t_stat, p_value = stats.ttest_1samp(outcomes, 0.5)
+
+        # Significance level: 0.05 (95% confidence)
+        is_significant = p_value < 0.05
+
+        if is_significant:
+            if win_rate > 0.5:
+                interpretation = f"✅ Reliable winning pattern ({win_rate:.1%} win rate, p={p_value:.4f})"
+            else:
+                interpretation = f"❌ Reliable losing pattern ({win_rate:.1%} win rate, p={p_value:.4f})"
+        else:
+            interpretation = f"⚠️ Not statistically significant ({win_rate:.1%} win rate, p={p_value:.4f} - likely random)"
+
+        return (is_significant, p_value, interpretation)
+
+    def _is_feature_reliable(self, feature: str) -> Tuple[bool, float, str]:
+        """
+        Test if a feature's impact is statistically significant.
+
+        Returns:
+            Tuple of (is_reliable, p_value, interpretation)
+        """
+        outcomes = self.feature_outcomes.get(feature, [])
+
+        # Need minimum sample size
+        if len(outcomes) < self.min_sample_size:
+            return (False, 1.0, f"Insufficient data ({len(outcomes)}/{self.min_sample_size})")
+
+        # Calculate win rate when this feature is present
+        win_rate = sum(outcomes) / len(outcomes)
+
+        # T-test: Is win rate significantly different from 50% (random)?
+        t_stat, p_value = stats.ttest_1samp(outcomes, 0.5)
+
+        is_reliable = p_value < 0.05 and win_rate > 0.55  # At least 55% win rate + significant
+
+        if is_reliable:
+            interpretation = f"✅ Reliable feature ({win_rate:.1%} win rate, p={p_value:.4f})"
+        elif p_value < 0.05 and win_rate < 0.45:
+            interpretation = f"❌ Negative feature ({win_rate:.1%} win rate, p={p_value:.4f} - AVOID)"
+        else:
+            interpretation = f"⚠️ Unreliable feature ({win_rate:.1%} win rate, p={p_value:.4f})"
+
+        return (is_reliable, p_value, interpretation)
+
+    def get_confidence_interval(self, pattern: str, confidence_level: float = 0.95) -> Tuple[float, float]:
+        """
+        Calculate confidence interval for pattern win rate.
+
+        Returns:
+            Tuple of (lower_bound, upper_bound) for win rate
+        """
+        outcomes = self.pattern_outcomes.get(pattern, [])
+
+        if len(outcomes) < 10:
+            return (0.0, 1.0)  # Too few samples, very wide interval
+
+        win_rate = sum(outcomes) / len(outcomes)
+        n = len(outcomes)
+
+        # Standard error
+        se = np.sqrt(win_rate * (1 - win_rate) / n)
+
+        # Z-score for confidence level (95% → 1.96)
+        z_score = stats.norm.ppf((1 + confidence_level) / 2)
+
+        # Confidence interval
+        lower = max(0.0, win_rate - z_score * se)
+        upper = min(1.0, win_rate + z_score * se)
+
+        return (lower, upper)
 
     def _optimize_confidence_threshold(self):
         """Find optimal confidence threshold based on historical accuracy"""
@@ -349,18 +452,32 @@ class MLPatternLearner:
                 elif acc_stats['accuracy'] <= 0.45:
                     accuracy_modifier = -0.07
 
-            # 3. Feature importance boost
+            # 3. Feature importance boost (WITH STATISTICAL VALIDATION)
             reasoning = ai_analysis.get('reasoning', '')
             feature_boost = 0.0
+            validated_features = []
+            unreliable_features = []
 
-            # Check if trade uses high-value features
+            # Check if trade uses high-value features (statistically validated)
             for feature, score in self.feature_scores.items():
                 if score > 0.3:  # Positive feature
                     feature_key = feature.replace('_', ' ')
                     if feature_key in reasoning.lower():
-                        feature_boost += 0.02  # Small boost per good feature
+                        # 📊 STATISTICAL VALIDATION: Only trust validated features
+                        is_reliable, p_value, interpretation = self._is_feature_reliable(feature)
+
+                        if is_reliable:
+                            feature_boost += 0.02  # Small boost per validated feature
+                            validated_features.append(feature)
+                            logger.debug(f"   ✅ Using validated feature '{feature}': {interpretation}")
+                        else:
+                            unreliable_features.append((feature, interpretation))
+                            logger.warning(f"   ⚠️ Skipping unreliable feature '{feature}': {interpretation}")
 
             feature_boost = min(feature_boost, 0.08)  # Cap at +8%
+
+            if unreliable_features:
+                logger.info(f"   📊 Ignored {len(unreliable_features)} statistically unreliable features")
 
             # 4. Market regime adjustment
             regime_modifier = 0.0
@@ -376,22 +493,54 @@ class MLPatternLearner:
                     regime_modifier = +0.05
                     regime_warning = f"✅ Trade aligned with {self.current_regime}"
 
-            # 5. Pattern matching
+            # 5. Pattern matching (WITH STATISTICAL VALIDATION)
             pattern_boost = 0.0
             detected_patterns = self._extract_pattern_keywords(reasoning)
+            validated_patterns = []
+            weak_patterns = []
+            negative_patterns = []
 
             for pattern in detected_patterns:
                 wins = self.winning_patterns.get(pattern, 0)
                 losses = self.losing_patterns.get(pattern, 0)
+                total_occurrences = wins + losses
 
-                if wins + losses >= 3:  # Need at least 3 occurrences
-                    pattern_win_rate = wins / (wins + losses)
-                    if pattern_win_rate >= 0.65:
-                        pattern_boost += 0.02
-                    elif pattern_win_rate <= 0.35:
-                        pattern_boost -= 0.03
+                # 📊 STATISTICAL VALIDATION: Test pattern significance
+                is_significant, p_value, interpretation = self._is_pattern_statistically_significant(pattern)
 
-            pattern_boost = max(-0.10, min(pattern_boost, 0.08))  # Cap at ±8-10%
+                if not is_significant:
+                    # Pattern not statistically validated - skip it
+                    if total_occurrences < self.min_sample_size:
+                        weak_patterns.append((pattern, f"{total_occurrences}/{self.min_sample_size} samples"))
+                    else:
+                        weak_patterns.append((pattern, f"p={p_value:.4f} (not significant)"))
+                    continue
+
+                # Pattern is statistically significant - use it!
+                pattern_win_rate = wins / total_occurrences
+                lower_ci, upper_ci = self.get_confidence_interval(pattern)
+
+                if pattern_win_rate > 0.5:
+                    # Winning pattern - boost confidence
+                    # Stronger boost for higher confidence intervals
+                    confidence_strength = min(lower_ci, 0.7)  # Cap at 70% lower bound
+                    pattern_boost += 0.03 * (confidence_strength / 0.5)  # Scale boost
+                    validated_patterns.append((pattern, pattern_win_rate, (lower_ci, upper_ci)))
+                    logger.info(f"   ✅ Validated winning pattern '{pattern}': {pattern_win_rate:.1%} "
+                               f"(95% CI: [{lower_ci:.1%}, {upper_ci:.1%}])")
+                else:
+                    # Losing pattern - reduce confidence
+                    pattern_boost -= 0.04
+                    negative_patterns.append((pattern, pattern_win_rate))
+                    logger.warning(f"   ❌ Validated LOSING pattern '{pattern}': {pattern_win_rate:.1%} - REDUCING confidence")
+
+            pattern_boost = max(-0.15, min(pattern_boost, 0.10))  # Cap at ±10-15%
+
+            # Log validation summary
+            if weak_patterns:
+                logger.info(f"   ⚠️ Ignored {len(weak_patterns)} unvalidated patterns (insufficient data or p>0.05)")
+            if validated_patterns:
+                logger.info(f"   📊 Applied {len(validated_patterns)} statistically validated patterns")
 
             # 6. Calculate final ML-adjusted confidence
             ml_adjustment = (
@@ -468,6 +617,79 @@ class MLPatternLearner:
             logger.info(f"   Top symbols: {', '.join(self._get_top_symbols(3))}")
             logger.info(f"   Best features: {self._get_top_features(3)}")
 
+            # 📊 Periodic statistical validation report (every 30 trades)
+            if self.total_trades_analyzed % 30 == 0:
+                self._log_statistical_validation_report()
+
+
+    def _log_statistical_validation_report(self):
+        """Log comprehensive statistical validation report"""
+        logger.info("=" * 80)
+        logger.info("📊 STATISTICAL VALIDATION REPORT")
+        logger.info("=" * 80)
+
+        # Feature validation
+        logger.info("\n🔬 FEATURE VALIDATION:")
+        validated_count = 0
+        unreliable_count = 0
+
+        for feature, score in sorted(self.feature_scores.items(), key=lambda x: x[1], reverse=True):
+            outcomes = self.feature_outcomes.get(feature, [])
+            if len(outcomes) >= self.min_sample_size:
+                is_reliable, p_val, interp = self._is_feature_reliable(feature)
+                win_rate = sum(outcomes) / len(outcomes)
+
+                if is_reliable:
+                    validated_count += 1
+                    logger.info(f"   ✅ {feature.replace('_', ' ').title()}: {win_rate:.1%} win rate "
+                               f"(n={len(outcomes)}, p={p_val:.4f})")
+                else:
+                    unreliable_count += 1
+                    logger.warning(f"   ⚠️ {feature.replace('_', ' ').title()}: {win_rate:.1%} win rate "
+                                 f"(n={len(outcomes)}, p={p_val:.4f}) - NOT RELIABLE")
+
+        logger.info(f"\n   Summary: {validated_count} validated, {unreliable_count} unreliable features")
+
+        # Pattern validation
+        logger.info("\n🔬 PATTERN VALIDATION:")
+        winning_validated = 0
+        losing_validated = 0
+        unvalidated = 0
+
+        # Get top patterns by occurrence
+        all_patterns = {**self.winning_patterns, **self.losing_patterns}
+        top_patterns = sorted(all_patterns.items(), key=lambda x: x[1], reverse=True)[:15]
+
+        for pattern, _ in top_patterns:
+            wins = self.winning_patterns.get(pattern, 0)
+            losses = self.losing_patterns.get(pattern, 0)
+            total = wins + losses
+
+            is_sig, p_val, interp = self._is_pattern_statistically_significant(pattern)
+
+            if is_sig:
+                win_rate = wins / total
+                lower_ci, upper_ci = self.get_confidence_interval(pattern)
+
+                if win_rate > 0.5:
+                    winning_validated += 1
+                    logger.info(f"   ✅ WIN: '{pattern}': {win_rate:.1%} "
+                               f"(95% CI: [{lower_ci:.1%}, {upper_ci:.1%}], n={total}, p={p_val:.4f})")
+                else:
+                    losing_validated += 1
+                    logger.warning(f"   ❌ LOSS: '{pattern}': {win_rate:.1%} "
+                                 f"(95% CI: [{lower_ci:.1%}, {upper_ci:.1%}], n={total}, p={p_val:.4f})")
+            else:
+                unvalidated += 1
+                win_rate = wins / total if total > 0 else 0
+                status = "insufficient data" if total < self.min_sample_size else "not significant"
+                logger.info(f"   ⚠️ UNVALIDATED: '{pattern}': {win_rate:.1%} "
+                           f"(n={total}, p={p_val:.4f}) - {status}")
+
+        logger.info(f"\n   Summary: {winning_validated} winning, {losing_validated} losing, "
+                   f"{unvalidated} unvalidated patterns")
+
+        logger.info("=" * 80 + "\n")
 
     def _get_top_features(self, limit: int = 3) -> str:
         """Get top performing features"""
@@ -477,12 +699,88 @@ class MLPatternLearner:
 
 
     def get_statistics(self) -> Dict:
-        """Get comprehensive ML statistics"""
+        """Get comprehensive ML statistics with statistical validation results"""
+        # 📊 Statistical validation for patterns
+        validated_winning_patterns = {}
+        validated_losing_patterns = {}
+        unvalidated_patterns = {}
+
+        for pattern, wins in self.winning_patterns.items():
+            losses = self.losing_patterns.get(pattern, 0)
+            total = wins + losses
+            is_sig, p_val, interp = self._is_pattern_statistically_significant(pattern)
+
+            if is_sig and (wins / total) > 0.5:
+                validated_winning_patterns[pattern] = {
+                    'wins': wins,
+                    'losses': losses,
+                    'win_rate': wins / total,
+                    'p_value': p_val,
+                    'sample_size': total
+                }
+            elif is_sig and (wins / total) <= 0.5:
+                validated_losing_patterns[pattern] = {
+                    'wins': wins,
+                    'losses': losses,
+                    'win_rate': wins / total,
+                    'p_value': p_val,
+                    'sample_size': total
+                }
+            else:
+                unvalidated_patterns[pattern] = {
+                    'wins': wins,
+                    'losses': losses,
+                    'win_rate': wins / total if total > 0 else 0,
+                    'p_value': p_val,
+                    'sample_size': total,
+                    'status': 'insufficient_data' if total < self.min_sample_size else 'not_significant'
+                }
+
+        # 📊 Statistical validation for features
+        validated_features = {}
+        unreliable_features = {}
+
+        for feature, score in self.feature_scores.items():
+            is_reliable, p_val, interp = self._is_feature_reliable(feature)
+            outcomes = self.feature_outcomes.get(feature, [])
+
+            if len(outcomes) >= self.min_sample_size:
+                win_rate = sum(outcomes) / len(outcomes)
+                if is_reliable:
+                    validated_features[feature] = {
+                        'score': score,
+                        'win_rate': win_rate,
+                        'p_value': p_val,
+                        'sample_size': len(outcomes)
+                    }
+                else:
+                    unreliable_features[feature] = {
+                        'score': score,
+                        'win_rate': win_rate,
+                        'p_value': p_val,
+                        'sample_size': len(outcomes)
+                    }
+
         return {
             'total_trades_analyzed': self.total_trades_analyzed,
             'current_regime': self.current_regime,
             'min_confidence_threshold': self.min_confidence_threshold,
             'top_symbols': self._get_top_symbols(5),
+
+            # 📊 STATISTICAL VALIDATION RESULTS
+            'validated_winning_patterns': dict(sorted(validated_winning_patterns.items(),
+                                                     key=lambda x: x[1]['win_rate'], reverse=True)[:10]),
+            'validated_losing_patterns': dict(sorted(validated_losing_patterns.items(),
+                                                    key=lambda x: x[1]['win_rate'])[:5]),
+            'unvalidated_patterns': dict(sorted(unvalidated_patterns.items(),
+                                               key=lambda x: x[1]['sample_size'], reverse=True)[:10]),
+
+            'validated_features': dict(sorted(validated_features.items(),
+                                             key=lambda x: x[1]['win_rate'], reverse=True)),
+            'unreliable_features': dict(sorted(unreliable_features.items(),
+                                              key=lambda x: x[1]['sample_size'], reverse=True)),
+
+            # Legacy stats
             'feature_scores': dict(sorted(self.feature_scores.items(),
                                          key=lambda x: x[1], reverse=True)),
             'ai_accuracy_by_confidence': dict(self.ai_accuracy_by_confidence),

@@ -1202,28 +1202,98 @@ def calculate_confluence_score(market_data: Dict[str, Any], side: str) -> Dict[s
         if rsi_15m > 65 and rsi_1h > 60:
             bearish_factors.append(f"Overbought (RSI 15m:{rsi_15m:.0f}, 1h:{rsi_1h:.0f})")
 
-        # Calculate confluence score
+        # ⚖️ WEIGHTED CONFLUENCE SCORING (Not all factors are equal!)
+        # Weights based on historical performance and institutional importance
+        FACTOR_WEIGHTS = {
+            'divergence': 3.0,           # Strongest reversal signal
+            'order_flow': 2.5,           # Institutional positioning
+            'smart_money': 2.0,          # Order blocks & FVG
+            'open_interest': 2.0,        # Leverage positioning
+            'liquidation': 1.5,          # Price magnet effect
+            'support_resistance': 1.5,   # Key levels
+            'multi_timeframe': 1.5,      # Trend confirmation
+            'volatility': 1.0,           # Market state
+            'funding': 1.0,              # Overleveraged positioning
+            'volume_profile': 0.8,       # Fair value
+            'fibonacci': 0.5,            # Weaker signal
+            'rsi_oversold': 0.5          # Weak alone
+        }
+
+        # Assign weights to factors based on keywords
+        def get_factor_weight(factor_text: str) -> float:
+            factor_lower = factor_text.lower()
+            if 'divergence' in factor_lower:
+                return FACTOR_WEIGHTS['divergence']
+            elif 'order flow' in factor_lower:
+                return FACTOR_WEIGHTS['order_flow']
+            elif 'smart money' in factor_lower or 'order block' in factor_lower:
+                return FACTOR_WEIGHTS['smart_money']
+            elif 'open interest' in factor_lower or 'oi' in factor_lower:
+                return FACTOR_WEIGHTS['open_interest']
+            elif 'liquidation' in factor_lower:
+                return FACTOR_WEIGHTS['liquidation']
+            elif 'support' in factor_lower or 'resistance' in factor_lower:
+                return FACTOR_WEIGHTS['support_resistance']
+            elif 'timeframe' in factor_lower or 'aligned' in factor_lower:
+                return FACTOR_WEIGHTS['multi_timeframe']
+            elif 'volatility' in factor_lower or 'breakout' in factor_lower:
+                return FACTOR_WEIGHTS['volatility']
+            elif 'funding' in factor_lower:
+                return FACTOR_WEIGHTS['funding']
+            elif 'poc' in factor_lower or 'fair value' in factor_lower:
+                return FACTOR_WEIGHTS['volume_profile']
+            elif 'fibonacci' in factor_lower or 'fib' in factor_lower:
+                return FACTOR_WEIGHTS['fibonacci']
+            elif 'oversold' in factor_lower or 'overbought' in factor_lower:
+                return FACTOR_WEIGHTS['rsi_oversold']
+            else:
+                return 1.0  # Default weight
+
+        # Calculate weighted scores
+        bullish_weighted = sum(get_factor_weight(f) for f in bullish_factors)
+        bearish_weighted = sum(get_factor_weight(f) for f in bearish_factors)
+
+        # Determine confluence for requested side
         if side == 'LONG':
             confluence_count = len(bullish_factors)
             conflicting_count = len(bearish_factors)
             factors = bullish_factors
+            side_weight = bullish_weighted
+            opposite_weight = bearish_weighted
         else:  # SHORT
             confluence_count = len(bearish_factors)
             conflicting_count = len(bullish_factors)
             factors = bearish_factors
+            side_weight = bearish_weighted
+            opposite_weight = bullish_weighted
 
-        total_factors = confluence_count + conflicting_count
-        if total_factors > 0:
-            confluence_score = (confluence_count / total_factors) * 100
+        # Weighted confluence score (0-100)
+        total_weight = side_weight + opposite_weight
+        if total_weight > 0:
+            confluence_score = (side_weight / total_weight) * 100
         else:
             confluence_score = 50  # Neutral
+
+        # Determine strength based on weighted score
+        if confluence_score >= 80:
+            strength = 'very_strong'
+        elif confluence_score >= 70:
+            strength = 'strong'
+        elif confluence_score >= 60:
+            strength = 'moderate'
+        elif confluence_score >= 50:
+            strength = 'weak'
+        else:
+            strength = 'very_weak'
 
         return {
             'score': float(confluence_score),
             'confluence_count': confluence_count,
             'conflicting_count': conflicting_count,
             'factors': factors,
-            'strength': 'strong' if confluence_score >= 75 else 'moderate' if confluence_score >= 60 else 'weak'
+            'strength': strength,
+            'weighted_score': float(side_weight),  # NEW: Absolute weighted score
+            'total_weight': float(total_weight)    # NEW: Total weight for reference
         }
 
     except Exception as e:

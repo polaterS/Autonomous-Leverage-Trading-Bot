@@ -7,7 +7,8 @@ import asyncio
 import openai
 from typing import Dict, Any, Optional, List
 from decimal import Decimal
-from src.config import get_settings, LEVERAGE_TRADING_SYSTEM_PROMPT, build_analysis_prompt
+from src.config import get_settings
+from src.optimized_prompts import OPTIMIZED_SYSTEM_PROMPT, build_optimized_prompt
 from src.utils import setup_logging, parse_ai_response
 from src.database import get_db_client
 from src.redis_client import get_redis_client
@@ -212,14 +213,15 @@ class AIConsensusEngine:
         return consensus
 
     async def _analyze_with_qwen(self, symbol: str, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Get analysis from Qwen3-Max via OpenRouter."""
+        """Get analysis from Qwen3-Max via OpenRouter using OPTIMIZED PROMPTS."""
         try:
-            prompt = build_analysis_prompt(symbol, market_data)
+            # 🎯 Use optimized prompt (27 indicators → 10 priority indicators)
+            prompt = build_optimized_prompt(symbol, market_data)
 
             response = await self.qwen_client.chat.completions.create(
                 model="qwen/qwen3-max",  # OpenRouter model identifier
                 messages=[
-                    {"role": "system", "content": LEVERAGE_TRADING_SYSTEM_PROMPT},
+                    {"role": "system", "content": OPTIMIZED_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
@@ -242,14 +244,15 @@ class AIConsensusEngine:
             raise
 
     async def _analyze_with_deepseek(self, symbol: str, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Get analysis from DeepSeek V3."""
+        """Get analysis from DeepSeek V3 using OPTIMIZED PROMPTS (10 priority indicators)."""
         try:
-            prompt = build_analysis_prompt(symbol, market_data)
+            # 🎯 Use optimized prompt (27 indicators → 10 priority indicators)
+            prompt = build_optimized_prompt(symbol, market_data)
 
             response = await self.deepseek_client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[
-                    {"role": "system", "content": LEVERAGE_TRADING_SYSTEM_PROMPT},
+                    {"role": "system", "content": OPTIMIZED_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,  # Increased from 0.3 for more varied responses
