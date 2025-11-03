@@ -414,6 +414,57 @@ class MarketScanner:
             # Volatility Bands (adaptive risk management)
             volatility = calculate_volatility_bands(ohlcv_1h, current_price)
 
+            # 🎯 #5: GARCH FORWARD-LOOKING VOLATILITY PREDICTION
+            garch_volatility = None
+            try:
+                from src.volatility_predictor import get_volatility_predictor
+                vol_predictor = get_volatility_predictor()
+
+                # Calculate returns from 1h OHLCV for GARCH
+                closes = np.array([candle[4] for candle in ohlcv_1h])  # Close prices
+                returns = np.diff(closes) / closes[:-1]  # Percentage returns
+
+                # Predict next-period volatility
+                predicted_vol = vol_predictor.predict_volatility(symbol, returns, horizon=1)
+
+                if predicted_vol is not None:
+                    vol_regime = vol_predictor.get_volatility_regime(predicted_vol)
+                    optimal_lev = vol_predictor.calculate_optimal_leverage(predicted_vol, max_leverage=5)
+                    price_range = vol_predictor.predict_next_day_range(current_price, predicted_vol)
+
+                    garch_volatility = {
+                        'predicted_vol_annual_pct': predicted_vol,
+                        'volatility_regime': vol_regime,
+                        'optimal_leverage': optimal_lev,
+                        'next_day_range': price_range,
+                        'model': 'GARCH(1,1)'
+                    }
+
+                    logger.info(
+                        f"📈 GARCH {symbol}: {predicted_vol:.1f}% annual vol | "
+                        f"Regime: {vol_regime} | Optimal Lev: {optimal_lev}x"
+                    )
+                else:
+                    # Fallback if GARCH fails
+                    garch_volatility = {
+                        'predicted_vol_annual_pct': volatility.get('atr_percent', 2.0) * np.sqrt(252) * 100,  # Rough annual estimate
+                        'volatility_regime': 'UNKNOWN',
+                        'optimal_leverage': 3,
+                        'next_day_range': (current_price * 0.95, current_price * 1.05),
+                        'model': 'FALLBACK'
+                    }
+
+            except Exception as garch_error:
+                logger.warning(f"GARCH prediction failed for {symbol}: {garch_error}")
+                # Graceful fallback
+                garch_volatility = {
+                    'predicted_vol_annual_pct': 50.0,  # Default crypto vol
+                    'volatility_regime': 'NORMAL_VOL',
+                    'optimal_leverage': 3,
+                    'next_day_range': (current_price * 0.95, current_price * 1.05),
+                    'model': 'ERROR'
+                }
+
             # PHASE 2 CRITICAL FEATURES (ULTRA PROFESSIONAL)
 
             # Momentum Strength (rate of change analysis)
@@ -483,7 +534,9 @@ class MarketScanner:
                 'btc_correlation': btc_correlation,
                 # PHASE 3 ULTRA PROFESSIONAL FEATURES (OI & LIQUIDATIONS)
                 'open_interest': open_interest_data,
-                'liquidation_map': liquidation_map
+                'liquidation_map': liquidation_map,
+                # 🎯 #5: GARCH FORWARD-LOOKING VOLATILITY
+                'garch_volatility': garch_volatility
             }
 
         except Exception as e:
