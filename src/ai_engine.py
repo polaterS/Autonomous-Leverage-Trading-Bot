@@ -423,20 +423,26 @@ RESPONSE FORMAT (JSON only):
                 logger.error(f"❌ AI validation failed: Confidence {confidence} out of range [0, 1]")
                 return False
 
-            # Validate stop-loss percentage [5%, 20%] (允许更宽的范围)
+            # ⚠️ IMPORTANT: For "hold" action, skip stop-loss and leverage validation
+            # (hold means no trade, so stop_loss=0 and leverage=0 is expected and valid)
+            if analysis['action'] == 'hold':
+                logger.debug(f"✅ AI validation passed: HOLD (confidence={confidence:.1%})")
+                return True
+
+            # Validate stop-loss percentage [5%, 20%] (for buy/sell only)
             stop_loss = analysis['stop_loss_percent']
             if not isinstance(stop_loss, (int, float)) or not (5 <= stop_loss <= 20):
                 logger.error(f"❌ AI validation failed: Stop-loss {stop_loss}% out of safe range [5%, 20%]")
                 return False
 
-            # Validate leverage [2, MAX_LEVERAGE]
+            # Validate leverage [2, MAX_LEVERAGE] (for buy/sell only)
             leverage = analysis['suggested_leverage']
             max_lev = self.settings.max_leverage
             if not isinstance(leverage, (int, float)) or not (2 <= leverage <= max_lev):
                 logger.error(f"❌ AI validation failed: Leverage {leverage}x out of range [2, {max_lev}]")
                 return False
 
-            # Validate side (if action is buy/sell)
+            # Validate side (for buy/sell only)
             if analysis['action'] in ['buy', 'sell']:
                 if analysis['side'] not in ['LONG', 'SHORT']:
                     logger.error(f"❌ AI validation failed: Invalid side '{analysis['side']}' (must be LONG/SHORT)")
