@@ -474,6 +474,128 @@ class RiskManager:
 
         return False, ""
 
+    # 🎯 #9: DYNAMIC STOP-LOSS WITH VOLATILITY
+
+    def calculate_dynamic_stop_loss_distance(
+        self,
+        atr_percent: float,
+        leverage: int
+    ) -> float:
+        """
+        🎯 #9: Calculate optimal stop-loss distance based on ATR percentile.
+
+        Low volatility = tighter stops (5%)
+        Normal volatility = medium stops (6-7%)
+        High volatility = wider stops (8-10%)
+
+        Args:
+            atr_percent: ATR as percentage of price
+            leverage: Position leverage (affects stop distance)
+
+        Returns:
+            Stop-loss distance as percentage (e.g., 7.0 for 7%)
+        """
+        # ATR thresholds based on typical crypto volatility
+        LOW_VOL_THRESHOLD = 1.5  # < 1.5% ATR = low volatility
+        NORMAL_VOL_THRESHOLD = 3.0  # < 3.0% ATR = normal volatility
+        # > 3.0% ATR = high volatility
+
+        # Base stop-loss distances
+        if atr_percent < LOW_VOL_THRESHOLD:
+            # Low volatility: Tighter stop
+            base_stop = 5.0
+            logger.debug(f"📊 Low volatility (ATR {atr_percent:.2f}%) → Tight stop: {base_stop}%")
+        elif atr_percent < NORMAL_VOL_THRESHOLD:
+            # Normal volatility: Medium stop
+            # Linear interpolation between 5% and 8%
+            base_stop = 5.0 + (atr_percent - LOW_VOL_THRESHOLD) * (3.0 / (NORMAL_VOL_THRESHOLD - LOW_VOL_THRESHOLD))
+            logger.debug(f"📊 Normal volatility (ATR {atr_percent:.2f}%) → Medium stop: {base_stop:.1f}%")
+        else:
+            # High volatility: Wider stop
+            # Cap at 10% for safety
+            base_stop = min(8.0 + (atr_percent - NORMAL_VOL_THRESHOLD) * 0.5, 10.0)
+            logger.debug(f"📊 High volatility (ATR {atr_percent:.2f}%) → Wide stop: {base_stop:.1f}%")
+
+        # Adjust for leverage (higher leverage = tighter stops for safety)
+        if leverage >= 5:
+            leverage_adjustment = 0.8  # 20% tighter
+        elif leverage >= 4:
+            leverage_adjustment = 0.9  # 10% tighter
+        else:
+            leverage_adjustment = 1.0  # No adjustment
+
+        final_stop = base_stop * leverage_adjustment
+
+        # Clamp to safe range [5%, 10%]
+        final_stop = max(5.0, min(10.0, final_stop))
+
+        logger.info(f"🎯 Dynamic stop-loss: {final_stop:.1f}% (ATR: {atr_percent:.2f}%, Leverage: {leverage}x)")
+
+        return final_stop
+
+    async def update_trailing_stop(
+        self,
+        position: Dict[str, Any],
+        current_price: Decimal,
+        atr_percent: float
+    ) -> Optional[Decimal]:
+        """
+        🎯 #9: Update trailing stop-loss if price moved favorably.
+
+        Stops trail price at ATR-based distance but never move against you.
+
+        Args:
+            position: Active position dict
+            current_price: Current market price
+            atr_percent: Current ATR as percentage
+
+        Returns:
+            New stop-loss price if updated, None if no update needed
+        """
+        symbol = position['symbol']
+        side = position['side']
+        entry_price = Decimal(str(position['entry_price']))
+        current_stop = Decimal(str(position['stop_loss_price']))
+        leverage = position['leverage']
+
+        # Calculate dynamic stop distance based on current volatility
+        stop_distance_pct = self.calculate_dynamic_stop_loss_distance(atr_percent, leverage)
+        stop_distance = Decimal(str(stop_distance_pct)) / 100
+
+        # Calculate new trailing stop based on current price
+        if side == 'LONG':
+            new_stop = current_price * (1 - stop_distance)
+
+            # Only update if new stop is HIGHER than current stop (never move down)
+            # AND price has moved at least 2% above entry (don't trail too early)
+            price_gain = (current_price - entry_price) / entry_price
+
+            if price_gain >= Decimal("0.02") and new_stop > current_stop:
+                logger.info(
+                    f"📈 Trailing stop UP: {symbol} LONG | "
+                    f"Old: ${float(current_stop):.4f} → New: ${float(new_stop):.4f} "
+                    f"(+{float((new_stop - current_stop) / current_stop * 100):.2f}%)"
+                )
+                return new_stop
+
+        elif side == 'SHORT':
+            new_stop = current_price * (1 + stop_distance)
+
+            # Only update if new stop is LOWER than current stop (never move up)
+            # AND price has moved at least 2% below entry
+            price_gain = (entry_price - current_price) / entry_price
+
+            if price_gain >= Decimal("0.02") and new_stop < current_stop:
+                logger.info(
+                    f"📉 Trailing stop DOWN: {symbol} SHORT | "
+                    f"Old: ${float(current_stop):.4f} → New: ${float(new_stop):.4f} "
+                    f"(-{float((current_stop - new_stop) / current_stop * 100):.2f}%)"
+                )
+                return new_stop
+
+        # No update needed
+        return None
+
 
 # Singleton instance
 _risk_manager: Optional[RiskManager] = None

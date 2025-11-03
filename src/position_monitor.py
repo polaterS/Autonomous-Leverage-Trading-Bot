@@ -105,6 +105,34 @@ class PositionMonitor:
                 f"P&L: ${float(unrealized_pnl):+.2f}"
             )
 
+            # 🎯 #9: DYNAMIC TRAILING STOP-LOSS (check before emergency close)
+            # Update trailing stop if price moved favorably
+            try:
+                # Get current ATR for volatility-based stop distance
+                ohlcv_15m = await exchange.fetch_ohlcv(symbol, '15m', limit=50)
+                from src.indicators import calculate_indicators
+                indicators = calculate_indicators(ohlcv_15m)
+                atr_percent = indicators.get('atr_percent', 2.0)  # Default to 2% if unavailable
+
+                # Check if trailing stop should be updated
+                new_stop_price = await risk_manager.update_trailing_stop(
+                    position, current_price, atr_percent
+                )
+
+                if new_stop_price is not None:
+                    # Update stop-loss in database
+                    await db.execute(
+                        "UPDATE active_position SET stop_loss_price = $1 WHERE id = $2",
+                        new_stop_price, position['id']
+                    )
+                    logger.info(f"✅ Trailing stop updated to ${float(new_stop_price):.4f}")
+
+                    # Update position dict for subsequent checks
+                    position['stop_loss_price'] = new_stop_price
+
+            except Exception as trail_error:
+                logger.warning(f"Failed to update trailing stop: {trail_error}")
+
             # === CRITICAL CHECK 1: Emergency close conditions ===
             should_emergency_close, emergency_reason = await risk_manager.should_emergency_close(position, current_price)
 
