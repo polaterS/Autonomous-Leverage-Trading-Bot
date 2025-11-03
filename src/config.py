@@ -35,7 +35,8 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)
-    max_leverage: int = Field(default=50, ge=1, le=50)  # Support up to 50x leverage
+    max_leverage: int = Field(default=10, ge=1, le=20)  # Safe max: 10x (20x absolute max)
+    max_concurrent_positions: int = Field(default=3, ge=1, le=5)  # Multi-position support (1-5)
     position_size_percent: Decimal = Field(default=Decimal("0.80"), gt=0, le=1)
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% for extreme leverage
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% for low leverage

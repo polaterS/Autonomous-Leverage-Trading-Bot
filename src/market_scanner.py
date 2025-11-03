@@ -72,85 +72,67 @@ class MarketScanner:
         bearish_count = 0
         neutral_count = 0
 
-        for symbol in self.symbols:
-            try:
-                scanned += 1
+        # 🚀 PARALLEL SCANNING: Analyze all symbols concurrently with rate limiting
+        semaphore = asyncio.Semaphore(10)  # Max 10 concurrent scans
+        scan_tasks = [self._scan_symbol_parallel(symbol, semaphore) for symbol in self.symbols]
 
-                # Log progress (no Telegram spam)
-                logger.info(f"📨 Scanning {symbol} ({scanned}/{total_symbols})")
+        logger.info(f"⚡ Starting PARALLEL scan of {total_symbols} symbols (max 10 concurrent)...")
+        scan_results = await asyncio.gather(*scan_tasks, return_exceptions=True)
 
-                # Get market data
-                market_data = await self.gather_market_data(symbol)
+        # Process results
+        for result in scan_results:
+            if isinstance(result, Exception):
+                logger.error(f"Scan error: {result}")
+                continue
 
-                if not market_data:
-                    logger.warning(f"⚠️ {symbol} - Could not fetch data, skipping")
+            if result is None:
+                continue  # Skipped symbol
+
+            # Unpack result
+            symbol, individual_analyses, market_data = result
+
+            # Track market breadth and collect analyses
+            for analysis in individual_analyses:
+                action = analysis.get('action', 'hold')
+                if action == 'buy':
+                    bullish_count += 1
+                elif action == 'sell':
+                    bearish_count += 1
+                else:
+                    neutral_count += 1
+
+                # Skip HOLD signals
+                if action == 'hold':
+                    logger.debug(
+                        f"{symbol} ({analysis.get('model_name', 'AI')}): HOLD "
+                        f"(confidence: {analysis.get('confidence', 0):.1%})"
+                    )
                     continue
 
-                # Get INDIVIDUAL analyses from BOTH models (no consensus)
-                ai_engine = get_ai_engine()
-                individual_analyses = await ai_engine.get_individual_analyses(symbol, market_data)
+                # Calculate comprehensive opportunity score
+                opportunity_score = self.calculate_opportunity_score(analysis, market_data)
 
-                # Check for opportunities
-                has_opportunity = False
+                # Calculate CONFLUENCE SCORE (multi-factor agreement)
+                side = analysis.get('side', 'LONG')
+                confluence = calculate_confluence_score(market_data, side)
 
-                # Add each analysis to our collection
-                for analysis in individual_analyses:
-                    # Track market breadth
-                    action = analysis.get('action', 'hold')
-                    if action == 'buy':
-                        bullish_count += 1
-                    elif action == 'sell':
-                        bearish_count += 1
-                    else:
-                        neutral_count += 1
+                # Add to collection with metadata
+                all_analyses.append({
+                    'symbol': symbol,
+                    'analysis': analysis,
+                    'market_data': market_data,
+                    'model': analysis.get('model_name', 'unknown'),
+                    'confidence': analysis.get('confidence', 0),
+                    'opportunity_score': opportunity_score,
+                    'confluence': confluence
+                })
 
-                    # Skip HOLD signals
-                    if action == 'hold':
-                        logger.debug(
-                            f"{symbol} ({analysis.get('model_name', 'AI')}): HOLD "
-                            f"(confidence: {analysis.get('confidence', 0):.1%})"
-                        )
-                        continue
-
-                    # Calculate comprehensive opportunity score
-                    opportunity_score = self.calculate_opportunity_score(analysis, market_data)
-
-                    # Calculate CONFLUENCE SCORE (multi-factor agreement)
-                    side = analysis.get('side', 'LONG')
-                    confluence = calculate_confluence_score(market_data, side)
-
-                    # Add to collection with metadata
-                    all_analyses.append({
-                        'symbol': symbol,
-                        'analysis': analysis,
-                        'market_data': market_data,
-                        'model': analysis.get('model_name', 'unknown'),
-                        'confidence': analysis.get('confidence', 0),
-                        'opportunity_score': opportunity_score,  # Multi-factor score
-                        'confluence': confluence  # NEW: Confluence analysis
-                    })
-
-                    logger.info(
-                        f"📊 {symbol} ({analysis.get('model_name', 'AI')}): "
-                        f"{analysis.get('action', 'unknown').upper()} - "
-                        f"Confidence: {analysis.get('confidence', 0):.1%} | "
-                        f"Confluence: {confluence.get('score', 0):.0f}% ({confluence.get('confluence_count', 0)} factors)"
-                    )
-
-                    has_opportunity = True
-
-                # Log result (no Telegram spam)
-                if has_opportunity:
-                    logger.info(f"✅ {symbol} - Opportunity found!")
-                else:
-                    logger.debug(f"❌ {symbol} - No suitable opportunity")
-
-                # Rate limiting
-                await asyncio.sleep(1)
-
-            except Exception as e:
-                logger.error(f"Error analyzing {symbol}: {e}")
-                continue
+                logger.info(
+                    f"📊 {symbol} ({analysis.get('model_name', 'AI')}): "
+                    f"{analysis.get('action', 'unknown').upper()} - "
+                    f"Confidence: {analysis.get('confidence', 0):.1%} | "
+                    f"Confluence: {confluence.get('score', 0):.0f}% ({confluence.get('confluence_count', 0)} factors)"
+                )
 
         # Calculate MARKET BREADTH (market sentiment)
         total_scanned = bullish_count + bearish_count + neutral_count
@@ -234,6 +216,35 @@ class MarketScanner:
                 '😐 No good opportunities found. All AI models recommend HOLD. '
                 'Will scan again in 5 minutes.'
             )
+
+    async def _scan_symbol_parallel(self, symbol: str, semaphore: asyncio.Semaphore):
+        """
+        Scan a single symbol in parallel with rate limiting.
+
+        Returns:
+            Tuple of (symbol, individual_analyses, market_data) or None if skipped
+        """
+        async with semaphore:  # Rate limiting
+            try:
+                logger.info(f"📨 Scanning {symbol}...")
+
+                # Get market data
+                market_data = await self.gather_market_data(symbol)
+
+                if not market_data:
+                    logger.warning(f"⚠️ {symbol} - Could not fetch data, skipping")
+                    return None
+
+                # Get AI analyses
+                ai_engine = get_ai_engine()
+                individual_analyses = await ai_engine.get_individual_analyses(symbol, market_data)
+
+                logger.debug(f"✅ {symbol} - Scan complete")
+                return (symbol, individual_analyses, market_data)
+
+            except Exception as e:
+                logger.error(f"❌ Error scanning {symbol}: {e}")
+                return None
 
     async def gather_market_data(self, symbol: str) -> Dict[str, Any]:
         """

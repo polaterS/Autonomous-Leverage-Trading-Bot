@@ -431,6 +431,15 @@ class TradeExecutor:
 
             await db.record_trade(trade_data)
 
+            # 🧠 ML LEARNING: Teach ML system from completed trade
+            try:
+                from src.ml_pattern_learner import get_ml_learner
+                ml_learner = await get_ml_learner()
+                await ml_learner.on_trade_completed(trade_data)
+                logger.info(f"🎓 ML learned from trade: {symbol} ({trade_data['close_reason']})")
+            except Exception as ml_error:
+                logger.warning(f"ML learning failed: {ml_error} (trade still recorded)")
+
             # Remove active position
             await db.remove_active_position(position['id'])
 

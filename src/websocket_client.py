@@ -3,12 +3,13 @@ WebSocket Client for Real-Time Price Updates.
 Production-ready implementation with automatic reconnection and error handling.
 
 Features:
-- Real-time ticker updates (price, volume)
+- Real-time ticker updates (price, volume, 24h stats)
 - Automatic reconnection on disconnection with exponential backoff
-- Multiple symbol subscriptions with independent connections
+- Per-symbol WebSocket streams for reliability
 - Callback-based architecture for event handling
 - Thread-safe price cache with Redis integration
-- Health monitoring and metrics
+- Health monitoring and connection status tracking
+- Sub-second latency for position monitoring
 """
 
 import asyncio
@@ -19,7 +20,6 @@ from decimal import Decimal
 from datetime import datetime
 from src.config import get_settings
 from src.utils import setup_logging
-from src.redis_client import get_redis_client
 
 logger = setup_logging()
 
@@ -28,44 +28,33 @@ class WebSocketPriceClient:
     """
     Production-ready WebSocket client for Binance Futures.
 
-    Improvements over basic implementation:
-    - Proper websockets library integration
-    - Per-symbol WebSocket connections for reliability
-    - Exponential backoff reconnection strategy
-    - Comprehensive error handling
-    - Price cache with TTL
-    - Health monitoring
+    Each symbol gets its own WebSocket connection for:
+    - Isolation: One symbol failure doesn't affect others
+    - Reliability: Automatic per-symbol reconnection
+    - Performance: Parallel price updates
     """
 
     def __init__(self):
         self.settings = get_settings()
         self.ws_connections: Dict[str, websockets.WebSocketClientProtocol] = {}
         self.subscriptions: Dict[str, Set[Callable]] = {}  # symbol -> set of callbacks
-        self.price_cache: Dict[str, Dict[str, Any]] = {}  # symbol -> {price, timestamp, data}
+        self.price_cache: Dict[str, Dict[str, Any]] = {}  # symbol -> {price, timestamp, volume, etc}
         self.is_running = False
         self._tasks: Set[asyncio.Task] = set()
-        self._health_check_task: Optional[asyncio.Task] = None
+        self._reconnect_delays: Dict[str, float] = {}  # symbol -> reconnect delay
+
+        # Binance Futures WebSocket base URL
+        self.ws_base_url = "wss://fstream.binance.com/ws"
 
     async def connect(self):
-        """Initialize WebSocket client and start health monitoring."""
+        """Initialize WebSocket client."""
         self.is_running = True
         logger.info("✅ WebSocket client initialized (ready for symbol subscriptions)")
-
-        # Start health check task
-        self._health_check_task = asyncio.create_task(self._health_monitor())
 
     async def close(self):
         """Close all WebSocket connections gracefully."""
         self.is_running = False
         logger.info("Closing WebSocket client...")
-
-        # Stop health monitoring
-        if self._health_check_task and not self._health_check_task.done():
-            self._health_check_task.cancel()
-            try:
-                await self._health_check_task
-            except asyncio.CancelledError:
-                pass
 
         # Cancel all stream tasks
         for task in self._tasks:
@@ -95,178 +84,255 @@ class WebSocketPriceClient:
 
         Args:
             symbol: Trading symbol (e.g., 'BTC/USDT:USDT')
-            callback: Optional callback function to call on price update
+            callback: Optional async callback function(symbol, price_data) to call on updates
         """
-        if not self.websocket:
-            logger.warning("WebSocket not connected, cannot subscribe")
+        if not self.is_running:
+            logger.warning("WebSocket not initialized, cannot subscribe")
             return
 
-        # Convert CCXT format to Binance format
-        # 'BTC/USDT:USDT' -> 'btcusdt'
-        binance_symbol = symbol.split('/')[0].lower() + symbol.split('/')[1].split(':')[0].lower()
-
-        if binance_symbol not in self.subscribed_symbols:
-            # Subscribe to ticker stream
-            subscribe_message = {
-                "method": "SUBSCRIBE",
-                "params": [f"{binance_symbol}@ticker"],
-                "id": len(self.subscribed_symbols) + 1
-            }
-
-            try:
-                await self.websocket.send(json.dumps(subscribe_message))
-                self.subscribed_symbols.add(binance_symbol)
-                logger.info(f"📊 Subscribed to WebSocket: {symbol}")
-
-            except Exception as e:
-                logger.error(f"Failed to subscribe to {symbol}: {e}")
+        # Initialize subscriptions set for this symbol
+        if symbol not in self.subscriptions:
+            self.subscriptions[symbol] = set()
 
         # Register callback
         if callback:
-            if symbol not in self.callbacks:
-                self.callbacks[symbol] = []
-            self.callbacks[symbol].append(callback)
+            self.subscriptions[symbol].add(callback)
 
-    async def unsubscribe_symbol(self, symbol: str):
-        """Unsubscribe from a symbol."""
-        if not self.websocket:
-            return
+        # Start WebSocket stream for this symbol if not already running
+        if symbol not in self.ws_connections:
+            binance_symbol = self._to_binance_symbol(symbol)
+            task = asyncio.create_task(self._symbol_stream(symbol, binance_symbol))
+            self._tasks.add(task)
+            # Cleanup task when done
+            task.add_done_callback(lambda t: self._tasks.discard(t))
+            logger.info(f"📊 Started WebSocket stream for {symbol}")
 
-        binance_symbol = symbol.split('/')[0].lower() + symbol.split('/')[1].split(':')[0].lower()
+    async def unsubscribe_symbol(self, symbol: str, callback: Optional[Callable] = None):
+        """
+        Unsubscribe from a symbol or remove specific callback.
 
-        if binance_symbol in self.subscribed_symbols:
-            unsubscribe_message = {
-                "method": "UNSUBSCRIBE",
-                "params": [f"{binance_symbol}@ticker"],
-                "id": 999
-            }
+        Args:
+            symbol: Trading symbol
+            callback: If provided, only remove this callback. Otherwise, close entire stream.
+        """
+        if callback and symbol in self.subscriptions:
+            self.subscriptions[symbol].discard(callback)
+            logger.debug(f"Removed callback for {symbol}")
 
-            try:
-                await self.websocket.send(json.dumps(unsubscribe_message))
-                self.subscribed_symbols.remove(binance_symbol)
-                logger.info(f"🔕 Unsubscribed from WebSocket: {symbol}")
+        # If no more callbacks or callback not specified, close stream
+        if symbol in self.subscriptions and (not callback or not self.subscriptions[symbol]):
+            # Close WebSocket for this symbol
+            if symbol in self.ws_connections:
+                try:
+                    await self.ws_connections[symbol].close()
+                    del self.ws_connections[symbol]
+                    logger.info(f"🔕 Closed WebSocket stream for {symbol}")
+                except Exception as e:
+                    logger.error(f"Error closing WebSocket for {symbol}: {e}")
 
-            except Exception as e:
-                logger.error(f"Failed to unsubscribe from {symbol}: {e}")
-
-        # Remove callbacks
-        if symbol in self.callbacks:
-            del self.callbacks[symbol]
+            # Clear data
+            if symbol in self.subscriptions:
+                del self.subscriptions[symbol]
+            if symbol in self.price_cache:
+                del self.price_cache[symbol]
 
     async def get_price(self, symbol: str) -> Optional[Decimal]:
         """
         Get cached price from WebSocket feed.
-        Falls back to REST API if WebSocket not available.
 
         Args:
             symbol: Trading symbol
 
         Returns:
-            Current price or None
+            Current price or None if not available
         """
-        # Try cache first
         if symbol in self.price_cache:
-            return self.price_cache[symbol]
+            cache_data = self.price_cache[symbol]
+            # Check if data is recent (< 5 seconds old)
+            timestamp = cache_data.get('timestamp', 0)
+            age = (datetime.now().timestamp() * 1000) - timestamp
 
-        # If WebSocket not available, return None (caller will use REST API)
+            if age < 5000:  # 5 seconds
+                return cache_data.get('price')
+
         return None
 
-    async def _handle_messages(self):
-        """Handle incoming WebSocket messages."""
-        if not self.websocket:
-            return
+    async def get_price_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Get full cached price data including volume, 24h change, etc.
 
-        logger.info("WebSocket message handler started")
+        Returns:
+            {
+                'price': Decimal,
+                'volume_24h': Decimal,
+                'change_24h_percent': Decimal,
+                'high_24h': Decimal,
+                'low_24h': Decimal,
+                'timestamp': int (ms)
+            }
+        """
+        return self.price_cache.get(symbol)
 
-        while self.is_running:
+    def _to_binance_symbol(self, ccxt_symbol: str) -> str:
+        """
+        Convert CCXT format to Binance format.
+
+        'BTC/USDT:USDT' -> 'btcusdt'
+        """
+        base = ccxt_symbol.split('/')[0].lower()
+        quote = ccxt_symbol.split('/')[1].split(':')[0].lower()
+        return base + quote
+
+    def _from_binance_symbol(self, binance_symbol: str) -> str:
+        """
+        Convert Binance format to CCXT format (best effort).
+
+        'btcusdt' -> 'BTC/USDT:USDT'
+        """
+        # Most futures contracts end in 'usdt'
+        if binance_symbol.endswith('usdt'):
+            base = binance_symbol[:-4].upper()
+            return f"{base}/USDT:USDT"
+        return binance_symbol.upper()
+
+    async def _symbol_stream(self, symbol: str, binance_symbol: str):
+        """
+        Maintain WebSocket connection for a single symbol with auto-reconnect.
+
+        Args:
+            symbol: CCXT format symbol
+            binance_symbol: Binance format symbol
+        """
+        reconnect_delay = 1.0  # Start with 1 second
+
+        while self.is_running and symbol in self.subscriptions:
             try:
-                message = await asyncio.wait_for(
-                    self.websocket.recv(),
-                    timeout=30.0  # 30s timeout
-                )
+                # Connect to Binance Futures ticker stream
+                ws_url = f"{self.ws_base_url}/{binance_symbol}@ticker"
+                logger.info(f"🔌 Connecting to WebSocket: {ws_url}")
 
-                data = json.loads(message)
+                async with websockets.connect(
+                    ws_url,
+                    ping_interval=20,  # Send ping every 20s
+                    ping_timeout=10,   # Timeout if no pong in 10s
+                    close_timeout=5
+                ) as websocket:
+                    self.ws_connections[symbol] = websocket
+                    reconnect_delay = 1.0  # Reset on successful connection
+                    logger.info(f"✅ WebSocket connected: {symbol}")
 
-                # Handle ticker updates
-                if 'e' in data and data['e'] == '24hrTicker':
-                    await self._handle_ticker_update(data)
+                    # Handle messages
+                    while self.is_running:
+                        try:
+                            message = await asyncio.wait_for(
+                                websocket.recv(),
+                                timeout=30.0  # 30s timeout
+                            )
 
-            except asyncio.TimeoutError:
-                # Send ping to keep connection alive
-                try:
-                    await self.websocket.ping()
-                except:
-                    logger.warning("WebSocket ping failed, reconnecting...")
-                    await self._reconnect()
+                            data = json.loads(message)
+                            await self._handle_ticker_update(symbol, data)
+
+                        except asyncio.TimeoutError:
+                            logger.warning(f"WebSocket timeout for {symbol}, reconnecting...")
+                            break
+
+                        except websockets.exceptions.ConnectionClosed:
+                            logger.warning(f"WebSocket connection closed for {symbol}, reconnecting...")
+                            break
 
             except Exception as e:
-                logger.error(f"WebSocket message handler error: {e}")
-                await asyncio.sleep(5)
+                logger.error(f"WebSocket error for {symbol}: {e}")
 
-    async def _handle_ticker_update(self, data: Dict[str, Any]):
-        """Process ticker update from WebSocket."""
+            # Exponential backoff for reconnection
+            if self.is_running and symbol in self.subscriptions:
+                logger.info(f"Reconnecting {symbol} in {reconnect_delay:.1f}s...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60.0)  # Cap at 60s
+
+        # Cleanup
+        if symbol in self.ws_connections:
+            del self.ws_connections[symbol]
+        logger.info(f"WebSocket stream ended for {symbol}")
+
+    async def _handle_ticker_update(self, symbol: str, data: Dict[str, Any]):
+        """
+        Process ticker update from WebSocket.
+
+        Binance Futures ticker format:
+        {
+            "e": "24hrTicker",
+            "E": 1672515782136,  # Event time
+            "s": "BTCUSDT",      # Symbol
+            "c": "42123.50",     # Close price (current)
+            "o": "41500.00",     # Open price (24h ago)
+            "h": "42500.00",     # High price (24h)
+            "l": "41200.00",     # Low price (24h)
+            "v": "12345.678",    # Base asset volume (24h)
+            "q": "520000000.00", # Quote asset volume (24h)
+            "p": "623.50",       # Price change (24h)
+            "P": "1.50",         # Price change percent (24h)
+            ...
+        }
+        """
         try:
-            binance_symbol = data['s'].lower()  # e.g., 'btcusdt'
-            price = Decimal(data['c'])  # Current close price
+            if data.get('e') != '24hrTicker':
+                return  # Not a ticker update
 
-            # Convert back to CCXT format for consistency
-            # This is simplified - in production, maintain a symbol mapping
-            base = binance_symbol[:-4].upper()  # 'BTC'
-            quote = 'USDT'
-            symbol = f"{base}/{quote}:{quote}"
+            # Parse data
+            current_price = Decimal(data['c'])
+            high_24h = Decimal(data['h'])
+            low_24h = Decimal(data['l'])
+            volume_24h = Decimal(data['v'])
+            change_24h_pct = Decimal(data['P'])
+            timestamp = int(data['E'])
 
             # Update cache
-            self.price_cache[symbol] = price
-
-            # Cache in Redis for other components
-            redis = await get_redis_client()
-            await redis.cache_market_data(
-                symbol,
-                {'price': float(price), 'timestamp': data.get('E')},
-                ttl_seconds=10  # Very short TTL for real-time data
-            )
+            self.price_cache[symbol] = {
+                'price': current_price,
+                'high_24h': high_24h,
+                'low_24h': low_24h,
+                'volume_24h': volume_24h,
+                'change_24h_percent': change_24h_pct,
+                'timestamp': timestamp
+            }
 
             # Call registered callbacks
-            if symbol in self.callbacks:
-                for callback in self.callbacks[symbol]:
+            if symbol in self.subscriptions:
+                for callback in list(self.subscriptions[symbol]):  # Copy to avoid modification during iteration
                     try:
                         if asyncio.iscoroutinefunction(callback):
-                            await callback(symbol, price)
+                            await callback(symbol, self.price_cache[symbol])
                         else:
-                            callback(symbol, price)
+                            callback(symbol, self.price_cache[symbol])
                     except Exception as e:
-                        logger.error(f"Callback error for {symbol}: {e}")
+                        logger.error(f"Callback error for {symbol}: {e}", exc_info=True)
 
-            logger.debug(f"📊 WS Price update: {symbol} = ${float(price):.4f}")
-
-        except Exception as e:
-            logger.error(f"Failed to process ticker update: {e}")
-
-    async def _reconnect(self):
-        """Reconnect WebSocket."""
-        logger.warning("Reconnecting WebSocket...")
-
-        try:
-            if self.websocket:
-                await self.websocket.close()
-
-            await asyncio.sleep(5)
-            await self.connect()
-
-            # Resubscribe to all symbols
-            symbols_to_resubscribe = list(self.subscribed_symbols)
-            self.subscribed_symbols.clear()
-
-            for binance_symbol in symbols_to_resubscribe:
-                # Convert back to CCXT format
-                base = binance_symbol[:-4].upper()
-                symbol = f"{base}/USDT:USDT"
-                await self.subscribe_symbol(symbol)
-
-            logger.info("✅ WebSocket reconnected and resubscribed")
+            logger.debug(f"📊 WS {symbol}: ${float(current_price):.2f} "
+                        f"(24h: {float(change_24h_pct):+.2f}%)")
 
         except Exception as e:
-            logger.error(f"WebSocket reconnection failed: {e}")
+            logger.error(f"Failed to process ticker update for {symbol}: {e}", exc_info=True)
+
+    def get_connection_status(self) -> Dict[str, bool]:
+        """Get connection status for all subscribed symbols."""
+        status = {}
+        for symbol in self.subscriptions:
+            is_connected = (
+                symbol in self.ws_connections and
+                not self.ws_connections[symbol].closed
+            )
+            status[symbol] = is_connected
+        return status
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get WebSocket client statistics."""
+        return {
+            'is_running': self.is_running,
+            'total_subscriptions': len(self.subscriptions),
+            'active_connections': sum(1 for ws in self.ws_connections.values() if not ws.closed),
+            'cached_symbols': list(self.price_cache.keys()),
+            'connection_status': self.get_connection_status()
+        }
 
 
 # Singleton instance

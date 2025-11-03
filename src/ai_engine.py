@@ -71,7 +71,7 @@ class AIConsensusEngine:
 
     async def get_individual_analyses(self, symbol: str, market_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Get individual analyses from DeepSeek model.
+        Get individual analyses from DeepSeek model + ML ENHANCEMENT.
         (Qwen3-Max disabled due to API key issues)
 
         Args:
@@ -79,9 +79,9 @@ class AIConsensusEngine:
             market_data: Market data dict with price, indicators, etc.
 
         Returns:
-            List of individual analyses (currently just DeepSeek)
+            List of individual analyses with ML-adjusted confidence (currently just DeepSeek)
         """
-        logger.info(f"Requesting AI analysis for {symbol} (DeepSeek only)...")
+        logger.info(f"Requesting AI analysis for {symbol} (DeepSeek + ML)...")
 
         # Get analysis from DeepSeek only
         analysis = await self._analyze_with_retry(
@@ -94,6 +94,28 @@ class AIConsensusEngine:
         # Handle failures gracefully
         valid_analyses = []
         if analysis is not None:
+            # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns
+            try:
+                from src.ml_pattern_learner import get_ml_learner
+                ml_learner = await get_ml_learner()
+                ml_result = await ml_learner.analyze_opportunity(symbol, analysis, market_data)
+
+                # Update analysis with ML insights
+                analysis['original_confidence'] = analysis['confidence']
+                analysis['confidence'] = ml_result['adjusted_confidence']
+                analysis['ml_adjustment'] = ml_result['ml_adjustment']
+                analysis['ml_score'] = ml_result['ml_score']
+                analysis['ml_reasoning'] = ml_result['reasoning']
+
+                if ml_result.get('regime_warning'):
+                    analysis['regime_warning'] = ml_result['regime_warning']
+
+                logger.info(f"🧠 ML Enhanced: {symbol} confidence {analysis['original_confidence']:.1%} → "
+                          f"{analysis['confidence']:.1%} (Δ {ml_result['ml_adjustment']:+.1%})")
+
+            except Exception as ml_error:
+                logger.warning(f"ML enhancement failed for {symbol}: {ml_error} (continuing without ML)")
+
             valid_analyses.append(analysis)
         else:
             logger.error(f"DeepSeek analysis failed for {symbol}")

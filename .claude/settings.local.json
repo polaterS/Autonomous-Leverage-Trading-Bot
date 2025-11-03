@@ -36,7 +36,9 @@
       "Bash(timeout /t 3 /nobreak)",
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -B main.py)",
       "Bash(git push:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(cmd /c tasklist)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
