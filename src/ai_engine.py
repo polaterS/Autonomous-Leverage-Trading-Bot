@@ -120,8 +120,9 @@ class AIConsensusEngine:
         market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
     ) -> List[Dict[str, Any]]:
         """
-        Get individual analyses from DeepSeek model + ML ENHANCEMENT.
-        (Qwen3-Max disabled due to API key issues)
+        🎯 #2: MULTI-MODEL ENSEMBLE - Get analyses from BOTH Qwen3-Max AND DeepSeek.
+
+        Uses weighted voting based on historical model performance per symbol and regime.
 
         Args:
             symbol: Trading symbol
@@ -129,65 +130,91 @@ class AIConsensusEngine:
             market_sentiment: Market breadth sentiment (BULLISH_STRONG, BULLISH, NEUTRAL, BEARISH, BEARISH_STRONG)
 
         Returns:
-            List of individual analyses with ML-adjusted confidence (currently just DeepSeek)
+            List of individual analyses with ML-adjusted confidence from both models
         """
-        logger.info(f"Requesting AI analysis for {symbol} (DeepSeek + ML)...")
+        logger.info(f"🎯 Requesting MULTI-MODEL analysis for {symbol} (Qwen3-Max + DeepSeek)...")
 
-        # Get analysis from DeepSeek only
-        analysis = await self._analyze_with_retry(
+        # 🚀 Call BOTH models in PARALLEL for speed
+        qwen_task = self._analyze_with_retry(
+            self._analyze_with_qwen,
+            symbol,
+            market_data,
+            "Qwen3-Max"
+        )
+
+        deepseek_task = self._analyze_with_retry(
             self._analyze_with_deepseek,
             symbol,
             market_data,
             "DeepSeek-V3.2"
         )
 
-        # Handle failures gracefully
+        # Wait for both models to complete
+        qwen_analysis, deepseek_analysis = await asyncio.gather(
+            qwen_task, deepseek_task, return_exceptions=True
+        )
+
+        # Handle exceptions from parallel execution
+        if isinstance(qwen_analysis, Exception):
+            logger.error(f"❌ Qwen3-Max exception: {qwen_analysis}")
+            qwen_analysis = None
+        if isinstance(deepseek_analysis, Exception):
+            logger.error(f"❌ DeepSeek exception: {deepseek_analysis}")
+            deepseek_analysis = None
+
+        # Process valid analyses
         valid_analyses = []
-        if analysis is not None and self._validate_ai_response(analysis):
-            # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns + 🎯 #7: Market sentiment
-            try:
-                from src.ml_pattern_learner import get_ml_learner
-                ml_learner = await get_ml_learner()
-                ml_result = await ml_learner.analyze_opportunity(
-                    symbol, analysis, market_data, market_sentiment  # 🎯 #7: Pass sentiment
-                )
 
-                # Update analysis with ML insights
-                analysis['original_confidence'] = analysis['confidence']
-                analysis['confidence'] = ml_result['adjusted_confidence']
-                analysis['ml_adjustment'] = ml_result['ml_adjustment']
-                analysis['ml_score'] = ml_result['ml_score']
-                analysis['ml_reasoning'] = ml_result['reasoning']
+        for analysis, model_name in [(qwen_analysis, "Qwen3-Max"), (deepseek_analysis, "DeepSeek-V3.2")]:
+            if analysis is not None and self._validate_ai_response(analysis):
+                # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns + 🎯 #7: Market sentiment
+                try:
+                    from src.ml_pattern_learner import get_ml_learner
+                    ml_learner = await get_ml_learner()
+                    ml_result = await ml_learner.analyze_opportunity(
+                        symbol, analysis, market_data, market_sentiment  # 🎯 #7: Pass sentiment
+                    )
 
-                if ml_result.get('regime_warning'):
-                    analysis['regime_warning'] = ml_result['regime_warning']
+                    # Update analysis with ML insights
+                    analysis['original_confidence'] = analysis['confidence']
+                    analysis['confidence'] = ml_result['adjusted_confidence']
+                    analysis['ml_adjustment'] = ml_result['ml_adjustment']
+                    analysis['ml_score'] = ml_result['ml_score']
+                    analysis['ml_reasoning'] = ml_result['reasoning']
 
-                logger.info(f"🧠 ML Enhanced: {symbol} confidence {analysis['original_confidence']:.1%} → "
-                          f"{analysis['confidence']:.1%} (Δ {ml_result['ml_adjustment']:+.1%})")
+                    if ml_result.get('regime_warning'):
+                        analysis['regime_warning'] = ml_result['regime_warning']
 
-            except Exception as ml_error:
-                logger.warning(f"ML enhancement failed for {symbol}: {ml_error} (continuing without ML)")
+                    logger.info(
+                        f"🧠 {model_name} ML Enhanced: {symbol} confidence "
+                        f"{analysis['original_confidence']:.1%} → {analysis['confidence']:.1%} "
+                        f"(Δ {ml_result['ml_adjustment']:+.1%})"
+                    )
 
-            valid_analyses.append(analysis)
-        elif analysis is None:
-            logger.error(f"❌ DeepSeek API failed for {symbol} (returned None)")
-        else:
-            logger.error(f"❌ DeepSeek analysis INVALID for {symbol} (failed validation checks)")
+                except Exception as ml_error:
+                    logger.warning(f"ML enhancement failed for {model_name} on {symbol}: {ml_error}")
 
-        logger.info(f"Got {len(valid_analyses)}/1 analyses for {symbol}")
+                valid_analyses.append(analysis)
+            elif analysis is None:
+                logger.error(f"❌ {model_name} API failed for {symbol} (returned None)")
+            else:
+                logger.error(f"❌ {model_name} analysis INVALID for {symbol} (failed validation)")
+
+        logger.info(f"✅ Got {len(valid_analyses)}/2 valid model analyses for {symbol}")
         return valid_analyses
 
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Get AI consensus - require at least 2 out of 3 models to agree.
-        Implements retry logic and graceful degradation.
+        🎯 #2: Get WEIGHTED ENSEMBLE consensus from multiple AI models.
+
+        Uses dynamic model weighting based on historical performance per symbol and regime.
 
         Args:
             symbol: Trading symbol
             market_data: Market data dict with price, indicators, etc.
 
         Returns:
-            Consensus analysis with action, confidence, and reasoning
+            Weighted consensus analysis with action, confidence, and reasoning
         """
         # Check Redis cache first (much faster than PostgreSQL)
         redis = await get_redis_client()
@@ -197,53 +224,51 @@ class AIConsensusEngine:
             logger.debug(f"✅ Using cached AI analysis for {symbol} (from Redis)")
             return cached
 
-        # Get analysis from DeepSeek only (Qwen3-Max disabled)
-        logger.info(f"Requesting AI analysis for {symbol} (DeepSeek only)...")
+        # 🎯 #2: Get analyses from BOTH models (uses get_individual_analyses)
+        # This will already include ML enhancement for each model
+        from src.ml_pattern_learner import get_ml_learner
+        ml_learner = await get_ml_learner()
 
-        analysis = await self._analyze_with_retry(
-            self._analyze_with_deepseek,
-            symbol,
-            market_data,
-            "DeepSeek-V3.2"
-        )
+        # Determine market sentiment for ensemble context
+        market_sentiment = market_data.get('market_sentiment', 'NEUTRAL')
 
-        # Handle failure
-        if analysis is None:
-            logger.warning(f"DeepSeek failed for {symbol}")
+        # Get individual analyses from both models
+        analyses = await self.get_individual_analyses(symbol, market_data, market_sentiment)
+
+        # Handle complete failure
+        if not analyses:
+            logger.warning(f"All AI models failed for {symbol}")
             return {
                 'action': 'hold',
                 'side': None,
                 'confidence': 0.0,
-                'consensus': False,
-                'consensus_count': 0,
-                'reason': 'AI analysis failed',
+                'weighted_consensus': False,
+                'reason': 'All AI models failed',
                 'suggested_leverage': 2,
                 'stop_loss_percent': 7.0,
                 'risk_reward_ratio': 0.0,
-                'reasoning': 'DeepSeek API unavailable',
-                'models_used': []
+                'reasoning': 'Both Qwen3-Max and DeepSeek unavailable',
+                'models_used': [],
+                'ensemble_method': 'none'
             }
 
-        # Single model - use its values directly
-        consensus = {
-            'action': analysis.get('action', 'hold'),
-            'side': analysis.get('side'),
-            'confidence': round(analysis.get('confidence', 0), 2),
-            'consensus': True,  # Single model always "agrees" with itself
-            'consensus_count': 1,
-            'suggested_leverage': max(2, min(5, analysis.get('suggested_leverage', 3))),
-            'stop_loss_percent': max(5.0, min(10.0, analysis.get('stop_loss_percent', 7.0))),
-            'risk_reward_ratio': round(analysis.get('risk_reward_ratio', 0), 2),
-            'reasoning': analysis.get('reasoning', 'N/A'),
-            'models_used': ['deepseek'],
-            'individual_analyses': [analysis]
-        }
+        # 🎯 #2: WEIGHTED ENSEMBLE VOTING (instead of simple majority)
+        market_regime = market_data.get('market_regime', 'UNKNOWN')
+        consensus = ml_learner.calculate_weighted_ensemble(
+            analyses, symbol, market_regime
+        )
+
+        # Add risk/reward ratio if not present
+        if 'risk_reward_ratio' not in consensus:
+            consensus['risk_reward_ratio'] = 0.0
+
+        # Track which models were used
+        consensus['models_used'] = [a.get('model_name', 'unknown') for a in analyses]
 
         # 🎯 ADAPTIVE CACHE TTL: Adjust based on market volatility
         adaptive_ttl = self._calculate_adaptive_cache_ttl(market_data)
 
         # Cache result in Redis (fast access with adaptive duration)
-        redis = await get_redis_client()
         await redis.cache_ai_analysis(
             symbol, '5m', consensus,
             adaptive_ttl
@@ -259,11 +284,13 @@ class AIConsensusEngine:
         except Exception as e:
             logger.warning(f"Failed to cache in DB (non-critical): {e}")
 
-        logger.info(f"💾 Cached AI analysis for {symbol} (TTL: {adaptive_ttl}s)")
+        logger.info(f"💾 Cached weighted ensemble for {symbol} (TTL: {adaptive_ttl}s)")
 
         logger.info(
-            f"✅ AI Analysis for {symbol}: {consensus['action'].upper()} "
-            f"(confidence: {consensus['confidence']:.1%}, confluence: {consensus.get('confluence_count', 0)} factors)"
+            f"✅ 🎯 WEIGHTED ENSEMBLE for {symbol}: {consensus['action'].upper()} "
+            f"(confidence: {consensus['confidence']:.1%}, "
+            f"strength: {consensus.get('consensus_strength', 0):.1%}, "
+            f"models: {len(analyses)})"
         )
 
         return consensus

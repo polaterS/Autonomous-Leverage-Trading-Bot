@@ -96,7 +96,26 @@ class MLPatternLearner:
         self.min_sample_size: int = 30  # Minimum trades before trusting pattern
         self.time_decay_half_life_days: int = 30  # 🎯 #8: Pattern weight halves every 30 days
 
-        logger.info("✅ ML Pattern Learner initialized with statistical validation")
+        # 🎯 #2: MULTI-MODEL AI ENSEMBLE TRACKING
+        # Track each AI model's performance per symbol and market regime
+        self.model_performance: Dict[str, Dict[str, Dict]] = {
+            'qwen3-max': defaultdict(lambda: {'wins': 0, 'losses': 0, 'total': 0}),
+            'deepseek': defaultdict(lambda: {'wins': 0, 'losses': 0, 'total': 0})
+        }
+
+        # Model performance by market regime (trending_up, trending_down, ranging, volatile)
+        self.model_performance_by_regime: Dict[str, Dict[str, Dict]] = {
+            'qwen3-max': defaultdict(lambda: {'wins': 0, 'losses': 0, 'total': 0}),
+            'deepseek': defaultdict(lambda: {'wins': 0, 'losses': 0, 'total': 0})
+        }
+
+        # Real-time reliability scores (0-1) - updated after each trade
+        self.model_reliability_scores: Dict[str, float] = {
+            'qwen3-max': 0.50,  # Start neutral (50% = random)
+            'deepseek': 0.50
+        }
+
+        logger.info("✅ ML Pattern Learner initialized with statistical validation + multi-model ensemble")
 
 
     async def initialize(self):
@@ -604,6 +623,208 @@ class MLPatternLearner:
 
         return [f"{sym} ({wr:.1%} WR, ${pnl:.2f})"
                 for sym, score, wr, pnl in symbol_scores[:limit]]
+
+    # 🎯 #2: MULTI-MODEL ENSEMBLE METHODS
+
+    def update_model_performance(
+        self,
+        model_name: str,
+        symbol: str,
+        market_regime: str,
+        was_correct: bool
+    ):
+        """
+        🎯 #2: Update model performance after trade closes.
+
+        Args:
+            model_name: 'qwen3-max' or 'deepseek'
+            symbol: Trading symbol
+            market_regime: 'trending_up', 'trending_down', 'ranging', 'volatile'
+            was_correct: True if model prediction was correct
+        """
+        if model_name not in self.model_performance:
+            logger.warning(f"Unknown model: {model_name}")
+            return
+
+        # Update per-symbol stats
+        perf = self.model_performance[model_name][symbol]
+        perf['total'] += 1
+        if was_correct:
+            perf['wins'] += 1
+        else:
+            perf['losses'] += 1
+
+        # Update per-regime stats
+        regime_perf = self.model_performance_by_regime[model_name][market_regime]
+        regime_perf['total'] += 1
+        if was_correct:
+            regime_perf['wins'] += 1
+        else:
+            regime_perf['losses'] += 1
+
+        # Update global reliability score (EMA with α=0.1)
+        alpha = 0.1
+        observation = 1.0 if was_correct else 0.0
+        self.model_reliability_scores[model_name] = (
+            alpha * observation + (1 - alpha) * self.model_reliability_scores[model_name]
+        )
+
+        logger.info(
+            f"🎯 MODEL UPDATE: {model_name} on {symbol} ({market_regime}) - "
+            f"{'✅ CORRECT' if was_correct else '❌ WRONG'} | "
+            f"New reliability: {self.model_reliability_scores[model_name]:.1%}"
+        )
+
+    def get_model_weight(self, model_name: str, symbol: str, market_regime: str) -> float:
+        """
+        🎯 #2: Calculate dynamic weight for a model based on historical performance.
+
+        Weighting factors:
+        1. Symbol-specific win rate (40%)
+        2. Regime-specific win rate (40%)
+        3. Global reliability score (20%)
+
+        Returns:
+            Weight between 0.0 and 1.0
+        """
+        if model_name not in self.model_performance:
+            return 0.5  # Neutral for unknown models
+
+        # 1. Symbol-specific performance
+        symbol_perf = self.model_performance[model_name][symbol]
+        if symbol_perf['total'] >= 5:
+            symbol_wr = symbol_perf['wins'] / symbol_perf['total']
+        else:
+            symbol_wr = 0.5  # Not enough data, use neutral
+
+        # 2. Regime-specific performance
+        regime_perf = self.model_performance_by_regime[model_name][market_regime]
+        if regime_perf['total'] >= 5:
+            regime_wr = regime_perf['wins'] / regime_perf['total']
+        else:
+            regime_wr = 0.5  # Not enough data, use neutral
+
+        # 3. Global reliability
+        global_reliability = self.model_reliability_scores[model_name]
+
+        # Weighted combination
+        weight = 0.40 * symbol_wr + 0.40 * regime_wr + 0.20 * global_reliability
+
+        logger.debug(
+            f"🎯 MODEL WEIGHT: {model_name} | Symbol WR: {symbol_wr:.1%} | "
+            f"Regime WR: {regime_wr:.1%} | Global: {global_reliability:.1%} | "
+            f"Final Weight: {weight:.1%}"
+        )
+
+        return weight
+
+    def calculate_weighted_ensemble(
+        self,
+        analyses: List[Dict],
+        symbol: str,
+        market_regime: str
+    ) -> Dict:
+        """
+        🎯 #2: Calculate weighted ensemble consensus from multiple AI models.
+
+        Instead of simple 2/3 voting, uses performance-based weighted voting.
+
+        Args:
+            analyses: List of AI analyses from different models
+            symbol: Trading symbol
+            market_regime: Current market regime
+
+        Returns:
+            Weighted consensus with adjusted confidence
+        """
+        if not analyses:
+            return {
+                'action': 'hold',
+                'confidence': 0.0,
+                'weighted_consensus': False,
+                'reason': 'No model analyses available'
+            }
+
+        # Single model - return as-is (already ML-enhanced)
+        if len(analyses) == 1:
+            result = analyses[0].copy()
+            result['weighted_consensus'] = True
+            result['ensemble_method'] = 'single_model'
+            return result
+
+        # Multiple models - calculate weighted consensus
+        total_weight = 0.0
+        weighted_confidence = 0.0
+        weighted_leverage = 0.0
+        weighted_stop_loss = 0.0
+        action_votes = defaultdict(float)  # action -> weight
+        side_votes = defaultdict(float)  # side -> weight
+        model_weights_used = {}
+
+        for analysis in analyses:
+            model_name = analysis.get('model_name', 'unknown')
+            weight = self.get_model_weight(model_name, symbol, market_regime)
+
+            # Accumulate weighted values
+            total_weight += weight
+            weighted_confidence += analysis.get('confidence', 0.0) * weight
+            weighted_leverage += analysis.get('suggested_leverage', 3) * weight
+            weighted_stop_loss += analysis.get('stop_loss_percent', 7.0) * weight
+
+            # Vote on action and side
+            action = analysis.get('action', 'hold')
+            side = analysis.get('side')
+            action_votes[action] += weight
+            if side:
+                side_votes[side] += weight
+
+            model_weights_used[model_name] = weight
+
+            logger.info(
+                f"   🤖 {model_name.upper()}: {action} {side or ''} "
+                f"(conf={analysis.get('confidence', 0):.1%}, weight={weight:.1%})"
+            )
+
+        # Normalize weighted values
+        if total_weight > 0:
+            weighted_confidence /= total_weight
+            weighted_leverage /= total_weight
+            weighted_stop_loss /= total_weight
+        else:
+            # Fallback if all weights are zero
+            weighted_confidence = sum(a.get('confidence', 0) for a in analyses) / len(analyses)
+            weighted_leverage = 3
+            weighted_stop_loss = 7.0
+
+        # Determine winning action and side
+        winning_action = max(action_votes.items(), key=lambda x: x[1])[0] if action_votes else 'hold'
+        winning_side = max(side_votes.items(), key=lambda x: x[1])[0] if side_votes else None
+
+        # Check if consensus is strong (winning action has >60% of total weight)
+        winning_action_weight = action_votes.get(winning_action, 0)
+        consensus_strength = winning_action_weight / total_weight if total_weight > 0 else 0
+
+        # Build consensus result
+        consensus = {
+            'action': winning_action,
+            'side': winning_side,
+            'confidence': round(weighted_confidence, 2),
+            'suggested_leverage': max(2, min(5, int(round(weighted_leverage)))),
+            'stop_loss_percent': max(5.0, min(10.0, round(weighted_stop_loss, 1))),
+            'weighted_consensus': consensus_strength > 0.60,
+            'consensus_strength': round(consensus_strength, 2),
+            'ensemble_method': 'weighted_voting',
+            'model_weights': model_weights_used,
+            'reasoning': f"Weighted ensemble from {len(analyses)} models (strength: {consensus_strength:.1%})",
+            'individual_analyses': analyses
+        }
+
+        logger.info(
+            f"🎯 ENSEMBLE RESULT: {winning_action} {winning_side or ''} "
+            f"(confidence: {weighted_confidence:.1%}, strength: {consensus_strength:.1%})"
+        )
+
+        return consensus
 
 
     async def analyze_opportunity(
