@@ -212,8 +212,9 @@ class MarketScanner:
                     best['analysis']['action']
                 )
 
-                # Send multi-leverage opportunity to telegram for user selection
-                await self.send_opportunity_for_selection(best)
+                # 🤖 FULLY AUTONOMOUS MODE: Execute trade automatically
+                logger.info(f"🚀 AUTONOMOUS EXECUTION: Opening position automatically...")
+                await self.execute_trade(best)
             else:
                 await notifier.send_alert(
                     'info',
