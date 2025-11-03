@@ -132,16 +132,9 @@ class AIConsensusEngine:
         Returns:
             List of individual analyses with ML-adjusted confidence from both models
         """
-        logger.info(f"🎯 Requesting MULTI-MODEL analysis for {symbol} (Qwen3-Max + DeepSeek)...")
+        logger.info(f"🎯 Requesting AI analysis for {symbol} (DeepSeek only)...")
 
-        # 🚀 Call BOTH models in PARALLEL for speed
-        qwen_task = self._analyze_with_retry(
-            self._analyze_with_qwen,
-            symbol,
-            market_data,
-            "Qwen3-Max"
-        )
-
+        # 🎯 SINGLE MODEL: DeepSeek only (Qwen3-Max disabled - no API key)
         deepseek_task = self._analyze_with_retry(
             self._analyze_with_deepseek,
             symbol,
@@ -149,23 +142,13 @@ class AIConsensusEngine:
             "DeepSeek-V3.2"
         )
 
-        # Wait for both models to complete
-        qwen_analysis, deepseek_analysis = await asyncio.gather(
-            qwen_task, deepseek_task, return_exceptions=True
-        )
-
-        # Handle exceptions from parallel execution
-        if isinstance(qwen_analysis, Exception):
-            logger.error(f"❌ Qwen3-Max exception: {qwen_analysis}")
-            qwen_analysis = None
-        if isinstance(deepseek_analysis, Exception):
-            logger.error(f"❌ DeepSeek exception: {deepseek_analysis}")
-            deepseek_analysis = None
+        # Wait for DeepSeek to complete
+        deepseek_analysis = await deepseek_task
 
         # Process valid analyses
         valid_analyses = []
 
-        for analysis, model_name in [(qwen_analysis, "Qwen3-Max"), (deepseek_analysis, "DeepSeek-V3.2")]:
+        for analysis, model_name in [(deepseek_analysis, "DeepSeek-V3.2")]:
             if analysis is not None and self._validate_ai_response(analysis):
                 # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns + 🎯 #7: Market sentiment
                 try:
@@ -200,7 +183,7 @@ class AIConsensusEngine:
             else:
                 logger.error(f"❌ {model_name} analysis INVALID for {symbol} (failed validation)")
 
-        logger.info(f"✅ Got {len(valid_analyses)}/2 valid model analyses for {symbol}")
+        logger.info(f"✅ Got {len(valid_analyses)}/1 AI analysis for {symbol}")
         return valid_analyses
 
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
