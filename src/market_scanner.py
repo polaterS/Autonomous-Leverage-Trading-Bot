@@ -109,8 +109,9 @@ class MarketScanner:
                     )
                     continue
 
-                # Calculate comprehensive opportunity score
-                opportunity_score = self.calculate_opportunity_score(analysis, market_data)
+                # Calculate comprehensive opportunity score (akan önce market sentiment belirlenmeli)
+                # Market sentiment henüz belirlenmedi, bu yüzden None geçiyoruz, sonra güncelleyeceğiz
+                opportunity_score = 0  # Placeholder, will calculate after market sentiment
 
                 # Calculate CONFLUENCE SCORE (multi-factor agreement)
                 side = analysis.get('side', 'LONG')
@@ -123,8 +124,10 @@ class MarketScanner:
                     'market_data': market_data,
                     'model': analysis.get('model_name', 'unknown'),
                     'confidence': analysis.get('confidence', 0),
-                    'opportunity_score': opportunity_score,
-                    'confluence': confluence
+                    'opportunity_score': opportunity_score,  # Will be updated later
+                    'confluence': confluence,
+                    'action': analysis.get('action', 'hold'),
+                    'side': side
                 })
 
                 logger.info(
@@ -157,6 +160,16 @@ class MarketScanner:
 
         logger.info(f"📊 MARKET BREADTH: {bullish_pct:.0f}% bullish, {bearish_pct:.0f}% bearish, {neutral_pct:.0f}% neutral")
         logger.info(f"🎯 MARKET SENTIMENT: {market_sentiment}")
+
+        # 🎯 NOW calculate opportunity scores with market sentiment factor
+        for opp in all_analyses:
+            opp['opportunity_score'] = self.calculate_opportunity_score(
+                opp['analysis'],
+                opp['market_data'],
+                market_sentiment,
+                opp['side']
+            )
+            logger.debug(f"  {opp['symbol']}: Score = {opp['opportunity_score']:.1f}/100")
 
         # Sort ALL analyses by opportunity score (multi-factor) instead of just confidence
         # This considers: AI confidence, market regime, risk/reward, technical alignment
@@ -405,49 +418,73 @@ class MarketScanner:
             logger.error(f"Error gathering market data for {symbol}: {e}")
             return None
 
-    def calculate_opportunity_score(self, ai_analysis: Dict[str, Any], market_data: Dict[str, Any]) -> float:
+    def calculate_opportunity_score(
+        self,
+        ai_analysis: Dict[str, Any],
+        market_data: Dict[str, Any],
+        market_sentiment: str = "NEUTRAL/MIXED",
+        trade_side: str = "LONG"
+    ) -> float:
         """
         Score opportunity from 0-100 based on multiple factors.
 
         Improved scoring with weighted factors:
-        - AI Confidence: 35 points (most important)
-        - Market Regime Appropriateness: 25 points (critical for leverage)
-        - Risk/Reward Ratio: 20 points (must be favorable)
+        - AI Confidence: 30 points (most important)
+        - Market Regime Appropriateness: 20 points (critical for leverage)
+        - Market Breadth Alignment: 15 points (NEW! Market sentiment factor)
+        - Risk/Reward Ratio: 15 points (must be favorable)
         - Technical Alignment: 15 points (confirm the signal)
         - Volume Confirmation: 5 points (ensure liquidity)
         """
         score = 0.0
 
-        # FACTOR 1: AI Confidence (35 points)
+        # FACTOR 1: AI Confidence (30 points - reduced from 35)
         confidence = ai_analysis.get('confidence', 0)
-        score += confidence * 35
+        score += confidence * 30
 
-        # FACTOR 2: Market Regime Appropriateness (25 points)
+        # FACTOR 2: Market Breadth Alignment (15 points - NEW!)
+        # If market sentiment aligns with trade direction, boost score
+        if market_sentiment == "STRONG BULLISH" and trade_side == "LONG":
+            score += 15  # Perfect alignment
+        elif market_sentiment == "BULLISH" and trade_side == "LONG":
+            score += 12  # Good alignment
+        elif market_sentiment == "STRONG BEARISH" and trade_side == "SHORT":
+            score += 15  # Perfect alignment
+        elif market_sentiment == "BEARISH" and trade_side == "SHORT":
+            score += 12  # Good alignment
+        elif market_sentiment == "NEUTRAL/MIXED":
+            score += 7   # Neutral - no clear direction
+        else:
+            # Trading against market breadth (risky!)
+            score += 0   # No points for counter-trend trades
+            logger.warning(f"⚠️ Trading AGAINST market breadth: {market_sentiment} vs {trade_side}")
+
+        # FACTOR 3: Market Regime Appropriateness (20 points - reduced from 25)
         regime = market_data.get('market_regime', 'UNKNOWN')
         action = ai_analysis.get('action', 'hold')
         side = ai_analysis.get('side')
 
         if regime == 'TRENDING' and action in ['buy', 'sell']:
-            score += 25  # Perfect for leverage trading
+            score += 20  # Perfect for leverage trading
         elif regime == 'RANGING' and action in ['buy', 'sell']:
-            score += 12  # Moderate - mean reversion possible
+            score += 10  # Moderate - mean reversion possible
         elif regime == 'VOLATILE':
-            score += 5   # Risky - high slippage and whipsaw risk
+            score += 4   # Risky - high slippage and whipsaw risk
         else:
             score += 0   # Unknown regime - no points
 
-        # FACTOR 3: Risk/Reward Ratio (20 points)
+        # FACTOR 4: Risk/Reward Ratio (15 points - reduced from 20)
         rr_ratio = ai_analysis.get('risk_reward_ratio', 0)
         if rr_ratio >= 3.0:
-            score += 20  # Excellent R:R
+            score += 15  # Excellent R:R
         elif rr_ratio >= 2.0:
-            score += 15  # Good R:R
+            score += 12  # Good R:R
         elif rr_ratio >= 1.5:
-            score += 10  # Acceptable R:R
+            score += 8   # Acceptable R:R
         else:
             score += 0   # Poor R:R - no points
 
-        # FACTOR 4: Technical Alignment (15 points)
+        # FACTOR 5: Technical Alignment (15 points)
         # Check if multiple timeframes agree with the signal
         indicators = market_data.get('indicators', {})
         timeframe_agreement = 0
@@ -467,7 +504,7 @@ class MarketScanner:
         elif timeframe_agreement == 1:
             score += 5   # Only 1 timeframe agrees
 
-        # FACTOR 5: Volume Confirmation (5 points)
+        # FACTOR 6: Volume Confirmation (5 points)
         # High volume supports the trade thesis
         volume_trend = market_data.get('indicators', {}).get('15m', {}).get('volume_trend', 'normal')
         if volume_trend == 'high':

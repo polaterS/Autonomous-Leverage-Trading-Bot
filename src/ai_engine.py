@@ -93,7 +93,7 @@ class AIConsensusEngine:
 
         # Handle failures gracefully
         valid_analyses = []
-        if analysis is not None:
+        if analysis is not None and self._validate_ai_response(analysis):
             # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns
             try:
                 from src.ml_pattern_learner import get_ml_learner
@@ -117,8 +117,10 @@ class AIConsensusEngine:
                 logger.warning(f"ML enhancement failed for {symbol}: {ml_error} (continuing without ML)")
 
             valid_analyses.append(analysis)
+        elif analysis is None:
+            logger.error(f"❌ DeepSeek API failed for {symbol} (returned None)")
         else:
-            logger.error(f"DeepSeek analysis failed for {symbol}")
+            logger.error(f"❌ DeepSeek analysis INVALID for {symbol} (failed validation checks)")
 
         logger.info(f"Got {len(valid_analyses)}/1 analyses for {symbol}")
         return valid_analyses
@@ -336,6 +338,66 @@ RESPONSE FORMAT (JSON only):
         except Exception as e:
             logger.error(f"Error getting exit signal: {e}")
             return {'should_exit': False, 'confidence': 0.0, 'reason': f'API error: {e}'}
+
+    def _validate_ai_response(self, analysis: Dict[str, Any]) -> bool:
+        """
+        Validate AI response for correctness and safety.
+
+        Checks:
+        - Required fields present
+        - Confidence in valid range [0, 1]
+        - Stop-loss in safe range [5%, 10%]
+        - Leverage in allowed range [2, MAX_LEVERAGE]
+        - Action is valid (buy/sell/hold)
+
+        Returns:
+            True if valid, False otherwise (logs error)
+        """
+        try:
+            # Check required fields
+            required_fields = ['action', 'confidence', 'side', 'stop_loss_percent', 'suggested_leverage']
+            for field in required_fields:
+                if field not in analysis:
+                    logger.error(f"❌ AI validation failed: Missing required field '{field}'")
+                    return False
+
+            # Validate action
+            if analysis['action'] not in ['buy', 'sell', 'hold']:
+                logger.error(f"❌ AI validation failed: Invalid action '{analysis['action']}' (must be buy/sell/hold)")
+                return False
+
+            # Validate confidence range [0, 1]
+            confidence = analysis['confidence']
+            if not isinstance(confidence, (int, float)) or not (0 <= confidence <= 1):
+                logger.error(f"❌ AI validation failed: Confidence {confidence} out of range [0, 1]")
+                return False
+
+            # Validate stop-loss percentage [5%, 20%] (允许更宽的范围)
+            stop_loss = analysis['stop_loss_percent']
+            if not isinstance(stop_loss, (int, float)) or not (5 <= stop_loss <= 20):
+                logger.error(f"❌ AI validation failed: Stop-loss {stop_loss}% out of safe range [5%, 20%]")
+                return False
+
+            # Validate leverage [2, MAX_LEVERAGE]
+            leverage = analysis['suggested_leverage']
+            max_lev = self.settings.max_leverage
+            if not isinstance(leverage, (int, float)) or not (2 <= leverage <= max_lev):
+                logger.error(f"❌ AI validation failed: Leverage {leverage}x out of range [2, {max_lev}]")
+                return False
+
+            # Validate side (if action is buy/sell)
+            if analysis['action'] in ['buy', 'sell']:
+                if analysis['side'] not in ['LONG', 'SHORT']:
+                    logger.error(f"❌ AI validation failed: Invalid side '{analysis['side']}' (must be LONG/SHORT)")
+                    return False
+
+            # All checks passed
+            logger.debug(f"✅ AI validation passed: {analysis.get('action')} confidence={confidence:.1%}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ AI validation exception: {e}")
+            return False
 
 
 # Singleton instance
