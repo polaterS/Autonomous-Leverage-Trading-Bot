@@ -184,6 +184,13 @@ class DatabaseClient:
             """, limit)
             return [dict(row) for row in rows]
 
+    async def get_trade_history(self, limit: int = 500) -> List[Dict[str, Any]]:
+        """
+        Get trade history for ML learning.
+        Alias for get_recent_trades with larger default limit.
+        """
+        return await self.get_recent_trades(limit=limit)
+
     async def get_consecutive_losses(self) -> int:
         """Count consecutive losing trades."""
         async with self.pool.acquire() as conn:
