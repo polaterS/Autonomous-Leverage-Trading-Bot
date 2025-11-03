@@ -68,14 +68,25 @@ class RiskManager:
             leverage = 2
             trade_params['leverage'] = 2
 
-        # RULE 4: Check if position already exists
-        active_position = await db.get_active_position()
-        if active_position:
+        # RULE 4: Check concurrent positions limit (MULTI-POSITION SUPPORT)
+        active_positions = await db.get_active_positions()
+        max_concurrent = self.settings.max_concurrent_positions
+
+        if len(active_positions) >= max_concurrent:
             return {
                 'approved': False,
-                'reason': 'Position already open. Cannot open multiple positions.',
+                'reason': f'Maximum concurrent positions reached ({len(active_positions)}/{max_concurrent}).',
                 'adjusted_params': None
             }
+
+        # Check if same symbol already has an open position
+        for pos in active_positions:
+            if pos['symbol'] == trade_params['symbol']:
+                return {
+                    'approved': False,
+                    'reason': f'Position already open for {trade_params["symbol"]}. Cannot open duplicate.',
+                    'adjusted_params': None
+                }
 
         # RULE 5: Daily loss limit check - DISABLED
         # User wants per-trade $10 loss limit (handled in stop-loss), not daily limit

@@ -98,26 +98,32 @@ class AutonomousTradingEngine:
                     await asyncio.sleep(300)  # Wait 5 minutes
                     continue
 
-                # Get current position status
+                # Get current position status (MULTI-POSITION SUPPORT)
                 db = await get_db_client()
-                active_position = await db.get_active_position()
+                active_positions = await db.get_active_positions()
 
-                if active_position:
-                    # We have an open position - monitor it
-                    logger.info(f"📊 Monitoring position: {active_position['symbol']} {active_position['side']}")
+                if active_positions:
+                    # We have open positions - monitor them
+                    logger.info(f"📊 Monitoring {len(active_positions)} active position(s)")
 
                     position_monitor = get_position_monitor()
-                    await position_monitor.check_position(active_position)
 
-                    # Check every 60 seconds when position is open
+                    # Monitor each position concurrently
+                    monitor_tasks = [
+                        position_monitor.check_position(position)
+                        for position in active_positions
+                    ]
+                    await asyncio.gather(*monitor_tasks, return_exceptions=True)
+
+                    # Check every 60 seconds when positions are open
                     await asyncio.sleep(self.settings.position_check_seconds)
 
                 else:
-                    # No position - AUTOMATIC MARKET SCANNING (every 5 minutes)
-                    logger.info("🔍 No active position, starting automatic market scan...")
+                    # No positions - AUTOMATIC MARKET SCANNING (every 5 minutes)
+                    logger.info("🔍 No active positions, starting automatic market scan...")
 
                     try:
-                        # Scan markets and execute best opportunity
+                        # Scan markets and execute best opportunities (multi-position)
                         scanner = get_market_scanner()
                         await scanner.scan_and_execute()
                     except Exception as scan_error:

@@ -192,37 +192,74 @@ class MarketScanner:
         )
 
         if all_analyses:
-            # Get the BEST analysis (highest confidence)
-            best = all_analyses[0]
+            # 🎯 MULTI-POSITION: Get TOP N opportunities (not just best 1)
+            # Check how many positions we can open
+            db = await get_db_client()
+            active_positions = await db.get_active_positions()
+            max_positions = self.settings.max_concurrent_positions
+            available_slots = max_positions - len(active_positions)
 
             logger.info(
-                f"🎯 BEST OPPORTUNITY: {best['symbol']} "
-                f"({best['model'].upper()}) - "
-                f"{best['analysis']['action'].upper()} - "
-                f"Confidence: {best['confidence']:.1%} | "
-                f"Score: {best['opportunity_score']:.1f}/100"
+                f"🎯 Active positions: {len(active_positions)}/{max_positions} "
+                f"(Available slots: {available_slots})"
             )
 
-            # Check both confidence AND opportunity score thresholds
-            min_score = 65.0  # Minimum 65/100 score required
-            if best['confidence'] >= float(self.settings.min_ai_confidence) and best['opportunity_score'] >= min_score:
-                await notifier.send_scan_result(
-                    best['symbol'],
-                    best['confidence'],
-                    best['analysis']['action']
-                )
-
-                # 🤖 FULLY AUTONOMOUS MODE: Execute trade automatically
-                logger.info(f"🚀 AUTONOMOUS EXECUTION: Opening position automatically...")
-                await self.execute_trade(best)
-            else:
+            if available_slots <= 0:
+                logger.info("📊 Maximum concurrent positions reached. Waiting for positions to close...")
                 await notifier.send_alert(
                     'info',
-                    f"Best opportunity: {best['symbol']} ({best['model']}) - "
-                    f"Confidence: {best['confidence']:.1%}\n"
-                    f"Below minimum threshold ({float(self.settings.min_ai_confidence):.1%}). "
-                    f"Waiting for better setup..."
+                    f'📊 Max positions reached ({len(active_positions)}/{max_positions}). '
+                    f'Monitoring existing positions...'
                 )
+            else:
+                # Select TOP N opportunities (up to available slots)
+                top_opportunities = all_analyses[:available_slots]
+
+                # Filter by minimum thresholds
+                min_score = 65.0
+                qualified_opportunities = [
+                    opp for opp in top_opportunities
+                    if opp['confidence'] >= float(self.settings.min_ai_confidence)
+                    and opp['opportunity_score'] >= min_score
+                ]
+
+                if qualified_opportunities:
+                    logger.info(
+                        f"🚀 Found {len(qualified_opportunities)} qualified opportunities "
+                        f"(top {available_slots} out of {len(all_analyses)})"
+                    )
+
+                    # Execute all qualified opportunities in parallel
+                    for i, opp in enumerate(qualified_opportunities, 1):
+                        logger.info(
+                            f"🎯 OPPORTUNITY #{i}: {opp['symbol']} "
+                            f"({opp['model'].upper()}) - "
+                            f"{opp['analysis']['action'].upper()} - "
+                            f"Confidence: {opp['confidence']:.1%} | "
+                            f"Score: {opp['opportunity_score']:.1f}/100"
+                        )
+
+                    # 🤖 FULLY AUTONOMOUS MODE: Execute all trades automatically
+                    logger.info(f"🚀 AUTONOMOUS EXECUTION: Opening {len(qualified_opportunities)} position(s)...")
+
+                    # Execute trades sequentially (to avoid race conditions)
+                    for opp in qualified_opportunities:
+                        await notifier.send_scan_result(
+                            opp['symbol'],
+                            opp['confidence'],
+                            opp['analysis']['action']
+                        )
+                        await self.execute_trade(opp)
+                        await asyncio.sleep(2)  # Small delay between trades
+                else:
+                    best = all_analyses[0]
+                    await notifier.send_alert(
+                        'info',
+                        f"Best opportunity: {best['symbol']} ({best['model']}) - "
+                        f"Confidence: {best['confidence']:.1%}\n"
+                        f"Below minimum threshold ({float(self.settings.min_ai_confidence):.1%}). "
+                        f"Waiting for better setup..."
+                    )
         else:
             logger.info("😐 No good opportunities found (all models recommend HOLD)")
             await notifier.send_alert(

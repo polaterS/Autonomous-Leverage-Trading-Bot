@@ -75,16 +75,22 @@ class DatabaseClient:
     # Active Position Methods
 
     async def get_active_position(self) -> Optional[Dict[str, Any]]:
-        """Get current active position if any."""
+        """Get current active position if any (for backward compatibility)."""
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM active_position LIMIT 1")
             return dict(row) if row else None
 
-    async def create_active_position(self, position_data: Dict[str, Any]) -> int:
-        """Create a new active position."""
+    async def get_active_positions(self) -> List[Dict[str, Any]]:
+        """Get all active positions (multi-position support)."""
         async with self.pool.acquire() as conn:
-            # Ensure no existing position
-            await conn.execute("DELETE FROM active_position")
+            rows = await conn.fetch("SELECT * FROM active_position ORDER BY entry_time DESC")
+            return [dict(row) for row in rows] if rows else []
+
+    async def create_active_position(self, position_data: Dict[str, Any]) -> int:
+        """Create a new active position (supports multiple concurrent positions)."""
+        async with self.pool.acquire() as conn:
+            # Multi-position support: Don't delete existing positions
+            # Just add the new one
 
             row = await conn.fetchrow("""
                 INSERT INTO active_position (
