@@ -1026,6 +1026,11 @@ class MLPatternLearner:
                     symbol_modifier = +0.05  # Boost good performers
                 elif win_rate <= 0.35:
                     symbol_modifier = -0.10  # Penalize bad performers
+            elif self.total_trades_analyzed < 10:
+                # 🎯 COLD START BOOST: Give small optimistic bias for first trades
+                # This helps bot take initial positions to start learning
+                symbol_modifier = +0.03  # Small boost to encourage first trades
+                logger.debug(f"🚀 Cold start: giving +3% boost (total trades: {self.total_trades_analyzed})")
 
             # 2. Check AI accuracy at this confidence level
             confidence_bucket = round(base_confidence * 20) / 20
@@ -1037,6 +1042,10 @@ class MLPatternLearner:
                     accuracy_modifier = +0.03
                 elif acc_stats['accuracy'] <= 0.45:
                     accuracy_modifier = -0.07
+            elif self.total_trades_analyzed < 10:
+                # 🎯 COLD START: Assume neutral-to-positive accuracy initially
+                accuracy_modifier = +0.02  # Small boost for cold start
+                logger.debug(f"🚀 Cold start: accuracy boost +2%")
 
             # 3. 🎯 #1: BAYESIAN FEATURE IMPORTANCE BOOST (Most Advanced!)
             reasoning = ai_analysis.get('reasoning', '')
@@ -1081,7 +1090,8 @@ class MLPatternLearner:
 
                     elif total_obs < 10:
                         # NEW FEATURE: Give exploration bonus (Thompson Sampling)
-                        exploration_bonus = 0.01  # Small bonus to try new things
+                        # 🎯 AGGRESSIVE initial exploration (no trade history yet)
+                        exploration_bonus = 0.05 if total_obs == 0 else 0.03  # Higher bonus for completely new features
                         feature_boost += exploration_bonus
                         logger.info(f"   🔍 EXPLORATION: '{feature}' (only {total_obs} obs, +{exploration_bonus:.1%} bonus)")
 
