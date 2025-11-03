@@ -63,6 +63,7 @@ class MLPatternLearner:
         self.optimal_leverage_by_symbol: Dict[str, float] = {}
 
         # Feature importance (what matters most)
+        # OLD: Simple EMA scores
         self.feature_scores: Dict[str, float] = {
             'rsi_divergence': 0.0,
             'volume_surge': 0.0,
@@ -74,6 +75,13 @@ class MLPatternLearner:
             'liquidation_clusters': 0.0,
             'multi_timeframe_align': 0.0,
             'smart_money_concepts': 0.0
+        }
+
+        # 🎯 #1: BAYESIAN FEATURE IMPORTANCE (Beta Distribution)
+        # Track wins/losses per feature using Bayesian inference
+        self.bayesian_features: Dict[str, Dict[str, int]] = {
+            feature: {'alpha': 1, 'beta': 1}  # Uniform prior (α=1, β=1)
+            for feature in self.feature_scores.keys()
         }
 
         # Learning statistics
@@ -235,16 +243,27 @@ class MLPatternLearner:
 
     def _update_feature_score(self, feature: str, is_winner: bool, timestamp: datetime):
         """
-        Update feature importance score using exponential moving average + track for statistical validation
+        Update feature importance score using DUAL approach:
+        1. OLD: EMA for backward compatibility
+        2. 🎯 #1: BAYESIAN update (Beta distribution)
+        3. 🎯 #8: Time-decay weighting
 
-        🎯 #8: Now includes timestamp for time-decay weighting
+        Bayesian approach provides:
+        - Probabilistic win rate with uncertainty quantification
+        - Confidence intervals
+        - Better handling of limited data
         """
-        # Award +1 for win, -1 for loss
+        # OLD: EMA update (kept for compatibility)
         reward = 1.0 if is_winner else -1.0
-
-        # EMA update: new_score = (1 - lr) * old_score + lr * reward
         current_score = self.feature_scores.get(feature, 0.0)
         self.feature_scores[feature] = (1 - self.learning_rate) * current_score + self.learning_rate * reward
+
+        # 🎯 #1: BAYESIAN UPDATE (Beta Distribution)
+        if feature in self.bayesian_features:
+            if is_winner:
+                self.bayesian_features[feature]['alpha'] += 1  # Success
+            else:
+                self.bayesian_features[feature]['beta'] += 1   # Failure
 
         # 📊 Track outcome for statistical validation + 🎯 #8: With timestamp
         self.feature_outcomes[feature].append((1 if is_winner else 0, timestamp))
@@ -287,6 +306,69 @@ class MLPatternLearner:
         logger.info(f"📊 Market regime detected: {self.current_regime} "
                    f"(Win rate: {win_rate:.1%}, Avg PnL: {avg_pnl:.2f}%, Volatility: {pnl_volatility:.2f}%)")
 
+
+    def get_bayesian_win_rate(self, feature: str) -> float:
+        """
+        🎯 #1: Get Bayesian win rate estimate (posterior mean) for a feature.
+
+        Mean of Beta(α, β) = α / (α + β)
+
+        Returns:
+            Win rate estimate between 0 and 1
+        """
+        if feature not in self.bayesian_features:
+            return 0.5  # Unknown feature, assume 50/50
+
+        alpha = self.bayesian_features[feature]['alpha']
+        beta = self.bayesian_features[feature]['beta']
+
+        return alpha / (alpha + beta)
+
+    def get_bayesian_confidence_interval(self, feature: str, confidence: float = 0.95) -> Tuple[float, float]:
+        """
+        🎯 #1: Get Bayesian credible interval for feature win rate.
+
+        Uses beta distribution quantiles for credible interval.
+
+        Args:
+            feature: Feature name
+            confidence: Confidence level (default 95%)
+
+        Returns:
+            Tuple of (lower_bound, upper_bound)
+        """
+        if feature not in self.bayesian_features:
+            return (0.0, 1.0)
+
+        alpha = self.bayesian_features[feature]['alpha']
+        beta = self.bayesian_features[feature]['beta']
+
+        # Beta distribution credible interval
+        lower = stats.beta.ppf((1 - confidence) / 2, alpha, beta)
+        upper = stats.beta.ppf((1 + confidence) / 2, alpha, beta)
+
+        return (lower, upper)
+
+    def get_bayesian_weight(self, feature: str) -> float:
+        """
+        🎯 #1: Get dynamic weight for feature using Thompson Sampling.
+
+        Thompson Sampling: Sample from posterior Beta(α, β) to balance
+        exploration (uncertain features) vs exploitation (proven features).
+
+        Returns:
+            Weight between 0 and 1 (sampled from posterior)
+        """
+        if feature not in self.bayesian_features:
+            return 0.5
+
+        alpha = self.bayesian_features[feature]['alpha']
+        beta = self.bayesian_features[feature]['beta']
+
+        # Thompson sampling: Draw random sample from Beta distribution
+        sample = np.random.beta(alpha, beta)
+
+        return sample
 
     def _calculate_time_decay_weight(self, timestamp: datetime) -> float:
         """
@@ -574,32 +656,67 @@ class MLPatternLearner:
                 elif acc_stats['accuracy'] <= 0.45:
                     accuracy_modifier = -0.07
 
-            # 3. Feature importance boost (WITH STATISTICAL VALIDATION)
+            # 3. 🎯 #1: BAYESIAN FEATURE IMPORTANCE BOOST (Most Advanced!)
             reasoning = ai_analysis.get('reasoning', '')
             feature_boost = 0.0
-            validated_features = []
-            unreliable_features = []
+            bayesian_features_used = []
+            weak_features = []
 
-            # Check if trade uses high-value features (statistically validated)
-            for feature, score in self.feature_scores.items():
-                if score > 0.3:  # Positive feature
-                    feature_key = feature.replace('_', ' ')
-                    if feature_key in reasoning.lower():
-                        # 📊 STATISTICAL VALIDATION: Only trust validated features
-                        is_reliable, p_value, interpretation = self._is_feature_reliable(feature)
+            # Check if trade uses high-value features using Bayesian inference
+            for feature in self.feature_scores.keys():
+                feature_key = feature.replace('_', ' ')
+                if feature_key in reasoning.lower():
+                    # Get Bayesian win rate and confidence interval
+                    win_rate = self.get_bayesian_win_rate(feature)
+                    lower_ci, upper_ci = self.get_bayesian_confidence_interval(feature)
 
-                        if is_reliable:
-                            feature_boost += 0.02  # Small boost per validated feature
-                            validated_features.append(feature)
-                            logger.debug(f"   ✅ Using validated feature '{feature}': {interpretation}")
-                        else:
-                            unreliable_features.append((feature, interpretation))
-                            logger.warning(f"   ⚠️ Skipping unreliable feature '{feature}': {interpretation}")
+                    # Total observations
+                    alpha = self.bayesian_features[feature]['alpha']
+                    beta = self.bayesian_features[feature]['beta']
+                    total_obs = alpha + beta - 2  # Subtract prior (α=1, β=1)
 
-            feature_boost = min(feature_boost, 0.08)  # Cap at +8%
+                    # Only use feature if:
+                    # 1. Lower CI > 55% (confident it's better than random)
+                    # 2. OR if new feature (< 10 obs), give it exploration bonus
+                    if lower_ci > 0.55 and total_obs >= 10:
+                        # PROVEN WINNER: Use Bayesian weight
+                        # Boost proportional to win rate and confidence
+                        confidence_width = upper_ci - lower_ci
+                        certainty = 1.0 - confidence_width  # Narrower = more certain
 
-            if unreliable_features:
-                logger.info(f"   📊 Ignored {len(unreliable_features)} statistically unreliable features")
+                        boost = 0.10 * (win_rate - 0.5) * certainty  # Max ~+5% per feature
+                        feature_boost += boost
+
+                        bayesian_features_used.append((
+                            feature, win_rate, (lower_ci, upper_ci), certainty, boost
+                        ))
+
+                        logger.info(
+                            f"   ✅ BAYESIAN: '{feature}' WR={win_rate:.1%} "
+                            f"(95% CI: [{lower_ci:.1%}, {upper_ci:.1%}]), "
+                            f"certainty={certainty:.1%}, boost={boost:+.1%}"
+                        )
+
+                    elif total_obs < 10:
+                        # NEW FEATURE: Give exploration bonus (Thompson Sampling)
+                        exploration_bonus = 0.01  # Small bonus to try new things
+                        feature_boost += exploration_bonus
+                        logger.info(f"   🔍 EXPLORATION: '{feature}' (only {total_obs} obs, +{exploration_bonus:.1%} bonus)")
+
+                    else:
+                        # WEAK FEATURE: Lower CI < 55% or win rate < 55%
+                        weak_features.append((feature, win_rate, (lower_ci, upper_ci)))
+                        logger.warning(
+                            f"   ⚠️ WEAK: '{feature}' WR={win_rate:.1%} "
+                            f"(95% CI: [{lower_ci:.1%}, {upper_ci:.1%}]) - IGNORED"
+                        )
+
+            feature_boost = min(feature_boost, 0.15)  # Cap at +15% (higher than before!)
+
+            if bayesian_features_used:
+                logger.info(f"   📊 Applied {len(bayesian_features_used)} Bayesian-validated features")
+            if weak_features:
+                logger.info(f"   ⚠️ Ignored {len(weak_features)} weak features")
 
             # 4. Market regime adjustment + 🎯 #7: Sentiment-Aware ML
             regime_modifier = 0.0

@@ -784,8 +784,10 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
                 'buy_pressure': 0.5
             }
 
-        bids = order_book.get('bids', [])[:20]  # Top 20 bids
-        asks = order_book.get('asks', [])[:20]  # Top 20 asks
+        # 🎯 #3: DEEP ORDER BOOK ANALYSIS (20 → 100 levels)
+        # Institutional iceberg orders hidden in deeper levels!
+        bids = order_book.get('bids', [])[:100]  # Top 100 bids (was 20)
+        asks = order_book.get('asks', [])[:100]  # Top 100 asks (was 20)
 
         if not bids or not asks:
             return {
@@ -797,11 +799,29 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
                 'buy_pressure': 0.5
             }
 
-        # Calculate total bid and ask volume
-        total_bid_volume = sum(float(bid[1]) for bid in bids)
-        total_ask_volume = sum(float(ask[1]) for ask in asks)
+        # 🎯 #3: DEPTH-WEIGHTED VOLUME CALCULATION
+        # Exponential decay: deeper levels = less weight
+        # Weight = exp(-i / 10) where i is the level index
+        import math
 
-        # Bid/Ask imbalance
+        def calculate_depth_weighted_volume(orders):
+            """Calculate exponentially depth-weighted volume"""
+            weighted_volume = 0.0
+            for i, order in enumerate(orders):
+                volume = float(order[1])
+                weight = math.exp(-i / 10)  # Decay factor
+                weighted_volume += volume * weight
+            return weighted_volume
+
+        # STANDARD (for backward compatibility)
+        total_bid_volume = sum(float(bid[1]) for bid in bids[:20])  # Top 20 only
+        total_ask_volume = sum(float(ask[1]) for ask in asks[:20])
+
+        # 🎯 #3: DEPTH-WEIGHTED (institutional positioning)
+        weighted_bid_volume = calculate_depth_weighted_volume(bids)
+        weighted_ask_volume = calculate_depth_weighted_volume(asks)
+
+        # Bid/Ask imbalance (STANDARD - Top 20 only)
         if total_ask_volume > 0:
             imbalance_ratio = total_bid_volume / total_ask_volume
         else:
@@ -809,14 +829,23 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
 
         imbalance = (total_bid_volume - total_ask_volume) / (total_bid_volume + total_ask_volume) * 100
 
-        # Determine signal
-        if imbalance > 20:  # More than 20% more bids
+        # 🎯 #3: DEPTH-WEIGHTED IMBALANCE (Institutional positioning!)
+        # This reveals hidden iceberg orders in deeper levels
+        if weighted_ask_volume > 0:
+            weighted_imbalance_ratio = weighted_bid_volume / weighted_ask_volume
+        else:
+            weighted_imbalance_ratio = 1.0
+
+        weighted_imbalance = (weighted_bid_volume - weighted_ask_volume) / (weighted_bid_volume + weighted_ask_volume) * 100
+
+        # Determine signal using WEIGHTED imbalance (more accurate!)
+        if weighted_imbalance > 20:  # More than 20% more bids (weighted)
             signal = 'strong_bullish'
-        elif imbalance > 10:
+        elif weighted_imbalance > 10:
             signal = 'bullish'
-        elif imbalance < -20:
+        elif weighted_imbalance < -20:
             signal = 'strong_bearish'
-        elif imbalance < -10:
+        elif weighted_imbalance < -10:
             signal = 'bearish'
         else:
             signal = 'neutral'
@@ -850,6 +879,7 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
                 buy_pressure = buy_volume / total_volume
 
         return {
+            # STANDARD metrics (Top 20, backward compatible)
             'imbalance': float(imbalance),
             'imbalance_ratio': float(imbalance_ratio),
             'signal': signal,
@@ -857,7 +887,14 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
             'large_ask_wall': large_ask_wall,
             'buy_pressure': float(buy_pressure),
             'total_bid_volume': float(total_bid_volume),
-            'total_ask_volume': float(total_ask_volume)
+            'total_ask_volume': float(total_ask_volume),
+
+            # 🎯 #3: DEPTH-WEIGHTED metrics (100 levels, institutional positioning)
+            'weighted_imbalance': float(weighted_imbalance),
+            'weighted_imbalance_ratio': float(weighted_imbalance_ratio),
+            'weighted_bid_volume': float(weighted_bid_volume),
+            'weighted_ask_volume': float(weighted_ask_volume),
+            'depth_levels_analyzed': len(bids)  # Should be ~100
         }
 
     except Exception as e:
