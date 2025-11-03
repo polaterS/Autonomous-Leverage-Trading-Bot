@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% for extreme leverage
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% for low leverage
     min_profit_usd: Decimal = Field(default=Decimal("2.50"), gt=0)
-    min_ai_confidence: Decimal = Field(default=Decimal("0.75"), ge=0, le=1)  # 75% - High quality setups only (autonomous mode)
+    min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 60% - Balanced approach (autonomous mode)
     scan_interval_seconds: int = Field(default=300, ge=30)
     position_check_seconds: int = Field(default=60, ge=10)
 
