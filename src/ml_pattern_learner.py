@@ -58,7 +58,8 @@ class MLPatternLearner:
         self.current_regime: str = "UNKNOWN"  # BULL, BEAR, RANGE, VOLATILE
 
         # Adaptive thresholds
-        self.min_confidence_threshold: float = 0.75  # Dynamic adjustment
+        self.min_confidence_threshold: float = 0.60  # Global default (fallback)
+        self.optimal_threshold_by_symbol: Dict[str, float] = {}  # 🎯 #4: Symbol-specific thresholds
         self.optimal_leverage_by_symbol: Dict[str, float] = {}
 
         # Feature importance (what matters most)
@@ -81,9 +82,11 @@ class MLPatternLearner:
 
         # 📊 STATISTICAL VALIDATION (NEW!)
         # Track win/loss outcomes per feature for t-test validation
-        self.feature_outcomes: Dict[str, List[int]] = defaultdict(list)  # 1 = win, 0 = loss
-        self.pattern_outcomes: Dict[str, List[int]] = defaultdict(list)
+        # 🎯 #8: Now with timestamps for time-decay weighting
+        self.feature_outcomes: Dict[str, List[Tuple[int, datetime]]] = defaultdict(list)  # (outcome, timestamp)
+        self.pattern_outcomes: Dict[str, List[Tuple[int, datetime]]] = defaultdict(list)  # (outcome, timestamp)
         self.min_sample_size: int = 30  # Minimum trades before trusting pattern
+        self.time_decay_half_life_days: int = 30  # 🎯 #8: Pattern weight halves every 30 days
 
         logger.info("✅ ML Pattern Learner initialized with statistical validation")
 
@@ -150,36 +153,38 @@ class MLPatternLearner:
 
             # Extract and track patterns
             pattern_keywords = self._extract_pattern_keywords(patterns)
+            trade_timestamp = trade.get('exit_time', datetime.now())  # 🎯 #8: Get trade timestamp
+
             for keyword in pattern_keywords:
                 if is_winner:
                     self.winning_patterns[keyword] += 1
                 else:
                     self.losing_patterns[keyword] += 1
 
-                # 📊 Track outcome for statistical validation
-                self.pattern_outcomes[keyword].append(1 if is_winner else 0)
+                # 📊 Track outcome for statistical validation + 🎯 #8: With timestamp
+                self.pattern_outcomes[keyword].append((1 if is_winner else 0, trade_timestamp))
 
-            # Update feature scores based on trade outcome
+            # Update feature scores based on trade outcome (🎯 #8: Pass timestamp)
             if 'divergence' in patterns.lower():
-                self._update_feature_score('rsi_divergence', is_winner)
+                self._update_feature_score('rsi_divergence', is_winner, trade_timestamp)
             if 'volume' in patterns.lower():
-                self._update_feature_score('volume_surge', is_winner)
+                self._update_feature_score('volume_surge', is_winner, trade_timestamp)
             if 'macd' in patterns.lower():
-                self._update_feature_score('macd_cross', is_winner)
+                self._update_feature_score('macd_cross', is_winner, trade_timestamp)
             if 'support' in patterns.lower() or 'resistance' in patterns.lower():
-                self._update_feature_score('support_resistance', is_winner)
+                self._update_feature_score('support_resistance', is_winner, trade_timestamp)
             if 'order flow' in patterns.lower():
-                self._update_feature_score('order_flow', is_winner)
+                self._update_feature_score('order_flow', is_winner, trade_timestamp)
             if 'btc' in patterns.lower():
-                self._update_feature_score('btc_correlation', is_winner)
+                self._update_feature_score('btc_correlation', is_winner, trade_timestamp)
             if 'funding' in patterns.lower():
-                self._update_feature_score('funding_rate', is_winner)
+                self._update_feature_score('funding_rate', is_winner, trade_timestamp)
             if 'liquidation' in patterns.lower():
-                self._update_feature_score('liquidation_clusters', is_winner)
+                self._update_feature_score('liquidation_clusters', is_winner, trade_timestamp)
             if 'timeframe' in patterns.lower():
-                self._update_feature_score('multi_timeframe_align', is_winner)
+                self._update_feature_score('multi_timeframe_align', is_winner, trade_timestamp)
             if 'smart money' in patterns.lower() or 'order block' in patterns.lower():
-                self._update_feature_score('smart_money_concepts', is_winner)
+                self._update_feature_score('smart_money_concepts', is_winner, trade_timestamp)
 
             # Track market regime at time of trade
             market_state = {
@@ -228,8 +233,12 @@ class MLPatternLearner:
         return keywords
 
 
-    def _update_feature_score(self, feature: str, is_winner: bool):
-        """Update feature importance score using exponential moving average + track for statistical validation"""
+    def _update_feature_score(self, feature: str, is_winner: bool, timestamp: datetime):
+        """
+        Update feature importance score using exponential moving average + track for statistical validation
+
+        🎯 #8: Now includes timestamp for time-decay weighting
+        """
         # Award +1 for win, -1 for loss
         reward = 1.0 if is_winner else -1.0
 
@@ -237,8 +246,8 @@ class MLPatternLearner:
         current_score = self.feature_scores.get(feature, 0.0)
         self.feature_scores[feature] = (1 - self.learning_rate) * current_score + self.learning_rate * reward
 
-        # 📊 Track outcome for statistical validation
-        self.feature_outcomes[feature].append(1 if is_winner else 0)
+        # 📊 Track outcome for statistical validation + 🎯 #8: With timestamp
+        self.feature_outcomes[feature].append((1 if is_winner else 0, timestamp))
 
 
     async def _detect_market_regime(self):
@@ -279,36 +288,65 @@ class MLPatternLearner:
                    f"(Win rate: {win_rate:.1%}, Avg PnL: {avg_pnl:.2f}%, Volatility: {pnl_volatility:.2f}%)")
 
 
+    def _calculate_time_decay_weight(self, timestamp: datetime) -> float:
+        """
+        🎯 #8: Calculate exponential time decay weight for historical patterns.
+
+        Weight = exp(-days_ago / half_life)
+
+        - Recent patterns (1 day ago): ~97% weight
+        - 30 days ago: 50% weight (half-life)
+        - 60 days ago: 25% weight
+        - 90 days ago: 12.5% weight
+        """
+        days_ago = (datetime.now() - timestamp).days
+        weight = np.exp(-days_ago / self.time_decay_half_life_days)
+        return weight
+
     def _is_pattern_statistically_significant(self, pattern: str) -> Tuple[bool, float, str]:
         """
         Test if a pattern's win rate is statistically significant using t-test.
 
+        🎯 #8: Now with TIME-DECAY weighting - recent patterns matter more!
+
         Returns:
             Tuple of (is_significant, p_value, interpretation)
         """
-        outcomes = self.pattern_outcomes.get(pattern, [])
+        outcome_tuples = self.pattern_outcomes.get(pattern, [])  # List of (outcome, timestamp)
 
         # Need minimum sample size
-        if len(outcomes) < self.min_sample_size:
-            return (False, 1.0, f"Insufficient data ({len(outcomes)}/{self.min_sample_size} trades)")
+        if len(outcome_tuples) < self.min_sample_size:
+            return (False, 1.0, f"Insufficient data ({len(outcome_tuples)}/{self.min_sample_size} trades)")
 
-        # Calculate win rate
-        win_rate = sum(outcomes) / len(outcomes)
+        # 🎯 #8: Apply time-decay weighting
+        weighted_outcomes = []
+        total_weight = 0.0
+
+        for outcome, timestamp in outcome_tuples:
+            weight = self._calculate_time_decay_weight(timestamp)
+            weighted_outcomes.append(outcome * weight)
+            total_weight += weight
+
+        # Calculate weighted win rate
+        weighted_win_rate = sum(weighted_outcomes) / total_weight if total_weight > 0 else 0.5
+
+        # For t-test, use weighted outcomes (normalized)
+        normalized_outcomes = [outcome * self._calculate_time_decay_weight(ts) for outcome, ts in outcome_tuples]
 
         # H0: Win rate = 0.5 (random chance)
         # H1: Win rate ≠ 0.5 (pattern has predictive power)
-        t_stat, p_value = stats.ttest_1samp(outcomes, 0.5)
+        t_stat, p_value = stats.ttest_1samp(normalized_outcomes, 0.5)
 
         # Significance level: 0.05 (95% confidence)
         is_significant = p_value < 0.05
 
         if is_significant:
-            if win_rate > 0.5:
-                interpretation = f"✅ Reliable winning pattern ({win_rate:.1%} win rate, p={p_value:.4f})"
+            if weighted_win_rate > 0.5:
+                interpretation = f"✅ Reliable winning pattern ({weighted_win_rate:.1%} weighted WR, p={p_value:.4f})"
             else:
-                interpretation = f"❌ Reliable losing pattern ({win_rate:.1%} win rate, p={p_value:.4f})"
+                interpretation = f"❌ Reliable losing pattern ({weighted_win_rate:.1%} weighted WR, p={p_value:.4f})"
         else:
-            interpretation = f"⚠️ Not statistically significant ({win_rate:.1%} win rate, p={p_value:.4f} - likely random)"
+            interpretation = f"⚠️ Not statistically significant ({weighted_win_rate:.1%} weighted WR, p={p_value:.4f})"
 
         return (is_significant, p_value, interpretation)
 
@@ -316,29 +354,43 @@ class MLPatternLearner:
         """
         Test if a feature's impact is statistically significant.
 
+        🎯 #8: Now with TIME-DECAY weighting
+
         Returns:
             Tuple of (is_reliable, p_value, interpretation)
         """
-        outcomes = self.feature_outcomes.get(feature, [])
+        outcome_tuples = self.feature_outcomes.get(feature, [])  # List of (outcome, timestamp)
 
         # Need minimum sample size
-        if len(outcomes) < self.min_sample_size:
-            return (False, 1.0, f"Insufficient data ({len(outcomes)}/{self.min_sample_size})")
+        if len(outcome_tuples) < self.min_sample_size:
+            return (False, 1.0, f"Insufficient data ({len(outcome_tuples)}/{self.min_sample_size})")
 
-        # Calculate win rate when this feature is present
-        win_rate = sum(outcomes) / len(outcomes)
+        # 🎯 #8: Apply time-decay weighting
+        weighted_outcomes = []
+        total_weight = 0.0
+
+        for outcome, timestamp in outcome_tuples:
+            weight = self._calculate_time_decay_weight(timestamp)
+            weighted_outcomes.append(outcome * weight)
+            total_weight += weight
+
+        # Calculate weighted win rate
+        weighted_win_rate = sum(weighted_outcomes) / total_weight if total_weight > 0 else 0.5
+
+        # For t-test, use weighted outcomes
+        normalized_outcomes = [outcome * self._calculate_time_decay_weight(ts) for outcome, ts in outcome_tuples]
 
         # T-test: Is win rate significantly different from 50% (random)?
-        t_stat, p_value = stats.ttest_1samp(outcomes, 0.5)
+        t_stat, p_value = stats.ttest_1samp(normalized_outcomes, 0.5)
 
-        is_reliable = p_value < 0.05 and win_rate > 0.55  # At least 55% win rate + significant
+        is_reliable = p_value < 0.05 and weighted_win_rate > 0.55  # At least 55% win rate + significant
 
         if is_reliable:
-            interpretation = f"✅ Reliable feature ({win_rate:.1%} win rate, p={p_value:.4f})"
-        elif p_value < 0.05 and win_rate < 0.45:
-            interpretation = f"❌ Negative feature ({win_rate:.1%} win rate, p={p_value:.4f} - AVOID)"
+            interpretation = f"✅ Reliable feature ({weighted_win_rate:.1%} weighted WR, p={p_value:.4f})"
+        elif p_value < 0.05 and weighted_win_rate < 0.45:
+            interpretation = f"❌ Negative feature ({weighted_win_rate:.1%} weighted WR, p={p_value:.4f} - AVOID)"
         else:
-            interpretation = f"⚠️ Unreliable feature ({win_rate:.1%} win rate, p={p_value:.4f})"
+            interpretation = f"⚠️ Unreliable feature ({weighted_win_rate:.1%} weighted WR, p={p_value:.4f})"
 
         return (is_reliable, p_value, interpretation)
 
@@ -346,36 +398,57 @@ class MLPatternLearner:
         """
         Calculate confidence interval for pattern win rate.
 
+        🎯 #8: Now with TIME-DECAY weighting
+
         Returns:
             Tuple of (lower_bound, upper_bound) for win rate
         """
-        outcomes = self.pattern_outcomes.get(pattern, [])
+        outcome_tuples = self.pattern_outcomes.get(pattern, [])  # List of (outcome, timestamp)
 
-        if len(outcomes) < 10:
+        if len(outcome_tuples) < 10:
             return (0.0, 1.0)  # Too few samples, very wide interval
 
-        win_rate = sum(outcomes) / len(outcomes)
-        n = len(outcomes)
+        # 🎯 #8: Apply time-decay weighting
+        weighted_outcomes = []
+        total_weight = 0.0
 
-        # Standard error
-        se = np.sqrt(win_rate * (1 - win_rate) / n)
+        for outcome, timestamp in outcome_tuples:
+            weight = self._calculate_time_decay_weight(timestamp)
+            weighted_outcomes.append(outcome * weight)
+            total_weight += weight
+
+        # Calculate weighted win rate
+        weighted_win_rate = sum(weighted_outcomes) / total_weight if total_weight > 0 else 0.5
+
+        # Effective sample size (accounting for weights)
+        effective_n = total_weight
+
+        # Standard error (using weighted variance)
+        se = np.sqrt(weighted_win_rate * (1 - weighted_win_rate) / effective_n)
 
         # Z-score for confidence level (95% → 1.96)
         z_score = stats.norm.ppf((1 + confidence_level) / 2)
 
         # Confidence interval
-        lower = max(0.0, win_rate - z_score * se)
-        upper = min(1.0, win_rate + z_score * se)
+        lower = max(0.0, weighted_win_rate - z_score * se)
+        upper = min(1.0, weighted_win_rate + z_score * se)
 
         return (lower, upper)
 
     def _optimize_confidence_threshold(self):
-        """Find optimal confidence threshold based on historical accuracy"""
+        """
+        🎯 #4: Find optimal confidence threshold GLOBALLY and PER-SYMBOL
+
+        Symbol-specific thresholds allow:
+        - BTC/ETH: Lower threshold (more reliable)
+        - Volatile altcoins: Higher threshold (more caution)
+        - Adaptive learning per symbol characteristics
+        """
         if not self.ai_accuracy_by_confidence:
             return
 
-        # Find confidence level with highest accuracy and >20 samples
-        best_threshold = 0.75
+        # GLOBAL THRESHOLD: Find confidence level with highest accuracy and >20 samples
+        best_threshold = 0.60
         best_accuracy = 0.0
 
         for confidence, stats in self.ai_accuracy_by_confidence.items():
@@ -387,8 +460,45 @@ class MLPatternLearner:
         if best_accuracy >= 0.65 and best_threshold < self.min_confidence_threshold:
             self.min_confidence_threshold = best_threshold
 
-        logger.info(f"🎯 Optimal confidence threshold: {self.min_confidence_threshold:.1%} "
+        logger.info(f"🎯 Global optimal threshold: {self.min_confidence_threshold:.1%} "
                    f"(Best observed accuracy: {best_accuracy:.1%})")
+
+        # 🎯 #4: SYMBOL-SPECIFIC THRESHOLDS
+        # Find optimal threshold per symbol based on historical win rate
+        for symbol, perf in self.symbol_performance.items():
+            total_trades = perf['wins'] + perf['losses']
+
+            if total_trades < 20:  # Need at least 20 trades per symbol
+                continue
+
+            win_rate = perf['wins'] / total_trades
+            avg_confidence = perf.get('avg_confidence', 0.0)
+
+            # If symbol consistently wins at lower confidence, reduce threshold
+            # If symbol needs higher confidence to win, increase threshold
+            if win_rate >= 0.70 and avg_confidence < 0.70:
+                # High win rate at low confidence → can trade lower
+                optimal = max(0.55, avg_confidence - 0.05)
+            elif win_rate >= 0.60 and avg_confidence < 0.75:
+                # Good win rate → slight reduction
+                optimal = max(0.60, avg_confidence - 0.03)
+            elif win_rate < 0.45:
+                # Poor win rate → need higher confidence
+                optimal = min(0.80, avg_confidence + 0.10)
+            else:
+                # Average → use global or slightly adjusted
+                optimal = self.min_confidence_threshold
+
+            self.optimal_threshold_by_symbol[symbol] = optimal
+            logger.info(f"   📊 {symbol}: optimal threshold {optimal:.1%} "
+                       f"(WR: {win_rate:.1%}, avg conf: {avg_confidence:.1%})")
+
+    def get_confidence_threshold(self, symbol: str) -> float:
+        """
+        🎯 #4: Get confidence threshold for a specific symbol
+        Falls back to global threshold if symbol-specific not available
+        """
+        return self.optimal_threshold_by_symbol.get(symbol, self.min_confidence_threshold)
 
 
     def _get_top_symbols(self, limit: int = 5) -> List[str]:
@@ -414,9 +524,21 @@ class MLPatternLearner:
                 for sym, score, wr, pnl in symbol_scores[:limit]]
 
 
-    async def analyze_opportunity(self, symbol: str, ai_analysis: Dict, market_data: Dict) -> Dict:
+    async def analyze_opportunity(
+        self,
+        symbol: str,
+        ai_analysis: Dict,
+        market_data: Dict,
+        market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
+    ) -> Dict:
         """
         Enhance AI analysis with ML insights
+
+        Args:
+            symbol: Trading symbol
+            ai_analysis: AI analysis dict
+            market_data: Market data dict
+            market_sentiment: Market breadth sentiment (BULLISH_STRONG, BULLISH, NEUTRAL, BEARISH, BEARISH_STRONG)
 
         Returns:
         {
@@ -479,10 +601,12 @@ class MLPatternLearner:
             if unreliable_features:
                 logger.info(f"   📊 Ignored {len(unreliable_features)} statistically unreliable features")
 
-            # 4. Market regime adjustment
+            # 4. Market regime adjustment + 🎯 #7: Sentiment-Aware ML
             regime_modifier = 0.0
+            sentiment_modifier = 0.0
             regime_warning = ""
 
+            # Existing regime logic
             if self.current_regime == "HIGH_VOLATILITY_UNFAVORABLE":
                 regime_modifier = -0.10
                 regime_warning = "⚠️ High volatility regime detected - reduced confidence"
@@ -492,6 +616,38 @@ class MLPatternLearner:
                    (self.current_regime == "BEAR_TREND" and side == "SHORT"):
                     regime_modifier = +0.05
                     regime_warning = f"✅ Trade aligned with {self.current_regime}"
+
+            # 🎯 #7: SENTIMENT-AWARE ML ENHANCEMENT
+            # Trading with market sentiment = boost, against = penalty
+            side = ai_analysis.get('side')
+            if side:
+                if market_sentiment == "BULLISH_STRONG" and side == "LONG":
+                    sentiment_modifier = +0.08  # Strong tailwind
+                    regime_warning += " | 🚀 STRONG BULLISH market momentum"
+                elif market_sentiment == "BULLISH" and side == "LONG":
+                    sentiment_modifier = +0.05  # Good tailwind
+                    regime_warning += " | 📈 Bullish market momentum"
+                elif market_sentiment == "BEARISH_STRONG" and side == "SHORT":
+                    sentiment_modifier = +0.08  # Strong tailwind
+                    regime_warning += " | 📉 STRONG BEARISH market momentum"
+                elif market_sentiment == "BEARISH" and side == "SHORT":
+                    sentiment_modifier = +0.05  # Good tailwind
+                    regime_warning += " | 📊 Bearish market momentum"
+                elif market_sentiment == "BULLISH_STRONG" and side == "SHORT":
+                    sentiment_modifier = -0.15  # Counter-trend (very risky!)
+                    regime_warning += " | ⚠️ WARNING: SHORT against STRONG BULLISH market!"
+                elif market_sentiment == "BULLISH" and side == "SHORT":
+                    sentiment_modifier = -0.08  # Counter-trend (risky)
+                    regime_warning += " | ⚠️ SHORT against bullish market"
+                elif market_sentiment == "BEARISH_STRONG" and side == "LONG":
+                    sentiment_modifier = -0.15  # Counter-trend (very risky!)
+                    regime_warning += " | ⚠️ WARNING: LONG against STRONG BEARISH market!"
+                elif market_sentiment == "BEARISH" and side == "LONG":
+                    sentiment_modifier = -0.08  # Counter-trend (risky)
+                    regime_warning += " | ⚠️ LONG against bearish market"
+                elif market_sentiment == "NEUTRAL":
+                    sentiment_modifier = 0.0  # No adjustment
+                    regime_warning += " | 😐 Neutral market sentiment"
 
             # 5. Pattern matching (WITH STATISTICAL VALIDATION)
             pattern_boost = 0.0
@@ -542,20 +698,22 @@ class MLPatternLearner:
             if validated_patterns:
                 logger.info(f"   📊 Applied {len(validated_patterns)} statistically validated patterns")
 
-            # 6. Calculate final ML-adjusted confidence
+            # 6. Calculate final ML-adjusted confidence (🎯 #7: Added sentiment_modifier)
             ml_adjustment = (
                 symbol_modifier +
                 accuracy_modifier +
                 feature_boost +
                 regime_modifier +
+                sentiment_modifier +  # 🎯 #7: Sentiment-aware adjustment
                 pattern_boost
             )
 
             adjusted_confidence = base_confidence + ml_adjustment
             adjusted_confidence = max(0.0, min(1.0, adjusted_confidence))  # Clamp to [0, 1]
 
-            # 7. Decision
-            should_trade = adjusted_confidence >= self.min_confidence_threshold
+            # 7. Decision (🎯 #4: Use symbol-specific threshold)
+            symbol_threshold = self.get_confidence_threshold(symbol)
+            should_trade = adjusted_confidence >= symbol_threshold
 
             # 8. Calculate ML score (0-100)
             ml_score = adjusted_confidence * 100
@@ -569,6 +727,8 @@ class MLPatternLearner:
                 reasoning_parts.append(f"Feature boost: +{feature_boost:.1%}")
             if abs(regime_modifier) > 0.01:
                 reasoning_parts.append(f"Regime: {regime_modifier:+.1%}")
+            if abs(sentiment_modifier) > 0.01:  # 🎯 #7: Log sentiment impact
+                reasoning_parts.append(f"Market sentiment: {sentiment_modifier:+.1%}")
             if abs(pattern_boost) > 0.01:
                 reasoning_parts.append(f"Patterns: {pattern_boost:+.1%}")
 

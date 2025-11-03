@@ -113,7 +113,12 @@ class AIConsensusEngine:
         logger.error(f"{model_name} failed after {max_retries} attempts")
         return None
 
-    async def get_individual_analyses(self, symbol: str, market_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def get_individual_analyses(
+        self,
+        symbol: str,
+        market_data: Dict[str, Any],
+        market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
+    ) -> List[Dict[str, Any]]:
         """
         Get individual analyses from DeepSeek model + ML ENHANCEMENT.
         (Qwen3-Max disabled due to API key issues)
@@ -121,6 +126,7 @@ class AIConsensusEngine:
         Args:
             symbol: Trading symbol
             market_data: Market data dict with price, indicators, etc.
+            market_sentiment: Market breadth sentiment (BULLISH_STRONG, BULLISH, NEUTRAL, BEARISH, BEARISH_STRONG)
 
         Returns:
             List of individual analyses with ML-adjusted confidence (currently just DeepSeek)
@@ -138,11 +144,13 @@ class AIConsensusEngine:
         # Handle failures gracefully
         valid_analyses = []
         if analysis is not None and self._validate_ai_response(analysis):
-            # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns
+            # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns + 🎯 #7: Market sentiment
             try:
                 from src.ml_pattern_learner import get_ml_learner
                 ml_learner = await get_ml_learner()
-                ml_result = await ml_learner.analyze_opportunity(symbol, analysis, market_data)
+                ml_result = await ml_learner.analyze_opportunity(
+                    symbol, analysis, market_data, market_sentiment  # 🎯 #7: Pass sentiment
+                )
 
                 # Update analysis with ML insights
                 analysis['original_confidence'] = analysis['confidence']

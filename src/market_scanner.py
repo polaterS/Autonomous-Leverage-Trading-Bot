@@ -74,7 +74,13 @@ class MarketScanner:
 
         # 🚀 PARALLEL SCANNING: Analyze all symbols concurrently with rate limiting
         semaphore = asyncio.Semaphore(10)  # Max 10 concurrent scans
-        scan_tasks = [self._scan_symbol_parallel(symbol, semaphore) for symbol in self.symbols]
+
+        # 🎯 #7: Pass placeholder sentiment (will be calculated after first pass)
+        # Note: First scan uses NEUTRAL, then we'll calculate actual sentiment
+        scan_tasks = [
+            self._scan_symbol_parallel(symbol, semaphore, "NEUTRAL")
+            for symbol in self.symbols
+        ]
 
         logger.info(f"⚡ Starting PARALLEL scan of {total_symbols} symbols (max 10 concurrent)...")
         scan_results = await asyncio.gather(*scan_tasks, return_exceptions=True)
@@ -146,27 +152,35 @@ class MarketScanner:
         else:
             bullish_pct = bearish_pct = neutral_pct = 0
 
-        # Determine market sentiment
+        # Determine market sentiment (🎯 #7: Normalized format for ML)
         if bullish_pct > 60:
-            market_sentiment = "STRONG BULLISH"
+            market_sentiment = "BULLISH_STRONG"  # For ML
+            market_sentiment_display = "STRONG BULLISH"  # For display
         elif bullish_pct > 40:
             market_sentiment = "BULLISH"
+            market_sentiment_display = "BULLISH"
         elif bearish_pct > 60:
-            market_sentiment = "STRONG BEARISH"
+            market_sentiment = "BEARISH_STRONG"  # For ML
+            market_sentiment_display = "STRONG BEARISH"  # For display
         elif bearish_pct > 40:
             market_sentiment = "BEARISH"
+            market_sentiment_display = "BEARISH"
         else:
-            market_sentiment = "NEUTRAL/MIXED"
+            market_sentiment = "NEUTRAL"
+            market_sentiment_display = "NEUTRAL/MIXED"
 
         logger.info(f"📊 MARKET BREADTH: {bullish_pct:.0f}% bullish, {bearish_pct:.0f}% bearish, {neutral_pct:.0f}% neutral")
         logger.info(f"🎯 MARKET SENTIMENT: {market_sentiment}")
 
-        # 🎯 NOW calculate opportunity scores with market sentiment factor
+        # 🎯 NOW calculate opportunity scores with market sentiment factor + 🎯 #7: Store sentiment
         for opp in all_analyses:
+            # 🎯 #7: Add market sentiment to each opportunity for ML
+            opp['market_sentiment'] = market_sentiment
+
             opp['opportunity_score'] = self.calculate_opportunity_score(
                 opp['analysis'],
                 opp['market_data'],
-                market_sentiment,
+                market_sentiment_display,  # Use display format for scoring
                 opp['side']
             )
             logger.debug(f"  {opp['symbol']}: Score = {opp['opportunity_score']:.1f}/100")
@@ -186,7 +200,7 @@ class MarketScanner:
             f"📈 Bullish: {bullish_pct:.0f}% ({bullish_count} coins)\n"
             f"📉 Bearish: {bearish_pct:.0f}% ({bearish_count} coins)\n"
             f"➖ Neutral: {neutral_pct:.0f}% ({neutral_count} coins)\n"
-            f"💡 Sentiment: <b>{market_sentiment}</b>\n\n"
+            f"💡 Sentiment: <b>{market_sentiment_display}</b>\n\n"
             f"En iyi fırsat analiz ediliyor...",
             parse_mode="HTML"
         )
@@ -268,9 +282,19 @@ class MarketScanner:
                 'Will scan again in 5 minutes.'
             )
 
-    async def _scan_symbol_parallel(self, symbol: str, semaphore: asyncio.Semaphore):
+    async def _scan_symbol_parallel(
+        self,
+        symbol: str,
+        semaphore: asyncio.Semaphore,
+        market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
+    ):
         """
         Scan a single symbol in parallel with rate limiting.
+
+        Args:
+            symbol: Trading symbol
+            semaphore: Asyncio semaphore for rate limiting
+            market_sentiment: Market breadth sentiment (BULLISH_STRONG, BULLISH, NEUTRAL, BEARISH, BEARISH_STRONG)
 
         Returns:
             Tuple of (symbol, individual_analyses, market_data) or None if skipped
@@ -286,9 +310,11 @@ class MarketScanner:
                     logger.warning(f"⚠️ {symbol} - Could not fetch data, skipping")
                     return None
 
-                # Get AI analyses
+                # Get AI analyses (🎯 #7: Pass market sentiment for ML enhancement)
                 ai_engine = get_ai_engine()
-                individual_analyses = await ai_engine.get_individual_analyses(symbol, market_data)
+                individual_analyses = await ai_engine.get_individual_analyses(
+                    symbol, market_data, market_sentiment
+                )
 
                 logger.debug(f"✅ {symbol} - Scan complete")
                 return (symbol, individual_analyses, market_data)
@@ -480,17 +506,19 @@ class MarketScanner:
         confidence = ai_analysis.get('confidence', 0)
         score += confidence * 30
 
-        # FACTOR 2: Market Breadth Alignment (15 points - NEW!)
+        # FACTOR 2: Market Breadth Alignment (15 points)
         # If market sentiment aligns with trade direction, boost score
-        if market_sentiment == "STRONG BULLISH" and trade_side == "LONG":
+        # Note: market_sentiment uses display format (STRONG BULLISH, BULLISH, etc.)
+        sentiment_upper = market_sentiment.upper()
+        if "STRONG" in sentiment_upper and "BULLISH" in sentiment_upper and trade_side == "LONG":
             score += 15  # Perfect alignment
-        elif market_sentiment == "BULLISH" and trade_side == "LONG":
+        elif "BULLISH" in sentiment_upper and trade_side == "LONG":
             score += 12  # Good alignment
-        elif market_sentiment == "STRONG BEARISH" and trade_side == "SHORT":
+        elif "STRONG" in sentiment_upper and "BEARISH" in sentiment_upper and trade_side == "SHORT":
             score += 15  # Perfect alignment
-        elif market_sentiment == "BEARISH" and trade_side == "SHORT":
+        elif "BEARISH" in sentiment_upper and trade_side == "SHORT":
             score += 12  # Good alignment
-        elif market_sentiment == "NEUTRAL/MIXED":
+        elif "NEUTRAL" in sentiment_upper or "MIXED" in sentiment_upper:
             score += 7   # Neutral - no clear direction
         else:
             # Trading against market breadth (risky!)
