@@ -6,6 +6,7 @@ Gets AI consensus and executes best trades.
 import asyncio
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
+import numpy as np  # 🎯 #5: For GARCH volatility calculations
 from src.config import get_settings
 from src.exchange_client import get_exchange_client
 from src.ai_engine import get_ai_engine
