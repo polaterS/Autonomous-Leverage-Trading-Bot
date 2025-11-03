@@ -225,6 +225,46 @@ class PositionMonitor:
                     )
                     return
 
+            # 🎯 #10: ML-POWERED EXIT TIMING (check before AI for speed)
+            # Fast ML-based exit decision using learned patterns
+            try:
+                from src.exit_optimizer import get_exit_optimizer
+                exit_optimizer = get_exit_optimizer()
+
+                # Gather quick market data for exit features
+                quick_data = await self._gather_quick_market_data(symbol, current_price)
+
+                # Extract exit features
+                exit_features = exit_optimizer.extract_exit_features(
+                    position, current_price, quick_data
+                )
+
+                # Get ML exit prediction
+                exit_prediction = exit_optimizer.predict_exit_decision(
+                    exit_features,
+                    min_profit_usd,
+                    unrealized_pnl
+                )
+
+                # Log prediction
+                logger.info(
+                    f"🎯 EXIT ML: {exit_prediction['should_exit']} "
+                    f"(confidence: {exit_prediction['confidence']:.1%})"
+                )
+
+                # If ML strongly recommends exit (>70% confidence), close position
+                if exit_prediction['should_exit'] and exit_prediction['confidence'] >= 0.70:
+                    logger.info(f"💡 ML EXIT TRIGGERED: {exit_prediction['reasoning']}")
+                    await executor.close_position(
+                        position,
+                        current_price,
+                        f"ML Exit Signal - {exit_prediction['reasoning']}"
+                    )
+                    return
+
+            except Exception as exit_ml_error:
+                logger.warning(f"ML exit optimizer failed: {exit_ml_error}")
+
             # === CHECK 4: AI exit signal (SMART TRIGGERING) ===
             # Only check AI when it makes sense - saves 70% of API calls
             should_check_ai = self._should_request_ai_exit_signal(
