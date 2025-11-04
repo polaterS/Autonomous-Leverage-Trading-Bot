@@ -228,8 +228,8 @@ Sorularınız için: @your_support
             daily_pnl = await self.db.get_daily_pnl()
             pnl_emoji = "📈" if daily_pnl >= 0 else "📉"
 
-            # Get active position
-            position = await self.db.get_active_position()
+            # Get all active positions
+            positions = await self.db.get_active_positions()
 
             message = f"""
 <b>📊 BOT DURUMU</b>
@@ -238,23 +238,36 @@ Sorularınız için: @your_support
 💰 <b>Sermaye:</b> ${capital:.2f}
 {pnl_emoji} <b>Bugünkü P&L:</b> ${daily_pnl:+.2f}
 
-<b>📍 Aktif Pozisyon:</b>
+<b>📍 Aktif Pozisyonlar:</b>
 """
-            if position:
-                entry_price = float(position['entry_price'])
-                current_price = float(position.get('current_price', entry_price))
-                pnl = float(position.get('unrealized_pnl_usd', 0))
-                pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+            if positions:
+                # Calculate total unrealized P&L
+                total_unrealized_pnl = sum(float(p.get('unrealized_pnl_usd', 0)) for p in positions)
+                total_value = sum(float(p['position_value_usd']) for p in positions)
+                winning = sum(1 for p in positions if float(p.get('unrealized_pnl_usd', 0)) > 0)
+                losing = len(positions) - winning
+
+                unrealized_emoji = "🟢" if total_unrealized_pnl >= 0 else "🔴"
 
                 message += f"""
-{pnl_emoji} <b>{position['symbol']}</b> {position['side']} {position['leverage']}x
+📊 <b>Toplam:</b> {len(positions)} pozisyon
+💰 <b>Değer:</b> ${total_value:.2f}
+{unrealized_emoji} <b>Unrealized P&L:</b> ${total_unrealized_pnl:+.2f}
+🟢 Kazanan: {winning} | 🔴 Kaybeden: {losing}
 
-💵 Entry: ${entry_price:.4f}
-💵 Current: ${current_price:.4f}
-💰 P&L: ${pnl:+.2f}
-🛑 Stop-Loss: ${float(position['stop_loss_price']):.4f}
-⚠️ Liquidation: ${float(position['liquidation_price']):.4f}
+<b>En İyi/Kötü:</b>
 """
+                # Show best and worst performing
+                sorted_positions = sorted(positions, key=lambda p: float(p.get('unrealized_pnl_usd', 0)), reverse=True)
+                best = sorted_positions[0]
+                worst = sorted_positions[-1]
+
+                best_pnl = float(best.get('unrealized_pnl_usd', 0))
+                worst_pnl = float(worst.get('unrealized_pnl_usd', 0))
+
+                message += f"🟢 {best['symbol']}: ${best_pnl:+.2f}\n"
+                message += f"🔴 {worst['symbol']}: ${worst_pnl:+.2f}\n"
+                message += f"\n💡 Detaylar için /positions"
             else:
                 message += "\n❌ Şu anda açık pozisyon yok"
 
@@ -267,63 +280,88 @@ Sorularınız için: @your_support
             await update.message.reply_text(f"❌ Hata: {e}")
 
     async def cmd_positions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /positions command."""
+        """Handle /positions command - shows ALL active positions."""
         try:
             logger.info("📋 /positions command called")
-            position = await self.db.get_active_position()
+            positions = await self.db.get_active_positions()  # Get ALL positions
 
-            if not position:
-                logger.info("No active position found")
+            if not positions:
+                logger.info("No active positions found")
                 await update.message.reply_text(
                     "❌ Şu anda açık pozisyon bulunmuyor.",
                     parse_mode=ParseMode.HTML
                 )
                 return
 
-            logger.info(f"Active position found: {position['symbol']} {position['side']}")
+            logger.info(f"Found {len(positions)} active positions")
 
-            entry_price = float(position['entry_price'])
-            current_price = float(position.get('current_price', entry_price))
-            pnl = float(position.get('unrealized_pnl_usd', 0))
-            pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+            # Calculate total P&L across all positions
+            total_pnl = sum(float(p.get('unrealized_pnl_usd', 0)) for p in positions)
+            total_value = sum(float(p['position_value_usd']) for p in positions)
+            winning_count = sum(1 for p in positions if float(p.get('unrealized_pnl_usd', 0)) > 0)
+            losing_count = len(positions) - winning_count
 
-            message = f"""
-<b>💼 AKTİF POZİSYON</b>
+            # Summary header
+            summary_emoji = "🟢" if total_pnl >= 0 else "🔴"
+            summary = f"""
+<b>💼 AKTİF POZİSYONLAR ({len(positions)})</b>
 
-{pnl_emoji} <b>{position['symbol']}</b>
+<b>📊 Özet:</b>
+• Toplam Pozisyon: {len(positions)}
+• Kazanan: 🟢 {winning_count} | Kaybeden: 🔴 {losing_count}
+• Toplam P&L: {summary_emoji} ${total_pnl:+.2f}
+• Toplam Değer: ${total_value:.2f}
+
+━━━━━━━━━━━━━━━━━━━━
+"""
+            await update.message.reply_text(summary, parse_mode=ParseMode.HTML)
+
+            # Send each position separately (Telegram has message length limits)
+            for i, position in enumerate(positions, 1):
+                entry_price = float(position['entry_price'])
+                current_price = float(position.get('current_price', entry_price))
+                pnl = float(position.get('unrealized_pnl_usd', 0))
+                pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+
+                # Calculate position duration
+                from datetime import datetime
+                entry_time = position['entry_time']
+                if isinstance(entry_time, str):
+                    entry_time = datetime.fromisoformat(entry_time)
+                duration = datetime.now() - entry_time
+                hours = duration.total_seconds() / 3600
+
+                message = f"""
+{pnl_emoji} <b>#{i} - {position['symbol']}</b>
 
 <b>📊 Detaylar:</b>
 • Yön: {position['side']} {position['leverage']}x
 • Miktar: {float(position['quantity']):.6f}
-• Pozisyon Değeri: ${float(position['position_value_usd']):.2f}
+• Değer: ${float(position['position_value_usd']):.2f}
 
 <b>💵 Fiyatlar:</b>
 • Entry: ${entry_price:.4f}
 • Current: ${current_price:.4f}
-• Stop-Loss: ${float(position['stop_loss_price']):.4f} ({float(position['stop_loss_percent'])*100:.1f}%)
+• Stop-Loss: ${float(position['stop_loss_price']):.4f}
 • Liquidation: ${float(position['liquidation_price']):.4f}
 
 <b>💰 Kar/Zarar:</b>
-• P&L: ${pnl:+.2f}
-• Min Kar Hedefi: ${float(position['min_profit_target_usd']):.2f}
+• P&L: ${pnl:+.2f} ({(pnl/float(position['position_value_usd'])*100):+.2f}%)
+• Hedef: ${float(position['min_profit_target_usd']):.2f}
 
 <b>🤖 AI:</b>
-• Model: {position.get('ai_model_consensus', 'N/A')}
 • Güven: {float(position.get('ai_confidence', 0))*100:.0f}%
 
 <b>⏰ Süre:</b>
-• Açılış: {position['entry_time'].strftime('%Y-%m-%d %H:%M:%S')}
+• Açılış: {entry_time.strftime('%H:%M:%S')}
+• Geçen: {hours:.1f} saat
 """
-            # Add close position button
-            keyboard = [[InlineKeyboardButton("❌ Pozisyonu Kapat", callback_data="close_position")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
-            logger.info("📍 Sending position info with close button")
-            await update.message.reply_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-            logger.info("✅ Position message sent successfully")
+            logger.info(f"✅ Sent {len(positions)} position details")
 
         except Exception as e:
-            logger.error(f"Error in positions command: {e}")
+            logger.error(f"Error in positions command: {e}", exc_info=True)
             await update.message.reply_text(f"❌ Hata: {e}")
 
     async def cmd_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -506,30 +544,45 @@ Coin seçin:
         await query.edit_message_text(message, parse_mode=ParseMode.HTML)
 
     async def handle_positions_button(self, query):
-        """Handle positions button."""
-        position = await self.db.get_active_position()
+        """Handle positions button - shows summary of all positions."""
+        positions = await self.db.get_active_positions()
 
-        if not position:
+        if not positions:
             await query.edit_message_text(
                 "❌ Şu anda açık pozisyon bulunmuyor.",
                 parse_mode=ParseMode.HTML
             )
             return
 
-        pnl = float(position.get('unrealized_pnl_usd', 0))
-        emoji = "🟢" if pnl >= 0 else "🔴"
+        # Calculate summary
+        total_pnl = sum(float(p.get('unrealized_pnl_usd', 0)) for p in positions)
+        total_value = sum(float(p['position_value_usd']) for p in positions)
+        winning_count = sum(1 for p in positions if float(p.get('unrealized_pnl_usd', 0)) > 0)
+        losing_count = len(positions) - winning_count
 
+        summary_emoji = "🟢" if total_pnl >= 0 else "🔴"
+
+        # Build compact message (inline buttons have character limits)
         message = f"""
-<b>💼 AKTİF POZİSYON</b>
+<b>💼 AKTİF POZİSYONLAR ({len(positions)})</b>
 
-{emoji} <b>{position['symbol']}</b> {position['side']} {position['leverage']}x
+{summary_emoji} <b>Toplam P&L:</b> ${total_pnl:+.2f}
+💰 <b>Toplam Değer:</b> ${total_value:.2f}
+🟢 Kazanan: {winning_count} | 🔴 Kaybeden: {losing_count}
 
-💰 P&L: ${pnl:+.2f}
-💵 Entry: ${float(position['entry_price']):.4f}
-💵 Current: ${float(position.get('current_price', 0)):.4f}
-
-⏰ {get_turkey_time().strftime('%H:%M:%S')}
 """
+        # Add top 5 positions
+        for i, pos in enumerate(positions[:5], 1):
+            pnl = float(pos.get('unrealized_pnl_usd', 0))
+            emoji = "🟢" if pnl >= 0 else "🔴"
+            message += f"{emoji} {pos['symbol']}: ${pnl:+.2f}\n"
+
+        if len(positions) > 5:
+            message += f"\n... ve {len(positions) - 5} pozisyon daha"
+
+        message += f"\n\n💡 Detaylar için /positions yazın"
+        message += f"\n⏰ {get_turkey_time().strftime('%H:%M:%S')}"
+
         await query.edit_message_text(message, parse_mode=ParseMode.HTML)
 
     async def handle_history_button(self, query):
