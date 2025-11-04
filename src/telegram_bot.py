@@ -68,6 +68,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("mlstats", self.cmd_mlstats))
         self.application.add_handler(CommandHandler("stopbot", self.cmd_stop_bot))
         self.application.add_handler(CommandHandler("startbot", self.cmd_start_bot))
+        self.application.add_handler(CommandHandler("reset", self.cmd_reset_circuit_breaker))
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -179,6 +180,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /mlstats - ML öğrenme istatistikleri ve accuracy
 /startbot - Botu çalıştır
 /stopbot - Botu durdur
+/reset - Circuit breaker'ı resetle (3 ardışık loss sonrası)
 
 <b>Nasıl Çalışır?</b>
 
@@ -612,6 +614,91 @@ Coin seçin:
             "Mevcut pozisyon varsa takip edilmeye devam edilecek.",
             parse_mode=ParseMode.HTML
         )
+
+    async def cmd_reset_circuit_breaker(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /reset command - Reset circuit breaker by adding fake winning trade."""
+        try:
+            # Check current consecutive losses
+            consecutive_losses = await self.db.get_consecutive_losses()
+
+            if consecutive_losses < 3:
+                await update.message.reply_text(
+                    f"✅ Circuit breaker zaten aktif değil!\n\n"
+                    f"Mevcut ardışık loss: {consecutive_losses}\n"
+                    f"Circuit breaker 3+ loss'ta devreye girer.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            await update.message.reply_text(
+                f"🔧 Circuit breaker reset ediliyor...\n\n"
+                f"Mevcut ardışık loss: {consecutive_losses}\n"
+                f"Fake winning trade ekleniyor...",
+                parse_mode=ParseMode.HTML
+            )
+
+            # Create fake winning trade
+            from decimal import Decimal as D
+
+            fake_trade_data = (
+                'CIRCUIT_BREAKER_RESET',  # symbol
+                'LONG',  # side
+                2,  # leverage
+                D('1.0'),  # quantity
+                D('100.0'),  # entry_price
+                D('101.0'),  # exit_price
+                D('10.0'),  # position_value_usd
+                D('95.0'),  # stop_loss_price
+                D('5.0'),  # stop_loss_percent
+                D('50.0'),  # liquidation_price
+                D('2.0'),  # min_profit_target_usd
+                'MANUAL_RESET',  # ai_model_consensus
+                D('1.0'),  # ai_confidence
+                datetime.now() - timedelta(minutes=5),  # entry_time
+                datetime.now(),  # exit_time
+                D('1.0'),  # realized_pnl_usd (small profit)
+                'Manual circuit breaker reset via /reset command',  # exit_reason
+                True  # is_winner (CRITICAL: breaks the loss streak!)
+            )
+
+            async with self.db.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO trade_history (
+                        symbol, side, leverage, quantity, entry_price, exit_price,
+                        position_value_usd, stop_loss_price, stop_loss_percent,
+                        liquidation_price, min_profit_target_usd,
+                        ai_model_consensus, ai_confidence,
+                        entry_time, exit_time, realized_pnl_usd, exit_reason, is_winner
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                """, *fake_trade_data)
+
+            # Verify reset
+            new_consecutive_losses = await self.db.get_consecutive_losses()
+
+            if new_consecutive_losses == 0:
+                await update.message.reply_text(
+                    "🎉 <b>BAŞARILI!</b>\n\n"
+                    "✅ Circuit breaker reset edildi!\n"
+                    "✅ Trading tekrar aktif!\n\n"
+                    f"Önceki ardışık loss: {consecutive_losses}\n"
+                    f"Yeni ardışık loss: {new_consecutive_losses}\n\n"
+                    "💡 Bot artık yeni pozisyon açabilir.",
+                    parse_mode=ParseMode.HTML
+                )
+            else:
+                await update.message.reply_text(
+                    f"⚠️ Beklenmeyen durum!\n\n"
+                    f"Reset sonrası hala {new_consecutive_losses} loss görünüyor.\n"
+                    f"Database'i kontrol et.",
+                    parse_mode=ParseMode.HTML
+                )
+
+        except Exception as e:
+            logger.error(f"Circuit breaker reset error: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ Reset sırasında hata oluştu:\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
 
     # ==================== Button Callback Handler ====================
 
