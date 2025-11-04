@@ -157,6 +157,61 @@ Sit back and monitor your portfolio! 💰
 """
         await self.send_message(message)
 
+    async def send_multi_position_update(self, positions: list) -> None:
+        """
+        Send a consolidated update for multiple positions.
+        Reduces Telegram spam by showing all positions in one message.
+
+        Args:
+            positions: List of active positions with updated P&L
+        """
+        if not positions:
+            return
+
+        # Calculate total P&L
+        total_pnl = sum(Decimal(str(pos.get('unrealized_pnl', 0))) for pos in positions)
+
+        # Count winning/losing positions
+        winners = sum(1 for pos in positions if Decimal(str(pos.get('unrealized_pnl', 0))) > 0)
+        losers = sum(1 for pos in positions if Decimal(str(pos.get('unrealized_pnl', 0))) < 0)
+
+        # Header
+        emoji = "📈" if total_pnl > 0 else "📉" if total_pnl < 0 else "📊"
+        message = f"""
+{emoji} <b>PORTFOLIO UPDATE</b> ({len(positions)} position{'s' if len(positions) > 1 else ''})
+
+"""
+
+        # Position lines (group by 2 for compact display)
+        for i, pos in enumerate(positions):
+            pnl = Decimal(str(pos.get('unrealized_pnl', 0)))
+            pnl_emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
+            symbol_short = pos['symbol'].replace('/USDT:USDT', '').replace('/USDT', '')
+
+            message += f"{pnl_emoji} <b>{symbol_short}</b>: ${float(pnl):+.2f}"
+
+            # Add line break after every 2 positions
+            if (i + 1) % 2 == 0:
+                message += "\n"
+            else:
+                message += " | "
+
+        # Remove trailing separator if odd number of positions
+        if len(positions) % 2 != 0:
+            message = message.rstrip(" | ")
+
+        # Summary
+        total_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
+        message += f"""
+
+━━━━━━━━━━━━━━━━━━━━
+{total_emoji} <b>Total P&L: ${float(total_pnl):+.2f}</b>
+📊 W/L: {winners}/{losers}
+
+⏰ {get_turkey_time().strftime('%H:%M:%S')}
+"""
+        await self.send_message(message)
+
     async def send_portfolio_update(
         self,
         capital: Decimal,

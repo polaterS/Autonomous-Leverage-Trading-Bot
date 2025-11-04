@@ -29,6 +29,7 @@ class AutonomousTradingEngine:
         self.max_errors = 20  # Increased from 10 - more tolerant to transient errors
         self.consecutive_errors = 0  # Track consecutive errors separately
         self.last_successful_cycle = None  # Track last successful operation
+        self.last_portfolio_update_time = None  # Track last portfolio notification
 
     async def initialize(self):
         """Initialize all components."""
@@ -114,6 +115,20 @@ class AutonomousTradingEngine:
                         for position in active_positions
                     ]
                     await asyncio.gather(*monitor_tasks, return_exceptions=True)
+
+                    # Send consolidated portfolio update every 5 minutes
+                    should_send_portfolio_update = (
+                        self.last_portfolio_update_time is None or
+                        (datetime.now() - self.last_portfolio_update_time).total_seconds() >= 300
+                    )
+
+                    if should_send_portfolio_update:
+                        # Fetch updated positions with latest P&L
+                        updated_positions = await db.get_active_positions()
+                        if updated_positions:
+                            self.last_portfolio_update_time = datetime.now()
+                            await notifier.send_multi_position_update(updated_positions)
+                            logger.info("📤 Sent consolidated portfolio update")
 
                     # Check every 60 seconds when positions are open
                     await asyncio.sleep(self.settings.position_check_seconds)

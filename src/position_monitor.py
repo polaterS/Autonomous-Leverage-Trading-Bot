@@ -35,7 +35,6 @@ class PositionMonitor:
 
     def __init__(self):
         self.settings = get_settings()
-        self.last_update_time = None
         self.last_ai_check_time = None
         self.use_websocket = True  # Primary method
         self._ws_monitoring_task: Optional[asyncio.Task] = None
@@ -305,15 +304,10 @@ class PositionMonitor:
                 except Exception as e:
                     logger.warning(f"Failed to get AI exit signal: {e}")
 
-            # === CHECK 5: Send periodic updates (every 5 minutes) ===
-            should_send_update = (
-                self.last_update_time is None or
-                (datetime.now() - self.last_update_time).total_seconds() >= 300
-            )
-
-            if should_send_update:
-                self.last_update_time = datetime.now()
-                await notifier.send_position_update(position, unrealized_pnl)
+            # === CHECK 5: Periodic updates moved to trading_engine ===
+            # Individual position updates removed to prevent spam
+            # Consolidated portfolio update sent by trading_engine every 5 minutes
+            pass
 
         except Exception as e:
             logger.error(f"Error in position monitor: {e}")
