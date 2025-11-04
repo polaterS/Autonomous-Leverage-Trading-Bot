@@ -85,21 +85,33 @@ class ExitTimingOptimizer:
 
         # Get technical indicators
         indicators = market_data.get('indicators', {}).get('15m', {})
-        rsi = indicators.get('rsi', 50.0)
-        macd = indicators.get('macd', 0.0)
-        macd_signal = indicators.get('macd_signal', 0.0)
+
+        # Safe extraction with type checking
+        def safe_float(value, default=0.0):
+            """Safely extract float from value (handles dict/None/float)."""
+            if isinstance(value, dict):
+                return float(value.get('rate', value.get('value', default)))
+            elif value is None:
+                return default
+            else:
+                return float(value)
+
+        rsi = safe_float(indicators.get('rsi', 50.0), 50.0)
+        macd = safe_float(indicators.get('macd', 0.0), 0.0)
+        macd_signal = safe_float(indicators.get('macd_signal', 0.0), 0.0)
 
         # Volatility
         volatility = market_data.get('volatility', {})
-        atr_percent = volatility.get('atr_percent', 2.0)
+        atr_percent = safe_float(volatility.get('atr_percent', 2.0), 2.0)
 
         # Volume
-        volume = indicators.get('volume', 1.0)
-        volume_sma = indicators.get('volume_sma_20', volume)
+        volume = safe_float(indicators.get('volume', 1.0), 1.0)
+        volume_sma = safe_float(indicators.get('volume_sma_20', volume), volume)
         volume_ratio = volume / volume_sma if volume_sma > 0 else 1.0
 
-        # Funding rate
-        funding = market_data.get('funding_rate', 0.0)
+        # Funding rate (can be dict with 'rate' key from exchange)
+        funding_data = market_data.get('funding_rate', 0.0)
+        funding = safe_float(funding_data, 0.0)
 
         # Calculate profit velocity (how fast is profit accumulating?)
         # Use recent P&L history if available
