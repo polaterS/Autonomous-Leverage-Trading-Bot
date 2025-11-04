@@ -32,6 +32,23 @@ async def main():
             logger.error(f"Database setup check failed: {e}")
             # Continue anyway - might be tables already exist
 
+    # Database health check and auto-cleanup
+    try:
+        from src.db_maintenance import verify_database_health, cleanup_duplicate_configs
+        logger.info("Running database health check...")
+        health = await verify_database_health()
+
+        # Auto-fix if duplicate configs detected
+        if health['config_count'] > 1:
+            logger.warning(f"Detected {health['config_count']} config rows, running auto-cleanup...")
+            await cleanup_duplicate_configs()
+        elif health['issues']:
+            logger.warning(f"Database issues detected: {', '.join(health['issues'])}")
+        else:
+            logger.info("Database health check passed!")
+    except Exception as e:
+        logger.warning(f"Database health check failed (non-critical): {e}")
+
     # Show risk warning if not paper trading
     if not settings.use_paper_trading:
         print("\n" + "=" * 60)
