@@ -227,16 +227,50 @@ class AIConsensusEngine:
                         if direction == 'buy':
                             analysis['action'] = 'buy'
                             analysis['side'] = 'LONG'
+
+                            # 🎯 Calculate appropriate stop-loss and leverage based on confidence
+                            conf = analysis['confidence']
+                            if conf >= 0.90:
+                                analysis['suggested_leverage'] = 5
+                                analysis['stop_loss_percent'] = 6.0
+                            elif conf >= 0.80:
+                                analysis['suggested_leverage'] = 4
+                                analysis['stop_loss_percent'] = 7.0
+                            elif conf >= 0.70:
+                                analysis['suggested_leverage'] = 3
+                                analysis['stop_loss_percent'] = 8.0
+                            else:  # 60-69%
+                                analysis['suggested_leverage'] = 2
+                                analysis['stop_loss_percent'] = 8.0
+
                             logger.info(
                                 f"🎯 ML Override: {symbol} 'hold' → 'buy' "
-                                f"(ML conf: {analysis['confidence']:.1%}, {reason})"
+                                f"(ML conf: {analysis['confidence']:.1%}, {reason}, "
+                                f"{analysis['suggested_leverage']}x lev, {analysis['stop_loss_percent']}% SL)"
                             )
                         elif direction == 'sell':
                             analysis['action'] = 'sell'
                             analysis['side'] = 'SHORT'
+
+                            # 🎯 Calculate appropriate stop-loss and leverage based on confidence
+                            conf = analysis['confidence']
+                            if conf >= 0.90:
+                                analysis['suggested_leverage'] = 5
+                                analysis['stop_loss_percent'] = 6.0
+                            elif conf >= 0.80:
+                                analysis['suggested_leverage'] = 4
+                                analysis['stop_loss_percent'] = 7.0
+                            elif conf >= 0.70:
+                                analysis['suggested_leverage'] = 3
+                                analysis['stop_loss_percent'] = 8.0
+                            else:  # 60-69%
+                                analysis['suggested_leverage'] = 2
+                                analysis['stop_loss_percent'] = 8.0
+
                             logger.info(
                                 f"🎯 ML Override: {symbol} 'hold' → 'sell' "
-                                f"(ML conf: {analysis['confidence']:.1%}, {reason})"
+                                f"(ML conf: {analysis['confidence']:.1%}, {reason}, "
+                                f"{analysis['suggested_leverage']}x lev, {analysis['stop_loss_percent']}% SL)"
                             )
                         else:
                             logger.info(
