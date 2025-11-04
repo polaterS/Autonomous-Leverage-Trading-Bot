@@ -214,10 +214,15 @@ class MarketScanner:
             max_positions = self.settings.max_concurrent_positions
             available_slots = max_positions - len(active_positions)
 
+            # Get list of symbols with existing positions
+            existing_symbols = {pos['symbol'] for pos in active_positions}
+
             logger.info(
                 f"🎯 Active positions: {len(active_positions)}/{max_positions} "
                 f"(Available slots: {available_slots})"
             )
+            if existing_symbols:
+                logger.info(f"📋 Existing positions: {', '.join(existing_symbols)}")
 
             if available_slots <= 0:
                 logger.info("📊 Maximum concurrent positions reached. Waiting for positions to close...")
@@ -227,8 +232,20 @@ class MarketScanner:
                     f'Monitoring existing positions...'
                 )
             else:
-                # Select TOP N opportunities (up to available slots)
-                top_opportunities = all_analyses[:available_slots]
+                # Filter out symbols with existing positions BEFORE selecting top opportunities
+                available_analyses = [
+                    analysis for analysis in all_analyses
+                    if analysis['symbol'] not in existing_symbols
+                ]
+
+                if len(available_analyses) < len(all_analyses):
+                    filtered_count = len(all_analyses) - len(available_analyses)
+                    logger.info(
+                        f"🔍 Filtered out {filtered_count} opportunity/ies with existing positions"
+                    )
+
+                # Select TOP N opportunities from available coins (up to available slots)
+                top_opportunities = available_analyses[:available_slots]
 
                 # Filter by minimum thresholds
                 # Lowered from 65 to 40 for ML Override trades (they lack some AI fields like R:R)
