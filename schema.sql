@@ -133,8 +133,9 @@ CREATE TABLE IF NOT EXISTS circuit_breaker_events (
 CREATE INDEX IF NOT EXISTS idx_circuit_breaker_time ON circuit_breaker_events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_circuit_breaker_type ON circuit_breaker_events(event_type, resolved_at);
 
--- Initial configuration insert
+-- Initial configuration insert (UPSERT to prevent duplicates)
 INSERT INTO trading_config (
+    id,
     initial_capital,
     current_capital,
     position_size_percent,
@@ -147,6 +148,7 @@ INSERT INTO trading_config (
     max_consecutive_losses,
     is_trading_enabled
 ) VALUES (
+    1,  -- Fixed ID to prevent duplicates
     100.00,
     100.00,
     0.80,
@@ -158,4 +160,15 @@ INSERT INTO trading_config (
     0.10,
     3,
     true
-) ON CONFLICT DO NOTHING;
+) ON CONFLICT (id) DO UPDATE SET
+    -- Only update params if capital hasn't changed (fresh restart)
+    position_size_percent = EXCLUDED.position_size_percent,
+    min_stop_loss_percent = EXCLUDED.min_stop_loss_percent,
+    max_stop_loss_percent = EXCLUDED.max_stop_loss_percent,
+    min_profit_usd = EXCLUDED.min_profit_usd,
+    max_leverage = EXCLUDED.max_leverage,
+    min_ai_confidence = EXCLUDED.min_ai_confidence,
+    daily_loss_limit_percent = EXCLUDED.daily_loss_limit_percent,
+    max_consecutive_losses = EXCLUDED.max_consecutive_losses,
+    is_trading_enabled = EXCLUDED.is_trading_enabled
+    -- NOTE: Do NOT update current_capital to preserve trading progress!
