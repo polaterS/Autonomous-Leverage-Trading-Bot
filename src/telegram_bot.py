@@ -65,6 +65,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("history", self.cmd_history))
         self.application.add_handler(CommandHandler("scan", self.cmd_scan))
         self.application.add_handler(CommandHandler("chart", self.cmd_chart))
+        self.application.add_handler(CommandHandler("mlstats", self.cmd_mlstats))
         self.application.add_handler(CommandHandler("stopbot", self.cmd_stop_bot))
         self.application.add_handler(CommandHandler("startbot", self.cmd_start_bot))
 
@@ -147,6 +148,7 @@ Hoş geldiniz! Bot komutları:
 <b>📈 Analiz Araçları:</b>
 /chart - TradingView benzeri grafik oluştur
 /scan - Manuel market tarama
+/mlstats - ML öğrenme istatistikleri
 
 <b>🎮 Bot Kontrol:</b>
 /startbot - Botu başlat
@@ -174,6 +176,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /positions - Aktif pozisyonları görüntüle
 /history - Kapalı pozisyon geçmişi
 /scan - Manuel market tarama yap
+/mlstats - ML öğrenme istatistikleri ve accuracy
 /startbot - Botu çalıştır
 /stopbot - Botu durdur
 
@@ -394,6 +397,128 @@ Sorularınız için: @your_support
         except Exception as e:
             logger.error(f"Error in history command: {e}")
             await update.message.reply_text(f"❌ Hata: {e}")
+
+    async def cmd_mlstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /mlstats command - show ML learning statistics."""
+        try:
+            logger.info("🧠 /mlstats command called")
+
+            # Get ML learner instance
+            from src.ml_pattern_learner import get_ml_learner
+            ml = await get_ml_learner()
+
+            # Build comprehensive ML stats message
+            message = "<b>🧠 ML ÖĞRENME İSTATİSTİKLERİ</b>\n\n"
+
+            # 1. Overall learning progress
+            message += f"<b>📊 Genel Durum:</b>\n"
+            message += f"• Analiz Edilen Trade: {ml.total_trades_analyzed}\n"
+            message += f"• Market Regime: {ml.current_regime}\n"
+            message += f"• Optimal Threshold: {ml.min_confidence_threshold:.0%}\n\n"
+
+            # 2. Top performing symbols
+            message += "<b>🏆 En İyi Coinler (Win Rate):</b>\n"
+            symbol_perf_list = []
+            for symbol, perf in ml.symbol_performance.items():
+                total = perf['wins'] + perf['losses']
+                if total >= 2:  # At least 2 trades
+                    win_rate = perf['wins'] / total
+                    symbol_perf_list.append((symbol, win_rate, total, perf['wins']))
+
+            # Sort by win rate, then total trades
+            symbol_perf_list.sort(key=lambda x: (x[1], x[2]), reverse=True)
+
+            if symbol_perf_list:
+                for symbol, win_rate, total, wins in symbol_perf_list[:5]:
+                    emoji = "🟢" if win_rate >= 0.7 else "🟡" if win_rate >= 0.5 else "🔴"
+                    message += f"{emoji} {symbol}: {win_rate:.0%} ({wins}/{total})\n"
+            else:
+                message += "• Henüz yeterli veri yok\n"
+
+            message += "\n"
+
+            # 3. AI Accuracy by confidence level
+            message += "<b>🎯 AI Doğruluk Oranları:</b>\n"
+            acc_items = []
+            for conf, acc in ml.ai_accuracy_by_confidence.items():
+                if acc['predictions'] >= 2:
+                    acc_items.append((conf, acc['accuracy'], acc['predictions']))
+
+            if acc_items:
+                acc_items.sort(key=lambda x: x[0], reverse=True)
+                for conf, accuracy, predictions in acc_items[:5]:
+                    emoji = "✅" if accuracy >= 0.65 else "⚠️" if accuracy >= 0.5 else "❌"
+                    message += f"{emoji} {conf:.0%} güven: {accuracy:.0%} doğru (n={predictions})\n"
+            else:
+                message += "• Henüz yeterli veri yok\n"
+
+            message += "\n"
+
+            # 4. Top winning patterns
+            message += "<b>🔥 En Başarılı Pattern'ler:</b>\n"
+            if ml.winning_patterns:
+                winning_sorted = sorted(
+                    ml.winning_patterns.items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:5]
+
+                for pattern, count in winning_sorted:
+                    # Also check losing count
+                    losing_count = ml.losing_patterns.get(pattern, 0)
+                    total = count + losing_count
+                    win_rate = count / total if total > 0 else 0
+
+                    if total >= 2:  # Show only patterns with at least 2 occurrences
+                        message += f"• {pattern}: {count}W/{losing_count}L ({win_rate:.0%})\n"
+
+                if not any(count + ml.losing_patterns.get(pattern, 0) >= 2 for pattern, count in winning_sorted):
+                    message += "• Henüz yeterli veri yok\n"
+            else:
+                message += "• Henüz pattern verisi yok\n"
+
+            message += "\n"
+
+            # 5. Top feature scores (Bayesian)
+            message += "<b>🎓 En Değerli Özellikler:</b>\n"
+            if ml.feature_scores:
+                feature_sorted = sorted(
+                    ml.feature_scores.items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:5]
+
+                for feature, score in feature_sorted:
+                    if score > 0:
+                        # Get Bayesian stats
+                        bayesian = ml.bayesian_features.get(feature)
+                        if bayesian:
+                            win_rate = ml.get_bayesian_win_rate(feature)
+                            total_obs = bayesian['alpha'] + bayesian['beta'] - 2
+
+                            if total_obs >= 2:
+                                feature_name = feature.replace('_', ' ').title()
+                                message += f"• {feature_name}: {win_rate:.0%} WR (n={int(total_obs)})\n"
+
+                if not any(ml.bayesian_features.get(f, {}).get('alpha', 0) +
+                          ml.bayesian_features.get(f, {}).get('beta', 0) - 2 >= 2
+                          for f, s in feature_sorted if s > 0):
+                    message += "• Henüz yeterli veri yok\n"
+            else:
+                message += "• Henüz feature verisi yok\n"
+
+            message += "\n<i>💡 ML her trade ile öğreniyor ve accuracy artıyor!</i>"
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+            logger.info("✅ ML stats sent successfully")
+
+        except Exception as e:
+            logger.error(f"Error in mlstats command: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ ML istatistikleri alınamadı: {str(e)}\n\n"
+                f"Henüz yeterli trade olmayabilir.",
+                parse_mode=ParseMode.HTML
+            )
 
     async def cmd_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /chart command - show coin selection menu."""
