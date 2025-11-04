@@ -38,7 +38,15 @@
       "Bash(git push:*)",
       "Bash(tasklist:*)",
       "Bash(cmd /c tasklist)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(nul)",
+      "Bash(timeout /t 15 /nobreak)",
+      "Bash(ping:*)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" cleanup_db.py)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -c:*)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" cleanup_db_safe.py)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\":*)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" reset_circuit_breaker.py)"
     ],
     "deny": [],
     "ask": []

@@ -174,107 +174,170 @@ class AIConsensusEngine:
                         f"(Δ {ml_result['ml_adjustment']:+.1%})"
                     )
 
-                    # 🎯 ML OVERRIDE: If ML boost pushed confidence above threshold, override action
-                    if analysis['confidence'] >= 0.60 and analysis['action'] == 'hold':
+                    # 🎯 ENHANCED ML OVERRIDE: Stricter rules to avoid bad trades
+                    # Threshold increased: 60% → 70% (more conservative)
+                    if analysis['confidence'] >= 0.70 and analysis['action'] == 'hold':
                         logger.info(
                             f"🔍 ML Override Check: {symbol} conf={analysis['confidence']:.1%}, "
                             f"action={analysis['action']}, attempting override..."
                         )
 
-                        # Determine direction from multiple sources (priority order)
-                        multi_tf = market_data.get('multi_timeframe', {})
-                        alignment = multi_tf.get('agreement', 'unknown')
-                        indicators_1h = market_data.get('indicators', {}).get('1h', {})
-                        trend_1h = indicators_1h.get('trend', 'unknown')
-                        rsi_1h = indicators_1h.get('rsi', 50)  # Default neutral
-
-                        direction = None
-                        reason = ""
-
-                        # Priority 1: Multi-timeframe alignment
-                        if 'bullish' in alignment.lower():
-                            direction = 'buy'
-                            reason = f"multi-TF {alignment}"
-                        elif 'bearish' in alignment.lower():
-                            direction = 'sell'
-                            reason = f"multi-TF {alignment}"
-
-                        # Priority 2: 1h trend
-                        elif trend_1h == 'bullish':
-                            direction = 'buy'
-                            reason = f"1h trend {trend_1h}"
-                        elif trend_1h == 'bearish':
-                            direction = 'sell'
-                            reason = f"1h trend {trend_1h}"
-
-                        # Priority 3: RSI extremes (aggressive for neutral markets)
-                        elif rsi_1h < 35:  # Oversold = buy opportunity
-                            direction = 'buy'
-                            reason = f"RSI oversold ({rsi_1h:.0f})"
-                        elif rsi_1h > 65:  # Overbought = sell opportunity
-                            direction = 'sell'
-                            reason = f"RSI overbought ({rsi_1h:.0f})"
-
-                        # Priority 4: Slight RSI bias (less aggressive)
-                        elif rsi_1h < 45:  # Below neutral = slight buy bias
-                            direction = 'buy'
-                            reason = f"RSI below neutral ({rsi_1h:.0f})"
-                        elif rsi_1h > 55:  # Above neutral = slight sell bias
-                            direction = 'sell'
-                            reason = f"RSI above neutral ({rsi_1h:.0f})"
-
-                        # Apply override if direction found
-                        if direction == 'buy':
-                            analysis['action'] = 'buy'
-                            analysis['side'] = 'LONG'
-
-                            # 🎯 Calculate appropriate stop-loss and leverage based on confidence
-                            conf = analysis['confidence']
-                            if conf >= 0.90:
-                                analysis['suggested_leverage'] = 5
-                                analysis['stop_loss_percent'] = 6.0
-                            elif conf >= 0.80:
-                                analysis['suggested_leverage'] = 4
-                                analysis['stop_loss_percent'] = 7.0
-                            elif conf >= 0.70:
-                                analysis['suggested_leverage'] = 3
-                                analysis['stop_loss_percent'] = 8.0
-                            else:  # 60-69%
-                                analysis['suggested_leverage'] = 2
-                                analysis['stop_loss_percent'] = 8.0
-
-                            logger.info(
-                                f"🎯 ML Override: {symbol} 'hold' → 'buy' "
-                                f"(ML conf: {analysis['confidence']:.1%}, {reason}, "
-                                f"{analysis['suggested_leverage']}x lev, {analysis['stop_loss_percent']}% SL)"
+                        # 🛡️ SAFETY CHECK 1: Market Sentiment (NEW!)
+                        # Don't trade against strong market sentiment
+                        if market_sentiment == 'BEARISH_STRONG':
+                            logger.warning(
+                                f"⚠️ ML Override BLOCKED: {symbol} - STRONG BEARISH market sentiment "
+                                f"(unsafe to open LONG positions)"
                             )
-                        elif direction == 'sell':
-                            analysis['action'] = 'sell'
-                            analysis['side'] = 'SHORT'
+                            # Skip override - too risky in strong bearish market
+                            # Keep action='hold'
+                        elif market_sentiment == 'BULLISH_STRONG':
+                            # Strong bullish OK for LONG, but check more
+                            pass
 
-                            # 🎯 Calculate appropriate stop-loss and leverage based on confidence
-                            conf = analysis['confidence']
-                            if conf >= 0.90:
-                                analysis['suggested_leverage'] = 5
-                                analysis['stop_loss_percent'] = 6.0
-                            elif conf >= 0.80:
-                                analysis['suggested_leverage'] = 4
-                                analysis['stop_loss_percent'] = 7.0
-                            elif conf >= 0.70:
-                                analysis['suggested_leverage'] = 3
-                                analysis['stop_loss_percent'] = 8.0
-                            else:  # 60-69%
-                                analysis['suggested_leverage'] = 2
-                                analysis['stop_loss_percent'] = 8.0
+                        # Continue with override checks only if market sentiment is acceptable
+                        elif market_sentiment not in ['BEARISH_STRONG']:
+                            # Determine direction from multiple sources (priority order)
+                            multi_tf = market_data.get('multi_timeframe', {})
+                            alignment = multi_tf.get('agreement', 'unknown')
+                            trend_alignment_raw = multi_tf.get('trend_alignment', 'unknown')
 
-                            logger.info(
-                                f"🎯 ML Override: {symbol} 'hold' → 'sell' "
-                                f"(ML conf: {analysis['confidence']:.1%}, {reason}, "
-                                f"{analysis['suggested_leverage']}x lev, {analysis['stop_loss_percent']}% SL)"
-                            )
-                        else:
-                            logger.info(
-                                f"⚠️ ML Override SKIPPED: {symbol} - No clear direction "
+                            indicators_1h = market_data.get('indicators', {}).get('1h', {})
+                            indicators_4h = market_data.get('indicators', {}).get('4h', {})
+                            trend_1h = indicators_1h.get('trend', 'unknown')
+                            trend_4h = indicators_4h.get('trend', 'unknown')
+                            rsi_1h = indicators_1h.get('rsi', 50)  # Default neutral
+
+                            # 🛡️ SAFETY CHECK 2: Multi-Timeframe Trend (ENHANCED!)
+                            # Count bearish/bullish timeframes
+                            bearish_count = sum([
+                                1 for t in [
+                                    indicators_1h.get('trend'),
+                                    indicators_4h.get('trend'),
+                                    market_data.get('indicators', {}).get('15m', {}).get('trend')
+                                ] if t in ['downtrend', 'bearish']
+                            ])
+
+                            bullish_count = sum([
+                                1 for t in [
+                                    indicators_1h.get('trend'),
+                                    indicators_4h.get('trend'),
+                                    market_data.get('indicators', {}).get('15m', {}).get('trend')
+                                ] if t in ['uptrend', 'bullish']
+                            ])
+
+                            # If 3/4 timeframes bearish → BLOCK LONG override
+                            if bearish_count >= 2 and 'bearish' in trend_alignment_raw.lower():
+                                logger.warning(
+                                    f"⚠️ ML Override BLOCKED: {symbol} - Multi-TF bearish "
+                                    f"(bearish_count={bearish_count}, alignment={trend_alignment_raw})"
+                                )
+                                # Skip override
+                            # If 3/4 timeframes bullish → BLOCK SHORT override
+                            elif bullish_count >= 2 and 'bullish' in trend_alignment_raw.lower():
+                                logger.warning(
+                                    f"⚠️ ML Override BLOCKED: {symbol} - Multi-TF bullish "
+                                    f"(bullish_count={bullish_count}, alignment={trend_alignment_raw}) "
+                                    f"- SHORT override blocked"
+                                )
+                                # Skip SHORT override, but allow LONG
+                                pass
+
+                            direction = None
+                            reason = ""
+                            skip_reason = ""
+
+                            # Priority 1: Strong Multi-timeframe alignment (3+ timeframes agree)
+                            if 'strong_bullish' in alignment.lower() or bullish_count >= 3:
+                                direction = 'buy'
+                                reason = f"strong multi-TF bullish ({bullish_count}/4)"
+                            elif 'strong_bearish' in alignment.lower() or bearish_count >= 3:
+                                direction = 'sell'
+                                reason = f"strong multi-TF bearish ({bearish_count}/4)"
+                                skip_reason = "SHORT trades disabled in current strategy"
+
+                            # Priority 2: Moderate Multi-timeframe alignment (2+ timeframes)
+                            elif 'bullish' in alignment.lower() and bullish_count >= 2:
+                                direction = 'buy'
+                                reason = f"multi-TF bullish ({bullish_count}/4)"
+                            elif 'bearish' in alignment.lower() and bearish_count >= 2:
+                                direction = 'sell'
+                                reason = f"multi-TF bearish ({bearish_count}/4)"
+                                skip_reason = "SHORT trades disabled"
+
+                            # Priority 3: 4h trend (higher timeframe = more reliable)
+                            elif trend_4h in ['uptrend', 'bullish']:
+                                direction = 'buy'
+                                reason = f"4h trend {trend_4h}"
+                            elif trend_4h in ['downtrend', 'bearish']:
+                                direction = 'sell'
+                                reason = f"4h trend {trend_4h}"
+                                skip_reason = "SHORT trades disabled"
+
+                            # Priority 4: 1h trend
+                            elif trend_1h in ['uptrend', 'bullish']:
+                                direction = 'buy'
+                                reason = f"1h trend {trend_1h}"
+                            elif trend_1h in ['downtrend', 'bearish']:
+                                direction = 'sell'
+                                reason = f"1h trend {trend_1h}"
+                                skip_reason = "SHORT trades disabled"
+
+                            # Priority 5: RSI extremes (ONLY for LONG, more conservative)
+                            elif rsi_1h < 30:  # Very oversold = buy opportunity (was 35)
+                                direction = 'buy'
+                                reason = f"RSI very oversold ({rsi_1h:.0f})"
+                            elif rsi_1h > 70:  # Very overbought = potential sell (was 65)
+                                direction = 'sell'
+                                reason = f"RSI very overbought ({rsi_1h:.0f})"
+                                skip_reason = "SHORT trades disabled"
+
+                            # Priority 6: Moderate RSI (ONLY if confidence >= 75%)
+                            elif analysis['confidence'] >= 0.75:
+                                if rsi_1h < 40:  # Moderately oversold
+                                    direction = 'buy'
+                                    reason = f"RSI oversold ({rsi_1h:.0f}, high ML conf)"
+                                elif rsi_1h > 60:  # Moderately overbought
+                                    direction = 'sell'
+                                    reason = f"RSI overbought ({rsi_1h:.0f}, high ML conf)"
+                                    skip_reason = "SHORT trades disabled"
+
+                            # 🛡️ SAFETY CHECK 3: Block SHORT trades (we only trade LONG)
+                            if direction == 'sell':
+                                logger.warning(
+                                    f"⚠️ ML Override BLOCKED: {symbol} - SHORT signal detected but SHORT trades disabled "
+                                    f"(reason: {reason})"
+                                )
+                                direction = None  # Block SHORT
+
+                            # Apply override if direction found (only LONG now)
+                            if direction == 'buy':
+                                analysis['action'] = 'buy'
+                                analysis['side'] = 'LONG'
+
+                                # 🎯 Calculate appropriate stop-loss and leverage based on confidence
+                                conf = analysis['confidence']
+                                if conf >= 0.90:
+                                    analysis['suggested_leverage'] = 5
+                                    analysis['stop_loss_percent'] = 6.0
+                                elif conf >= 0.80:
+                                    analysis['suggested_leverage'] = 4
+                                    analysis['stop_loss_percent'] = 7.0
+                                elif conf >= 0.70:
+                                    analysis['suggested_leverage'] = 3
+                                    analysis['stop_loss_percent'] = 8.0
+                                else:  # 70-74% (threshold is now 70%)
+                                    analysis['suggested_leverage'] = 2
+                                    analysis['stop_loss_percent'] = 8.0
+
+                                logger.info(
+                                    f"🎯 ML Override SUCCESS: {symbol} 'hold' → 'buy' "
+                                    f"(ML conf: {analysis['confidence']:.1%}, {reason}, "
+                                    f"{analysis['suggested_leverage']}x lev, {analysis['stop_loss_percent']}% SL)"
+                                )
+                            else:
+                                logger.info(
+                                    f"⚠️ ML Override SKIPPED: {symbol} - No clear LONG direction "
                                 f"(TF: {alignment}, 1h: {trend_1h}, RSI: {rsi_1h:.0f})"
                             )
 

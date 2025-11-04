@@ -637,39 +637,38 @@ Coin seçin:
                 parse_mode=ParseMode.HTML
             )
 
-            # Create fake winning trade
+            # Create fake winning trade (only using columns that exist in schema!)
             from decimal import Decimal as D
 
             fake_trade_data = (
                 'CIRCUIT_BREAKER_RESET',  # symbol
                 'LONG',  # side
                 2,  # leverage
-                D('1.0'),  # quantity
                 D('100.0'),  # entry_price
                 D('101.0'),  # exit_price
+                D('1.0'),  # quantity
                 D('10.0'),  # position_value_usd
-                D('95.0'),  # stop_loss_price
+                D('1.0'),  # realized_pnl_usd (small profit)
+                D('1.0'),  # pnl_percent
                 D('5.0'),  # stop_loss_percent
-                D('50.0'),  # liquidation_price
-                D('2.0'),  # min_profit_target_usd
+                'Manual circuit breaker reset via /reset command',  # close_reason
+                300,  # trade_duration_seconds (5 minutes)
                 'MANUAL_RESET',  # ai_model_consensus
                 D('1.0'),  # ai_confidence
                 datetime.now() - timedelta(minutes=5),  # entry_time
                 datetime.now(),  # exit_time
-                D('1.0'),  # realized_pnl_usd (small profit)
-                'Manual circuit breaker reset via /reset command',  # exit_reason
                 True  # is_winner (CRITICAL: breaks the loss streak!)
             )
 
             async with self.db.pool.acquire() as conn:
                 await conn.execute("""
                     INSERT INTO trade_history (
-                        symbol, side, leverage, quantity, entry_price, exit_price,
-                        position_value_usd, stop_loss_price, stop_loss_percent,
-                        liquidation_price, min_profit_target_usd,
+                        symbol, side, leverage, entry_price, exit_price,
+                        quantity, position_value_usd, realized_pnl_usd, pnl_percent,
+                        stop_loss_percent, close_reason, trade_duration_seconds,
                         ai_model_consensus, ai_confidence,
-                        entry_time, exit_time, realized_pnl_usd, exit_reason, is_winner
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                        entry_time, exit_time, is_winner
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
                 """, *fake_trade_data)
 
             # Verify reset
