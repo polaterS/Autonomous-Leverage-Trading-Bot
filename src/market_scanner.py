@@ -231,7 +231,8 @@ class MarketScanner:
                 top_opportunities = all_analyses[:available_slots]
 
                 # Filter by minimum thresholds
-                min_score = 65.0
+                # Lowered from 65 to 40 for ML Override trades (they lack some AI fields like R:R)
+                min_score = 40.0
                 qualified_opportunities = [
                     opp for opp in top_opportunities
                     if opp['confidence'] >= float(self.settings.min_ai_confidence)
