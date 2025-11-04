@@ -169,11 +169,11 @@ Sit back and monitor your portfolio! 💰
             return
 
         # Calculate total P&L
-        total_pnl = sum(Decimal(str(pos.get('unrealized_pnl', 0))) for pos in positions)
+        total_pnl = sum(Decimal(str(pos.get('unrealized_pnl_usd', 0))) for pos in positions)
 
         # Count winning/losing positions
-        winners = sum(1 for pos in positions if Decimal(str(pos.get('unrealized_pnl', 0))) > 0)
-        losers = sum(1 for pos in positions if Decimal(str(pos.get('unrealized_pnl', 0))) < 0)
+        winners = sum(1 for pos in positions if Decimal(str(pos.get('unrealized_pnl_usd', 0))) > 0)
+        losers = sum(1 for pos in positions if Decimal(str(pos.get('unrealized_pnl_usd', 0))) < 0)
 
         # Header
         emoji = "📈" if total_pnl > 0 else "📉" if total_pnl < 0 else "📊"
@@ -184,7 +184,7 @@ Sit back and monitor your portfolio! 💰
 
         # Position lines (group by 2 for compact display)
         for i, pos in enumerate(positions):
-            pnl = Decimal(str(pos.get('unrealized_pnl', 0)))
+            pnl = Decimal(str(pos.get('unrealized_pnl_usd', 0)))
             pnl_emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
             symbol_short = pos['symbol'].replace('/USDT:USDT', '').replace('/USDT', '')
 
