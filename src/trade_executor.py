@@ -338,10 +338,11 @@ class TradeExecutor:
 
             # Update position in database (reduce quantity)
             remaining_quantity = full_quantity - close_quantity
-            await db.execute(
-                "UPDATE active_position SET quantity = $1 WHERE id = $2",
-                remaining_quantity, position['id']
-            )
+            async with db.pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE active_position SET quantity = $1 WHERE id = $2",
+                    remaining_quantity, position['id']
+                )
 
             # Send notification
             await notifier.send_alert(

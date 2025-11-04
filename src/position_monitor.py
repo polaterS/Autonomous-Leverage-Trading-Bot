@@ -121,10 +121,11 @@ class PositionMonitor:
 
                 if new_stop_price is not None:
                     # Update stop-loss in database
-                    await db.execute(
-                        "UPDATE active_position SET stop_loss_price = $1 WHERE id = $2",
-                        new_stop_price, position['id']
-                    )
+                    async with db.pool.acquire() as conn:
+                        await conn.execute(
+                            "UPDATE active_position SET stop_loss_price = $1 WHERE id = $2",
+                            new_stop_price, position['id']
+                        )
                     logger.info(f"✅ Trailing stop updated to ${float(new_stop_price):.4f}")
 
                     # Update position dict for subsequent checks
@@ -180,10 +181,11 @@ class PositionMonitor:
 
                     if success:
                         # Mark that we've done partial close
-                        await db.execute(
-                            "UPDATE active_position SET partial_close_executed = TRUE WHERE id = $1",
-                            position['id']
-                        )
+                        async with db.pool.acquire() as conn:
+                            await conn.execute(
+                                "UPDATE active_position SET partial_close_executed = TRUE WHERE id = $1",
+                                position['id']
+                            )
                         # Move stop-loss to breakeven for remaining 50%
                         await executor._move_stop_to_breakeven(position)
                         logger.info("🔒 Stop-loss moved to breakeven for remaining position")
