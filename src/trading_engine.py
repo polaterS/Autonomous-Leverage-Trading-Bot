@@ -102,10 +102,11 @@ class AutonomousTradingEngine:
                 # Get current position status (MULTI-POSITION SUPPORT)
                 db = await get_db_client()
                 active_positions = await db.get_active_positions()
+                num_positions = len(active_positions) if active_positions else 0
 
+                # STEP 1: ALWAYS monitor existing positions (if any)
                 if active_positions:
-                    # We have open positions - monitor them
-                    logger.info(f"📊 Monitoring {len(active_positions)} active position(s)")
+                    logger.info(f"📊 Monitoring {num_positions} active position(s)")
 
                     position_monitor = get_position_monitor()
 
@@ -130,21 +131,39 @@ class AutonomousTradingEngine:
                             await notifier.send_multi_position_update(updated_positions)
                             logger.info("📤 Sent consolidated portfolio update")
 
-                    # Check every 60 seconds when positions are open
-                    await asyncio.sleep(self.settings.position_check_seconds)
+                # STEP 2: Check if we can open MORE positions (multi-position strategy)
+                max_positions = self.settings.max_concurrent_positions
+                can_open_more = num_positions < max_positions
 
-                else:
-                    # No positions - AUTOMATIC MARKET SCANNING (every 5 minutes)
-                    logger.info("🔍 No active positions, starting automatic market scan...")
+                if can_open_more:
+                    # We have room for more positions → scan for new opportunities
+                    logger.info(
+                        f"🔍 Scanning for new opportunities "
+                        f"({num_positions}/{max_positions} positions)"
+                    )
 
                     try:
-                        # Scan markets and execute best opportunities (multi-position)
-                        scanner = get_market_scanner()
-                        await scanner.scan_and_execute()
+                        # Check if we have enough capital for new positions
+                        risk_manager = get_risk_manager()
+                        can_trade_check = await risk_manager.can_open_position()
+
+                        if can_trade_check['can_open']:
+                            # Scan markets and execute best opportunities
+                            scanner = get_market_scanner()
+                            await scanner.scan_and_execute()
+                        else:
+                            logger.info(
+                                f"⏸️  Cannot open new positions: {can_trade_check.get('reason', 'Unknown')}"
+                            )
                     except Exception as scan_error:
                         logger.error(f"Market scan error: {scan_error}", exc_info=True)
 
-                    # Sleep for configured scan interval (default 5 minutes)
+                # STEP 3: Sleep based on whether we have positions
+                if num_positions > 0:
+                    # Has positions → check every 60 seconds (for stop-loss, etc.)
+                    await asyncio.sleep(self.settings.position_check_seconds)
+                else:
+                    # No positions → wait longer (5 minutes) before next scan
                     logger.info(f"💤 Waiting {self.settings.scan_interval_seconds}s before next scan...")
                     await asyncio.sleep(self.settings.scan_interval_seconds)
 
