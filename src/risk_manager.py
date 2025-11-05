@@ -247,6 +247,53 @@ class RiskManager:
             'sl_distance_pct': float(sl_distance) * 100
         }
 
+    async def can_open_position(self) -> Dict[str, Any]:
+        """
+        Quick check if we can open a new position (before full validation).
+
+        Checks:
+        1. Sufficient capital
+        2. Not at max concurrent positions
+        3. Trading enabled (circuit breakers, etc.)
+
+        Returns:
+            Dict with 'can_open': bool, 'reason': str
+        """
+        db = await get_db_client()
+
+        # Check 1: Sufficient capital
+        current_capital = await db.get_current_capital()
+        min_required_capital = 10 / self.settings.position_size_percent  # Minimum for $10 position
+
+        if current_capital < min_required_capital:
+            return {
+                'can_open': False,
+                'reason': f'Insufficient capital: ${float(current_capital):.2f} < ${float(min_required_capital):.2f} required'
+            }
+
+        # Check 2: Max concurrent positions
+        active_positions = await db.get_active_positions()
+        max_concurrent = self.settings.max_concurrent_positions
+
+        if len(active_positions) >= max_concurrent:
+            return {
+                'can_open': False,
+                'reason': f'Maximum concurrent positions reached ({len(active_positions)}/{max_concurrent})'
+            }
+
+        # Check 3: Daily limits (circuit breakers, etc.)
+        daily_limits = await self.check_daily_limits()
+        if not daily_limits['can_trade']:
+            return {
+                'can_open': False,
+                'reason': daily_limits['reason']
+            }
+
+        return {
+            'can_open': True,
+            'reason': f'Ready to trade ({len(active_positions)}/{max_concurrent} positions, ${float(current_capital):.2f} capital)'
+        }
+
     async def check_daily_limits(self) -> Dict[str, Any]:
         """
         Check if daily trading limits have been reached.
