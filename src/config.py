@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     # Feature Flags
     use_paper_trading: bool = Field(default=True)
     enable_debug_logs: bool = Field(default=False)
+    enable_short_trades: bool = Field(default=True)  # Enable SHORT trades for complete ML learning
 
     # Trading Symbols (high liquidity perpetual futures) - 35 coins
     trading_symbols: list[str] = Field(default=[
