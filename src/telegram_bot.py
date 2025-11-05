@@ -69,6 +69,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("stopbot", self.cmd_stop_bot))
         self.application.add_handler(CommandHandler("startbot", self.cmd_start_bot))
         self.application.add_handler(CommandHandler("reset", self.cmd_reset_circuit_breaker))
+        self.application.add_handler(CommandHandler("setcapital", self.cmd_set_capital))
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -181,6 +182,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /startbot - Botu çalıştır
 /stopbot - Botu durdur
 /reset - Circuit breaker'ı resetle (3 ardışık loss sonrası)
+/setcapital 1000 - Capital'i güncelle (örn: $1000)
 
 <b>Nasıl Çalışır?</b>
 
@@ -696,6 +698,79 @@ Coin seçin:
             logger.error(f"Circuit breaker reset error: {e}", exc_info=True)
             await update.message.reply_text(
                 f"❌ Reset sırasında hata oluştu:\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_set_capital(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /setcapital command - Update current capital to specified amount."""
+        try:
+            # Parse amount from command arguments
+            if not context.args or len(context.args) != 1:
+                await update.message.reply_text(
+                    "❌ <b>Kullanım:</b> /setcapital 1000\n\n"
+                    "Örnek: /setcapital 1000 → Capital'i $1000'e ayarlar",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            try:
+                new_capital = Decimal(context.args[0])
+                if new_capital <= 0:
+                    raise ValueError("Capital must be positive")
+            except (ValueError, Exception) as e:
+                await update.message.reply_text(
+                    f"❌ Geçersiz miktar: {context.args[0]}\n\n"
+                    "Pozitif bir sayı girin (örnek: 1000)",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Get current capital
+            old_capital = await self.db.get_current_capital()
+
+            await update.message.reply_text(
+                f"💰 Capital güncelleniyor...\n\n"
+                f"Eski: ${float(old_capital):.2f}\n"
+                f"Yeni: ${float(new_capital):.2f}",
+                parse_mode=ParseMode.HTML
+            )
+
+            # Update capital in database
+            async with self.db.pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE trading_config SET current_capital = $1",
+                    new_capital
+                )
+
+            # Verify update
+            updated_capital = await self.db.get_current_capital()
+            difference = updated_capital - old_capital
+
+            # Calculate new position sizes
+            position_size = updated_capital * Decimal('0.80')  # 80% position sizing
+            max_positions = 10  # From config
+
+            await update.message.reply_text(
+                "🎉 <b>BAŞARILI!</b>\n\n"
+                f"✅ Capital güncellendi: ${float(updated_capital):.2f}\n"
+                f"📊 Değişim: ${float(difference):+.2f}\n\n"
+                f"<b>Yeni Limitler:</b>\n"
+                f"💵 Pozisyon başına: ${float(position_size):.2f}\n"
+                f"📈 Max pozisyon: {max_positions}\n"
+                f"💰 Toplam kullanılabilir: ${float(position_size * max_positions):.2f}\n\n"
+                "🚀 Bot artık yeni pozisyonlar açabilir!",
+                parse_mode=ParseMode.HTML
+            )
+
+            logger.info(
+                f"💰 Capital manually updated: ${float(old_capital):.2f} → ${float(new_capital):.2f} "
+                f"(${float(difference):+.2f})"
+            )
+
+        except Exception as e:
+            logger.error(f"Set capital error: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ Capital güncellenirken hata oluştu:\n\n{str(e)}",
                 parse_mode=ParseMode.HTML
             )
 
