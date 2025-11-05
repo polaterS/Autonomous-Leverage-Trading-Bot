@@ -36,15 +36,15 @@ class Settings(BaseSettings):
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)
     max_leverage: int = Field(default=10, ge=1, le=20)  # Safe max: 10x (20x absolute max)
-    max_concurrent_positions: int = Field(default=10, ge=1, le=20)  # ML learning: More trades = faster learning (paper mode)
+    max_concurrent_positions: int = Field(default=15, ge=1, le=20)  # AGGRESSIVE: 15 for faster ML learning
     position_size_percent: Decimal = Field(default=Decimal("0.80"), gt=0, le=1)
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% for extreme leverage
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% for low leverage
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # AGGRESSIVE: Lower for faster trades
     max_position_hours: int = Field(default=8, ge=1, le=48)  # AGGRESSIVE: Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 60% - Balanced approach (autonomous mode)
-    scan_interval_seconds: int = Field(default=300, ge=30)
-    position_check_seconds: int = Field(default=60, ge=10)
+    scan_interval_seconds: int = Field(default=120, ge=30)  # AGGRESSIVE: 2 minutes
+    position_check_seconds: int = Field(default=30, ge=10)  # AGGRESSIVE: 30 seconds
 
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
