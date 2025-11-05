@@ -104,6 +104,47 @@ class PositionMonitor:
                 f"P&L: ${float(unrealized_pnl):+.2f}"
             )
 
+            # === CHECK 0: TIME-BASED EXIT (AGGRESSIVE MODE) ===
+            # Close position if open for more than MAX_POSITION_HOURS
+            from datetime import datetime, timezone
+            entry_time = position['entry_time']
+            if isinstance(entry_time, str):
+                entry_time = datetime.fromisoformat(entry_time)
+            elif not entry_time.tzinfo:
+                entry_time = entry_time.replace(tzinfo=timezone.utc)
+
+            now = datetime.now(timezone.utc)
+            hours_open = (now - entry_time).total_seconds() / 3600
+
+            max_hours = self.settings.max_position_hours
+
+            if hours_open >= max_hours:
+                close_reason = f"Time-based exit: {hours_open:.1f}h >= {max_hours}h max"
+
+                # Close with profit or cut loss
+                if unrealized_pnl > 0:
+                    logger.info(f"⏰ {close_reason} | Taking profit: ${float(unrealized_pnl):+.2f}")
+                    await notifier.send_alert(
+                        'success',
+                        f"⏰ TIME EXIT (PROFIT)\n"
+                        f"{symbol} {side}\n"
+                        f"Open {hours_open:.1f}h (max {max_hours}h)\n"
+                        f"P&L: ${float(unrealized_pnl):+.2f}"
+                    )
+                else:
+                    logger.warning(f"⏰ {close_reason} | Cutting loss: ${float(unrealized_pnl):+.2f}")
+                    await notifier.send_alert(
+                        'warning',
+                        f"⏰ TIME EXIT (LOSS)\n"
+                        f"{symbol} {side}\n"
+                        f"Open {hours_open:.1f}h (max {max_hours}h)\n"
+                        f"P&L: ${float(unrealized_pnl):+.2f}\n"
+                        f"Cutting loss and moving on..."
+                    )
+
+                await executor.close_position(position, current_price, close_reason)
+                return
+
             # 🎯 #9: DYNAMIC TRAILING STOP-LOSS (check before emergency close)
             # Update trailing stop if price moved favorably
             try:

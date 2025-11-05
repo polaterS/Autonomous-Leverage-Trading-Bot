@@ -50,7 +50,10 @@
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" update_capital.py)",
       "Bash(timeout /t 5 /nobreak)",
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" test_railway_connection.py)",
-      "Bash(set DATABASE_URL=)"
+      "Bash(set DATABASE_URL=)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" check_positions.py)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" check_position_targets.py)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" close_rune.py)"
     ],
     "deny": [],
     "ask": []
