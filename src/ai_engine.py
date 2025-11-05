@@ -174,9 +174,9 @@ class AIConsensusEngine:
                         f"(Δ {ml_result['ml_adjustment']:+.1%})"
                     )
 
-                    # 🎯 ENHANCED ML OVERRIDE: Balanced threshold for better opportunity detection
-                    # Threshold adjusted: 70% → 65% (more opportunities, still safe)
-                    if analysis['confidence'] >= 0.65 and analysis['action'] == 'hold':
+                    # 🎯 ENHANCED ML OVERRIDE: Optimized threshold matching ML boost performance
+                    # Threshold adjusted: 65% → 62% (matches typical ML-boosted confidence)
+                    if analysis['confidence'] >= 0.62 and analysis['action'] == 'hold':
                         logger.info(
                             f"🔍 ML Override Check: {symbol} conf={analysis['confidence']:.1%}, "
                             f"action={analysis['action']}, attempting override..."
