@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # AGGRESSIVE: Lower for faster trades
     max_position_hours: int = Field(default=8, ge=1, le=48)  # AGGRESSIVE: Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 60% - Balanced approach (autonomous mode)
-    scan_interval_seconds: int = Field(default=120, ge=30)  # AGGRESSIVE: 2 minutes
-    position_check_seconds: int = Field(default=30, ge=10)  # AGGRESSIVE: 30 seconds
+    scan_interval_seconds: int = Field(default=180, ge=30)  # OPTIMIZED: 3 minutes (balance speed/cost)
+    position_check_seconds: int = Field(default=45, ge=10)  # OPTIMIZED: 45 seconds (balance speed/cost)
 
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     ])
 
     # AI Configuration
-    ai_cache_ttl_seconds: int = Field(default=300)  # 5 minutes
+    ai_cache_ttl_seconds: int = Field(default=600)  # OPTIMIZED: 10 minutes (reduce API costs)
     ai_timeout_seconds: int = Field(default=30)
 
     class Config:
