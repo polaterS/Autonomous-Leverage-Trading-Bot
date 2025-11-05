@@ -24,11 +24,18 @@ class DatabaseClient:
     async def connect(self):
         """Create database connection pool."""
         try:
+            # Railway requires SSL for public connections
+            import ssl
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE  # For Railway public URL
+
             self.pool = await asyncpg.create_pool(
                 self.settings.database_url,
                 min_size=2,
                 max_size=10,
-                command_timeout=60
+                command_timeout=60,
+                ssl=ssl_context  # Add SSL support for Railway
             )
             logger.info("Database connection pool created")
         except Exception as e:
@@ -365,7 +372,12 @@ _db_client: Optional[DatabaseClient] = None
 async def get_db_client() -> DatabaseClient:
     """Get or create database client instance."""
     global _db_client
-    if _db_client is None:
+    if _db_client is None or _db_client.pool is None:
         _db_client = DatabaseClient()
-        await _db_client.connect()
+        try:
+            await _db_client.connect()
+        except Exception as e:
+            # Reset singleton on connection failure
+            _db_client = None
+            raise
     return _db_client

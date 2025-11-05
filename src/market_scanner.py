@@ -285,14 +285,40 @@ class MarketScanner:
                         await self.execute_trade(opp)
                         await asyncio.sleep(2)  # Small delay between trades
                 else:
-                    best = all_analyses[0]
-                    await notifier.send_alert(
-                        'info',
-                        f"Best opportunity: {best['symbol']} ({best['model']}) - "
-                        f"Confidence: {best['confidence']:.1%}\n"
-                        f"Below minimum threshold ({float(self.settings.min_ai_confidence):.1%}). "
-                        f"Waiting for better setup..."
-                    )
+                    # Show best opportunity from AVAILABLE coins (excluding existing positions)
+                    if available_analyses:
+                        best = available_analyses[0]
+
+                        # Determine rejection reason
+                        rejection_reasons = []
+
+                        if best['confidence'] < float(self.settings.min_ai_confidence):
+                            rejection_reasons.append(
+                                f"Confidence {best['confidence']:.1%} < {float(self.settings.min_ai_confidence):.1%}"
+                            )
+
+                        if best['opportunity_score'] < min_score:
+                            rejection_reasons.append(
+                                f"Opportunity Score {best['opportunity_score']:.1f} < {min_score:.1f}"
+                            )
+
+                        reason_text = " AND ".join(rejection_reasons) if rejection_reasons else "Unknown reason"
+
+                        await notifier.send_alert(
+                            'info',
+                            f"Best opportunity: {best['symbol']} ({best['model']}) - "
+                            f"Confidence: {best['confidence']:.1%} | "
+                            f"Score: {best['opportunity_score']:.1f}/100\n\n"
+                            f"❌ Rejected: {reason_text}\n\n"
+                            f"Waiting for better setup..."
+                        )
+                    else:
+                        # All opportunities filtered out due to existing positions
+                        await notifier.send_alert(
+                            'info',
+                            f"😐 All opportunities filtered out (existing positions: {', '.join(existing_symbols)}). "
+                            f"Will scan again in 5 minutes."
+                        )
         else:
             logger.info("😐 No good opportunities found (all models recommend HOLD)")
             await notifier.send_alert(

@@ -10,8 +10,8 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, validator
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override=True to prioritize .env over system env vars)
+load_dotenv(override=True)
 
 
 class Settings(BaseSettings):

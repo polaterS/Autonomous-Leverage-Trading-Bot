@@ -21,9 +21,15 @@ async def setup_database():
 
     conn = None
     try:
+        # Railway requires SSL for public connections
+        import ssl
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
         # Connect to database with timeout
         conn = await asyncio.wait_for(
-            asyncpg.connect(settings.database_url),
+            asyncpg.connect(settings.database_url, ssl=ssl_context),
             timeout=10.0
         )
 
