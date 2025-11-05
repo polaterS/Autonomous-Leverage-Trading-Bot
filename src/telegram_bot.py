@@ -403,124 +403,188 @@ Sorularınız için: @your_support
             await update.message.reply_text(f"❌ Hata: {e}")
 
     async def cmd_mlstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /mlstats command - show ML learning statistics."""
+        """Handle /mlstats command - comprehensive ML learning statistics."""
         try:
             logger.info("🧠 /mlstats command called")
 
-            # Get ML learner instance
+            # Get real-time data from database
             from src.ml_pattern_learner import get_ml_learner
+            from datetime import datetime, timedelta
+
             ml = await get_ml_learner()
 
-            # Build comprehensive ML stats message
+            # Get all closed trades from database
+            query = """
+                SELECT
+                    symbol, side, entry_price, exit_price, realized_pnl_usd,
+                    entry_time, exit_time, ai_confidence, leverage
+                FROM trade_history
+                ORDER BY exit_time DESC
+            """
+            async with self.db.pool.acquire() as conn:
+                all_trades = await conn.fetch(query)
+                active_positions = await conn.fetch("SELECT * FROM active_position")
+                config = await conn.fetchrow("SELECT * FROM trading_config")
+
+            # Calculate statistics
+            total_trades = len(all_trades)
+            if total_trades == 0:
+                await update.message.reply_text(
+                    "📊 <b>ML İSTATİSTİKLERİ</b>\n\n"
+                    "Henüz kapalı trade yok.\n"
+                    "Bot trade yapmaya başladığında istatistikler burada görünecek!",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Winning trades
+            winning_trades = [t for t in all_trades if float(t['realized_pnl_usd']) > 0]
+            losing_trades = [t for t in all_trades if float(t['realized_pnl_usd']) <= 0]
+            overall_wr = (len(winning_trades) / total_trades * 100) if total_trades > 0 else 0
+
+            # Total P&L
+            total_pnl = sum(float(t['realized_pnl_usd']) for t in all_trades)
+
+            # LONG vs SHORT breakdown
+            long_trades = [t for t in all_trades if t['side'] == 'long']
+            short_trades = [t for t in all_trades if t['side'] == 'short']
+
+            long_wins = [t for t in long_trades if float(t['realized_pnl_usd']) > 0]
+            short_wins = [t for t in short_trades if float(t['realized_pnl_usd']) > 0]
+
+            long_wr = (len(long_wins) / len(long_trades) * 100) if long_trades else 0
+            short_wr = (len(short_wins) / len(short_trades) * 100) if short_trades else 0
+
+            long_pnl = sum(float(t['realized_pnl_usd']) for t in long_trades)
+            short_pnl = sum(float(t['realized_pnl_usd']) for t in short_trades)
+
+            # Build message
             message = "<b>🧠 ML ÖĞRENME İSTATİSTİKLERİ</b>\n\n"
 
-            # 1. Overall learning progress
-            message += f"<b>📊 Genel Durum:</b>\n"
-            message += f"• Analiz Edilen Trade: {ml.total_trades_analyzed}\n"
+            # 1. Overall Summary
+            message += "<b>📊 GENEL ÖZET</b>\n"
+            message += f"• Total Trades: {total_trades}\n"
+            message += f"• Aktif Pozisyon: {len(active_positions)}\n"
+            wr_emoji = "🟢" if overall_wr >= 60 else "🟡" if overall_wr >= 50 else "🔴"
+            message += f"• Win Rate: {wr_emoji} {overall_wr:.1f}%\n"
+            pnl_emoji = "💰" if total_pnl > 0 else "📉"
+            message += f"• Total P&L: {pnl_emoji} ${total_pnl:+.2f}\n"
+            message += f"• Capital: ${float(config['current_capital']):.2f}\n\n"
+
+            # 2. LONG vs SHORT Breakdown
+            message += "<b>⚔️ LONG vs SHORT</b>\n"
+            message += f"<b>LONG:</b>\n"
+            if long_trades:
+                long_emoji = "🟢" if long_wr >= 60 else "🟡" if long_wr >= 50 else "🔴"
+                message += f"  {long_emoji} {len(long_trades)} trades | {long_wr:.1f}% WR\n"
+                message += f"  P&L: ${long_pnl:+.2f}\n"
+            else:
+                message += f"  Henüz LONG trade yok\n"
+
+            message += f"<b>SHORT:</b>\n"
+            if short_trades:
+                short_emoji = "🟢" if short_wr >= 60 else "🟡" if short_wr >= 50 else "🔴"
+                message += f"  {short_emoji} {len(short_trades)} trades | {short_wr:.1f}% WR\n"
+                message += f"  P&L: ${short_pnl:+.2f}\n"
+            else:
+                message += f"  Henüz SHORT trade yok\n"
+            message += "\n"
+
+            # 3. AI Confidence Analysis
+            message += "<b>🎯 AI CONFIDENCE ACCURACY</b>\n"
+            confidence_buckets = {}
+            for trade in all_trades:
+                conf = trade.get('ai_confidence')
+                if conf:
+                    conf_bucket = int(float(conf) * 100 / 5) * 5  # 5% buckets
+                    if conf_bucket not in confidence_buckets:
+                        confidence_buckets[conf_bucket] = {'wins': 0, 'total': 0}
+                    confidence_buckets[conf_bucket]['total'] += 1
+                    if float(trade['realized_pnl_usd']) > 0:
+                        confidence_buckets[conf_bucket]['wins'] += 1
+
+            if confidence_buckets:
+                for conf in sorted(confidence_buckets.keys(), reverse=True):
+                    stats = confidence_buckets[conf]
+                    if stats['total'] >= 2:  # At least 2 trades
+                        acc = stats['wins'] / stats['total'] * 100
+                        emoji = "✅" if acc >= 65 else "⚠️" if acc >= 50 else "❌"
+                        message += f"{emoji} {conf}% güven: {acc:.0f}% doğru (n={stats['total']})\n"
+            else:
+                message += "• Henüz yeterli veri yok\n"
+            message += "\n"
+
+            # 4. Top Symbols
+            message += "<b>🏆 EN İYİ / EN KÖTÜ COİNLER</b>\n"
+            symbol_stats = {}
+            for trade in all_trades:
+                symbol = trade['symbol'].split('/')[0]  # Get base symbol
+                if symbol not in symbol_stats:
+                    symbol_stats[symbol] = {'wins': 0, 'total': 0, 'pnl': 0}
+                symbol_stats[symbol]['total'] += 1
+                symbol_stats[symbol]['pnl'] += float(trade['realized_pnl_usd'])
+                if float(trade['realized_pnl_usd']) > 0:
+                    symbol_stats[symbol]['wins'] += 1
+
+            # Filter symbols with at least 2 trades
+            valid_symbols = {s: stats for s, stats in symbol_stats.items() if stats['total'] >= 2}
+
+            if valid_symbols:
+                # Top 3 best
+                best = sorted(valid_symbols.items(),
+                            key=lambda x: x[1]['wins']/x[1]['total'],
+                            reverse=True)[:3]
+                message += "<b>En İyi:</b>\n"
+                for symbol, stats in best:
+                    wr = stats['wins'] / stats['total'] * 100
+                    message += f"🟢 {symbol}: {wr:.0f}% WR | ${stats['pnl']:+.2f}\n"
+
+                # Top 3 worst
+                worst = sorted(valid_symbols.items(),
+                             key=lambda x: x[1]['wins']/x[1]['total'])[:3]
+                message += "<b>En Kötü:</b>\n"
+                for symbol, stats in worst:
+                    wr = stats['wins'] / stats['total'] * 100
+                    message += f"🔴 {symbol}: {wr:.0f}% WR | ${stats['pnl']:+.2f}\n"
+            else:
+                message += "• Henüz yeterli veri yok (min 2 trade/coin)\n"
+            message += "\n"
+
+            # 5. Recent Performance (Last 10 trades)
+            message += "<b>📈 SON 10 TRADE</b>\n"
+            recent = all_trades[:10]
+            recent_wins = sum(1 for t in recent if float(t['realized_pnl_usd']) > 0)
+            recent_wr = recent_wins / len(recent) * 100 if recent else 0
+
+            # Build recent trades string
+            recent_str = ""
+            for t in recent[:5]:  # Show last 5
+                pnl = float(t['realized_pnl_usd'])
+                emoji = "✅" if pnl > 0 else "❌"
+                symbol = t['symbol'].split('/')[0]
+                side_emoji = "📈" if t['side'] == 'long' else "📉"
+                recent_str += f"{emoji} {symbol} {side_emoji} ${pnl:+.2f}\n"
+
+            emoji = "🔥" if recent_wr >= 60 else "📊"
+            message += f"{emoji} Son 10: {recent_wins}W/{len(recent)-recent_wins}L ({recent_wr:.0f}%)\n"
+            message += recent_str
+
+            # 6. Learning Progress
+            message += "\n<b>🎓 ML ÖĞRENME</b>\n"
+            message += f"• Optimal Threshold: {ml.min_confidence_threshold:.0%}\n"
             message += f"• Market Regime: {ml.current_regime}\n"
-            message += f"• Optimal Threshold: {ml.min_confidence_threshold:.0%}\n\n"
+            message += f"• Analiz Edilen Trade: {ml.total_trades_analyzed}\n"
 
-            # 2. Top performing symbols
-            message += "<b>🏆 En İyi Coinler (Win Rate):</b>\n"
-            symbol_perf_list = []
-            for symbol, perf in ml.symbol_performance.items():
-                total = perf['wins'] + perf['losses']
-                if total >= 2:  # At least 2 trades
-                    win_rate = perf['wins'] / total
-                    symbol_perf_list.append((symbol, win_rate, total, perf['wins']))
-
-            # Sort by win rate, then total trades
-            symbol_perf_list.sort(key=lambda x: (x[1], x[2]), reverse=True)
-
-            if symbol_perf_list:
-                for symbol, win_rate, total, wins in symbol_perf_list[:5]:
-                    emoji = "🟢" if win_rate >= 0.7 else "🟡" if win_rate >= 0.5 else "🔴"
-                    message += f"{emoji} {symbol}: {win_rate:.0%} ({wins}/{total})\n"
-            else:
-                message += "• Henüz yeterli veri yok\n"
-
-            message += "\n"
-
-            # 3. AI Accuracy by confidence level
-            message += "<b>🎯 AI Doğruluk Oranları:</b>\n"
-            acc_items = []
-            for conf, acc in ml.ai_accuracy_by_confidence.items():
-                if acc['predictions'] >= 2:
-                    acc_items.append((conf, acc['accuracy'], acc['predictions']))
-
-            if acc_items:
-                acc_items.sort(key=lambda x: x[0], reverse=True)
-                for conf, accuracy, predictions in acc_items[:5]:
-                    emoji = "✅" if accuracy >= 0.65 else "⚠️" if accuracy >= 0.5 else "❌"
-                    message += f"{emoji} {conf:.0%} güven: {accuracy:.0%} doğru (n={predictions})\n"
-            else:
-                message += "• Henüz yeterli veri yok\n"
-
-            message += "\n"
-
-            # 4. Top winning patterns
-            message += "<b>🔥 En Başarılı Pattern'ler:</b>\n"
-            if ml.winning_patterns:
-                winning_sorted = sorted(
-                    ml.winning_patterns.items(),
-                    key=lambda x: x[1],
-                    reverse=True
-                )[:5]
-
-                for pattern, count in winning_sorted:
-                    # Also check losing count
-                    losing_count = ml.losing_patterns.get(pattern, 0)
-                    total = count + losing_count
-                    win_rate = count / total if total > 0 else 0
-
-                    if total >= 2:  # Show only patterns with at least 2 occurrences
-                        message += f"• {pattern}: {count}W/{losing_count}L ({win_rate:.0%})\n"
-
-                if not any(count + ml.losing_patterns.get(pattern, 0) >= 2 for pattern, count in winning_sorted):
-                    message += "• Henüz yeterli veri yok\n"
-            else:
-                message += "• Henüz pattern verisi yok\n"
-
-            message += "\n"
-
-            # 5. Top feature scores (Bayesian)
-            message += "<b>🎓 En Değerli Özellikler:</b>\n"
-            if ml.feature_scores:
-                feature_sorted = sorted(
-                    ml.feature_scores.items(),
-                    key=lambda x: x[1],
-                    reverse=True
-                )[:5]
-
-                for feature, score in feature_sorted:
-                    if score > 0:
-                        # Get Bayesian stats
-                        bayesian = ml.bayesian_features.get(feature)
-                        if bayesian:
-                            win_rate = ml.get_bayesian_win_rate(feature)
-                            total_obs = bayesian['alpha'] + bayesian['beta'] - 2
-
-                            if total_obs >= 2:
-                                feature_name = feature.replace('_', ' ').title()
-                                message += f"• {feature_name}: {win_rate:.0%} WR (n={int(total_obs)})\n"
-
-                if not any(ml.bayesian_features.get(f, {}).get('alpha', 0) +
-                          ml.bayesian_features.get(f, {}).get('beta', 0) - 2 >= 2
-                          for f, s in feature_sorted if s > 0):
-                    message += "• Henüz yeterli veri yok\n"
-            else:
-                message += "• Henüz feature verisi yok\n"
-
-            message += "\n<i>💡 ML her trade ile öğreniyor ve accuracy artıyor!</i>"
+            message += "\n<i>💡 ML her trade ile öğreniyor!</i>"
 
             await update.message.reply_text(message, parse_mode=ParseMode.HTML)
-            logger.info("✅ ML stats sent successfully")
+            logger.info("✅ Enhanced ML stats sent successfully")
 
         except Exception as e:
             logger.error(f"Error in mlstats command: {e}", exc_info=True)
             await update.message.reply_text(
                 f"❌ ML istatistikleri alınamadı: {str(e)}\n\n"
-                f"Henüz yeterli trade olmayabilir.",
+                f"Database bağlantısını kontrol edin.",
                 parse_mode=ParseMode.HTML
             )
 
