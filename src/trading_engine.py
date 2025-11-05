@@ -30,6 +30,7 @@ class AutonomousTradingEngine:
         self.consecutive_errors = 0  # Track consecutive errors separately
         self.last_successful_cycle = None  # Track last successful operation
         self.last_portfolio_update_time = None  # Track last portfolio notification
+        self.last_scan_time = None  # Track last market scan time (for 5-minute intervals)
 
     async def initialize(self):
         """Initialize all components."""
@@ -135,7 +136,15 @@ class AutonomousTradingEngine:
                 max_positions = self.settings.max_concurrent_positions
                 can_open_more = num_positions < max_positions
 
-                if can_open_more:
+                # Check if 5 minutes passed since last scan (scan interval control)
+                scan_interval = self.settings.scan_interval_seconds  # 300 seconds (5 minutes)
+                should_scan = (
+                    can_open_more and
+                    (self.last_scan_time is None or
+                     (datetime.now() - self.last_scan_time).total_seconds() >= scan_interval)
+                )
+
+                if should_scan:
                     # We have room for more positions → scan for new opportunities
                     logger.info(
                         f"🔍 Scanning for new opportunities "
@@ -151,12 +160,21 @@ class AutonomousTradingEngine:
                             # Scan markets and execute best opportunities
                             scanner = get_market_scanner()
                             await scanner.scan_and_execute()
+                            # Update last scan time
+                            self.last_scan_time = datetime.now()
                         else:
                             logger.info(
                                 f"⏸️  Cannot open new positions: {can_trade_check.get('reason', 'Unknown')}"
                             )
                     except Exception as scan_error:
                         logger.error(f"Market scan error: {scan_error}", exc_info=True)
+                elif can_open_more:
+                    # Can open more but waiting for scan interval
+                    time_until_next_scan = scan_interval - (datetime.now() - self.last_scan_time).total_seconds()
+                    logger.debug(
+                        f"⏳ Next scan in {int(time_until_next_scan)}s "
+                        f"({num_positions}/{max_positions} positions)"
+                    )
 
                 # STEP 3: Sleep based on whether we have positions
                 if num_positions > 0:
