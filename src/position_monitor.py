@@ -226,9 +226,10 @@ class PositionMonitor:
                                 "UPDATE active_position SET partial_close_executed = TRUE WHERE id = $1",
                                 position['id']
                             )
-                        # Move stop-loss to breakeven for remaining 50%
-                        await executor._move_stop_to_breakeven(position)
-                        logger.info("🔒 Stop-loss moved to breakeven for remaining position")
+                        # TODO: Move stop-loss to breakeven for remaining 50%
+                        # Feature temporarily disabled (method not implemented)
+                        # await executor._move_stop_to_breakeven(position)
+                        logger.info("🔒 Partial close complete - remaining 50% continues with original stop-loss")
 
                     # Continue monitoring the remaining 50%
                     return
