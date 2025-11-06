@@ -234,6 +234,21 @@ class TradeExecutor:
 
                 return False
 
+            # 📸 CAPTURE ENTRY SNAPSHOT FOR ML LEARNING
+            entry_snapshot = None
+            try:
+                from src.market_snapshot import get_snapshot_capture
+                snapshot_capture = await get_snapshot_capture(exchange)
+                entry_snapshot = await snapshot_capture.capture_snapshot(
+                    symbol=symbol,
+                    current_price=actual_entry_price,
+                    context="entry"
+                )
+                logger.info(f"📸 Entry snapshot captured for ML learning")
+            except Exception as snapshot_error:
+                logger.warning(f"⚠️ Entry snapshot capture failed (non-critical): {snapshot_error}")
+                entry_snapshot = None
+
             # Record position in database
             position_data = {
                 'symbol': symbol,
@@ -252,13 +267,19 @@ class TradeExecutor:
                 'stop_loss_order_id': stop_loss_order_id,
                 'ai_model_consensus': '+'.join(ai_analysis.get('models_used', [])),
                 'ai_confidence': Decimal(str(ai_analysis.get('confidence', 0))),
+                'ai_reasoning': ai_analysis.get('reasoning', ''),
 
                 # 📊 EXECUTION QUALITY METRICS (NEW!)
                 'slippage_percent': slippage_percent,
                 'fill_time_ms': fill_time_ms,
                 'expected_entry_price': entry_price,
                 'order_start_timestamp': order_start_time,
-                'order_fill_timestamp': order_fill_time
+                'order_fill_timestamp': order_fill_time,
+
+                # 📸 ML LEARNING SNAPSHOT
+                'entry_snapshot': entry_snapshot,
+                'entry_slippage_percent': slippage_percent,
+                'entry_fill_time_ms': fill_time_ms
             }
 
             position_id = await db.create_active_position(position_data)
@@ -438,6 +459,21 @@ class TradeExecutor:
             if exchange.paper_trading:
                 exchange.update_paper_balance(realized_pnl)
 
+            # 📸 CAPTURE EXIT SNAPSHOT FOR ML LEARNING
+            exit_snapshot = None
+            try:
+                from src.market_snapshot import get_snapshot_capture
+                snapshot_capture = await get_snapshot_capture(exchange)
+                exit_snapshot = await snapshot_capture.capture_snapshot(
+                    symbol=symbol,
+                    current_price=exit_price,
+                    context="exit"
+                )
+                logger.info(f"📸 Exit snapshot captured for ML learning")
+            except Exception as snapshot_error:
+                logger.warning(f"⚠️ Exit snapshot capture failed (non-critical): {snapshot_error}")
+                exit_snapshot = None
+
             # Record trade in history
             trade_duration = (datetime.now() - position.get('entry_time', datetime.now())).total_seconds()
 
@@ -456,15 +492,20 @@ class TradeExecutor:
                 'trade_duration_seconds': int(trade_duration),
                 'ai_model_consensus': position.get('ai_model_consensus'),
                 'ai_confidence': position.get('ai_confidence'),
+                'ai_reasoning': position.get('ai_reasoning', ''),
                 'entry_time': position.get('entry_time', datetime.now()),
 
-                # 📊 EXECUTION QUALITY METRICS (NEW!)
-                'entry_slippage_percent': position.get('slippage_percent', 0),
-                'entry_fill_time_ms': position.get('fill_time_ms', 0),
+                # 📊 EXECUTION QUALITY METRICS
+                'entry_slippage_percent': position.get('entry_slippage_percent', 0),
+                'entry_fill_time_ms': position.get('entry_fill_time_ms', 0),
                 'exit_slippage_percent': exit_slippage_percent,
                 'exit_fill_time_ms': exit_fill_time_ms,
-                'avg_slippage_percent': (position.get('slippage_percent', 0) + exit_slippage_percent) / 2,
-                'total_fill_time_ms': position.get('fill_time_ms', 0) + exit_fill_time_ms
+                'avg_slippage_percent': (position.get('entry_slippage_percent', 0) + exit_slippage_percent) / 2,
+                'total_fill_time_ms': position.get('entry_fill_time_ms', 0) + exit_fill_time_ms,
+
+                # 📸 ML LEARNING SNAPSHOTS
+                'entry_snapshot': position.get('entry_snapshot'),
+                'exit_snapshot': exit_snapshot
             }
 
             await db.record_trade(trade_data)

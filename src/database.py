@@ -99,13 +99,18 @@ class DatabaseClient:
             # Multi-position support: Don't delete existing positions
             # Just add the new one
 
+            # Convert snapshot dict to JSON string for JSONB
+            import json
+            entry_snapshot_json = json.dumps(position_data.get('entry_snapshot')) if position_data.get('entry_snapshot') else None
+
             row = await conn.fetchrow("""
                 INSERT INTO active_position (
                     symbol, side, leverage, entry_price, current_price, quantity,
                     position_value_usd, stop_loss_price, stop_loss_percent,
                     min_profit_target_usd, min_profit_price, liquidation_price,
-                    exchange_order_id, stop_loss_order_id, ai_model_consensus, ai_confidence
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                    exchange_order_id, stop_loss_order_id, ai_model_consensus, ai_confidence, ai_reasoning,
+                    entry_snapshot, entry_slippage_percent, entry_fill_time_ms
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                 RETURNING id
             """,
                 position_data['symbol'],
@@ -123,7 +128,11 @@ class DatabaseClient:
                 position_data.get('exchange_order_id'),
                 position_data.get('stop_loss_order_id'),
                 position_data.get('ai_model_consensus'),
-                position_data.get('ai_confidence')
+                position_data.get('ai_confidence'),
+                position_data.get('ai_reasoning', ''),
+                entry_snapshot_json,
+                position_data.get('entry_slippage_percent'),
+                position_data.get('entry_fill_time_ms')
             )
 
         position_id = row['id']
@@ -148,15 +157,23 @@ class DatabaseClient:
     # Trade History Methods
 
     async def record_trade(self, trade_data: Dict[str, Any]) -> int:
-        """Record completed trade in history."""
+        """Record completed trade in history with ML learning snapshots."""
         async with self.pool.acquire() as conn:
+            # Convert snapshot dicts to JSON strings for JSONB
+            import json
+            entry_snapshot_json = json.dumps(trade_data.get('entry_snapshot')) if trade_data.get('entry_snapshot') else None
+            exit_snapshot_json = json.dumps(trade_data.get('exit_snapshot')) if trade_data.get('exit_snapshot') else None
+
             row = await conn.fetchrow("""
                 INSERT INTO trade_history (
                     symbol, side, leverage, entry_price, exit_price, quantity,
                     position_value_usd, realized_pnl_usd, pnl_percent,
                     stop_loss_percent, close_reason, trade_duration_seconds,
-                    ai_model_consensus, ai_confidence, entry_time, is_winner
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                    ai_model_consensus, ai_confidence, ai_reasoning, entry_time, is_winner,
+                    entry_snapshot, exit_snapshot,
+                    entry_slippage_percent, exit_slippage_percent,
+                    entry_fill_time_ms, exit_fill_time_ms
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
                 RETURNING id
             """,
                 trade_data['symbol'],
@@ -173,8 +190,15 @@ class DatabaseClient:
                 trade_data['trade_duration_seconds'],
                 trade_data.get('ai_model_consensus'),
                 trade_data.get('ai_confidence'),
+                trade_data.get('ai_reasoning', ''),
                 trade_data['entry_time'],
-                trade_data['realized_pnl_usd'] > 0
+                trade_data['realized_pnl_usd'] > 0,
+                entry_snapshot_json,
+                exit_snapshot_json,
+                trade_data.get('entry_slippage_percent'),
+                trade_data.get('exit_slippage_percent'),
+                trade_data.get('entry_fill_time_ms'),
+                trade_data.get('exit_fill_time_ms')
             )
 
         trade_id = row['id']

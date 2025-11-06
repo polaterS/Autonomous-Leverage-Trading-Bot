@@ -37,12 +37,18 @@ CREATE TABLE IF NOT EXISTS active_position (
     stop_loss_order_id VARCHAR(100),
     ai_model_consensus VARCHAR(100),
     ai_confidence DECIMAL(3, 2),
+    ai_reasoning TEXT,
     entry_time TIMESTAMP DEFAULT NOW(),
     last_check_time TIMESTAMP DEFAULT NOW(),
-    partial_close_executed BOOLEAN DEFAULT FALSE
+    partial_close_executed BOOLEAN DEFAULT FALSE,
+
+    -- 📸 ML LEARNING: Entry snapshot (captured when position opens)
+    entry_snapshot JSONB,
+    entry_slippage_percent DECIMAL(10, 6),
+    entry_fill_time_ms INTEGER
 );
 
--- Trade History
+-- Trade History with ML Learning Snapshots
 CREATE TABLE IF NOT EXISTS trade_history (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(30) NOT NULL,
@@ -59,9 +65,22 @@ CREATE TABLE IF NOT EXISTS trade_history (
     trade_duration_seconds INTEGER,
     ai_model_consensus VARCHAR(100),
     ai_confidence DECIMAL(3, 2),
+    ai_reasoning TEXT,
     entry_time TIMESTAMP NOT NULL,
     exit_time TIMESTAMP DEFAULT NOW(),
-    is_winner BOOLEAN
+    is_winner BOOLEAN,
+
+    -- 🎯 ML LEARNING SNAPSHOTS (JSONB for flexible schema)
+    -- Captured at trade ENTRY for pattern learning
+    entry_snapshot JSONB,
+    -- Captured at trade EXIT for outcome correlation
+    exit_snapshot JSONB,
+
+    -- 📊 EXECUTION QUALITY METRICS (for slippage/timing learning)
+    entry_slippage_percent DECIMAL(10, 6),
+    exit_slippage_percent DECIMAL(10, 6),
+    entry_fill_time_ms INTEGER,
+    exit_fill_time_ms INTEGER
 );
 
 -- Performance indexes for trade_history
@@ -69,6 +88,10 @@ CREATE INDEX IF NOT EXISTS idx_trade_history_time ON trade_history(exit_time DES
 CREATE INDEX IF NOT EXISTS idx_trade_history_symbol ON trade_history(symbol);
 CREATE INDEX IF NOT EXISTS idx_trade_history_winner ON trade_history(is_winner, exit_time DESC);
 CREATE INDEX IF NOT EXISTS idx_trade_history_daily_pnl ON trade_history(DATE(exit_time), realized_pnl_usd);
+
+-- 🎯 ML SNAPSHOT INDEXES (GIN for JSONB queries)
+CREATE INDEX IF NOT EXISTS idx_entry_snapshot_indicators ON trade_history USING GIN (entry_snapshot);
+CREATE INDEX IF NOT EXISTS idx_exit_snapshot_indicators ON trade_history USING GIN (exit_snapshot);
 
 -- AI Analysis Cache
 CREATE TABLE IF NOT EXISTS ai_analysis_cache (
