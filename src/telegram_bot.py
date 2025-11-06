@@ -977,7 +977,7 @@ Coin seçin:
             )
 
     async def cmd_close_all_positions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /closeall command - Close all active positions immediately."""
+        """Handle /closeall command - Close all active positions immediately at market price."""
         try:
             # Get all active positions
             positions = await self.db.get_active_positions()
@@ -992,54 +992,99 @@ Coin seçin:
 
             await update.message.reply_text(
                 f"⚠️ <b>TÜM POZİSYONLAR KAPATILIYOR</b>\n\n"
-                f"Toplam {len(positions)} pozisyon market fiyatından kapatılacak...",
+                f"Toplam {len(positions)} pozisyon market fiyatından kapatılacak...\n"
+                f"Zarardaki pozisyonlar da current price'dan kapatılacak.",
                 parse_mode=ParseMode.HTML
             )
 
-            # Import position monitor to close positions
-            from src.position_monitor import get_position_monitor
-            position_monitor = get_position_monitor()
+            # Import trade executor to close positions directly
+            from src.trade_executor import get_trade_executor
+            from src.exchange_client import get_exchange_client
+
+            trade_executor = get_trade_executor()
+            exchange = get_exchange_client()
 
             closed_count = 0
             failed_count = 0
             total_pnl = Decimal('0')
+            error_details = []
 
             for pos in positions:
                 try:
                     symbol = pos['symbol']
-                    # Close position with reason
-                    result = await position_monitor.close_position(
-                        symbol,
-                        reason="Manual close (user requested /closeall)"
+                    side = pos['side']
+                    quantity = Decimal(str(pos['quantity']))
+                    entry_price = Decimal(str(pos['entry_price']))
+
+                    # Get current market price
+                    ticker = await exchange.fetch_ticker(symbol)
+                    current_price = Decimal(str(ticker['last']))
+
+                    # Calculate P&L before closing
+                    if side.upper() == 'LONG':
+                        pnl = (current_price - entry_price) * quantity
+                        # Close long = SELL
+                        close_side = 'sell'
+                    else:  # SHORT
+                        pnl = (entry_price - current_price) * quantity
+                        # Close short = BUY
+                        close_side = 'buy'
+
+                    logger.info(f"🔄 Closing {symbol} {side} @ ${current_price:.4f} (Entry: ${entry_price:.4f}, P&L: ${pnl:+.2f})")
+
+                    # Close position at market price
+                    order = await exchange.create_order(
+                        symbol=symbol,
+                        type='market',
+                        side=close_side,
+                        amount=float(quantity),
+                        params={'reduceOnly': True}  # Important: close position only
                     )
 
-                    if result:
+                    if order:
+                        # Record trade in database
+                        await self.db.close_position(
+                            symbol=symbol,
+                            exit_price=current_price,
+                            realized_pnl_usd=pnl,
+                            exit_reason=f"Manual close via /closeall (P&L: ${pnl:+.2f})"
+                        )
+
                         closed_count += 1
-                        pnl = Decimal(str(pos.get('unrealized_pnl_usd', 0)))
                         total_pnl += pnl
-                        logger.info(f"✅ Closed {symbol}: {pnl:+.2f} USD")
+                        logger.info(f"✅ Closed {symbol}: ${pnl:+.2f}")
                     else:
                         failed_count += 1
-                        logger.warning(f"❌ Failed to close {symbol}")
+                        error_details.append(f"{symbol}: Order failed")
+                        logger.error(f"❌ Failed to close {symbol}: Order returned None")
 
                 except Exception as e:
                     failed_count += 1
-                    logger.error(f"Error closing {symbol}: {e}")
+                    error_msg = str(e)[:50]
+                    error_details.append(f"{symbol}: {error_msg}")
+                    logger.error(f"❌ Error closing {symbol}: {e}", exc_info=True)
 
             # Send summary
             pnl_emoji = "📈" if total_pnl >= 0 else "📉"
-            message = f"<b>✅ POZİSYONLAR KAPATILDI</b>\n\n"
+            message = f"<b>✅ KAPAMA TAMAMLANDI</b>\n\n"
             message += f"Başarılı: {closed_count} pozisyon\n"
             if failed_count > 0:
                 message += f"Başarısız: {failed_count} pozisyon\n"
+                if error_details:
+                    message += f"\n<b>Hatalar:</b>\n"
+                    for err in error_details[:3]:  # Show first 3 errors
+                        message += f"• {err}\n"
             message += f"\n{pnl_emoji} <b>Toplam P&L:</b> ${float(total_pnl):+.2f}"
+
+            if closed_count > 0:
+                message += f"\n\n💰 <b>Ortalama P&L:</b> ${float(total_pnl/closed_count):+.2f} per trade"
 
             await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
         except Exception as e:
             logger.error(f"Close all positions error: {e}", exc_info=True)
             await update.message.reply_text(
-                f"❌ Pozisyonlar kapatılırken hata:\n\n{str(e)}",
+                f"❌ Pozisyonlar kapatılırken kritik hata:\n\n{str(e)[:200]}",
                 parse_mode=ParseMode.HTML
             )
 
