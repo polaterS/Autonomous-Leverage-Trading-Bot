@@ -1023,22 +1023,16 @@ Coin seçin:
                     # Calculate P&L before closing
                     if side.upper() == 'LONG':
                         pnl = (current_price - entry_price) * quantity
-                        # Close long = SELL
-                        close_side = 'sell'
                     else:  # SHORT
                         pnl = (entry_price - current_price) * quantity
-                        # Close short = BUY
-                        close_side = 'buy'
 
                     logger.info(f"🔄 Closing {symbol} {side} @ ${current_price:.4f} (Entry: ${entry_price:.4f}, P&L: ${pnl:+.2f})")
 
-                    # Close position at market price
-                    order = await exchange.create_order(
+                    # Close position at market price using exchange's close_position method
+                    order = await exchange.close_position(
                         symbol=symbol,
-                        type='market',
-                        side=close_side,
-                        amount=float(quantity),
-                        params={'reduceOnly': True}  # Important: close position only
+                        side=side,  # Position side (LONG/SHORT)
+                        amount=quantity
                     )
 
                     if order:
