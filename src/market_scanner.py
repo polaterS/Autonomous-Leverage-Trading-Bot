@@ -366,9 +366,7 @@ class MarketScanner:
                     logger.warning(f"⚠️ {symbol} - All AI models failed, trying ML-ONLY mode...")
 
                     # Get ML-only consensus (includes ML fallback logic)
-                    from src.ml_pattern_learner import get_ml_learner
-                    ml_learner = await get_ml_learner()
-                    ml_consensus = await ai_engine.get_consensus(symbol, market_data, ml_learner, market_sentiment)
+                    ml_consensus = await ai_engine.get_consensus(symbol, market_data)
 
                     # If ML-only mode generated a trade signal, use it
                     if ml_consensus and ml_consensus.get('action') != 'hold':
