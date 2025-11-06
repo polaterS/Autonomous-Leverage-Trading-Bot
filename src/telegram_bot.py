@@ -1002,7 +1002,7 @@ Coin seçin:
             from src.exchange_client import get_exchange_client
 
             trade_executor = get_trade_executor()
-            exchange = get_exchange_client()
+            exchange = await get_exchange_client()
 
             closed_count = 0
             failed_count = 0
