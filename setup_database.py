@@ -46,26 +46,83 @@ async def setup_database():
         with open(schema_path, 'r', encoding='utf-8') as f:
             schema_sql = f.read()
 
-        # Execute schema
-        await conn.execute(schema_sql)
+        # Execute schema (WITHOUT migration - it has syntax errors in single execute)
+        # Remove the DO blocks from schema before executing
+        schema_lines = schema_sql.split('\n')
+        clean_schema = []
+        skip_until_end = False
+
+        for line in schema_lines:
+            if line.strip().startswith('DO $$'):
+                skip_until_end = True
+                continue
+            if skip_until_end and 'END $$;' in line:
+                skip_until_end = False
+                continue
+            if not skip_until_end:
+                clean_schema.append(line)
+
+        clean_schema_sql = '\n'.join(clean_schema)
+        await conn.execute(clean_schema_sql)
 
         print("✅ Tables created successfully!")
 
-        # Run migration for snapshot columns (idempotent - safe to run multiple times)
+        # Run migration manually with Python (not SQL DO blocks)
         print("\n🔄 Running ML snapshot migration...")
-        migration_path = Path(__file__).parent / "migrate_snapshots.sql"
 
-        if migration_path.exists():
-            with open(migration_path, 'r', encoding='utf-8') as f:
-                migration_sql = f.read()
+        # Define columns to add
+        migrations = [
+            # active_position table
+            ("active_position", "ai_reasoning", "TEXT"),
+            ("active_position", "entry_snapshot", "JSONB"),
+            ("active_position", "entry_slippage_percent", "DECIMAL(10,6)"),
+            ("active_position", "entry_fill_time_ms", "INTEGER"),
 
+            # trade_history table
+            ("trade_history", "ai_reasoning", "TEXT"),
+            ("trade_history", "entry_snapshot", "JSONB"),
+            ("trade_history", "exit_snapshot", "JSONB"),
+            ("trade_history", "entry_slippage_percent", "DECIMAL(10,6)"),
+            ("trade_history", "exit_slippage_percent", "DECIMAL(10,6)"),
+            ("trade_history", "entry_fill_time_ms", "INTEGER"),
+            ("trade_history", "exit_fill_time_ms", "INTEGER"),
+        ]
+
+        for table, column, col_type in migrations:
             try:
-                await conn.execute(migration_sql)
-                print("✅ ML snapshot migration complete!")
-            except Exception as migration_error:
-                print(f"⚠️ Migration warning (may be already applied): {migration_error}")
-        else:
-            print("⚠️ Migration file not found, skipping...")
+                # Check if column exists
+                exists = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name=$1 AND column_name=$2
+                    )
+                """, table, column)
+
+                if not exists:
+                    await conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+                    print(f"  ✅ Added {table}.{column}")
+            except Exception as e:
+                print(f"  ⚠️ {table}.{column}: {e}")
+
+        # Add indexes
+        try:
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_active_entry_snapshot
+                ON active_position USING GIN (entry_snapshot)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_entry_snapshot_indicators
+                ON trade_history USING GIN (entry_snapshot)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_exit_snapshot_indicators
+                ON trade_history USING GIN (exit_snapshot)
+            """)
+            print("  ✅ Added GIN indexes")
+        except Exception as e:
+            print(f"  ⚠️ Index creation: {e}")
+
+        print("✅ ML snapshot migration complete!")
 
         # Update initial configuration with environment values
         await conn.execute("""
