@@ -738,14 +738,30 @@ RESPONSE FORMAT (JSON only):
         if confidence_scores:
             base_confidence = sum(confidence_scores) / len(confidence_scores)
         else:
-            base_confidence = 0.5  # Neutral if no patterns learned
+            # 🔥 DYNAMIC BASE CONFIDENCE based on pattern count
+            # More patterns detected = Higher confidence (even without historical data)
+            pattern_count = len(pattern_features)
+            if pattern_count >= 5:
+                base_confidence = 0.75  # 5+ patterns = Very strong setup
+            elif pattern_count >= 4:
+                base_confidence = 0.65  # 4 patterns = Strong setup
+            elif pattern_count >= 3:
+                base_confidence = 0.60  # 3 patterns = Good setup
+            else:
+                base_confidence = 0.50  # 2 or fewer = Neutral
+
+        # 🚀 PATTERN COUNT BOOST: More patterns = Higher confidence
+        # This works immediately, even before ML learns from data
+        pattern_count = len(pattern_features)
+        pattern_boost = min(0.15, pattern_count * 0.03)  # +3% per pattern, max +15%
+        base_confidence = min(0.95, base_confidence + pattern_boost)
 
         # Adjust confidence based on symbol historical performance
         symbol_threshold = ml_learner.get_confidence_threshold(symbol)
         symbol_adjustment = (symbol_threshold - 0.6) / 0.4  # Normalize around 0.6
 
         final_confidence = base_confidence * (1 + symbol_adjustment * 0.2)  # ±20% adjustment
-        final_confidence = max(0.0, min(1.0, final_confidence))  # Clamp [0, 1]
+        final_confidence = max(0.50, min(0.95, final_confidence))  # Clamp [0.50, 0.95]
 
         # Determine action based on strongest pattern
         action = 'hold'
