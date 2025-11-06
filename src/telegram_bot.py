@@ -997,7 +997,7 @@ Coin seçin:
                 parse_mode=ParseMode.HTML
             )
 
-            # Import trade executor to close positions directly
+            # Import trade executor to close positions properly
             from src.trade_executor import get_trade_executor
             from src.exchange_client import get_exchange_client
 
@@ -1012,45 +1012,39 @@ Coin seçin:
             for pos in positions:
                 try:
                     symbol = pos['symbol']
-                    side = pos['side']
-                    quantity = Decimal(str(pos['quantity']))
-                    entry_price = Decimal(str(pos['entry_price']))
 
                     # Get current market price
                     ticker = await exchange.fetch_ticker(symbol)
                     current_price = Decimal(str(ticker['last']))
 
-                    # Calculate P&L before closing
-                    if side.upper() == 'LONG':
-                        pnl = (current_price - entry_price) * quantity
-                    else:  # SHORT
-                        pnl = (entry_price - current_price) * quantity
-
-                    logger.info(f"🔄 Closing {symbol} {side} @ ${current_price:.4f} (Entry: ${entry_price:.4f}, P&L: ${pnl:+.2f})")
-
-                    # Close position at market price using exchange's close_position method
-                    order = await exchange.close_position(
-                        symbol=symbol,
-                        side=side,  # Position side (LONG/SHORT)
-                        amount=quantity
+                    # Use TradeExecutor.close_position() - it handles everything:
+                    # - Exchange order execution
+                    # - Database updates (trades table + remove from active_positions)
+                    # - ML pattern learning
+                    # - Telegram notifications
+                    success = await trade_executor.close_position(
+                        position=pos,
+                        current_price=current_price,
+                        close_reason="Manual close via /closeall"
                     )
 
-                    if order:
-                        # Record trade in database
-                        await self.db.close_position(
-                            symbol=symbol,
-                            exit_price=current_price,
-                            realized_pnl_usd=pnl,
-                            exit_reason=f"Manual close via /closeall (P&L: ${pnl:+.2f})"
-                        )
-
+                    if success:
                         closed_count += 1
+                        # Calculate P&L for summary
+                        entry_price = Decimal(str(pos['entry_price']))
+                        quantity = Decimal(str(pos['quantity']))
+                        side = pos['side']
+
+                        if side.upper() == 'LONG':
+                            pnl = (current_price - entry_price) * quantity
+                        else:  # SHORT
+                            pnl = (entry_price - current_price) * quantity
+
                         total_pnl += pnl
                         logger.info(f"✅ Closed {symbol}: ${pnl:+.2f}")
                     else:
                         failed_count += 1
-                        error_details.append(f"{symbol}: Order failed")
-                        logger.error(f"❌ Failed to close {symbol}: Order returned None")
+                        error_details.append(f"{symbol}: TradeExecutor failed")
 
                 except Exception as e:
                     failed_count += 1
