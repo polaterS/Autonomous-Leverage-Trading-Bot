@@ -404,22 +404,34 @@ class AIConsensusEngine:
         # Get individual analyses from both models
         analyses = await self.get_individual_analyses(symbol, market_data, market_sentiment)
 
-        # Handle complete failure
+        # Handle complete failure - Use ML-only mode
         if not analyses:
-            logger.warning(f"All AI models failed for {symbol}")
-            return {
-                'action': 'hold',
-                'side': None,
-                'confidence': 0.0,
-                'weighted_consensus': False,
-                'reason': 'All AI models failed',
-                'suggested_leverage': 2,
-                'stop_loss_percent': 7.0,
-                'risk_reward_ratio': 0.0,
-                'reasoning': 'Both Qwen3-Max and DeepSeek unavailable',
-                'models_used': [],
-                'ensemble_method': 'none'
-            }
+            logger.warning(f"⚠️ All AI models failed for {symbol} - Falling back to ML-ONLY mode")
+
+            # 🧠 ML-ONLY FALLBACK: Use learned patterns when AI is unavailable
+            ml_prediction = await self._get_ml_only_prediction(symbol, market_data, ml_learner)
+
+            if ml_prediction['confidence'] >= 0.70:  # High confidence ML predictions only
+                logger.info(
+                    f"🧠 ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
+                    f"(patterns: {ml_prediction['pattern_count']})"
+                )
+                return ml_prediction
+            else:
+                logger.info(f"🧠 ML-ONLY: {symbol} confidence too low ({ml_prediction['confidence']:.0%}) - holding")
+                return {
+                    'action': 'hold',
+                    'side': None,
+                    'confidence': ml_prediction['confidence'],
+                    'weighted_consensus': False,
+                    'reason': f"ML-only confidence below threshold ({ml_prediction['confidence']:.0%} < 70%)",
+                    'suggested_leverage': 2,
+                    'stop_loss_percent': 7.0,
+                    'risk_reward_ratio': 0.0,
+                    'reasoning': 'AI unavailable, ML confidence insufficient for trade',
+                    'models_used': ['ML-ONLY'],
+                    'ensemble_method': 'ml_fallback'
+                }
 
         # 🎯 #2: WEIGHTED ENSEMBLE VOTING (instead of simple majority)
         market_regime = market_data.get('market_regime', 'UNKNOWN')
@@ -659,6 +671,115 @@ RESPONSE FORMAT (JSON only):
         except Exception as e:
             logger.error(f"❌ AI validation exception: {e}")
             return False
+
+    async def _get_ml_only_prediction(self, symbol: str, market_data: Dict[str, Any], ml_learner) -> Dict[str, Any]:
+        """
+        🧠 ML-ONLY MODE: Use learned patterns when AI models are unavailable.
+
+        Uses:
+        - Historical pattern matching
+        - Bayesian feature analysis
+        - Symbol-specific performance data
+        - Market regime adaptation
+
+        Args:
+            symbol: Trading symbol
+            market_data: Market indicators
+            ml_learner: ML pattern learner instance
+
+        Returns:
+            ML-based prediction with confidence score
+        """
+        from src.indicators import get_indicators
+
+        # Get technical indicators
+        indicators_5m = market_data.get('indicators_5m', {})
+        indicators_1h = market_data.get('indicators_1h', {})
+        indicators_4h = market_data.get('indicators_4h', {})
+
+        # Extract key features for pattern matching
+        rsi_1h = indicators_1h.get('rsi', 50)
+        trend_1h = indicators_1h.get('trend', 'neutral')
+        trend_4h = indicators_4h.get('trend', 'neutral')
+
+        # Build pattern features
+        pattern_features = []
+
+        # 1. Trend alignment
+        if trend_1h == 'uptrend' and trend_4h == 'uptrend':
+            pattern_features.append('strong_bullish_trend')
+        elif trend_1h == 'downtrend' and trend_4h == 'downtrend':
+            pattern_features.append('strong_bearish_trend')
+        elif trend_1h == 'uptrend':
+            pattern_features.append('bullish_trend')
+        elif trend_1h == 'downtrend':
+            pattern_features.append('bearish_trend')
+
+        # 2. RSI signals
+        if rsi_1h < 30:
+            pattern_features.append('rsi_oversold')
+        elif rsi_1h > 70:
+            pattern_features.append('rsi_overbought')
+        elif rsi_1h < 40:
+            pattern_features.append('rsi_weak')
+        elif rsi_1h > 60:
+            pattern_features.append('rsi_strong')
+
+        # 3. Market regime
+        market_regime = market_data.get('market_regime', 'UNKNOWN')
+        pattern_features.append(f'regime_{market_regime.lower()}')
+
+        # Calculate confidence from Bayesian features
+        confidence_scores = []
+        for feature in pattern_features:
+            if feature in ml_learner.bayesian_features:
+                bayesian_wr = ml_learner.get_bayesian_win_rate(feature)
+                weight = ml_learner.get_bayesian_weight(feature)
+                confidence_scores.append(bayesian_wr * weight)
+
+        # Base confidence from patterns
+        if confidence_scores:
+            base_confidence = sum(confidence_scores) / len(confidence_scores)
+        else:
+            base_confidence = 0.5  # Neutral if no patterns learned
+
+        # Adjust confidence based on symbol historical performance
+        symbol_threshold = ml_learner.get_confidence_threshold(symbol)
+        symbol_adjustment = (symbol_threshold - 0.6) / 0.4  # Normalize around 0.6
+
+        final_confidence = base_confidence * (1 + symbol_adjustment * 0.2)  # ±20% adjustment
+        final_confidence = max(0.0, min(1.0, final_confidence))  # Clamp [0, 1]
+
+        # Determine action based on strongest pattern
+        action = 'hold'
+        side = None
+        leverage = 2
+        stop_loss = 7.0
+
+        if 'strong_bullish_trend' in pattern_features or ('bullish_trend' in pattern_features and 'rsi_oversold' in pattern_features):
+            action = 'buy'
+            side = 'LONG'
+            leverage = 3 if final_confidence >= 0.75 else 2
+            stop_loss = 7.0 if final_confidence >= 0.75 else 8.0
+        elif 'strong_bearish_trend' in pattern_features or ('bearish_trend' in pattern_features and 'rsi_overbought' in pattern_features):
+            action = 'sell'
+            side = 'SHORT'
+            leverage = 3 if final_confidence >= 0.75 else 2
+            stop_loss = 7.0 if final_confidence >= 0.75 else 8.0
+
+        return {
+            'action': action,
+            'side': side,
+            'confidence': final_confidence,
+            'suggested_leverage': leverage,
+            'stop_loss_percent': stop_loss,
+            'risk_reward_ratio': 2.0,
+            'reasoning': f"ML-ONLY: {', '.join(pattern_features[:3])}",
+            'pattern_count': len(pattern_features),
+            'models_used': ['ML-ONLY'],
+            'weighted_consensus': False,
+            'ensemble_method': 'ml_only'
+        }
 
 
 # Singleton instance
