@@ -18,20 +18,20 @@ async def reset_circuit_breaker():
     db = await get_db_client()
 
     print("=" * 60)
-    print("🔧 CIRCUIT BREAKER RESET TOOL")
+    print("CIRCUIT BREAKER RESET TOOL")
     print("=" * 60)
 
     # Check current consecutive losses
     consecutive_losses = await db.get_consecutive_losses()
-    print(f"\n📊 Current consecutive losses: {consecutive_losses}")
+    print(f"\nCurrent consecutive losses: {consecutive_losses}")
 
     if consecutive_losses < 3:
-        print(f"✅ No circuit breaker active (need 3+ losses, have {consecutive_losses})")
+        print(f"[OK] No circuit breaker active (need 3+ losses, have {consecutive_losses})")
         print("No action needed!")
         return
 
-    print(f"\n🚨 Circuit breaker IS ACTIVE ({consecutive_losses} consecutive losses)")
-    print("\n💡 Solution: Adding a fake winning trade to reset counter...")
+    print(f"\n[!] Circuit breaker IS ACTIVE ({consecutive_losses} consecutive losses)")
+    print("\n[*] Solution: Adding a fake winning trade to reset counter...")
 
     # Create fake winning trade
     fake_trade = {
@@ -88,18 +88,18 @@ async def reset_circuit_breaker():
             fake_trade['is_winner']
         )
 
-    print("✅ Fake winning trade added to database!")
+    print("[OK] Fake winning trade added to database!")
 
     # Verify reset
     new_consecutive_losses = await db.get_consecutive_losses()
-    print(f"\n📊 New consecutive losses: {new_consecutive_losses}")
+    print(f"\nNew consecutive losses: {new_consecutive_losses}")
 
     if new_consecutive_losses == 0:
-        print("\n🎉 SUCCESS! Circuit breaker has been RESET!")
-        print("✅ Trading is now ENABLED again!")
-        print("\n💡 Bot can now open new positions.")
+        print("\n[SUCCESS] Circuit breaker has been RESET!")
+        print("[OK] Trading is now ENABLED again!")
+        print("\n[*] Bot can now open new positions.")
     else:
-        print(f"\n⚠️ Hmm, still showing {new_consecutive_losses} losses.")
+        print(f"\n[WARNING] Still showing {new_consecutive_losses} losses.")
         print("This shouldn't happen. Check the database.")
 
     await db.close()
