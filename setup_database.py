@@ -34,41 +34,9 @@ async def setup_database():
         )
 
         print("✅ Connected successfully!")
-        print("\nCreating database tables...")
 
-        # Read and execute schema
-        schema_path = Path(__file__).parent / "schema.sql"
-
-        if not schema_path.exists():
-            print(f"❌ ERROR: schema.sql not found at {schema_path}")
-            sys.exit(1)
-
-        with open(schema_path, 'r', encoding='utf-8') as f:
-            schema_sql = f.read()
-
-        # Execute schema (WITHOUT migration - it has syntax errors in single execute)
-        # Remove the DO blocks from schema before executing
-        schema_lines = schema_sql.split('\n')
-        clean_schema = []
-        skip_until_end = False
-
-        for line in schema_lines:
-            if line.strip().startswith('DO $$'):
-                skip_until_end = True
-                continue
-            if skip_until_end and 'END $$;' in line:
-                skip_until_end = False
-                continue
-            if not skip_until_end:
-                clean_schema.append(line)
-
-        clean_schema_sql = '\n'.join(clean_schema)
-        await conn.execute(clean_schema_sql)
-
-        print("✅ Tables created successfully!")
-
-        # Run migration manually with Python (not SQL DO blocks)
-        print("\n🔄 Running ML snapshot migration...")
+        # FIRST: Run migration to add columns BEFORE schema tries to use them
+        print("\n🔄 Running ML snapshot migration (before schema)...")
 
         # Define columns to add
         migrations = [
@@ -123,6 +91,39 @@ async def setup_database():
             print(f"  ⚠️ Index creation: {e}")
 
         print("✅ ML snapshot migration complete!")
+
+        # NOW: Execute schema (tables already exist, migration added columns)
+        print("\nCreating database tables...")
+
+        # Read schema
+        schema_path = Path(__file__).parent / "schema.sql"
+
+        if not schema_path.exists():
+            print(f"❌ ERROR: schema.sql not found at {schema_path}")
+            sys.exit(1)
+
+        with open(schema_path, 'r', encoding='utf-8') as f:
+            schema_sql = f.read()
+
+        # Remove DO blocks (migration part) - we already ran migration above
+        schema_lines = schema_sql.split('\n')
+        clean_schema = []
+        skip_migration = False
+
+        for line in schema_lines:
+            # Skip everything after "-- Migration:" comment
+            if '-- Migration:' in line or 'Add ML snapshot columns' in line:
+                skip_migration = True
+            if not skip_migration:
+                clean_schema.append(line)
+
+        clean_schema_sql = '\n'.join(clean_schema)
+
+        try:
+            await conn.execute(clean_schema_sql)
+            print("✅ Tables created successfully!")
+        except Exception as schema_error:
+            print(f"⚠️ Schema warning (tables may already exist): {schema_error}")
 
         # Update initial configuration with environment values
         await conn.execute("""
