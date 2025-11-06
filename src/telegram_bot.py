@@ -70,6 +70,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("startbot", self.cmd_start_bot))
         self.application.add_handler(CommandHandler("reset", self.cmd_reset_circuit_breaker))
         self.application.add_handler(CommandHandler("setcapital", self.cmd_set_capital))
+        self.application.add_handler(CommandHandler("closeall", self.cmd_close_all_positions))
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -595,12 +596,15 @@ Sorularınız için: @your_support
             message += "\n<b>🧠 PATTERN BAŞARI ORANI</b>\n"
             # Get pattern data from ML learner
             pattern_performance = {}
-            for symbol, patterns in ml.symbol_patterns.items():
-                for pattern_name, pattern_data in patterns.items():
-                    if pattern_name not in pattern_performance:
-                        pattern_performance[pattern_name] = {'wins': 0, 'total': 0}
-                    pattern_performance[pattern_name]['wins'] += pattern_data.get('wins', 0)
-                    pattern_performance[pattern_name]['total'] += pattern_data.get('total', 0)
+
+            # Check if ML has symbol_patterns attribute (new ML implementation)
+            if hasattr(ml, 'symbol_patterns') and ml.symbol_patterns:
+                for symbol, patterns in ml.symbol_patterns.items():
+                    for pattern_name, pattern_data in patterns.items():
+                        if pattern_name not in pattern_performance:
+                            pattern_performance[pattern_name] = {'wins': 0, 'total': 0}
+                        pattern_performance[pattern_name]['wins'] += pattern_data.get('wins', 0)
+                        pattern_performance[pattern_name]['total'] += pattern_data.get('total', 0)
 
             if pattern_performance:
                 # Show top 5 best performing patterns
@@ -617,6 +621,7 @@ Sorularınız için: @your_support
                         message += f"{emoji} {pattern_display}: {acc:.0f}% ({stats['total']})\n"
             else:
                 message += "• ML henüz pattern öğreniyor...\n"
+                message += "• Trade sayısı arttıkça pattern'ler burada görünecek\n"
 
             # 8. Time-Based Performance (NEW!)
             message += "\n<b>⏰ ZAMAN BAZLI PERFORMANS</b>\n"
@@ -968,6 +973,73 @@ Coin seçin:
             logger.error(f"Set capital error: {e}", exc_info=True)
             await update.message.reply_text(
                 f"❌ Capital güncellenirken hata oluştu:\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_close_all_positions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /closeall command - Close all active positions immediately."""
+        try:
+            # Get all active positions
+            positions = await self.db.get_active_positions()
+
+            if not positions:
+                await update.message.reply_text(
+                    "ℹ️ <b>Açık pozisyon yok</b>\n\n"
+                    "Kapatılacak pozisyon bulunamadı.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            await update.message.reply_text(
+                f"⚠️ <b>TÜM POZİSYONLAR KAPATILIYOR</b>\n\n"
+                f"Toplam {len(positions)} pozisyon market fiyatından kapatılacak...",
+                parse_mode=ParseMode.HTML
+            )
+
+            # Import position monitor to close positions
+            from src.position_monitor import get_position_monitor
+            position_monitor = get_position_monitor()
+
+            closed_count = 0
+            failed_count = 0
+            total_pnl = Decimal('0')
+
+            for pos in positions:
+                try:
+                    symbol = pos['symbol']
+                    # Close position with reason
+                    result = await position_monitor.close_position(
+                        symbol,
+                        reason="Manual close (user requested /closeall)"
+                    )
+
+                    if result:
+                        closed_count += 1
+                        pnl = Decimal(str(pos.get('unrealized_pnl_usd', 0)))
+                        total_pnl += pnl
+                        logger.info(f"✅ Closed {symbol}: {pnl:+.2f} USD")
+                    else:
+                        failed_count += 1
+                        logger.warning(f"❌ Failed to close {symbol}")
+
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"Error closing {symbol}: {e}")
+
+            # Send summary
+            pnl_emoji = "📈" if total_pnl >= 0 else "📉"
+            message = f"<b>✅ POZİSYONLAR KAPATILDI</b>\n\n"
+            message += f"Başarılı: {closed_count} pozisyon\n"
+            if failed_count > 0:
+                message += f"Başarısız: {failed_count} pozisyon\n"
+            message += f"\n{pnl_emoji} <b>Toplam P&L:</b> ${float(total_pnl):+.2f}"
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            logger.error(f"Close all positions error: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ Pozisyonlar kapatılırken hata:\n\n{str(e)}",
                 parse_mode=ParseMode.HTML
             )
 
