@@ -168,7 +168,7 @@ class MLPatternLearner:
             pnl = trade.get('realized_pnl_usd', Decimal('0'))
             ai_confidence = trade.get('ai_confidence', 0.0)
             leverage = trade.get('leverage', 1)
-            patterns = trade.get('ai_reasoning', '')  # Extract patterns from AI reasoning
+            patterns = trade.get('ai_reasoning') or ''  # Handle None from old trades
 
             # Update symbol performance
             perf = self.symbol_performance[symbol]
