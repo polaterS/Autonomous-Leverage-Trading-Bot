@@ -690,12 +690,9 @@ RESPONSE FORMAT (JSON only):
         Returns:
             ML-based prediction with confidence score
         """
-        from src.indicators import get_indicators
-
-        # Get technical indicators
-        indicators_5m = market_data.get('indicators_5m', {})
-        indicators_1h = market_data.get('indicators_1h', {})
-        indicators_4h = market_data.get('indicators_4h', {})
+        # Get technical indicators (already calculated in market_data)
+        indicators_1h = market_data.get('indicators', {}).get('1h', {})
+        indicators_4h = market_data.get('indicators', {}).get('4h', {})
 
         # Extract key features for pattern matching
         rsi_1h = indicators_1h.get('rsi', 50)
