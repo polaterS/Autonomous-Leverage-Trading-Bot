@@ -361,6 +361,26 @@ class MarketScanner:
                     symbol, market_data, market_sentiment
                 )
 
+                # 🧠 ML-ONLY FALLBACK: If AI models failed, try ML-only prediction
+                if not individual_analyses:
+                    logger.warning(f"⚠️ {symbol} - All AI models failed, trying ML-ONLY mode...")
+
+                    # Get ML-only consensus (includes ML fallback logic)
+                    from src.ml_pattern_learner import get_ml_learner
+                    ml_learner = await get_ml_learner()
+                    ml_consensus = await ai_engine.get_consensus(symbol, market_data, ml_learner, market_sentiment)
+
+                    # If ML-only mode generated a trade signal, use it
+                    if ml_consensus and ml_consensus.get('action') != 'hold':
+                        logger.info(
+                            f"🧠 ML-ONLY SUCCESS: {symbol} {ml_consensus['action'].upper()} "
+                            f"@ {ml_consensus['confidence']:.0%} confidence"
+                        )
+                        # Convert consensus to individual analysis format for consistency
+                        individual_analyses = [ml_consensus]
+                    else:
+                        logger.debug(f"🧠 ML-ONLY: {symbol} - No high-confidence prediction (holding)")
+
                 logger.debug(f"✅ {symbol} - Scan complete")
                 return (symbol, individual_analyses, market_data)
 
