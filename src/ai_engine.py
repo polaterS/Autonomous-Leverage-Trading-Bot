@@ -411,7 +411,7 @@ class AIConsensusEngine:
             # 🧠 ML-ONLY FALLBACK: Use learned patterns when AI is unavailable
             ml_prediction = await self._get_ml_only_prediction(symbol, market_data, ml_learner)
 
-            if ml_prediction['confidence'] >= 0.70:  # High confidence ML predictions only
+            if ml_prediction['confidence'] >= 0.50:  # 🔥 LOWERED: Let ML learn by taking more trades (was 0.70)
                 logger.info(
                     f"🧠 ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
                     f"(patterns: {ml_prediction['pattern_count']})"
@@ -424,7 +424,7 @@ class AIConsensusEngine:
                     'side': None,
                     'confidence': ml_prediction['confidence'],
                     'weighted_consensus': False,
-                    'reason': f"ML-only confidence below threshold ({ml_prediction['confidence']:.0%} < 70%)",
+                    'reason': f"ML-only confidence below threshold ({ml_prediction['confidence']:.0%} < 50%)",
                     'suggested_leverage': 2,
                     'stop_loss_percent': 7.0,
                     'risk_reward_ratio': 0.0,
