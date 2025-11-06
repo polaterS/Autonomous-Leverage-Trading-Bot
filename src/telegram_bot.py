@@ -569,16 +569,149 @@ Sorularınız için: @your_support
             message += f"{emoji} Son 10: {recent_wins}W/{len(recent)-recent_wins}L ({recent_wr:.0f}%)\n"
             message += recent_str
 
-            # 6. Learning Progress
-            message += "\n<b>🎓 ML ÖĞRENME</b>\n"
-            message += f"• Optimal Threshold: {ml.min_confidence_threshold:.0%}\n"
-            message += f"• Market Regime: {ml.current_regime}\n"
-            message += f"• Analiz Edilen Trade: {ml.total_trades_analyzed}\n"
+            # 6. Leverage Usage Analysis (NEW!)
+            message += "\n<b>⚡ LEVERAGE KULLANIMI</b>\n"
+            leverage_stats = {}
+            for trade in all_trades:
+                lev = trade.get('leverage', 2)
+                if lev not in leverage_stats:
+                    leverage_stats[lev] = {'wins': 0, 'total': 0, 'pnl': 0}
+                leverage_stats[lev]['total'] += 1
+                leverage_stats[lev]['pnl'] += float(trade['realized_pnl_usd'])
+                if float(trade['realized_pnl_usd']) > 0:
+                    leverage_stats[lev]['wins'] += 1
 
-            message += "\n<i>💡 ML her trade ile öğreniyor!</i>"
+            if leverage_stats:
+                for lev in sorted(leverage_stats.keys(), reverse=True):
+                    stats = leverage_stats[lev]
+                    wr = stats['wins'] / stats['total'] * 100
+                    lev_emoji = "🔥" if lev >= 20 else "⚡" if lev >= 10 else "📊"
+                    result_emoji = "🟢" if wr >= 60 else "🟡" if wr >= 50 else "🔴"
+                    message += f"{lev_emoji} {lev}x: {result_emoji} {wr:.0f}% WR | ${stats['pnl']:+.2f} ({stats['total']} trades)\n"
+            else:
+                message += "• Henüz trade yok\n"
+
+            # 7. Pattern Success Rate (NEW!)
+            message += "\n<b>🧠 PATTERN BAŞARI ORANI</b>\n"
+            # Get pattern data from ML learner
+            pattern_performance = {}
+            for symbol, patterns in ml.symbol_patterns.items():
+                for pattern_name, pattern_data in patterns.items():
+                    if pattern_name not in pattern_performance:
+                        pattern_performance[pattern_name] = {'wins': 0, 'total': 0}
+                    pattern_performance[pattern_name]['wins'] += pattern_data.get('wins', 0)
+                    pattern_performance[pattern_name]['total'] += pattern_data.get('total', 0)
+
+            if pattern_performance:
+                # Show top 5 best performing patterns
+                sorted_patterns = sorted(
+                    pattern_performance.items(),
+                    key=lambda x: x[1]['wins'] / x[1]['total'] if x[1]['total'] > 0 else 0,
+                    reverse=True
+                )[:5]
+                for pattern, stats in sorted_patterns:
+                    if stats['total'] >= 2:  # At least 2 occurrences
+                        acc = stats['wins'] / stats['total'] * 100
+                        emoji = "🟢" if acc >= 70 else "🟡" if acc >= 50 else "🔴"
+                        pattern_display = pattern.replace('_', ' ').title()
+                        message += f"{emoji} {pattern_display}: {acc:.0f}% ({stats['total']})\n"
+            else:
+                message += "• ML henüz pattern öğreniyor...\n"
+
+            # 8. Time-Based Performance (NEW!)
+            message += "\n<b>⏰ ZAMAN BAZLI PERFORMANS</b>\n"
+            if len(all_trades) >= 10:
+                # First 10 vs Last 10 comparison
+                first_10 = all_trades[-10:]  # Oldest 10
+                last_10 = all_trades[:10]    # Newest 10
+
+                first_10_wr = sum(1 for t in first_10 if float(t['realized_pnl_usd']) > 0) / len(first_10) * 100
+                last_10_wr = sum(1 for t in last_10 if float(t['realized_pnl_usd']) > 0) / len(last_10) * 100
+
+                improvement = last_10_wr - first_10_wr
+                trend_emoji = "📈" if improvement > 0 else "📉" if improvement < 0 else "➡️"
+
+                message += f"• İlk 10: {first_10_wr:.0f}% WR\n"
+                message += f"• Son 10: {last_10_wr:.0f}% WR\n"
+                message += f"{trend_emoji} Gelişme: {improvement:+.0f}%\n"
+
+                if improvement > 10:
+                    message += "🎉 <b>ML hızla öğreniyor!</b>\n"
+                elif improvement > 0:
+                    message += "✅ İyileşme var\n"
+                elif improvement < -10:
+                    message += "⚠️ Performans düşüşü - pattern adaptasyonu gerekiyor\n"
+            else:
+                message += "• Henüz yeterli veri yok (min 10 trade)\n"
+
+            # 9. Win Streak & Loss Streak (NEW!)
+            message += "\n<b>🔥 STREAK ANALİZİ</b>\n"
+            current_streak = 0
+            max_win_streak = 0
+            max_loss_streak = 0
+            temp_streak = 0
+            last_was_win = None
+
+            for trade in reversed(all_trades):  # Chronological order
+                is_win = float(trade['realized_pnl_usd']) > 0
+                if last_was_win is None:
+                    temp_streak = 1
+                elif is_win == last_was_win:
+                    temp_streak += 1
+                else:
+                    if last_was_win:
+                        max_win_streak = max(max_win_streak, temp_streak)
+                    else:
+                        max_loss_streak = max(max_loss_streak, temp_streak)
+                    temp_streak = 1
+                last_was_win = is_win
+
+            # Get current streak
+            if all_trades:
+                current_streak = 1
+                last_result = float(all_trades[0]['realized_pnl_usd']) > 0
+                for trade in all_trades[1:]:
+                    if (float(trade['realized_pnl_usd']) > 0) == last_result:
+                        current_streak += 1
+                    else:
+                        break
+
+            streak_emoji = "🔥" if last_result else "❄️"
+            streak_type = "Win" if last_result else "Loss"
+            message += f"• Mevcut: {streak_emoji} {current_streak} {streak_type} streak\n"
+            message += f"• Max Win Streak: 🏆 {max_win_streak}\n"
+            message += f"• Max Loss Streak: 💀 {max_loss_streak}\n"
+
+            # 10. Learning Progress & Insights (ENHANCED!)
+            message += "\n<b>🎓 ML ÖĞRENME DURUMUı</b>\n"
+            message += f"• Öğrenme Eşiği: {ml.min_confidence_threshold:.0%}\n"
+            message += f"• Market Rejimi: {ml.current_regime}\n"
+            message += f"• Analiz Edilen: {ml.total_trades_analyzed} trade\n"
+
+            # Learning quality assessment
+            if total_trades >= 50:
+                learning_quality = "🎯 İleri Seviye" if overall_wr >= 60 else "📚 Orta Seviye" if overall_wr >= 50 else "🌱 Başlangıç"
+                message += f"• ML Seviyesi: {learning_quality}\n"
+
+            # Insights
+            message += "\n<b>💡 ML ANALİZ</b>\n"
+            if overall_wr >= 65:
+                message += "✅ ML stratejisi karlı! Mevcut ayarlar iyi.\n"
+            elif overall_wr >= 55:
+                message += "📊 Dengeli performans. ML optimize ediliyor.\n"
+            elif overall_wr >= 45:
+                message += "⚠️ Win rate düşük. ML daha fazla veri topluyor.\n"
+            else:
+                message += "🔄 ML öğrenme fazındaysa. Sabır gerekli.\n"
+
+            if len(leverage_stats) > 1:
+                best_leverage = max(leverage_stats.items(), key=lambda x: x[1]['wins']/x[1]['total'] if x[1]['total'] > 0 else 0)
+                message += f"🎯 En iyi leverage: {best_leverage[0]}x\n"
+
+            message += "\n<i>🧠 ML her trade sonrası pattern'leri günceller!</i>"
 
             await update.message.reply_text(message, parse_mode=ParseMode.HTML)
-            logger.info("✅ Enhanced ML stats sent successfully")
+            logger.info("✅ Ultra-detailed ML stats sent successfully")
 
         except Exception as e:
             logger.error(f"Error in mlstats command: {e}", exc_info=True)
