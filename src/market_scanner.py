@@ -98,17 +98,28 @@ class MarketScanner:
             # Unpack result
             symbol, individual_analyses, market_data = result
 
-            # Track market breadth and collect analyses
-            for analysis in individual_analyses:
-                action = analysis.get('action', 'hold')
-                if action == 'buy':
+            # Track market breadth for ALL symbols (including HOLD)
+            # Count the DOMINANT signal from this symbol's analyses
+            if individual_analyses:
+                # Get the highest confidence analysis for this symbol
+                dominant_analysis = max(individual_analyses, key=lambda x: x.get('confidence', 0))
+                dominant_action = dominant_analysis.get('action', 'hold')
+
+                if dominant_action == 'buy':
                     bullish_count += 1
-                elif action == 'sell':
+                elif dominant_action == 'sell':
                     bearish_count += 1
                 else:
                     neutral_count += 1
+            else:
+                # No analysis = neutral
+                neutral_count += 1
 
-                # Skip HOLD signals
+            # Collect only BUY/SELL analyses (skip HOLD for trading)
+            for analysis in individual_analyses:
+                action = analysis.get('action', 'hold')
+
+                # Skip HOLD signals (don't add to all_analyses for trading)
                 if action == 'hold':
                     logger.debug(
                         f"{symbol} ({analysis.get('model_name', 'AI')}): HOLD "
