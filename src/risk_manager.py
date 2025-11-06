@@ -159,16 +159,39 @@ class RiskManager:
             leverage = adjusted_leverage
             trade_params['leverage'] = adjusted_leverage
 
-        # RULE 8: Liquidation distance must be safe
+        # RULE 8: Liquidation distance must be safe - AUTO-ADJUST LEVERAGE IF NEEDED
+        min_liq_distance = Decimal("0.10")  # Minimum 10% distance required
         liq_price = calculate_liquidation_price(current_price, leverage, side)
         liq_distance = abs(current_price - liq_price) / current_price
 
-        if liq_distance < Decimal("0.10"):  # Must be at least 10% away
-            return {
-                'approved': False,
-                'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 10%)',
-                'adjusted_params': None
-            }
+        if liq_distance < min_liq_distance:
+            # Try to adjust leverage downward to increase liquidation distance
+            logger.warning(f"Liquidation too close ({float(liq_distance)*100:.1f}%), adjusting leverage...")
+
+            # Find minimum leverage that gives 10%+ liquidation distance
+            adjusted_leverage = leverage
+            for test_lev in range(leverage - 1, 1, -1):  # Try lower leverages (down to 2x)
+                test_liq_price = calculate_liquidation_price(current_price, test_lev, side)
+                test_liq_distance = abs(current_price - test_liq_price) / current_price
+
+                if test_liq_distance >= min_liq_distance:
+                    adjusted_leverage = test_lev
+                    liq_distance = test_liq_distance
+                    break
+
+            if adjusted_leverage < leverage:
+                logger.info(f"✅ Adjusted leverage {leverage}x → {adjusted_leverage}x (liq distance: {float(liq_distance)*100:.1f}%)")
+                leverage = adjusted_leverage
+                trade_params['leverage'] = adjusted_leverage
+                liq_price = calculate_liquidation_price(current_price, leverage, side)
+                liq_distance = abs(current_price - liq_price) / current_price
+            else:
+                # Even 2x leverage doesn't provide enough distance - reject
+                return {
+                    'approved': False,
+                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 10%, even with 2x leverage)',
+                    'adjusted_params': None
+                }
 
         # RULE 9: Minimum profit target validation
         min_profit_pct = self.settings.min_profit_usd / position_value
