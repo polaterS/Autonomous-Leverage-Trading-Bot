@@ -51,6 +51,22 @@ async def setup_database():
 
         print("✅ Tables created successfully!")
 
+        # Run migration for snapshot columns (idempotent - safe to run multiple times)
+        print("\n🔄 Running ML snapshot migration...")
+        migration_path = Path(__file__).parent / "migrate_snapshots.sql"
+
+        if migration_path.exists():
+            with open(migration_path, 'r', encoding='utf-8') as f:
+                migration_sql = f.read()
+
+            try:
+                await conn.execute(migration_sql)
+                print("✅ ML snapshot migration complete!")
+            except Exception as migration_error:
+                print(f"⚠️ Migration warning (may be already applied): {migration_error}")
+        else:
+            print("⚠️ Migration file not found, skipping...")
+
         # Update initial configuration with environment values
         await conn.execute("""
             UPDATE trading_config

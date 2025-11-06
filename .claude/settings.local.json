@@ -4,7 +4,9 @@
       "Bash(timeout /t 2 /nobreak)",
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -Bc:*)",
       "Bash(timeout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []
