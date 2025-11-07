@@ -1411,6 +1411,11 @@ class MLPatternLearner:
         "Volume ratio > 2.0 → 70% win rate".
         """
         try:
+            # If snapshot is a JSON string (from database), parse it
+            if isinstance(snapshot, str):
+                import json
+                snapshot = json.loads(snapshot)
+
             if not snapshot or 'indicators' not in snapshot:
                 return
 
