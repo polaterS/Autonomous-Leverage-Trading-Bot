@@ -523,6 +523,8 @@ class RiskManager:
         """
         Determine if position should be emergency closed.
 
+        CRITICAL: Checks USD loss (not just price) to guarantee $10 max loss.
+
         Returns:
             (should_close: bool, reason: str)
         """
@@ -533,14 +535,35 @@ class RiskManager:
         if liq_distance < Decimal("0.05"):
             return True, f"EMERGENCY: Liquidation risk ({float(liq_distance)*100:.2f}% away)"
 
-        # Check stop-loss
+        # 🚨 CRITICAL: Check USD loss (PRIMARY stop-loss condition)
+        # Calculate current P&L with fees
+        from src.utils import calculate_pnl
+        pnl_data = calculate_pnl(
+            Decimal(str(position['entry_price'])),
+            current_price,
+            Decimal(str(position['quantity'])),
+            position['side'],
+            position['leverage'],
+            Decimal(str(position['position_value_usd'])),
+            include_fees=True
+        )
+
+        unrealized_pnl = pnl_data['unrealized_pnl']
+
+        # GUARANTEED $10 MAX LOSS (with fees included)
+        MAX_LOSS_USD = Decimal("-10.00")
+
+        if unrealized_pnl <= MAX_LOSS_USD:
+            return True, f"Stop-loss triggered: ${float(unrealized_pnl):.2f} loss (max -$10.00)"
+
+        # BACKUP: Also check price-based stop-loss (for exchange stop-loss orders)
         stop_loss_price = Decimal(str(position['stop_loss_price']))
         side = position['side']
 
         if side == 'LONG' and current_price <= stop_loss_price * Decimal("1.001"):
-            return True, "Stop-loss triggered"
+            return True, f"Price-based stop-loss triggered at ${float(current_price):.4f}"
         elif side == 'SHORT' and current_price >= stop_loss_price * Decimal("0.999"):
-            return True, "Stop-loss triggered"
+            return True, f"Price-based stop-loss triggered at ${float(current_price):.4f}"
 
         return False, ""
 
