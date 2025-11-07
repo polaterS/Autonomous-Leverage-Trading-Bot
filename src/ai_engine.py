@@ -393,47 +393,45 @@ class AIConsensusEngine:
             logger.debug(f"✅ Using cached AI analysis for {symbol} (from Redis)")
             return cached
 
-        # 🎯 #2: Get analyses from BOTH models (uses get_individual_analyses)
-        # This will already include ML enhancement for each model
+        # 🧠 ML-ONLY MODE: Skip AI entirely, use pure ML pattern learning
         from src.ml_pattern_learner import get_ml_learner
         ml_learner = await get_ml_learner()
 
-        # Determine market sentiment for ensemble context
+        # Determine market sentiment for ML context
         market_sentiment = market_data.get('market_sentiment', 'NEUTRAL')
 
-        # Get individual analyses from both models
-        analyses = await self.get_individual_analyses(symbol, market_data, market_sentiment)
+        # 🎯 ALWAYS use ML-ONLY prediction (AI disabled for pure ML learning)
+        logger.debug(f"🧠 Using ML-ONLY mode for {symbol} (AI bypassed)")
 
-        # Handle complete failure - Use ML-only mode
-        if not analyses:
-            logger.warning(f"⚠️ All AI models failed for {symbol} - Falling back to ML-ONLY mode")
+        # Get ML prediction directly
+        ml_prediction = await self._get_ml_only_prediction(symbol, market_data, ml_learner)
 
-            # 🧠 ML-ONLY FALLBACK: Use learned patterns when AI is unavailable
-            ml_prediction = await self._get_ml_only_prediction(symbol, market_data, ml_learner)
+        # Handle ML confidence check
+        if ml_prediction['confidence'] >= 0.50:
+            logger.info(
+                f"🧠 ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
+                f"(patterns: {ml_prediction['pattern_count']})"
+            )
+            return ml_prediction
+        else:
+            logger.info(f"🧠 ML-ONLY: {symbol} confidence too low ({ml_prediction['confidence']:.0%}) - holding")
+            return {
+                'action': 'hold',
+                'side': None,
+                'confidence': ml_prediction['confidence'],
+                'weighted_consensus': False,
+                'reason': f"ML confidence below threshold ({ml_prediction['confidence']:.0%} < 50%)",
+                'suggested_leverage': 2,
+                'stop_loss_percent': 10.0,
+                'risk_reward_ratio': 0.0,
+                'reasoning': 'ML confidence insufficient for trade',
+                'models_used': ['ML-ONLY'],
+                'ensemble_method': 'ml_pure'
+            }
 
-            if ml_prediction['confidence'] >= 0.50:  # 🔥 LOWERED: Let ML learn by taking more trades (was 0.70)
-                logger.info(
-                    f"🧠 ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
-                    f"(patterns: {ml_prediction['pattern_count']})"
-                )
-                return ml_prediction
-            else:
-                logger.info(f"🧠 ML-ONLY: {symbol} confidence too low ({ml_prediction['confidence']:.0%}) - holding")
-                return {
-                    'action': 'hold',
-                    'side': None,
-                    'confidence': ml_prediction['confidence'],
-                    'weighted_consensus': False,
-                    'reason': f"ML-only confidence below threshold ({ml_prediction['confidence']:.0%} < 50%)",
-                    'suggested_leverage': 2,
-                    'stop_loss_percent': 7.0,
-                    'risk_reward_ratio': 0.0,
-                    'reasoning': 'AI unavailable, ML confidence insufficient for trade',
-                    'models_used': ['ML-ONLY'],
-                    'ensemble_method': 'ml_fallback'
-                }
-
-        # 🎯 #2: WEIGHTED ENSEMBLE VOTING (instead of simple majority)
+        # 🎯 OLD CODE REMOVED: AI ensemble voting (now using pure ML)
+        # The rest of the AI ensemble code is kept but never executed
+        # 🎯 #2: WEIGHTED ENSEMBLE VOTING (disabled - using ML-ONLY)
         market_regime = market_data.get('market_regime', 'UNKNOWN')
         consensus = ml_learner.calculate_weighted_ensemble(
             analyses, symbol, market_regime
