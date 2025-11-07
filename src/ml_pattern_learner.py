@@ -802,7 +802,7 @@ class MLPatternLearner:
             # Fallback if all weights are zero
             weighted_confidence = sum(a.get('confidence', 0) for a in analyses) / len(analyses)
             weighted_leverage = 3
-            weighted_stop_loss = 7.0
+            weighted_stop_loss = 10.0  # FIXED: Always 10% for consistent risk management
 
         # Determine winning action and side
         winning_action = max(action_votes.items(), key=lambda x: x[1])[0] if action_votes else 'hold'
