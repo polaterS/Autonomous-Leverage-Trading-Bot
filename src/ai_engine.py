@@ -1,6 +1,7 @@
 """
 AI Consensus Engine for trading analysis.
-Integrates Qwen3-Max and DeepSeek-V3.2 for 2-model consensus.
+🧠 PURE ML AUTONOMOUS MODE: AI models bypassed, using ML pattern learning only.
+Version: 2.0 - ML-ONLY (No API calls)
 """
 
 import asyncio
@@ -15,6 +16,10 @@ from src.redis_client import get_redis_client
 import json
 
 logger = setup_logging()
+
+# Version marker for deployment verification
+ML_ONLY_VERSION = "2.0-ML-PURE"
+logger.info(f"🧠 AI Engine initialized - Mode: {ML_ONLY_VERSION} (AI APIs bypassed)")
 
 
 class AIConsensusEngine:
