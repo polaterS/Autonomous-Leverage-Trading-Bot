@@ -48,8 +48,7 @@ class Settings(BaseSettings):
 
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
-    max_consecutive_losses: int = Field(default=5, ge=1)  # Circuit breaker: Pause after 5 losses
-    circuit_breaker_pause_minutes: int = Field(default=60, ge=10)  # 1 hour pause after consecutive losses
+    max_consecutive_losses: int = Field(default=5, ge=1)  # Log warning after 5 losses (but continue trading for ML learning)
 
     # Feature Flags
     use_paper_trading: bool = Field(default=True)

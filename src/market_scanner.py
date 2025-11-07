@@ -58,30 +58,17 @@ class MarketScanner:
 
         Elite institutional approach!
         """
-        # 🚨 CIRCUIT BREAKER CHECK: Pause trading after consecutive losses
+        logger.info("🔍 Starting market scan (Ultra Professional Strategy)...")
+        notifier = get_notifier()
+
+        # 📊 LOG consecutive losses for awareness (but don't pause trading)
         from src.database import get_db_client
         db = await get_db_client()
         consecutive_losses = await db.get_consecutive_losses()
-
-        if consecutive_losses >= self.settings.max_consecutive_losses:
-            pause_minutes = self.settings.circuit_breaker_pause_minutes
-            logger.critical(f"🚨 CIRCUIT BREAKER: {consecutive_losses} consecutive losses detected!")
-            logger.warning(f"⏸️ Trading PAUSED for {pause_minutes} minutes to prevent further losses")
-            notifier = get_notifier()
-            await notifier.send_alert(
-                'critical',
-                f"🚨 CIRCUIT BREAKER ACTIVATED\n\n"
-                f"Consecutive losses: {consecutive_losses}\n"
-                f"Trading paused for {pause_minutes} minutes\n\n"
-                f"Market conditions may have changed. Bot will resume automatically."
-            )
-            # Wait for pause period
-            await asyncio.sleep(pause_minutes * 60)
-            logger.info(f"✅ Circuit breaker pause ended, resuming trading...")
-            await notifier.send_alert('info', '✅ Trading resumed after circuit breaker pause')
-
-        logger.info("🔍 Starting market scan (Ultra Professional Strategy)...")
-        notifier = get_notifier()
+        if consecutive_losses >= 5:
+            logger.warning(f"⚠️ High consecutive losses detected: {consecutive_losses} (continuing to trade for ML learning)")
+        elif consecutive_losses >= 3:
+            logger.info(f"📊 Consecutive losses: {consecutive_losses}")
 
         await notifier.send_alert('info', '🔍 Market scan started...')
 
