@@ -242,10 +242,11 @@ class MLPatternLearner:
 
 
     def _extract_pattern_keywords(self, reasoning: str) -> List[str]:
-        """Extract key pattern indicators from AI reasoning"""
+        """Extract key pattern indicators from AI reasoning AND ML-ONLY patterns"""
         keywords = []
         reasoning_lower = reasoning.lower()
 
+        # Traditional AI pattern indicators
         pattern_indicators = [
             'bullish divergence', 'bearish divergence',
             'volume breakout', 'volume surge',
@@ -261,7 +262,19 @@ class MLPatternLearner:
             'oversold bounce', 'overbought rejection'
         ]
 
-        for pattern in pattern_indicators:
+        # ML-ONLY mode patterns (from ai_engine.py _get_ml_only_prediction)
+        ml_only_patterns = [
+            'strong_bullish_trend', 'strong_bearish_trend',
+            'bullish_trend', 'bearish_trend',
+            'rsi_oversold', 'rsi_overbought',
+            'rsi_weak', 'rsi_strong',
+            'regime_low_vol', 'regime_normal_vol', 'regime_high_vol'
+        ]
+
+        # Extract both traditional and ML-ONLY patterns
+        all_patterns = pattern_indicators + ml_only_patterns
+
+        for pattern in all_patterns:
             if pattern in reasoning_lower:
                 keywords.append(pattern)
 

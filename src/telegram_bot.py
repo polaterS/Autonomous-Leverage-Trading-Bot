@@ -594,31 +594,43 @@ Sorularınız için: @your_support
 
             # 7. Pattern Success Rate (NEW!)
             message += "\n<b>🧠 PATTERN BAŞARI ORANI</b>\n"
-            # Get pattern data from ML learner
+            # Get pattern data from ML learner's winning_patterns and losing_patterns
             pattern_performance = {}
 
-            # Check if ML has symbol_patterns attribute (new ML implementation)
-            if hasattr(ml, 'symbol_patterns') and ml.symbol_patterns:
-                for symbol, patterns in ml.symbol_patterns.items():
-                    for pattern_name, pattern_data in patterns.items():
-                        if pattern_name not in pattern_performance:
-                            pattern_performance[pattern_name] = {'wins': 0, 'total': 0}
-                        pattern_performance[pattern_name]['wins'] += pattern_data.get('wins', 0)
-                        pattern_performance[pattern_name]['total'] += pattern_data.get('total', 0)
+            # Use ML's actual winning_patterns and losing_patterns dictionaries
+            if hasattr(ml, 'winning_patterns') and hasattr(ml, 'losing_patterns'):
+                # Combine winning and losing patterns
+                all_patterns = set(ml.winning_patterns.keys()) | set(ml.losing_patterns.keys())
+
+                for pattern in all_patterns:
+                    wins = ml.winning_patterns.get(pattern, 0)
+                    losses = ml.losing_patterns.get(pattern, 0)
+                    total = wins + losses
+
+                    if total > 0:
+                        pattern_performance[pattern] = {
+                            'wins': wins,
+                            'total': total,
+                            'win_rate': (wins / total) * 100
+                        }
 
             if pattern_performance:
-                # Show top 5 best performing patterns
+                # Show top 5 best performing patterns (minimum 5 occurrences)
                 sorted_patterns = sorted(
-                    pattern_performance.items(),
-                    key=lambda x: x[1]['wins'] / x[1]['total'] if x[1]['total'] > 0 else 0,
+                    [(p, s) for p, s in pattern_performance.items() if s['total'] >= 5],
+                    key=lambda x: x[1]['win_rate'],
                     reverse=True
                 )[:5]
-                for pattern, stats in sorted_patterns:
-                    if stats['total'] >= 2:  # At least 2 occurrences
-                        acc = stats['wins'] / stats['total'] * 100
+
+                if sorted_patterns:
+                    for pattern, stats in sorted_patterns:
+                        acc = stats['win_rate']
                         emoji = "🟢" if acc >= 70 else "🟡" if acc >= 50 else "🔴"
                         pattern_display = pattern.replace('_', ' ').title()
-                        message += f"{emoji} {pattern_display}: {acc:.0f}% ({stats['total']})\n"
+                        message += f"{emoji} {pattern_display}: {acc:.0f}% WR ({stats['wins']}W/{stats['total']-stats['wins']}L)\n"
+                else:
+                    message += "• Patterns tespit edildi ama henüz yeterli örnek yok (min 5)\n"
+                    message += f"• Toplam {len(pattern_performance)} farklı pattern öğrenildi\n"
             else:
                 message += "• ML henüz pattern öğreniyor...\n"
                 message += "• Trade sayısı arttıkça pattern'ler burada görünecek\n"
