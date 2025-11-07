@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
     max_leverage: int = Field(default=30, ge=1, le=50)  # AI can choose 2x-30x based on setup quality
     max_concurrent_positions: int = Field(default=15, ge=1, le=20)  # 15 positions max (one per coin)
-    position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% of capital per trade
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # Fixed 10% stop-loss
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # Fixed 10% stop-loss
+    position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # NOTE: Overridden by FIXED $100 sizing in trade_executor.py
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% max loss per trade ($10 on $100 position)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% max loss per trade ($10 on $100 position)
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)  # 50% - Aggressive ML learning mode

@@ -67,16 +67,24 @@ class TradeExecutor:
             # Get current capital
             current_capital = await db.get_current_capital()
 
-            # Calculate position size
+            # Calculate position size (FIXED $100 per trade for consistent risk management)
+            FIXED_POSITION_SIZE_USD = Decimal("100.00")
             quantity, position_value = calculate_position_size(
                 current_capital,
                 self.settings.position_size_percent,
                 entry_price,
-                leverage
+                leverage,
+                fixed_position_usd=FIXED_POSITION_SIZE_USD
             )
 
-            # Calculate risk management prices
-            stop_loss_price = calculate_stop_loss_price(entry_price, stop_loss_percent, side)
+            # Calculate risk management prices (WITH LEVERAGE ADJUSTMENT!)
+            stop_loss_price = calculate_stop_loss_price(
+                entry_price,
+                stop_loss_percent,
+                side,
+                leverage=leverage,
+                position_value=position_value
+            )
             liquidation_price = calculate_liquidation_price(entry_price, leverage, side)
             min_profit_price = calculate_min_profit_price(
                 entry_price,

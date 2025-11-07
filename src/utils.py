@@ -105,16 +105,30 @@ def calculate_position_size(
     capital: Decimal,
     position_size_percent: Decimal,
     entry_price: Decimal,
-    leverage: int
+    leverage: int,
+    fixed_position_usd: Optional[Decimal] = None
 ) -> tuple[Decimal, Decimal]:
     """
     Calculate position quantity and value.
 
+    Args:
+        capital: Current capital
+        position_size_percent: Position size as % of capital (used if fixed_position_usd is None)
+        entry_price: Entry price
+        leverage: Leverage multiplier
+        fixed_position_usd: If set, uses this fixed USD amount instead of percentage
+
     Returns:
         (quantity, position_value_usd)
     """
-    # Calculate position value (before leverage)
-    position_value = capital * position_size_percent
+    # FIXED USD SIZING: Use fixed amount if specified (e.g., always $100)
+    if fixed_position_usd is not None:
+        position_value = fixed_position_usd
+        logger = logging.getLogger('trading_bot')
+        logger.info(f"💰 Using FIXED position size: ${float(position_value):.2f} (not {float(position_size_percent*100):.1f}% of capital)")
+    else:
+        # PERCENTAGE SIZING: Calculate position value as % of capital
+        position_value = capital * position_size_percent
 
     # Calculate quantity
     leverage_decimal = Decimal(str(leverage))
@@ -126,9 +140,57 @@ def calculate_position_size(
 def calculate_stop_loss_price(
     entry_price: Decimal,
     stop_loss_percent: Decimal,
-    side: str
+    side: str,
+    leverage: Optional[int] = None,
+    position_value: Optional[Decimal] = None
 ) -> Decimal:
-    """Calculate stop-loss price."""
+    """
+    Calculate stop-loss price based on maximum USD loss (accounting for leverage).
+
+    CRITICAL FIX: The stop-loss must account for leverage!
+    - Without leverage consideration: 10% price stop = 10% loss
+    - With 10x leverage: 10% price stop = 100% loss (LIQUIDATION!)
+
+    The correct formula:
+    - Max USD loss = position_value * stop_loss_percent / 100
+    - Price stop % = (Max USD loss / position_value) / leverage
+
+    Args:
+        entry_price: Entry price
+        stop_loss_percent: Maximum loss as % of position value (e.g., 10 for 10%)
+        side: 'LONG' or 'SHORT'
+        leverage: Position leverage (if None, uses old simple calculation)
+        position_value: Position value in USD (if None, uses old simple calculation)
+
+    Returns:
+        Stop-loss price
+    """
+    # NEW: Leverage-adjusted stop-loss calculation
+    if leverage is not None and position_value is not None and leverage > 1:
+        # Calculate price move % that results in the desired USD loss
+        # Example: $100 position, 10% max loss = $10, 9x leverage
+        # Price move % = $10 / $100 / 9 = 1.11% (not 10%!)
+        max_usd_loss_percent = stop_loss_percent / 100  # e.g., 0.10 for 10%
+        price_move_percent = max_usd_loss_percent / Decimal(str(leverage))
+
+        if side == 'LONG':
+            # For longs, stop-loss is below entry
+            sl_price = entry_price * (1 - price_move_percent)
+        else:  # SHORT
+            # For shorts, stop-loss is above entry
+            sl_price = entry_price * (1 + price_move_percent)
+
+        logger = logging.getLogger('trading_bot')
+        logger.info(
+            f"🎯 LEVERAGE-ADJUSTED STOP-LOSS: {side} {leverage}x | "
+            f"Max loss: {float(stop_loss_percent):.1f}% (${float(position_value * max_usd_loss_percent):.2f}) | "
+            f"Price stop: {float(price_move_percent * 100):.2f}% | "
+            f"Entry: ${float(entry_price):.4f} → Stop: ${float(sl_price):.4f}"
+        )
+
+        return sl_price
+
+    # OLD: Simple percentage-based calculation (fallback for legacy code)
     sl_decimal = stop_loss_percent / 100
 
     if side == 'LONG':
