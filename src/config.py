@@ -34,15 +34,15 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
-    initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)
-    max_leverage: int = Field(default=10, ge=1, le=50)  # Safe max: 10x (50x for paper trading ML learning)
-    max_concurrent_positions: int = Field(default=15, ge=1, le=20)  # AGGRESSIVE: 15 for faster ML learning
-    position_size_percent: Decimal = Field(default=Decimal("0.80"), gt=0, le=1)
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% for extreme leverage
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% for low leverage
-    min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # AGGRESSIVE: Lower for faster trades
-    max_position_hours: int = Field(default=8, ge=1, le=48)  # AGGRESSIVE: Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 60% - Balanced approach (autonomous mode)
+    initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
+    max_leverage: int = Field(default=3, ge=1, le=50)  # Conservative: 3x max with 10% stop-loss
+    max_concurrent_positions: int = Field(default=15, ge=1, le=20)  # 15 positions max (one per coin)
+    position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% of capital per trade
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # Fixed 10% stop-loss
+    max_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # Fixed 10% stop-loss
+    min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
+    max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
+    min_ai_confidence: Decimal = Field(default=Decimal("0.65"), ge=0, le=1)  # 65% - Quality over quantity
     scan_interval_seconds: int = Field(default=30, ge=10)  # 🔥 AGGRESSIVE: 30 seconds for fast ML learning
     position_check_seconds: int = Field(default=15, ge=5)  # 🔥 AGGRESSIVE: 15 seconds for real-time monitoring
 
