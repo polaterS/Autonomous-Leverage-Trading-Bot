@@ -88,6 +88,22 @@ class MLPatternLearner:
         self.total_trades_analyzed: int = 0
         self.learning_rate: float = 0.1  # How fast to adapt
 
+        # 🎯 SNAPSHOT-BASED NUMERICAL LEARNING (NEW!)
+        # Learn from actual indicator values, not just text patterns
+        self.indicator_win_conditions: Dict[str, List[Tuple[Dict, bool, datetime]]] = defaultdict(list)
+        # Format: {'RSI': [(value, won/lost, timestamp), ...]}
+
+        self.learned_indicator_rules: Dict[str, Dict] = {
+            'rsi': {'winning_ranges': [], 'losing_ranges': []},
+            'volume_ratio': {'winning_ranges': [], 'losing_ranges': []},
+            'support_distance': {'winning_ranges': [], 'losing_ranges': []},
+            'resistance_distance': {'winning_ranges': [], 'losing_ranges': []},
+            'macd_histogram': {'winning_ranges': [], 'losing_ranges': []},
+            'bb_position': {'winning_categories': defaultdict(lambda: {'wins': 0, 'losses': 0}), 'losing_categories': defaultdict(lambda: {'wins': 0, 'losses': 0})},
+            'order_book_imbalance': {'winning_ranges': [], 'losing_ranges': []},
+            'funding_rate': {'winning_ranges': [], 'losing_ranges': []}
+        }
+
         # 📊 STATISTICAL VALIDATION (NEW!)
         # Track win/loss outcomes per feature for t-test validation
         # 🎯 #8: Now with timestamps for time-decay weighting
@@ -232,6 +248,13 @@ class MLPatternLearner:
             self.market_regimes.append(market_state)
 
             self.total_trades_analyzed += 1
+
+            # 🎯 SNAPSHOT-BASED LEARNING: Learn from numerical indicators
+            entry_snapshot = trade.get('entry_snapshot')
+            exit_snapshot = trade.get('exit_snapshot')
+
+            if entry_snapshot:
+                await self._learn_from_snapshot(entry_snapshot, is_winner, trade_timestamp)
 
             if not initial_load:
                 logger.info(f"📈 Learned from trade: {symbol} {'WIN' if is_winner else 'LOSS'} "
@@ -1378,6 +1401,213 @@ class MLPatternLearner:
         sorted_features = sorted(self.feature_scores.items(), key=lambda x: x[1], reverse=True)
         return ", ".join([f"{feat.replace('_', ' ')}: {score:.2f}"
                          for feat, score in sorted_features[:limit] if score > 0])
+
+    async def _learn_from_snapshot(self, snapshot: Dict, is_winner: bool, timestamp: datetime):
+        """
+        🎯 SNAPSHOT-BASED LEARNING: Learn from numerical indicator values.
+
+        This function analyzes actual indicator values (RSI, volume, support distance, etc.)
+        to discover winning conditions like "RSI < 30 → 85% win rate" or
+        "Volume ratio > 2.0 → 70% win rate".
+        """
+        try:
+            if not snapshot or 'indicators' not in snapshot:
+                return
+
+            indicators = snapshot.get('indicators', {})
+            volume = snapshot.get('volume', {})
+            levels = snapshot.get('levels', {})
+            order_book = snapshot.get('order_book')
+            funding = snapshot.get('funding')
+            market_regime = snapshot.get('market_regime', {})
+
+            # Record indicator values with outcome
+            indicator_data = {
+                'rsi': indicators.get('rsi'),
+                'rsi_category': indicators.get('rsi_category'),
+                'volume_ratio': volume.get('volume_ratio'),
+                'volume_category': volume.get('volume_category'),
+                'support_distance_percent': levels.get('support_distance_percent'),
+                'resistance_distance_percent': levels.get('resistance_distance_percent'),
+                'macd_histogram': indicators.get('macd_histogram'),
+                'bb_position': indicators.get('bb_position'),
+                'bb_width_percent': indicators.get('bb_width_percent'),
+                'adx': indicators.get('adx'),
+                'adx_trend_strength': indicators.get('adx_trend_strength'),
+                'order_book_imbalance': order_book.get('imbalance') if order_book else None,
+                'funding_rate': funding.get('rate') if funding else None,
+                'funding_category': funding.get('category') if funding else None,
+                'market_regime': market_regime.get('combined'),
+                'trend_direction': snapshot.get('trend', {}).get('overall_direction')
+            }
+
+            # Store this snapshot's indicators with outcome
+            for indicator_name, value in indicator_data.items():
+                if value is not None:
+                    self.indicator_win_conditions[indicator_name].append((value, is_winner, timestamp))
+
+            # Periodically update learned rules (every 10 trades)
+            if self.total_trades_analyzed % 10 == 0:
+                await self._update_learned_indicator_rules()
+
+        except Exception as e:
+            logger.error(f"❌ Failed to learn from snapshot: {e}", exc_info=True)
+
+    async def _update_learned_indicator_rules(self):
+        """
+        🎯 Analyze collected indicator data to discover winning patterns.
+
+        Uses statistical analysis to find indicator ranges/values that correlate with wins.
+        """
+        try:
+            logger.info("🧠 Updating learned indicator rules from snapshots...")
+
+            # RSI Learning
+            if 'rsi' in self.indicator_win_conditions:
+                rsi_data = self.indicator_win_conditions['rsi']
+                if len(rsi_data) >= 30:  # Need at least 30 samples
+                    winning_rsis = [v for v, won, t in rsi_data if won]
+                    losing_rsis = [v for v, won, t in rsi_data if not won]
+
+                    if winning_rsis:
+                        # Find winning RSI ranges
+                        win_mean = np.mean(winning_rsis)
+                        win_std = np.std(winning_rsis)
+                        self.learned_indicator_rules['rsi']['winning_ranges'] = [
+                            {'min': win_mean - win_std, 'max': win_mean + win_std, 'samples': len(winning_rsis)}
+                        ]
+                        logger.info(f"   📊 RSI winning range: {win_mean - win_std:.1f} - {win_mean + win_std:.1f}")
+
+            # Volume Ratio Learning
+            if 'volume_ratio' in self.indicator_win_conditions:
+                vol_data = self.indicator_win_conditions['volume_ratio']
+                if len(vol_data) >= 30:
+                    winning_vols = [v for v, won, t in vol_data if won]
+                    losing_vols = [v for v, won, t in vol_data if not won]
+
+                    if winning_vols:
+                        win_median = np.median(winning_vols)
+                        logger.info(f"   📊 Volume ratio winning median: {win_median:.2f}x")
+
+            # Support Distance Learning (how close to support level)
+            if 'support_distance_percent' in self.indicator_win_conditions:
+                support_data = [(v, won, t) for v, won, t in self.indicator_win_conditions['support_distance_percent'] if v is not None]
+                if len(support_data) >= 20:
+                    winning_distances = [v for v, won, t in support_data if won]
+                    if winning_distances:
+                        # Trades near support (<5% away) tend to win?
+                        near_support_wins = len([d for d in winning_distances if d < 5.0])
+                        near_support_total = len([d for d, w, t in support_data if d < 5.0])
+                        if near_support_total > 0:
+                            near_support_wr = near_support_wins / near_support_total
+                            logger.info(f"   🎯 Near support (<5%) win rate: {near_support_wr:.1%}")
+
+            # Bollinger Band Position Learning (categorical)
+            if 'bb_position' in self.indicator_win_conditions:
+                bb_data = self.indicator_win_conditions['bb_position']
+                if len(bb_data) >= 20:
+                    bb_win_counts = defaultdict(lambda: {'wins': 0, 'total': 0})
+                    for position, won, t in bb_data:
+                        bb_win_counts[position]['total'] += 1
+                        if won:
+                            bb_win_counts[position]['wins'] += 1
+
+                    # Find best BB positions
+                    for position, stats in bb_win_counts.items():
+                        if stats['total'] >= 5:
+                            wr = stats['wins'] / stats['total']
+                            logger.info(f"   📊 BB {position}: {wr:.1%} WR ({stats['wins']}/{stats['total']})")
+
+            # Order Book Imbalance Learning
+            if 'order_book_imbalance' in self.indicator_win_conditions:
+                ob_data = [(v, won, t) for v, won, t in self.indicator_win_conditions['order_book_imbalance'] if v is not None]
+                if len(ob_data) >= 20:
+                    winning_imbalances = [v for v, won, t in ob_data if won]
+                    if winning_imbalances:
+                        win_mean = np.mean(winning_imbalances)
+                        logger.info(f"   📊 Order book imbalance winning mean: {win_mean:+.3f}")
+
+            logger.info("✅ Indicator rules updated successfully")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update indicator rules: {e}", exc_info=True)
+
+    def get_snapshot_based_prediction(self, snapshot: Dict) -> Dict[str, Any]:
+        """
+        🎯 Get ML prediction based on current snapshot indicators.
+
+        Returns confidence boost/penalty based on learned indicator patterns.
+        """
+        try:
+            if not snapshot or 'indicators' not in snapshot:
+                return {'confidence_adjustment': 0.0, 'reasons': []}
+
+            indicators = snapshot.get('indicators', {})
+            volume = snapshot.get('volume', {})
+            levels = snapshot.get('levels', {})
+
+            confidence_adjustment = 0.0
+            reasons = []
+
+            # RSI-based adjustment
+            rsi = indicators.get('rsi')
+            if rsi and 'rsi' in self.learned_indicator_rules:
+                winning_ranges = self.learned_indicator_rules['rsi'].get('winning_ranges', [])
+                for range_data in winning_ranges:
+                    if range_data['min'] <= rsi <= range_data['max']:
+                        if range_data['samples'] >= 20:  # Only trust with enough samples
+                            boost = 0.05
+                            confidence_adjustment += boost
+                            reasons.append(f"RSI {rsi:.0f} in winning range (+{boost:.1%})")
+                            break
+
+            # Volume-based adjustment
+            volume_ratio = volume.get('volume_ratio')
+            if volume_ratio:
+                # High volume (>2x) often indicates strong moves
+                if volume_ratio >= 2.0:
+                    boost = 0.03
+                    confidence_adjustment += boost
+                    reasons.append(f"High volume {volume_ratio:.1f}x (+{boost:.1%})")
+
+            # Support distance adjustment
+            support_dist = levels.get('support_distance_percent')
+            if support_dist and support_dist < 5.0:
+                # Very close to support = potential bounce
+                boost = 0.04
+                confidence_adjustment += boost
+                reasons.append(f"Near support {support_dist:.1f}% (+{boost:.1%})")
+
+            # Resistance distance adjustment
+            resistance_dist = levels.get('resistance_distance_percent')
+            if resistance_dist and resistance_dist < 3.0:
+                # Very close to resistance = potential rejection
+                penalty = -0.04
+                confidence_adjustment += penalty
+                reasons.append(f"Near resistance {resistance_dist:.1f}% ({penalty:.1%})")
+
+            # Bollinger Band position
+            bb_position = indicators.get('bb_position')
+            if bb_position == 'below_lower':
+                # Oversold condition
+                boost = 0.05
+                confidence_adjustment += boost
+                reasons.append(f"BB oversold (+{boost:.1%})")
+            elif bb_position == 'above_upper':
+                # Overbought condition
+                penalty = -0.03
+                confidence_adjustment += penalty
+                reasons.append(f"BB overbought ({penalty:.1%})")
+
+            return {
+                'confidence_adjustment': round(confidence_adjustment, 3),
+                'reasons': reasons,
+                'total_snapshots_learned': sum(len(v) for v in self.indicator_win_conditions.values())
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Snapshot prediction failed: {e}")
+            return {'confidence_adjustment': 0.0, 'reasons': []}
 
 
     def get_statistics(self) -> Dict:

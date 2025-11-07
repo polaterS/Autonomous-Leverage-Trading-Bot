@@ -245,12 +245,14 @@ class TradeExecutor:
             # 📸 CAPTURE ENTRY SNAPSHOT FOR ML LEARNING
             entry_snapshot = None
             try:
-                from src.market_snapshot import get_snapshot_capture
-                snapshot_capture = await get_snapshot_capture(exchange)
-                entry_snapshot = await snapshot_capture.capture_snapshot(
+                from src.snapshot_capture import capture_market_snapshot
+                entry_snapshot = await capture_market_snapshot(
+                    exchange_client=exchange,
                     symbol=symbol,
                     current_price=actual_entry_price,
-                    context="entry"
+                    indicators=market_data.get('indicators', {}),
+                    side=side,
+                    snapshot_type="entry"
                 )
                 logger.info(f"📸 Entry snapshot captured for ML learning")
             except Exception as snapshot_error:
@@ -491,12 +493,32 @@ class TradeExecutor:
             # 📸 CAPTURE EXIT SNAPSHOT FOR ML LEARNING
             exit_snapshot = None
             try:
-                from src.market_snapshot import get_snapshot_capture
-                snapshot_capture = await get_snapshot_capture(exchange)
-                exit_snapshot = await snapshot_capture.capture_snapshot(
+                from src.snapshot_capture import capture_market_snapshot
+                # Fetch current market data for exit snapshot
+                exit_market_data = await exchange.fetch_ticker(symbol)
+                exit_indicators = {}  # Will be populated by market analysis if available
+
+                # Try to get fresh indicators from market scanner
+                try:
+                    from src.market_scanner import MarketScanner
+                    scanner = MarketScanner()
+                    analysis = await scanner._analyze_symbol(symbol)
+                    exit_indicators = analysis.get('indicators', {}) if analysis else {}
+                except:
+                    # Fallback: use basic ticker data
+                    exit_indicators = {
+                        'close': float(exit_price),
+                        'volume': exit_market_data.get('quoteVolume', 0),
+                        'price_change_24h_percent': exit_market_data.get('percentage', 0)
+                    }
+
+                exit_snapshot = await capture_market_snapshot(
+                    exchange_client=exchange,
                     symbol=symbol,
                     current_price=exit_price,
-                    context="exit"
+                    indicators=exit_indicators,
+                    side=side,
+                    snapshot_type="exit"
                 )
                 logger.info(f"📸 Exit snapshot captured for ML learning")
             except Exception as snapshot_error:

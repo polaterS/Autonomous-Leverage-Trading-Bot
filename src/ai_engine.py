@@ -815,6 +815,39 @@ RESPONSE FORMAT (JSON only):
 
         base_confidence = min(0.95, base_confidence + pattern_wr_adjustment)
 
+        # 📸 SNAPSHOT-BASED ML PREDICTION: Learn from numerical indicators
+        snapshot_adjustment = 0.0
+        snapshot_reasons = []
+        try:
+            # Capture current snapshot for prediction
+            from src.snapshot_capture import capture_market_snapshot
+            from src.exchange_client import get_exchange_client
+            exchange = await get_exchange_client()
+
+            current_snapshot = await capture_market_snapshot(
+                exchange_client=exchange,
+                symbol=symbol,
+                current_price=Decimal(str(indicators.get('close', 0))),
+                indicators=indicators,
+                side=None,  # Don't know side yet
+                snapshot_type="prediction"
+            )
+
+            # Get ML's snapshot-based prediction
+            snapshot_prediction = ml_learner.get_snapshot_based_prediction(current_snapshot)
+            snapshot_adjustment = snapshot_prediction.get('confidence_adjustment', 0.0)
+            snapshot_reasons = snapshot_prediction.get('reasons', [])
+
+            if snapshot_adjustment != 0:
+                logger.info(f"📸 {symbol}: Snapshot-based ML adjustment: {snapshot_adjustment:+.1%}")
+                for reason in snapshot_reasons:
+                    logger.info(f"   - {reason}")
+
+        except Exception as e:
+            logger.debug(f"Snapshot-based prediction skipped: {e}")
+
+        base_confidence = min(0.95, base_confidence + snapshot_adjustment)
+
         # Adjust confidence based on symbol historical performance
         symbol_threshold = ml_learner.get_confidence_threshold(symbol)
         symbol_adjustment = (symbol_threshold - 0.6) / 0.4  # Normalize around 0.6
