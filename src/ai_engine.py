@@ -781,12 +781,64 @@ RESPONSE FORMAT (JSON only):
         pattern_boost = min(0.15, pattern_count * 0.03)  # +3% per pattern, max +15%
         base_confidence = min(0.95, base_confidence + pattern_boost)
 
+        # 🧠 ML PATTERN WIN RATE ADJUSTMENT: Boost/penalize based on historical pattern success
+        pattern_wr_adjustment = 0.0
+        pattern_wrs = []
+        for pattern in pattern_features:
+            wins = ml_learner.winning_patterns.get(pattern, 0)
+            losses = ml_learner.losing_patterns.get(pattern, 0)
+            total = wins + losses
+            if total >= 5:  # Only use patterns with 5+ occurrences
+                wr = wins / total
+                pattern_wrs.append(wr)
+
+        if pattern_wrs:
+            avg_pattern_wr = sum(pattern_wrs) / len(pattern_wrs)
+            # Adjust confidence based on pattern success rate
+            # 85%+ WR → +10% confidence boost
+            # 75-84% WR → +5% confidence boost
+            # 60-74% WR → No change
+            # 50-59% WR → -5% confidence penalty
+            # <50% WR → -10% confidence penalty
+            if avg_pattern_wr >= 0.85:
+                pattern_wr_adjustment = 0.10
+                logger.info(f"🟢 {symbol}: Excellent pattern WR ({avg_pattern_wr:.1%}) → +10% confidence boost")
+            elif avg_pattern_wr >= 0.75:
+                pattern_wr_adjustment = 0.05
+                logger.info(f"🟢 {symbol}: Good pattern WR ({avg_pattern_wr:.1%}) → +5% confidence boost")
+            elif avg_pattern_wr < 0.50:
+                pattern_wr_adjustment = -0.10
+                logger.warning(f"🔴 {symbol}: Poor pattern WR ({avg_pattern_wr:.1%}) → -10% confidence penalty")
+            elif avg_pattern_wr < 0.60:
+                pattern_wr_adjustment = -0.05
+                logger.warning(f"🟡 {symbol}: Below-average pattern WR ({avg_pattern_wr:.1%}) → -5% confidence penalty")
+
+        base_confidence = min(0.95, base_confidence + pattern_wr_adjustment)
+
         # Adjust confidence based on symbol historical performance
         symbol_threshold = ml_learner.get_confidence_threshold(symbol)
         symbol_adjustment = (symbol_threshold - 0.6) / 0.4  # Normalize around 0.6
 
         final_confidence = base_confidence * (1 + symbol_adjustment * 0.2)  # ±20% adjustment
-        final_confidence = max(0.50, min(0.95, final_confidence))  # Clamp [0.50, 0.95]
+
+        # 🌍 MARKET REGIME ADAPTATION: Adjust confidence based on current market conditions
+        regime = ml_learner.current_regime
+        regime_adjustment = 0.0
+
+        if regime == "HIGH_VOLATILITY_UNFAVORABLE":
+            # Unfavorable conditions → Very conservative (raise confidence bar)
+            regime_adjustment = 0.15  # +15% confidence required
+            logger.warning(f"⚠️ {symbol}: Unfavorable high volatility regime → +15% confidence required")
+        elif regime == "MIXED_CONDITIONS":
+            # Mixed conditions → Slightly conservative
+            regime_adjustment = 0.05  # +5% confidence required
+            logger.info(f"📊 {symbol}: Mixed conditions regime → +5% confidence required")
+        elif regime in ["BULL_TREND", "BEAR_TREND", "FAVORABLE_VOLATILE"]:
+            # Favorable conditions → Slightly aggressive (lower confidence bar)
+            regime_adjustment = -0.05  # -5% confidence required
+            logger.info(f"✅ {symbol}: Favorable {regime} regime → -5% confidence required")
+
+        final_confidence = max(0.50, min(0.95, final_confidence - regime_adjustment))  # Apply regime adjustment
 
         # Determine action based on strongest pattern
         action = 'hold'

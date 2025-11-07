@@ -42,13 +42,14 @@ class Settings(BaseSettings):
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% max loss per trade ($10 on $100 position)
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.45"), ge=0, le=1)  # 45% - ULTRA AGGRESSIVE ML learning mode
+    min_ai_confidence: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)  # 50% - BALANCED: Quality over quantity after ML learning
     scan_interval_seconds: int = Field(default=30, ge=10)  # 🔥 AGGRESSIVE: 30 seconds for fast ML learning
     position_check_seconds: int = Field(default=15, ge=5)  # 🔥 AGGRESSIVE: 15 seconds for real-time monitoring
 
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
-    max_consecutive_losses: int = Field(default=3, ge=1)
+    max_consecutive_losses: int = Field(default=5, ge=1)  # Circuit breaker: Pause after 5 losses
+    circuit_breaker_pause_minutes: int = Field(default=60, ge=10)  # 1 hour pause after consecutive losses
 
     # Feature Flags
     use_paper_trading: bool = Field(default=True)

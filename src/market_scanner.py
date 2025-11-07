@@ -58,6 +58,28 @@ class MarketScanner:
 
         Elite institutional approach!
         """
+        # 🚨 CIRCUIT BREAKER CHECK: Pause trading after consecutive losses
+        from src.database import get_db_client
+        db = await get_db_client()
+        consecutive_losses = await db.get_consecutive_losses()
+
+        if consecutive_losses >= self.settings.max_consecutive_losses:
+            pause_minutes = self.settings.circuit_breaker_pause_minutes
+            logger.critical(f"🚨 CIRCUIT BREAKER: {consecutive_losses} consecutive losses detected!")
+            logger.warning(f"⏸️ Trading PAUSED for {pause_minutes} minutes to prevent further losses")
+            notifier = get_notifier()
+            await notifier.send_alert(
+                'critical',
+                f"🚨 CIRCUIT BREAKER ACTIVATED\n\n"
+                f"Consecutive losses: {consecutive_losses}\n"
+                f"Trading paused for {pause_minutes} minutes\n\n"
+                f"Market conditions may have changed. Bot will resume automatically."
+            )
+            # Wait for pause period
+            await asyncio.sleep(pause_minutes * 60)
+            logger.info(f"✅ Circuit breaker pause ended, resuming trading...")
+            await notifier.send_alert('info', '✅ Trading resumed after circuit breaker pause')
+
         logger.info("🔍 Starting market scan (Ultra Professional Strategy)...")
         notifier = get_notifier()
 
@@ -258,14 +280,46 @@ class MarketScanner:
                 # Select TOP N opportunities from available coins (up to available slots)
                 top_opportunities = available_analyses[:available_slots]
 
-                # Filter by minimum thresholds
-                # 🔥 ULTRA AGGRESSIVE: Lowered to 10 for ML-only learning mode (confluence often 0%)
-                min_score = 10.0
-                qualified_opportunities = [
-                    opp for opp in top_opportunities
-                    if opp['confidence'] >= float(self.settings.min_ai_confidence)
-                    and opp['opportunity_score'] >= min_score
-                ]
+                # Filter by minimum thresholds - QUALITY OVER QUANTITY
+                # After ML learning phase, we prioritize high-quality setups
+                min_score = 30.0  # Higher quality bar (was 10.0)
+                min_confidence = float(self.settings.min_ai_confidence)
+
+                # 🧠 ML PATTERN QUALITY FILTER: Check if trade patterns have good historical WR
+                from src.ml_pattern_learner import get_ml_learner
+                ml_learner = await get_ml_learner()
+
+                qualified_opportunities = []
+                for opp in top_opportunities:
+                    # Basic filters
+                    if opp['confidence'] < min_confidence or opp['opportunity_score'] < min_score:
+                        continue
+
+                    # 🧠 ML FILTER: Check if this trade's patterns have proven successful
+                    reasoning = opp['analysis'].get('reasoning', '')
+                    patterns = ml_learner._extract_pattern_keywords(reasoning)
+
+                    # Calculate average pattern win rate
+                    if patterns:
+                        pattern_wrs = []
+                        for pattern in patterns:
+                            wins = ml_learner.winning_patterns.get(pattern, 0)
+                            losses = ml_learner.losing_patterns.get(pattern, 0)
+                            total = wins + losses
+                            if total >= 5:  # Only use patterns with 5+ occurrences
+                                wr = (wins / total) * 100
+                                pattern_wrs.append(wr)
+
+                        if pattern_wrs:
+                            avg_pattern_wr = sum(pattern_wrs) / len(pattern_wrs)
+                            # Require 60%+ average pattern WR for trade approval
+                            if avg_pattern_wr < 60.0:
+                                logger.info(
+                                    f"🚫 {opp['symbol']}: Pattern WR too low ({avg_pattern_wr:.0f}%) - skipping"
+                                )
+                                continue
+
+                    qualified_opportunities.append(opp)
 
                 if qualified_opportunities:
                     logger.info(
