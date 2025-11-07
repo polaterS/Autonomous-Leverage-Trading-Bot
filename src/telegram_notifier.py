@@ -80,8 +80,37 @@ Sit back and monitor your portfolio! 💰
         await self.send_message(message)
 
     async def send_position_opened(self, position: Dict[str, Any]) -> None:
-        """New position opened notification."""
+        """New position opened notification with accurate stop-loss and fees."""
+        from decimal import Decimal
+
         emoji = "🟢" if position['side'] == 'LONG' else "🔴"
+
+        # Calculate ACCURATE stop-loss percentage (leverage-adjusted)
+        entry_price = Decimal(str(position['entry_price']))
+        stop_loss_price = Decimal(str(position['stop_loss_price']))
+        leverage = int(position['leverage'])
+        position_value = Decimal(str(position['position_value_usd']))
+
+        # Calculate price movement percentage
+        if position['side'] == 'LONG':
+            price_move_pct = (entry_price - stop_loss_price) / entry_price * 100
+        else:  # SHORT
+            price_move_pct = (stop_loss_price - entry_price) / entry_price * 100
+
+        # Calculate USD loss at stop-loss
+        usd_loss_at_sl = position_value * (price_move_pct / 100) * leverage
+
+        # Calculate entry fee (Binance futures taker: 0.05%)
+        taker_fee_rate = Decimal("0.0005")  # 0.05%
+        notional_value = Decimal(str(position['quantity'])) * entry_price
+        entry_fee = notional_value * taker_fee_rate
+
+        # Calculate approximate exit fee (same rate)
+        exit_fee_estimate = notional_value * taker_fee_rate
+        total_fees = entry_fee + exit_fee_estimate
+
+        # Net position value after entry fee
+        net_position_value = position_value - entry_fee
 
         message = f"""
 {emoji} <b>NEW POSITION OPENED</b>
@@ -89,13 +118,24 @@ Sit back and monitor your portfolio! 💰
 💎 <b>{position['symbol']}</b>
 📊 Direction: <b>{position['side']} {position['leverage']}x</b>
 
-💰 Position Size: <b>${float(position['position_value_usd']):.2f}</b>
-💵 Entry Price: <b>${float(position['entry_price']):.4f}</b>
+💰 Position Size: <b>${float(position_value):.2f}</b>
+💵 Entry Price: <b>${float(entry_price):.4f}</b>
 📏 Quantity: <b>{float(position['quantity']):.6f}</b>
 
-🛑 Stop-Loss: <b>${float(position['stop_loss_price']):.4f}</b> (-{float(position['stop_loss_percent']):.1f}%)
+🛑 <b>Stop-Loss: ${float(stop_loss_price):.4f}</b>
+   ├ Price Move: <b>{float(price_move_pct):.2f}%</b>
+   └ Max Loss: <b>${float(usd_loss_at_sl):.2f}</b> (with {leverage}x leverage)
+
 💎 Min Profit Target: <b>${float(position['min_profit_target_usd']):.2f}</b>
 ⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>
+
+💸 <b>Trading Fees (Binance):</b>
+   ├ Entry Fee: <b>${float(entry_fee):.2f}</b> (0.05% taker)
+   ├ Est. Exit Fee: <b>${float(exit_fee_estimate):.2f}</b> (0.05% taker)
+   └ Total Fees: <b>${float(total_fees):.2f}</b>
+
+📊 <b>Net Position:</b>
+   └ After Entry Fee: <b>${float(net_position_value):.2f}</b>
 
 🤖 AI Confidence: <b>{float(position.get('ai_confidence', 0))*100:.0f}%</b>
 🤝 Consensus: <b>{position.get('ai_model_consensus', 'N/A')}</b>
@@ -133,9 +173,39 @@ Sit back and monitor your portfolio! 💰
         pnl: Decimal,
         reason: str
     ) -> None:
-        """Position closed notification."""
+        """Position closed notification with detailed fee breakdown."""
+        from decimal import Decimal
+
         emoji = "✅" if pnl > 0 else "❌"
-        pnl_percent = (float(pnl) / float(position['position_value_usd'])) * 100
+        position_value = Decimal(str(position['position_value_usd']))
+        pnl_percent = (float(pnl) / float(position_value)) * 100
+
+        # Calculate trading fees
+        taker_fee_rate = Decimal("0.0005")  # 0.05%
+        entry_price = Decimal(str(position['entry_price']))
+        quantity = Decimal(str(position['quantity']))
+
+        # Entry fee
+        entry_notional = quantity * entry_price
+        entry_fee = entry_notional * taker_fee_rate
+
+        # Exit fee
+        exit_notional = quantity * Decimal(str(exit_price))
+        exit_fee = exit_notional * taker_fee_rate
+
+        total_fees = entry_fee + exit_fee
+
+        # Gross PnL (before fees) - calculate from price difference
+        leverage = int(position['leverage'])
+        if position['side'] == 'LONG':
+            price_change_pct = (Decimal(str(exit_price)) - entry_price) / entry_price
+        else:  # SHORT
+            price_change_pct = (entry_price - Decimal(str(exit_price))) / entry_price
+
+        gross_pnl = position_value * price_change_pct * leverage
+
+        # Net PnL (after fees)
+        net_pnl = gross_pnl - total_fees
 
         duration = (datetime.now() - position.get('entry_time', datetime.now())).total_seconds()
         duration_str = format_duration(int(duration))
@@ -145,10 +215,15 @@ Sit back and monitor your portfolio! 💰
 
 💎 <b>{position['symbol']}</b> {position['side']} {position['leverage']}x
 
-💵 Entry: ${float(position['entry_price']):.4f}
+💵 Entry: ${float(entry_price):.4f}
 💵 Exit: ${float(exit_price):.4f}
 
-{emoji} <b>Profit/Loss: ${float(pnl):+.2f} ({pnl_percent:+.1f}%)</b>
+💰 <b>P&L Breakdown:</b>
+   ├ Gross P&L: <b>${float(gross_pnl):+.2f}</b>
+   ├ Trading Fees: <b>-${float(total_fees):.2f}</b>
+   │  ├ Entry Fee: ${float(entry_fee):.2f}
+   │  └ Exit Fee: ${float(exit_fee):.2f}
+   └ <b>Net P&L: ${float(net_pnl):+.2f} ({float(net_pnl/position_value*100):+.1f}%)</b>
 
 📝 Reason: {reason}
 ⏱️ Duration: {duration_str}
