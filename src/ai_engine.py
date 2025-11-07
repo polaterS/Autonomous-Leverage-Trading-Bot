@@ -125,6 +125,15 @@ class AIConsensusEngine:
         market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
     ) -> List[Dict[str, Any]]:
         """
+        🚫 DISABLED IN ML-ONLY MODE - This function should never be called.
+
+        Returns empty list to force fallback to ML-ONLY mode.
+        """
+        logger.warning(f"⚠️ get_individual_analyses() called for {symbol} - ML-ONLY mode active, returning empty list")
+        return []  # Force ML-ONLY fallback
+
+        # 🚫 OLD AI CODE DISABLED BELOW (unreachable)
+        """
         🎯 #2: MULTI-MODEL ENSEMBLE - Get analyses from BOTH Qwen3-Max AND DeepSeek.
 
         Uses weighted voting based on historical model performance per symbol and regime.
