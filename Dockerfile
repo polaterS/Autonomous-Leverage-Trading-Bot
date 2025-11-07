@@ -35,5 +35,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the trading bot
-CMD ["python", "-u", "main.py"]
+# Run the trading bot (clear Python cache first to ensure fresh code)
+CMD find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && python -u main.py
