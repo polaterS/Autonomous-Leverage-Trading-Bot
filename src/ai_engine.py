@@ -435,13 +435,13 @@ class AIConsensusEngine:
 
         # Handle ML confidence check
         if ml_prediction['confidence'] >= 0.50:
-            logger.info(
+            logger.debug(
                 f"ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
                 f"(patterns: {ml_prediction['pattern_count']})"
             )
             return ml_prediction
         else:
-            logger.info(f"🧠 ML-ONLY: {symbol} confidence too low ({ml_prediction['confidence']:.0%}) - holding")
+            logger.debug(f"ML-ONLY: {symbol} confidence too low ({ml_prediction['confidence']:.0%}) - holding")
             return {
                 'action': 'hold',
                 'side': None,

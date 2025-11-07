@@ -398,7 +398,7 @@ class MarketScanner:
         """
         async with semaphore:  # Rate limiting
             try:
-                logger.info(f"📨 Scanning {symbol}...")
+                logger.debug(f"Scanning {symbol}...")
 
                 # Get market data
                 market_data = await self.gather_market_data(symbol)
@@ -422,8 +422,8 @@ class MarketScanner:
 
                     # If ML-only mode generated a trade signal, use it
                     if ml_consensus and ml_consensus.get('action') != 'hold':
-                        logger.info(
-                            f"🧠 ML-ONLY SUCCESS: {symbol} {ml_consensus['action'].upper()} "
+                        logger.debug(
+                            f"ML-ONLY SUCCESS: {symbol} {ml_consensus['action'].upper()} "
                             f"@ {ml_consensus['confidence']:.0%} confidence"
                         )
                         # Convert consensus to individual analysis format for consistency
@@ -555,7 +555,7 @@ class MarketScanner:
                         'model': 'GARCH(1,1)'
                     }
 
-                    logger.info(
+                    logger.debug(
                         f"GARCH {symbol}: {predicted_vol:.1f}% annual vol | "
                         f"Regime: {vol_regime} | Optimal Lev: {optimal_lev}x"
                     )
