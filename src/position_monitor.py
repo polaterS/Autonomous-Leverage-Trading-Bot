@@ -308,11 +308,14 @@ class PositionMonitor:
             except Exception as exit_ml_error:
                 logger.warning(f"ML exit optimizer failed: {exit_ml_error}")
 
-            # === CHECK 4: AI exit signal (SMART TRIGGERING) ===
-            # Only check AI when it makes sense - saves 70% of API calls
-            should_check_ai = self._should_request_ai_exit_signal(
-                position, unrealized_pnl, min_profit_usd, current_price
-            )
+            # === CHECK 4: AI exit signal (DISABLED IN ML-ONLY MODE) ===
+            # 🚫 ML-ONLY MODE: Skip AI exit signals, rely on technical exits only
+            should_check_ai = False  # Disabled for ML-ONLY mode
+
+            # OLD CODE (disabled):
+            # should_check_ai = self._should_request_ai_exit_signal(
+            #     position, unrealized_pnl, min_profit_usd, current_price
+            # )
 
             if should_check_ai:
                 logger.info("Requesting AI exit signal...")
