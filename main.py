@@ -1,6 +1,8 @@
 """
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
+
+🧠 VERSION: ML-ONLY-2.0 (Pure ML, AI Bypassed)
 """
 
 import asyncio
@@ -13,6 +15,10 @@ from src.utils import setup_logging
 from src.config import get_settings
 
 logger = setup_logging()
+
+# Version marker for deployment verification
+BOT_VERSION = "ML-ONLY-2.0"
+logger.info(f"🚀 Starting Autonomous Trading Bot v{BOT_VERSION}")
 
 
 async def main():
