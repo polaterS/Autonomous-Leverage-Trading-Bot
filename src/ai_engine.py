@@ -390,13 +390,14 @@ class AIConsensusEngine:
         Returns:
             Weighted consensus analysis with action, confidence, and reasoning
         """
+        # 🧠 ML-ONLY MODE: Skip cache entirely (cache may contain old AI analyses)
         # Check Redis cache first (much faster than PostgreSQL)
-        redis = await get_redis_client()
-        cached = await redis.get_cached_ai_analysis(symbol, '5m')
-
-        if cached:
-            logger.debug(f"✅ Using cached AI analysis for {symbol} (from Redis)")
-            return cached
+        # DISABLED: Cache may contain old AI-based predictions, we need fresh ML predictions
+        # redis = await get_redis_client()
+        # cached = await redis.get_cached_ai_analysis(symbol, '5m')
+        # if cached:
+        #     logger.debug(f"✅ Using cached AI analysis for {symbol} (from Redis)")
+        #     return cached
 
         # 🧠 ML-ONLY MODE: Skip AI entirely, use pure ML pattern learning
         from src.ml_pattern_learner import get_ml_learner
