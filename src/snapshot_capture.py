@@ -121,29 +121,19 @@ async def capture_market_snapshot(
             }
         }
 
-        # 📚 ORDER BOOK DATA (if available)
-        try:
-            order_book = await _fetch_order_book_data(exchange_client, symbol)
-            snapshot['order_book'] = order_book
-        except Exception as e:
-            logger.warning(f"⚠️ Could not fetch order book for {symbol}: {e}")
-            snapshot['order_book'] = None
+        # 📚 ORDER BOOK DATA (DISABLED to reduce API calls)
+        # Each snapshot fetching order book = 1 API call
+        # With 10 positions, this is 10+ extra calls per minute
+        # Binance limit: 6000/min weight, order book = 5-10 weight
+        snapshot['order_book'] = None
 
-        # 💸 FUNDING RATE (futures only)
-        try:
-            funding_rate = await _fetch_funding_rate(exchange_client, symbol)
-            snapshot['funding'] = funding_rate
-        except Exception as e:
-            logger.debug(f"No funding rate for {symbol} (spot or error): {e}")
-            snapshot['funding'] = None
+        # 💸 FUNDING RATE (DISABLED to reduce API calls)
+        # Funding rate rarely changes (8h intervals)
+        # Not critical for ML learning
+        snapshot['funding'] = None
 
-        # 🔥 LIQUIDATION DATA (if available)
-        try:
-            liquidations = await _fetch_liquidation_clusters(exchange_client, symbol, current_price)
-            snapshot['liquidations'] = liquidations
-        except Exception as e:
-            logger.debug(f"No liquidation data for {symbol}: {e}")
-            snapshot['liquidations'] = None
+        # 🔥 LIQUIDATION DATA (DISABLED - not implemented)
+        snapshot['liquidations'] = None
 
         # 📊 MARKET REGIME
         snapshot['market_regime'] = _detect_market_regime(indicators, snapshot)
