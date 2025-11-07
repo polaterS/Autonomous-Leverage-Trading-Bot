@@ -415,7 +415,7 @@ class MarketScanner:
 
                 # 🧠 ML-ONLY FALLBACK: If AI models failed, try ML-only prediction
                 if not individual_analyses:
-                    logger.warning(f"⚠️ {symbol} - All AI models failed, trying ML-ONLY mode...")
+                    logger.debug(f"{symbol} - All AI models failed, trying ML-ONLY mode...")
 
                     # Get ML-only consensus (includes ML fallback logic)
                     ml_consensus = await ai_engine.get_consensus(symbol, market_data)
@@ -556,7 +556,7 @@ class MarketScanner:
                     }
 
                     logger.info(
-                        f"📈 GARCH {symbol}: {predicted_vol:.1f}% annual vol | "
+                        f"GARCH {symbol}: {predicted_vol:.1f}% annual vol | "
                         f"Regime: {vol_regime} | Optimal Lev: {optimal_lev}x"
                     )
                 else:

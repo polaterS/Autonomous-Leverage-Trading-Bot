@@ -129,7 +129,7 @@ class AIConsensusEngine:
 
         Returns empty list to force fallback to ML-ONLY mode.
         """
-        logger.warning(f"⚠️ get_individual_analyses() called for {symbol} - ML-ONLY mode active, returning empty list")
+        logger.debug(f"get_individual_analyses() called for {symbol} - ML-ONLY mode active, returning empty list")
         return []  # Force ML-ONLY fallback
 
         # 🚫 OLD AI CODE DISABLED BELOW (unreachable)
@@ -436,7 +436,7 @@ class AIConsensusEngine:
         # Handle ML confidence check
         if ml_prediction['confidence'] >= 0.50:
             logger.info(
-                f"🧠 ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
+                f"ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
                 f"(patterns: {ml_prediction['pattern_count']})"
             )
             return ml_prediction
@@ -805,7 +805,7 @@ RESPONSE FORMAT (JSON only):
                 logger.info(f"🟢 {symbol}: Excellent pattern WR ({avg_pattern_wr:.1%}) → +10% confidence boost")
             elif avg_pattern_wr >= 0.75:
                 pattern_wr_adjustment = 0.05
-                logger.info(f"🟢 {symbol}: Good pattern WR ({avg_pattern_wr:.1%}) → +5% confidence boost")
+                logger.debug(f"{symbol}: Good pattern WR ({avg_pattern_wr:.1%}) → +5% confidence boost")
             elif avg_pattern_wr < 0.50:
                 pattern_wr_adjustment = -0.10
                 logger.warning(f"🔴 {symbol}: Poor pattern WR ({avg_pattern_wr:.1%}) → -10% confidence penalty")
@@ -840,11 +840,11 @@ RESPONSE FORMAT (JSON only):
         elif regime == "MIXED_CONDITIONS":
             # Mixed conditions → Slightly conservative
             regime_adjustment = 0.05  # +5% confidence required
-            logger.info(f"📊 {symbol}: Mixed conditions regime → +5% confidence required")
+            logger.debug(f"{symbol}: Mixed conditions regime → +5% confidence required")
         elif regime in ["BULL_TREND", "BEAR_TREND", "FAVORABLE_VOLATILE"]:
             # Favorable conditions → Slightly aggressive (lower confidence bar)
             regime_adjustment = -0.05  # -5% confidence required
-            logger.info(f"✅ {symbol}: Favorable {regime} regime → -5% confidence required")
+            logger.debug(f"{symbol}: Favorable {regime} regime → -5% confidence required")
 
         final_confidence = max(0.50, min(0.95, final_confidence - regime_adjustment))  # Apply regime adjustment
 
