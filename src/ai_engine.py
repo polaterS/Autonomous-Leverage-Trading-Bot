@@ -302,14 +302,24 @@ class AIConsensusEngine:
                                 direction = 'sell'
                                 reason = f"RSI very overbought ({rsi_1h:.0f})"
 
-                            # Priority 6: Moderate RSI (ONLY if confidence >= 75%)
-                            elif analysis['confidence'] >= 0.75:
-                                if rsi_1h < 40:  # Moderately oversold
+                            # Priority 6: Moderate RSI (AGGRESSIVE: confidence >= 60% for faster ML learning)
+                            elif analysis['confidence'] >= 0.60:
+                                if rsi_1h < 45:  # Moderately oversold (relaxed from 40)
                                     direction = 'buy'
-                                    reason = f"RSI oversold ({rsi_1h:.0f}, high ML conf)"
-                                elif rsi_1h > 60:  # Moderately overbought
+                                    reason = f"RSI oversold ({rsi_1h:.0f}, ML conf {analysis['confidence']:.0%})"
+                                elif rsi_1h > 55:  # Moderately overbought (relaxed from 60)
                                     direction = 'sell'
-                                    reason = f"RSI overbought ({rsi_1h:.0f}, high ML conf)"
+                                    reason = f"RSI overbought ({rsi_1h:.0f}, ML conf {analysis['confidence']:.0%})"
+
+                            # Priority 7: 15m trend (ULTRA AGGRESSIVE - confidence >= 50%)
+                            elif analysis['confidence'] >= 0.50:
+                                trend_15m = analysis.get('trend_15m', 'neutral')
+                                if trend_15m in ['uptrend', 'bullish']:
+                                    direction = 'buy'
+                                    reason = f"15m trend {trend_15m} (ML conf {analysis['confidence']:.0%})"
+                                elif trend_15m in ['downtrend', 'bearish']:
+                                    direction = 'sell'
+                                    reason = f"15m trend {trend_15m} (ML conf {analysis['confidence']:.0%})"
 
                             # 🛡️ SHORT TRADES CHECK: Block if disabled in settings
                             if direction == 'sell' and not self.settings.enable_short_trades:
@@ -325,19 +335,20 @@ class AIConsensusEngine:
                                 analysis['side'] = 'LONG'
 
                                 # 🎯 Calculate appropriate stop-loss and leverage based on confidence
+                                # FIXED: Always use 10% stop-loss for consistent $10 max loss on $100 position
                                 conf = analysis['confidence']
                                 if conf >= 0.90:
                                     analysis['suggested_leverage'] = 5
-                                    analysis['stop_loss_percent'] = 6.0
+                                    analysis['stop_loss_percent'] = 10.0
                                 elif conf >= 0.80:
                                     analysis['suggested_leverage'] = 4
-                                    analysis['stop_loss_percent'] = 7.0
+                                    analysis['stop_loss_percent'] = 10.0
                                 elif conf >= 0.70:
                                     analysis['suggested_leverage'] = 3
-                                    analysis['stop_loss_percent'] = 8.0
+                                    analysis['stop_loss_percent'] = 10.0
                                 else:  # 70-74% (threshold is now 70%)
                                     analysis['suggested_leverage'] = 2
-                                    analysis['stop_loss_percent'] = 8.0
+                                    analysis['stop_loss_percent'] = 10.0
 
                                 logger.info(
                                     f"🎯 ML Override SUCCESS: {symbol} 'hold' → 'buy' LONG "
@@ -349,19 +360,20 @@ class AIConsensusEngine:
                                 analysis['side'] = 'SHORT'
 
                                 # 🎯 Calculate appropriate stop-loss and leverage based on confidence
+                                # FIXED: Always use 10% stop-loss for consistent $10 max loss on $100 position
                                 conf = analysis['confidence']
                                 if conf >= 0.90:
                                     analysis['suggested_leverage'] = 5
-                                    analysis['stop_loss_percent'] = 6.0
+                                    analysis['stop_loss_percent'] = 10.0
                                 elif conf >= 0.80:
                                     analysis['suggested_leverage'] = 4
-                                    analysis['stop_loss_percent'] = 7.0
+                                    analysis['stop_loss_percent'] = 10.0
                                 elif conf >= 0.70:
                                     analysis['suggested_leverage'] = 3
-                                    analysis['stop_loss_percent'] = 8.0
+                                    analysis['stop_loss_percent'] = 10.0
                                 else:  # 70-74% (threshold is now 70%)
                                     analysis['suggested_leverage'] = 2
-                                    analysis['stop_loss_percent'] = 8.0
+                                    analysis['stop_loss_percent'] = 10.0
 
                                 logger.info(
                                     f"🎯 ML Override SUCCESS: {symbol} 'hold' → 'sell' SHORT "
