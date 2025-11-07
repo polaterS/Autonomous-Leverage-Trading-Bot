@@ -234,13 +234,25 @@ def calculate_pnl(
     quantity: Decimal,
     side: str,
     leverage: int,
-    position_value: Decimal
+    position_value: Decimal,
+    include_fees: bool = True
 ) -> Dict[str, Any]:
     """
-    Calculate comprehensive P&L metrics.
+    Calculate comprehensive P&L metrics WITH trading fees.
+
+    Args:
+        entry_price: Position entry price
+        current_price: Current market price
+        quantity: Position quantity
+        side: 'LONG' or 'SHORT'
+        leverage: Position leverage
+        position_value: Position value in USD
+        include_fees: Include Binance trading fees (default: True)
 
     Returns dict with:
-        - unrealized_pnl: Dollar amount
+        - unrealized_pnl: NET dollar amount (after fees)
+        - gross_pnl: GROSS dollar amount (before fees)
+        - total_fees: Entry + estimated exit fees
         - pnl_percent: Percentage of position value
         - leveraged_pnl_percent: Percentage including leverage effect
         - price_change_pct: Raw price change
@@ -252,13 +264,33 @@ def calculate_pnl(
     else:  # SHORT
         price_change_pct = (entry_price - current_price) / entry_price
 
-    # Leveraged P&L
+    # Leveraged P&L (GROSS - before fees)
     leverage_decimal = Decimal(str(leverage))
-    unrealized_pnl = position_value * price_change_pct * leverage_decimal
+    gross_pnl = position_value * price_change_pct * leverage_decimal
+
+    # Calculate trading fees (Binance futures taker: 0.05%)
+    total_fees = Decimal("0")
+    if include_fees:
+        taker_fee_rate = Decimal("0.0005")  # 0.05%
+
+        # Entry fee
+        entry_notional = quantity * entry_price
+        entry_fee = entry_notional * taker_fee_rate
+
+        # Exit fee (estimated at current price)
+        exit_notional = quantity * current_price
+        exit_fee = exit_notional * taker_fee_rate
+
+        total_fees = entry_fee + exit_fee
+
+    # NET P&L (after fees)
+    unrealized_pnl = gross_pnl - total_fees
 
     return {
-        'unrealized_pnl': unrealized_pnl,
-        'pnl_percent': float(price_change_pct * 100),
+        'unrealized_pnl': unrealized_pnl,  # NET (after fees)
+        'gross_pnl': gross_pnl,  # GROSS (before fees)
+        'total_fees': total_fees,
+        'pnl_percent': float((unrealized_pnl / position_value) * 100),
         'leveraged_pnl_percent': float(price_change_pct * leverage_decimal * 100),
         'price_change_pct': float(price_change_pct)
     }

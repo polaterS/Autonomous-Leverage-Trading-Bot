@@ -345,17 +345,34 @@ class TradeExecutor:
 
             logger.info(f"✅ Partial position closed at ${exit_price:.4f}")
 
-            # Calculate P&L for closed portion
+            # Calculate P&L for closed portion WITH FEES
             entry_price = Decimal(str(position['entry_price']))
             leverage = position['leverage']
             position_value = Decimal(str(position['position_value_usd'])) * Decimal(str(close_percent))
 
+            # Gross PnL (before fees)
             if side == 'LONG':
                 price_change_pct = (exit_price - entry_price) / entry_price
             else:  # SHORT
                 price_change_pct = (entry_price - exit_price) / entry_price
 
-            partial_pnl = position_value * price_change_pct * leverage
+            gross_pnl = position_value * price_change_pct * leverage
+
+            # Calculate fees for this partial close
+            taker_fee_rate = Decimal("0.0005")  # 0.05%
+
+            # Entry fee (proportional to closed amount)
+            entry_notional = close_quantity * entry_price
+            entry_fee = entry_notional * taker_fee_rate
+
+            # Exit fee
+            exit_notional = close_quantity * exit_price
+            exit_fee = exit_notional * taker_fee_rate
+
+            total_fees = entry_fee + exit_fee
+
+            # NET PnL (after fees)
+            partial_pnl = gross_pnl - total_fees
 
             # Update capital
             new_capital = (await db.get_current_capital()) + partial_pnl
@@ -373,15 +390,19 @@ class TradeExecutor:
                     remaining_quantity, position['id']
                 )
 
-            # Send notification
+            # Send notification with fee breakdown
             await notifier.send_alert(
                 'success',
-                f"💰 Partial Close ({close_percent*100:.0f}%)\n\n"
-                f"{symbol} {side} {leverage}x\n"
-                f"Exit: ${float(exit_price):.4f}\n"
-                f"P&L: ${float(partial_pnl):+.2f}\n\n"
+                f"✅ <b>SUCCESS</b>\n\n"
+                f"💰 <b>Partial Close ({close_percent*100:.0f}%)</b>\n\n"
+                f"<b>{symbol}</b> {side} {leverage}x\n"
+                f"Exit: <b>${float(exit_price):.4f}</b>\n\n"
+                f"<b>P&L Breakdown:</b>\n"
+                f"├ Gross: ${float(gross_pnl):+.2f}\n"
+                f"├ Fees: -${float(total_fees):.2f}\n"
+                f"└ <b>Net: ${float(partial_pnl):+.2f}</b>\n\n"
                 f"Reason: {close_reason}\n"
-                f"Remaining: {close_percent*100:.0f}% still open"
+                f"Remaining: {(1-close_percent)*100:.0f}% still open"
             )
 
             logger.info(f"💰 Partial close: P&L ${partial_pnl:+.2f}")

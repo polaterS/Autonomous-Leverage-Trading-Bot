@@ -234,7 +234,7 @@ Sit back and monitor your portfolio! 💰
 
     async def send_multi_position_update(self, positions: list) -> None:
         """
-        Send a consolidated update for multiple positions.
+        Send a consolidated update for multiple positions with NET P&L (after fees).
         Reduces Telegram spam by showing all positions in one message.
 
         Args:
@@ -243,7 +243,7 @@ Sit back and monitor your portfolio! 💰
         if not positions:
             return
 
-        # Calculate total P&L
+        # Calculate total NET P&L (already includes fees from calculate_pnl)
         total_pnl = sum(Decimal(str(pos.get('unrealized_pnl_usd', 0))) for pos in positions)
 
         # Count winning/losing positions
@@ -280,7 +280,7 @@ Sit back and monitor your portfolio! 💰
         message += f"""
 
 ━━━━━━━━━━━━━━━━━━━━
-{total_emoji} <b>Total P&L: ${float(total_pnl):+.2f}</b>
+{total_emoji} <b>Net P&L: ${float(total_pnl):+.2f}</b> (after est. fees)
 📊 W/L: {winners}/{losers}
 
 ⏰ {get_turkey_time().strftime('%H:%M:%S')}
