@@ -246,11 +246,31 @@ class TradeExecutor:
             entry_snapshot = None
             try:
                 from src.snapshot_capture import capture_market_snapshot
+
+                # Extract indicators from multi-timeframe format
+                # market_data['indicators'] = {'15m': {...}, '1h': {...}, '4h': {...}}
+                # We use 1h timeframe as primary for snapshot
+                indicators_dict = market_data.get('indicators', {})
+                if isinstance(indicators_dict, dict) and '1h' in indicators_dict:
+                    # Multi-timeframe format - use 1h
+                    flat_indicators = indicators_dict['1h']
+                elif isinstance(indicators_dict, dict):
+                    # Already flat format
+                    flat_indicators = indicators_dict
+                else:
+                    flat_indicators = {}
+
+                # Add additional market data
+                flat_indicators['volume'] = market_data.get('volume_24h', 0)
+                flat_indicators['volume_24h_avg'] = market_data.get('volume_24h', 0) / 24 if market_data.get('volume_24h', 0) > 0 else 0
+                flat_indicators['support_levels'] = [s['price'] for s in market_data.get('support_resistance', {}).get('support', [])]
+                flat_indicators['resistance_levels'] = [r['price'] for r in market_data.get('support_resistance', {}).get('resistance', [])]
+
                 entry_snapshot = await capture_market_snapshot(
                     exchange_client=exchange,
                     symbol=symbol,
                     current_price=actual_entry_price,
-                    indicators=market_data.get('indicators', {}),
+                    indicators=flat_indicators,
                     side=side,
                     snapshot_type="entry"
                 )
