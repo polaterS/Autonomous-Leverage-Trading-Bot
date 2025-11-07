@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
-    max_leverage: int = Field(default=3, ge=1, le=50)  # Conservative: 3x max with 10% stop-loss
+    max_leverage: int = Field(default=30, ge=1, le=50)  # AI can choose 2x-30x based on setup quality
     max_concurrent_positions: int = Field(default=15, ge=1, le=20)  # 15 positions max (one per coin)
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% of capital per trade
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # Fixed 10% stop-loss
@@ -215,28 +215,31 @@ CONFIDENCE SCORING SYSTEM:
 ✓ Volume confirming price action
 ✓ Clean break of key level with momentum
 ✓ Funding rate supports direction
-→ AGGRESSIVE: Use 4-5x leverage, wider stops
+→ ULTRA AGGRESSIVE: Use 15-30x leverage (extreme confidence setups only!)
 
-85-94% CONFIDENCE (High):
-✓ 2 out of 3 timeframes aligned
-✓ Strong momentum indicators
-✓ Volume confirms move
-✓ One minor concern (e.g., RSI slightly extended but trend strong)
-→ STANDARD: Use 3-4x leverage, normal stops
+90-94% CONFIDENCE (Very High):
+✓ 2 out of 3 timeframes aligned strongly
+✓ Multiple confluence factors
+✓ Strong momentum + volume confirmation
+→ AGGRESSIVE: Use 10-15x leverage
 
-75-84% CONFIDENCE (Moderate):
-✓ Clear direction on 15m and 1h
-✓ 4h neutral or weakly opposed
-✓ Decent setup but not perfect
-✓ RSI or MACD showing early signals
-→ CONSERVATIVE: Use 2-3x leverage, tight stops
+85-89% CONFIDENCE (High):
+✓ Strong setup with good confluence
+✓ Clear directional bias
+✓ Good risk/reward setup
+→ HIGH: Use 7-10x leverage
 
-65-74% CONFIDENCE (Low but Tradeable):
-✓ Only 15m shows clear direction
-✓ Higher timeframes mixed
-✓ Scalping opportunity in ranging market
-✓ Quick in-and-out trade
-→ SCALP MODE: Use 2x leverage, very tight stops (5%)
+75-84% CONFIDENCE (Moderate-High):
+✓ Decent setup, some confluence
+✓ Clear direction on lower timeframes
+✓ Acceptable risk/reward
+→ MODERATE: Use 5-7x leverage
+
+65-74% CONFIDENCE (Moderate):
+✓ Basic setup meets criteria
+✓ Mixed timeframe signals
+✓ Scalping opportunity
+→ CONSERVATIVE: Use 2-5x leverage
 
 50-64% CONFIDENCE (Weak):
 → HOLD: Setup too unclear, wait for better opportunity
@@ -253,59 +256,63 @@ SCENARIO 1 - STRONG BULLISH SETUP (90% Confidence):
 - 1h: Pullback to EMA 12, holding support
 - 15m: RSI 55→62, MACD crossing up, volume increasing
 - Price: Just bounced off 1h support
-→ ACTION: BUY (LONG), confidence 0.90, leverage 4x, stop 7%
+→ ACTION: BUY (LONG), confidence 0.90, leverage 10-12x, stop 10%
 
 SCENARIO 2 - BEARISH MOMENTUM (85% Confidence):
 - 4h: Downtrend, lower highs/lows
 - 1h: Resistance rejection, RSI 60→55
 - 15m: MACD turning down, volume on red candles
 - Funding: +0.08% (overleveraged longs)
-→ ACTION: SELL (SHORT), confidence 0.85, leverage 3x, stop 6%
+→ ACTION: SELL (SHORT), confidence 0.85, leverage 7-9x, stop 10%
 
 SCENARIO 3 - RANGING SCALP (70% Confidence):
 - 4h: Sideways consolidation
 - 1h: Bouncing between 3800-3850
 - 15m: Price at 3805, RSI 35 (oversold in range)
 - Volume: Low but picking up
-→ ACTION: BUY (LONG), confidence 0.70, leverage 2x, stop 5%, quick scalp
+→ ACTION: BUY (LONG), confidence 0.70, leverage 3-5x, stop 10%, quick scalp
 
 SCENARIO 4 - MIXED SIGNALS (60% Confidence):
 - 4h: Downtrend
 - 1h: Potential reversal, higher low forming
 - 15m: Bullish divergence on RSI
 - Volume: Weak
-→ ACTION: HOLD or small LONG with 2x, confidence 0.60
+→ ACTION: HOLD (below 65% threshold)
 
-SCENARIO 5 - BREAKOUT OPPORTUNITY (92% Confidence):
+SCENARIO 5 - PERFECT BREAKOUT (96% Confidence):
 - 4h: Compression at resistance
 - 1h: Building higher lows
 - 15m: Price testing resistance 5th time, volume spiking
 - RSI: 68 (strong but not extreme)
-→ ACTION: BUY (LONG), confidence 0.92, leverage 5x, breakout trade
+- All confluence factors aligned
+→ ACTION: BUY (LONG), confidence 0.96, leverage 20-25x, breakout trade
 
 STOP-LOSS PLACEMENT (CRITICAL):
+- ALWAYS use exactly 10% stop-loss (fixed for consistent risk management)
 - Place BELOW recent swing low for longs (not at exact low - give breathing room)
 - Place ABOVE recent swing high for shorts (not at exact high - avoid stop hunts)
-- Use 5% stop for short-term scalps (<4 hour hold time)
-- Use 7-8% stop for swing trades (4-24 hour hold time)
-- NEVER use stops tighter than 5% or wider than 10%
+- 10% stop ensures maximum loss = 10% of position size
+- With higher leverage, 10% stop is sufficient protection
 
 TAKE-PROFIT STRATEGY:
-- Target minimum $2.50 profit (non-negotiable)
-- First target: 1.5x risk (e.g., 7% stop = 10.5% target)
-- Extended target: 2-3x risk if strong trend + momentum
+- Target minimum $1.50 profit (non-negotiable)
+- With 10% stop: aim for 15-20% profit target (1.5-2x risk/reward)
+- Extended target: 2-3x risk (20-30% profit) if strong trend + momentum
 - Use previous resistance (longs) or support (shorts) as natural targets
+- Higher leverage allows smaller % moves to hit profit targets
 
 RISK/REWARD REQUIREMENTS:
 - Minimum 1.5:1 ratio required to consider trade
 - Ideal: 2:1 or better
-- If stop-loss would be >8% to get decent R:R, trade setup is poor
+- Fixed 10% stop simplifies R:R calculation
 
 CONFIDENCE SCORING:
-- 90-100%: All timeframes align + strong volume + perfect setup (rare)
-- 80-89%: Strong setup with minor concerns (most trades)
-- 75-79%: Acceptable setup but requires careful monitoring
-- <75%: DO NOT TRADE
+- 95-100%: Perfect setup, use 15-30x leverage
+- 90-94%: Very strong setup, use 10-15x leverage
+- 85-89%: Strong setup, use 7-10x leverage
+- 75-84%: Good setup, use 5-7x leverage
+- 65-74%: Acceptable setup, use 2-5x leverage
+- <65%: DO NOT TRADE
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💎 ELITE TRADER MINDSET (Your Decision-Making Process)
@@ -348,12 +355,14 @@ def build_analysis_prompt(symbol: str, market_data: dict) -> str:
 Analysis ID: {symbol}_{timestamp}
 
 CRITICAL REQUIREMENTS:
-1. Stop-loss MUST be between 5-10%
-2. Minimum profit target: $2.50 USD
-3. Risk/reward ratio must be at least 1.5:1
-4. Be DECISIVE - weak setups can still be traded with 60-70% confidence
-5. Don't be overly conservative - scalping opportunities exist even in ranging markets
-6. Provide varied confidence values (0.55-0.95 range) based on setup quality
+1. Stop-loss MUST be EXACTLY 10% (fixed, no exceptions)
+2. Minimum profit target: $1.50 USD
+3. Leverage range: 2x-30x based on confidence (higher confidence = higher leverage)
+4. Minimum confidence: 65% to execute trade
+5. Risk/reward ratio must be at least 1.5:1
+6. Be DECISIVE - use full leverage range (don't always pick safe 3-5x)
+7. High confidence (90%+) should use high leverage (10-25x)
+8. Provide varied confidence AND leverage values based on setup quality
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
@@ -637,8 +646,8 @@ RESPONSE FORMAT (JSON only, no explanations outside JSON):
     }},
     "confluence_count": 0-11,
     "side": "LONG" | "SHORT" | null,
-    "suggested_leverage": 2-5,
-    "stop_loss_percent": 5.0-10.0,
+    "suggested_leverage": 2-30,
+    "stop_loss_percent": 10.0,
     "entry_price": {market_data['current_price']},
     "stop_loss_price": 0.0,
     "take_profit_price": 0.0,
