@@ -794,43 +794,51 @@ RESPONSE FORMAT (JSON only):
         leverage = 10  # Default aggressive leverage
         stop_loss = 10.0  # FIXED: Always 10% for consistent risk management
 
-        # 🔥 ULTRA AGGRESSIVE LEVERAGE STRATEGY for ML Learning
-        # More patterns = Higher confidence = Higher leverage
+        # 🔥 ULTRA AGGRESSIVE ML LEARNING MODE - Trade on ANY bullish/bearish signal!
+        # Goal: Generate more diverse training data across all coins
         pattern_count = len(pattern_features)
 
-        if 'strong_bullish_trend' in pattern_features or ('bullish_trend' in pattern_features and 'rsi_oversold' in pattern_features):
-            action = 'buy'
-            side = 'LONG'
-            # FIXED: Always 10% stop-loss for consistent $10 max loss with leverage adjustment
-            if final_confidence >= 0.75 and pattern_count >= 4:
-                leverage = 30  # Ultra high confidence: 30x
-                stop_loss = 10.0
-            elif final_confidence >= 0.65 and pattern_count >= 3:
-                leverage = 20  # High confidence: 20x
-                stop_loss = 10.0
-            elif final_confidence >= 0.55:
-                leverage = 15  # Medium confidence: 15x
-                stop_loss = 10.0
-            else:
-                leverage = 10  # Base confidence: 10x
-                stop_loss = 10.0
+        # Count bullish vs bearish signals
+        bullish_signals = sum(1 for p in pattern_features if 'bullish' in p or 'oversold' in p or 'weak' in p)
+        bearish_signals = sum(1 for p in pattern_features if 'bearish' in p or 'overbought' in p or 'strong' in p)
 
-        elif 'strong_bearish_trend' in pattern_features or ('bearish_trend' in pattern_features and 'rsi_overbought' in pattern_features):
-            action = 'sell'
-            side = 'SHORT'
-            # FIXED: Always 10% stop-loss for consistent $10 max loss with leverage adjustment
-            if final_confidence >= 0.75 and pattern_count >= 4:
-                leverage = 30  # Ultra high confidence: 30x
-                stop_loss = 10.0
-            elif final_confidence >= 0.65 and pattern_count >= 3:
-                leverage = 20  # High confidence: 20x
-                stop_loss = 10.0
-            elif final_confidence >= 0.55:
-                leverage = 15  # Medium confidence: 15x
-                stop_loss = 10.0
-            else:
-                leverage = 10  # Base confidence: 10x
-                stop_loss = 10.0
+        # AGGRESSIVE: Trade if confidence >= 45% AND any directional signal exists
+        if final_confidence >= 0.45:
+            if bullish_signals > bearish_signals and bullish_signals > 0:
+                # ANY bullish pattern detected → BUY
+                action = 'buy'
+                side = 'LONG'
+                # FIXED: Always 10% stop-loss for consistent $10 max loss with leverage adjustment
+                if final_confidence >= 0.75 and pattern_count >= 4:
+                    leverage = 30  # Ultra high confidence: 30x
+                    stop_loss = 10.0
+                elif final_confidence >= 0.65 and pattern_count >= 3:
+                    leverage = 20  # High confidence: 20x
+                    stop_loss = 10.0
+                elif final_confidence >= 0.55:
+                    leverage = 15  # Medium confidence: 15x
+                    stop_loss = 10.0
+                else:
+                    leverage = 10  # Base confidence: 10x
+                    stop_loss = 10.0
+
+            elif bearish_signals > bullish_signals and bearish_signals > 0:
+                # ANY bearish pattern detected → SELL
+                action = 'sell'
+                side = 'SHORT'
+                # FIXED: Always 10% stop-loss for consistent $10 max loss with leverage adjustment
+                if final_confidence >= 0.75 and pattern_count >= 4:
+                    leverage = 30  # Ultra high confidence: 30x
+                    stop_loss = 10.0
+                elif final_confidence >= 0.65 and pattern_count >= 3:
+                    leverage = 20  # High confidence: 20x
+                    stop_loss = 10.0
+                elif final_confidence >= 0.55:
+                    leverage = 15  # Medium confidence: 15x
+                    stop_loss = 10.0
+                else:
+                    leverage = 10  # Base confidence: 10x
+                    stop_loss = 10.0
 
         return {
             'action': action,
