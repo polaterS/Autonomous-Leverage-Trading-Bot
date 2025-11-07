@@ -1,0 +1,5 @@
+# Railway rebuild trigger
+# Modified: 2025-11-07 08:35 UTC
+# Reason: Force clean rebuild to clear Python bytecode cache
+# Target: ML-ONLY mode (commit a4980c9)
+BUILD_ID=20251107_0835
