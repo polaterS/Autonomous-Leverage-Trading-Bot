@@ -112,10 +112,10 @@ class Settings(BaseSettings):
 
     @validator('max_stop_loss_percent')
     def validate_stop_loss_range(cls, v, values):
-        """Ensure max stop loss is greater than min."""
+        """Ensure max stop loss is greater than or equal to min (allows fixed stop-loss)."""
         min_sl = values.get('min_stop_loss_percent', Decimal("0.05"))
-        if v <= min_sl:
-            raise ValueError('max_stop_loss_percent must be greater than min_stop_loss_percent')
+        if v < min_sl:
+            raise ValueError('max_stop_loss_percent must be greater than or equal to min_stop_loss_percent')
         return v
 
     @validator('use_paper_trading')
