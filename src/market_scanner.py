@@ -299,8 +299,8 @@ class MarketScanner:
 
                         if pattern_wrs:
                             avg_pattern_wr = sum(pattern_wrs) / len(pattern_wrs)
-                            # Require 60%+ average pattern WR for trade approval
-                            if avg_pattern_wr < 60.0:
+                            # Require 50%+ average pattern WR for trade approval (lowered for early ML learning phase)
+                            if avg_pattern_wr < 50.0:
                                 logger.info(
                                     f"🚫 {opp['symbol']}: Pattern WR too low ({avg_pattern_wr:.0f}%) - skipping"
                                 )
