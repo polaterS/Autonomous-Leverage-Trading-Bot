@@ -1414,9 +1414,16 @@ class MLPatternLearner:
             # If snapshot is a JSON string (from database), parse it
             if isinstance(snapshot, str):
                 import json
-                snapshot = json.loads(snapshot)
+                try:
+                    snapshot = json.loads(snapshot)
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.debug(f"Failed to parse snapshot JSON: {e}")
+                    return
 
-            if not snapshot or 'indicators' not in snapshot:
+            if not snapshot or not isinstance(snapshot, dict):
+                return
+
+            if 'indicators' not in snapshot:
                 return
 
             indicators = snapshot.get('indicators', {})
@@ -1456,7 +1463,7 @@ class MLPatternLearner:
                 await self._update_learned_indicator_rules()
 
         except Exception as e:
-            logger.error(f"❌ Failed to learn from snapshot: {e}", exc_info=True)
+            logger.debug(f"Failed to learn from snapshot: {e}")
 
     async def _update_learned_indicator_rules(self):
         """
