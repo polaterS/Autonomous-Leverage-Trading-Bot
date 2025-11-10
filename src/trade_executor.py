@@ -643,12 +643,13 @@ class TradeExecutor:
                 )
 
                 # Calculate exit quality
-                time_in_position = (exit_time - entry_time).total_seconds() / 60  # minutes
+                # Use trade_duration that was already calculated above
+                time_in_position_minutes = trade_duration / 60  # Convert seconds to minutes
                 exit_quality = exit_optimizer.calculate_exit_quality(
                     position,
                     realized_pnl,
                     min_profit_usd,
-                    int(time_in_position)
+                    int(time_in_position_minutes)
                 )
 
                 # Determine if exit was optimal (profit > 0 or loss < -$3)

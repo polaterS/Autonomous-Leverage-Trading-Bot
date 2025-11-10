@@ -222,12 +222,40 @@ class MLPredictor:
             # Extract features and labels
             X = []
             y = []
+            skipped_count = 0
 
             for trade in trades:
                 try:
-                    snapshot = dict(trade['entry_snapshot'])
+                    # ROBUST ERROR HANDLING: Skip malformed snapshots
+                    entry_snapshot = trade.get('entry_snapshot')
+
+                    # Skip if no snapshot
+                    if not entry_snapshot:
+                        skipped_count += 1
+                        continue
+
+                    # Handle different snapshot formats
+                    if isinstance(entry_snapshot, dict):
+                        snapshot = entry_snapshot
+                    elif isinstance(entry_snapshot, str):
+                        # Try parsing JSON string
+                        import json
+                        snapshot = json.loads(entry_snapshot)
+                    else:
+                        # Try converting to dict (may fail on malformed data)
+                        try:
+                            snapshot = dict(entry_snapshot)
+                        except (TypeError, ValueError):
+                            skipped_count += 1
+                            continue
+
                     side = trade['side']
                     is_winner = trade['is_winner']
+
+                    # Validate snapshot has required fields
+                    if not isinstance(snapshot, dict) or 'indicators_15m' not in snapshot:
+                        skipped_count += 1
+                        continue
 
                     # Extract features
                     features = self.feature_engineering.extract_features(snapshot, side)
@@ -236,10 +264,16 @@ class MLPredictor:
                     if self.feature_engineering.validate_features(features):
                         X.append(features)
                         y.append(1 if is_winner else 0)
+                    else:
+                        skipped_count += 1
 
                 except Exception as e:
-                    logger.warning(f"Failed to process trade: {e}")
+                    # Silently skip bad trades instead of spamming warnings
+                    skipped_count += 1
                     continue
+
+            if skipped_count > 0:
+                logger.info(f"ℹ️ Skipped {skipped_count} trades with malformed/invalid data")
 
             if len(X) < 30:
                 logger.error(f"❌ Only {len(X)} valid samples after feature extraction")
