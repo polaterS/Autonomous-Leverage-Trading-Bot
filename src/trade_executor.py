@@ -67,14 +67,21 @@ class TradeExecutor:
             # Get current capital
             current_capital = await db.get_current_capital()
 
-            # Calculate position size (FIXED $100 per trade for consistent risk management)
-            FIXED_POSITION_SIZE_USD = Decimal("100.00")
+            # Calculate position size (10% of current capital per trade)
+            # This allows capital to grow: $1000 capital = $100/trade, $1100 capital = $110/trade
+            position_size_usd = current_capital * Decimal("0.10")
+
+            # Safety limits: min $50, max $200 per position
+            position_size_usd = max(Decimal("50.00"), min(position_size_usd, Decimal("200.00")))
+
+            logger.info(f"💰 Capital: ${current_capital:.2f} → Position size: ${position_size_usd:.2f} (10%)")
+
             quantity, position_value = calculate_position_size(
                 current_capital,
                 self.settings.position_size_percent,
                 entry_price,
                 leverage,
-                fixed_position_usd=FIXED_POSITION_SIZE_USD
+                fixed_position_usd=position_size_usd
             )
 
             # Calculate risk management prices (WITH LEVERAGE ADJUSTMENT!)

@@ -67,6 +67,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("chart", self.cmd_chart))
         self.application.add_handler(CommandHandler("mlstats", self.cmd_mlstats))
         self.application.add_handler(CommandHandler("mlinsights", self.cmd_mlinsights))
+        self.application.add_handler(CommandHandler("daily", self.cmd_daily_report))
         self.application.add_handler(CommandHandler("stopbot", self.cmd_stop_bot))
         self.application.add_handler(CommandHandler("startbot", self.cmd_start_bot))
         self.application.add_handler(CommandHandler("reset", self.cmd_reset_circuit_breaker))
@@ -152,6 +153,7 @@ Hoş geldiniz! Bot komutları:
 <b>📈 Analiz Araçları:</b>
 /chart - TradingView benzeri grafik oluştur
 /scan - Manuel market tarama
+/daily - 📊 Günlük performans raporu (00:00'dan itibaren)
 /mlstats - ML öğrenme istatistikleri
 /mlinsights - 🧠 ML analiz + grafikler (AI öğrenme süreci)
 
@@ -181,6 +183,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /positions - Aktif pozisyonları görüntüle
 /history - Kapalı pozisyon geçmişi
 /scan - Manuel market tarama yap
+/daily - 📊 Günlük performans raporu (gece 00:00'dan itibaren)
 /mlstats - ML öğrenme istatistikleri ve accuracy
 /mlinsights - 🧠 Detaylı ML analiz + grafikler (öğrenme eğrisi, pattern perf.)
 /startbot - Botu çalıştır
@@ -405,6 +408,132 @@ Sorularınız için: @your_support
         except Exception as e:
             logger.error(f"Error in history command: {e}")
             await update.message.reply_text(f"❌ Hata: {e}")
+
+    async def cmd_daily_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /daily command - Daily performance report from 00:00 to now."""
+        try:
+            logger.info("📊 /daily command called")
+
+            from datetime import datetime, time
+
+            # Get today's date at 00:00:00
+            today_start = datetime.combine(datetime.now().date(), time.min)
+
+            # Query for today's trades
+            query = """
+                SELECT
+                    symbol, side, entry_price, exit_price, realized_pnl_usd,
+                    entry_time, exit_time, leverage, close_reason
+                FROM trade_history
+                WHERE exit_time >= $1
+                ORDER BY exit_time DESC
+            """
+
+            async with self.db.pool.acquire() as conn:
+                today_trades = await conn.fetch(query, today_start)
+                config = await conn.fetchrow("SELECT current_capital FROM trading_config WHERE id = 1")
+
+            if not today_trades:
+                current_time = datetime.now().strftime('%H:%M:%S')
+                await update.message.reply_text(
+                    f"📊 <b>GÜNLÜK PERFORMANS RAPORU</b>\n\n"
+                    f"⏰ {today_start.strftime('%d.%m.%Y')} 00:00 - {current_time}\n\n"
+                    f"Bugün henüz kapalı trade yok.\n"
+                    f"💰 Mevcut Sermaye: ${float(config['current_capital']):.2f}",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Calculate daily statistics
+            total_trades = len(today_trades)
+            winning_trades = [t for t in today_trades if float(t['realized_pnl_usd']) > 0]
+            losing_trades = [t for t in today_trades if float(t['realized_pnl_usd']) <= 0]
+
+            win_count = len(winning_trades)
+            loss_count = len(losing_trades)
+            win_rate = (win_count / total_trades * 100) if total_trades > 0 else 0
+
+            # Calculate P&L
+            daily_pnl = sum(float(t['realized_pnl_usd']) for t in today_trades)
+            winning_pnl = sum(float(t['realized_pnl_usd']) for t in winning_trades) if winning_trades else 0
+            losing_pnl = sum(float(t['realized_pnl_usd']) for t in losing_trades) if losing_trades else 0
+
+            # LONG vs SHORT breakdown
+            long_trades = [t for t in today_trades if t['side'] == 'LONG']
+            short_trades = [t for t in today_trades if t['side'] == 'SHORT']
+
+            long_wins = len([t for t in long_trades if float(t['realized_pnl_usd']) > 0])
+            short_wins = len([t for t in short_trades if float(t['realized_pnl_usd']) > 0])
+
+            long_wr = (long_wins / len(long_trades) * 100) if long_trades else 0
+            short_wr = (short_wins / len(short_trades) * 100) if short_trades else 0
+
+            # Build message
+            current_time = datetime.now().strftime('%H:%M:%S')
+            message = f"📊 <b>GÜNLÜK PERFORMANS RAPORU</b>\n\n"
+            message += f"⏰ {today_start.strftime('%d.%m.%Y')} 00:00 - {current_time}\n"
+            message += f"━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            # Overall Stats
+            message += f"<b>📈 GENEL DURUM</b>\n"
+            message += f"• Toplam Trade: {total_trades}\n"
+
+            wr_emoji = "🟢" if win_rate >= 60 else "🟡" if win_rate >= 50 else "🔴"
+            message += f"• Win/Loss: {wr_emoji} {win_count}W / {loss_count}L ({win_rate:.1f}%)\n"
+
+            pnl_emoji = "💚" if daily_pnl > 0 else "🔴" if daily_pnl < 0 else "⚪"
+            message += f"• <b>Net P&L: {pnl_emoji} ${daily_pnl:+.2f}</b>\n"
+            message += f"• Avg P&L/Trade: ${daily_pnl/total_trades:.2f}\n\n"
+
+            # Win/Loss breakdown
+            message += f"<b>💰 KAR/ZARAR DAĞILIMI</b>\n"
+            message += f"• Kazanç: +${winning_pnl:.2f} ({win_count} trade)\n"
+            message += f"• Kayıp: ${losing_pnl:.2f} ({loss_count} trade)\n"
+
+            if win_count > 0 and loss_count > 0:
+                profit_factor = abs(winning_pnl / losing_pnl) if losing_pnl != 0 else float('inf')
+                pf_emoji = "💎" if profit_factor >= 2.0 else "✅" if profit_factor >= 1.0 else "⚠️"
+                message += f"• Profit Factor: {pf_emoji} {profit_factor:.2f}x\n"
+
+            message += f"\n<b>📊 YÖN DAĞILIMI</b>\n"
+
+            if long_trades:
+                message += f"• LONG: {len(long_trades)} trade, {long_wr:.0f}% WR\n"
+            if short_trades:
+                message += f"• SHORT: {len(short_trades)} trade, {short_wr:.0f}% WR\n"
+
+            message += f"\n<b>💼 SERMAYE</b>\n"
+            message += f"• Mevcut: ${float(config['current_capital']):.2f}\n"
+
+            # Calculate day start capital (approx)
+            day_start_capital = float(config['current_capital']) - daily_pnl
+            roi_today = (daily_pnl / day_start_capital * 100) if day_start_capital > 0 else 0
+            roi_emoji = "🚀" if roi_today > 2 else "📈" if roi_today > 0 else "📉"
+            message += f"• Günlük ROI: {roi_emoji} {roi_today:+.2f}%\n\n"
+
+            # Recent trades list (last 5)
+            message += f"<b>🕒 SON TRADE'LER</b>\n"
+            for i, trade in enumerate(today_trades[:5], 1):
+                pnl = float(trade['realized_pnl_usd'])
+                emoji = "✅" if pnl > 0 else "❌"
+                time_str = trade['exit_time'].strftime('%H:%M')
+                message += f"{emoji} {time_str} {trade['symbol']} {trade['side']} ${pnl:+.2f}\n"
+
+            if total_trades > 5:
+                message += f"\n... ve {total_trades - 5} trade daha\n"
+
+            message += f"\n<i>💡 /history komutuyla detaylı geçmiş görüntüle</i>"
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+            logger.info("✅ Daily report sent successfully")
+
+        except Exception as e:
+            logger.error(f"Error in daily report command: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ Günlük rapor oluşturulamadı: {str(e)}\n\n"
+                f"Database bağlantısını kontrol edin.",
+                parse_mode=ParseMode.HTML
+            )
 
     async def cmd_mlstats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /mlstats command - comprehensive ML learning statistics."""

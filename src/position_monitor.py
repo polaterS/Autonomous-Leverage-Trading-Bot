@@ -506,13 +506,28 @@ class PositionMonitor:
         if self.last_ai_check_time:
             time_since_last_check = (datetime.now() - self.last_ai_check_time).total_seconds()
 
-        # TRIGGER 1: Position losing money (ANY loss) - check every 60 seconds
+        # TRIGGER 1: Position losing money - AGGRESSIVE CHECKING
+        # Small loss (-$2): check every 2 minutes
+        # Medium loss (-$5): check every 1 minute
+        # Large loss (-$7): check every 30 seconds
         if unrealized_pnl < 0:
-            if time_since_last_check is None or time_since_last_check >= 60:  # 1 min
-                logger.debug(f"🧠 ML check: Position in loss (${float(unrealized_pnl):.2f})")
+            loss_amount = abs(float(unrealized_pnl))
+
+            if loss_amount >= 7.0:  # Close to -$10 stop-loss
+                check_interval = 30  # 30 seconds
+                logger.debug(f"🚨 ML check: CRITICAL LOSS (${float(unrealized_pnl):.2f})")
+            elif loss_amount >= 5.0:  # Medium loss
+                check_interval = 60  # 1 minute
+                logger.debug(f"⚠️ ML check: Medium loss (${float(unrealized_pnl):.2f})")
+            else:  # Small loss
+                check_interval = 120  # 2 minutes
+                logger.debug(f"🧠 ML check: Small loss (${float(unrealized_pnl):.2f})")
+
+            if time_since_last_check is None or time_since_last_check >= check_interval:
                 return True
 
-        # TRIGGER 2: Approaching stop-loss (within 3% of stop-loss distance)
+        # TRIGGER 2: Approaching stop-loss (within 5% of stop-loss distance)
+        # INCREASED from 3% to 5% for earlier detection
         entry_price = Decimal(str(position['entry_price']))
         stop_loss_price = Decimal(str(position['stop_loss_price']))
         side = position['side']
@@ -522,9 +537,9 @@ class PositionMonitor:
         else:  # SHORT
             distance_to_sl = (stop_loss_price - current_price) / entry_price
 
-        if distance_to_sl < Decimal("0.03"):  # Within 3% of stop-loss
-            if time_since_last_check is None or time_since_last_check >= 30:  # 30 sec
-                logger.debug("🧠 ML check: Approaching stop-loss")
+        if distance_to_sl < Decimal("0.05"):  # Within 5% of stop-loss (more sensitive)
+            if time_since_last_check is None or time_since_last_check >= 20:  # 20 sec (faster)
+                logger.debug(f"🧠 ML check: Approaching stop-loss (distance: {float(distance_to_sl)*100:.1f}%)")
                 return True
 
         # TRIGGER 3: Near profit target - check if should take profit early
