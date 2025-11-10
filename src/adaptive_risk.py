@@ -76,28 +76,29 @@ class AdaptiveRiskManager:
             # Blend general and symbol-specific win rates
             blended_wr = (recent_wr * 0.6) + (symbol_wr * 0.4)
 
-            # Adaptive stop-loss logic (OPTIMIZED):
-            # 80%+ WR → 11.5% SL (wider, let winners run)
-            # 70-79% WR → 10.5% SL (slightly wider)
-            # 60-69% WR → 9.5% SL (standard)
-            # 50-59% WR → 7.0% SL (tighter)
-            # <50% WR → 5.5% SL (very tight, cut losses fast) - OPTIMIZED from 6.0%
+            # Adaptive stop-loss logic (WIDENED FOR LOWER LEVERAGE):
+            # With 3-5x leverage instead of 9x, we can use wider % stops
+            # 80%+ WR → 20% SL (let winners run)
+            # 70-79% WR → 18% SL (slightly wider)
+            # 60-69% WR → 16% SL (standard)
+            # 50-59% WR → 14% SL (moderate)
+            # <50% WR → 12% SL (tighter but still breathing room)
 
             if blended_wr >= 80:
-                adaptive_sl = 11.5
+                adaptive_sl = 20.0
                 logger.info(f"🎯 ADAPTIVE SL: High WR ({blended_wr:.0f}%) → Wider SL {adaptive_sl:.1f}%")
             elif blended_wr >= 70:
-                adaptive_sl = 10.5
+                adaptive_sl = 18.0
                 logger.info(f"📊 ADAPTIVE SL: Good WR ({blended_wr:.0f}%) → Standard+ SL {adaptive_sl:.1f}%")
             elif blended_wr >= 60:
-                adaptive_sl = 9.5
+                adaptive_sl = 16.0
                 logger.debug(f"ADAPTIVE SL: Medium WR ({blended_wr:.0f}%) → Standard SL {adaptive_sl:.1f}%")
             elif blended_wr >= 50:
-                adaptive_sl = 7.0
-                logger.warning(f"⚠️ ADAPTIVE SL: Low WR ({blended_wr:.0f}%) → Tighter SL {adaptive_sl:.1f}%")
+                adaptive_sl = 14.0
+                logger.warning(f"⚠️ ADAPTIVE SL: Low WR ({blended_wr:.0f}%) → Moderate SL {adaptive_sl:.1f}%")
             else:
-                adaptive_sl = 5.5
-                logger.warning(f"🚨 ADAPTIVE SL: Very Low WR ({blended_wr:.0f}%) → Very Tight SL {adaptive_sl:.1f}%")
+                adaptive_sl = 12.0
+                logger.warning(f"🚨 ADAPTIVE SL: Very Low WR ({blended_wr:.0f}%) → Tighter SL {adaptive_sl:.1f}%")
 
             return adaptive_sl
 

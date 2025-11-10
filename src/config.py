@@ -35,14 +35,14 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
-    max_leverage: int = Field(default=30, ge=1, le=50)  # AI can choose 2x-30x based on setup quality
-    max_concurrent_positions: int = Field(default=20, ge=1, le=30)  # HARD CAP (actual max = capital/100, dynamically calculated)
-    position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # Each position FIXED at $100
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% max loss per trade ($10 on $100 position)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% max loss per trade ($10 on $100 position)
+    max_leverage: int = Field(default=10, ge=1, le=50)  # REDUCED: Max 10x (from 30x) for safety
+    max_concurrent_positions: int = Field(default=5, ge=1, le=30)  # REDUCED: Max 5 positions (from 20) to reduce risk exposure
+    position_size_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)  # REDUCED: $50 per position (from $100) for better capital preservation
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.12"), gt=0, le=1)  # WIDENED: 12% min (from 10%) for breathing room
+    max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # WIDENED: 20% max (from 10%) to avoid premature stops
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)  # 50% - BALANCED: Quality over quantity after ML learning
+    min_ai_confidence: Decimal = Field(default=Decimal("0.70"), ge=0, le=1)  # RAISED: 70% minimum (from 50%) for quality trades only
     scan_interval_seconds: int = Field(default=30, ge=10)  # 🔥 AGGRESSIVE: 30 seconds for fast ML learning
     position_check_seconds: int = Field(default=15, ge=5)  # 🔥 AGGRESSIVE: 15 seconds for real-time monitoring
 
@@ -206,35 +206,30 @@ PHASE 2: MOMENTUM & VOLUME ANALYSIS (Confirms Direction)
 
 PHASE 3: TRADE DECISION MATRIX (How to Decide)
 ═══════════════════════════════════════════════════
-CONFIDENCE SCORING SYSTEM:
+CONFIDENCE SCORING SYSTEM (CONSERVATIVE MODE):
 
-80-100% CONFIDENCE (Ultra High):
-✓ All timeframes aligned or very strong setup
-✓ Multiple confluence factors
-✓ Strong momentum + volume
-✓ Perfect entry trigger
-→ ULTRA AGGRESSIVE: Use 15-30x leverage
+85-100% CONFIDENCE (Ultra High):
+✓ All timeframes perfectly aligned
+✓ 8+ confluence factors
+✓ Strong momentum + volume + no major risks
+✓ Perfect entry trigger at key level
+→ AGGRESSIVE: Use 7-10x leverage
 
-70-79% CONFIDENCE (High):
-✓ Good setup with decent confluence
+75-84% CONFIDENCE (High):
+✓ Strong setup with 6-7 confluence factors
 ✓ Clear directional bias
 ✓ Most factors aligned
-→ AGGRESSIVE: Use 15-25x leverage
+→ MODERATE: Use 5-7x leverage
 
-60-69% CONFIDENCE (Moderate):
-✓ Acceptable setup
-✓ Some confluence factors
+70-74% CONFIDENCE (Acceptable):
+✓ Decent setup with 4-5 confluence factors
+✓ Clear direction but some uncertainty
 ✓ Tradeable opportunity
-→ MODERATE: Use 11-15x leverage
+→ CONSERVATIVE: Use 3-5x leverage
 
-50-59% CONFIDENCE (Low but Tradeable):
-✓ Basic setup meets minimum criteria
-✓ Mixed signals but directional bias exists
-✓ Learning opportunity for ML
-→ CONSERVATIVE: Use 2-10x leverage
-
-<50% CONFIDENCE:
-→ SKIP: Setup too weak, wait for better opportunity
+<70% CONFIDENCE:
+→ SKIP: Setup not strong enough, wait for better opportunity
+→ CRITICAL: Minimum 70% confidence required to trade
 
 CRITICAL RED FLAGS (AUTO-HOLD):
 ❌ RSI >90 or <10 (blow-off top/capitulation)
@@ -248,62 +243,62 @@ SCENARIO 1 - PERFECT SETUP (92% Confidence):
 - 1h: Pullback to EMA 12, holding support
 - 15m: RSI 55→62, MACD crossing up, volume increasing
 - Price: Just bounced off 1h support
-→ ACTION: BUY (LONG), confidence 0.92, leverage 25x, stop 10%
+→ ACTION: BUY (LONG), confidence 0.92, leverage 9x, stop 16%
 
 SCENARIO 2 - STRONG MOMENTUM (83% Confidence):
 - 4h: Downtrend, lower highs/lows
 - 1h: Resistance rejection, RSI 60→55
 - 15m: MACD turning down, volume on red candles
 - Funding: +0.08% (overleveraged longs)
-→ ACTION: SELL (SHORT), confidence 0.83, leverage 20x, stop 10%
+→ ACTION: SELL (SHORT), confidence 0.83, leverage 7x, stop 15%
 
 SCENARIO 3 - GOOD SCALP (72% Confidence):
 - 4h: Sideways consolidation
 - 1h: Bouncing between 3800-3850
 - 15m: Price at 3805, RSI 35 (oversold in range)
 - Volume: Low but picking up
-→ ACTION: BUY (LONG), confidence 0.72, leverage 18x, stop 10%, quick scalp
+→ ACTION: BUY (LONG), confidence 0.72, leverage 4x, stop 14%, quick scalp
 
-SCENARIO 4 - WEAK SETUP (58% Confidence):
+SCENARIO 4 - WEAK SETUP (65% Confidence):
 - 4h: Downtrend
 - 1h: Potential reversal, higher low forming
 - 15m: Bullish divergence on RSI
 - Volume: Weak
-→ ACTION: BUY (LONG), confidence 0.58, leverage 6x, stop 10% (learning trade)
+→ ACTION: HOLD, confidence 0.65 (below 70% minimum - wait for confirmation)
 
-SCENARIO 5 - BREAKOUT PERFECTION (97% Confidence):
+SCENARIO 5 - BREAKOUT PERFECTION (92% Confidence):
 - 4h: Compression at resistance
 - 1h: Building higher lows
 - 15m: Price testing resistance 5th time, volume spiking
 - RSI: 68 (strong but not extreme)
 - All confluence factors aligned
-→ ACTION: BUY (LONG), confidence 0.97, leverage 30x, breakout trade
+→ ACTION: BUY (LONG), confidence 0.92, leverage 10x (max), breakout trade
 
-STOP-LOSS PLACEMENT (CRITICAL):
-- ALWAYS use exactly 10% stop-loss (fixed for consistent risk management)
-- Place BELOW recent swing low for longs (not at exact low - give breathing room)
-- Place ABOVE recent swing high for shorts (not at exact high - avoid stop hunts)
-- 10% stop ensures maximum loss = 10% of position size
-- With higher leverage, 10% stop is sufficient protection
+STOP-LOSS PLACEMENT (CONSERVATIVE MODE):
+- Stop-loss range: 12-20% of position value (adaptive based on volatility)
+- With lower leverage (3-10x), this translates to 1.2-6.7% price movement
+- Place BELOW recent swing low for longs (give breathing room for noise)
+- Place ABOVE recent swing high for shorts (avoid stop hunts)
+- Wider stops prevent premature exits on normal volatility
+- Maximum loss per trade: $2.50-4.00 on $50 position (5-8% loss)
 
 TAKE-PROFIT STRATEGY:
 - Target minimum $1.50 profit (non-negotiable)
-- With 10% stop: aim for 15-20% profit target (1.5-2x risk/reward)
-- Extended target: 2-3x risk (20-30% profit) if strong trend + momentum
+- With 12-20% stop: aim for 18-30% profit target (1.5-2x risk/reward)
+- Extended target: 2-3x risk (25-40% profit) if strong trend + momentum
 - Use previous resistance (longs) or support (shorts) as natural targets
-- Higher leverage allows smaller % moves to hit profit targets
+- Conservative leverage = need larger % moves but safer trades
 
 RISK/REWARD REQUIREMENTS:
 - Minimum 1.5:1 ratio required to consider trade
 - Ideal: 2:1 or better
-- Fixed 10% stop simplifies R:R calculation
+- Adaptive stop-loss based on win rate and volatility
 
-CONFIDENCE SCORING (AGGRESSIVE MODE):
-- 80-100%: Perfect/strong setup, use 15-30x leverage
-- 70-79%: Good setup, use 15-25x leverage
-- 60-69%: Acceptable setup, use 11-15x leverage
-- 50-59%: Weak but tradeable, use 2-10x leverage
-- <50%: DO NOT TRADE
+CONFIDENCE SCORING (CONSERVATIVE MODE):
+- 85-100%: Perfect setup, use 7-10x leverage
+- 75-84%: Strong setup, use 5-7x leverage
+- 70-74%: Acceptable setup, use 3-5x leverage
+- <70%: DO NOT TRADE (wait for better opportunity)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💎 ELITE TRADER MINDSET (Your Decision-Making Process)
@@ -315,22 +310,22 @@ WHEN ANALYZING EACH COIN:
 3. Zoom to 15m - Is there an ENTRY TRIGGER?
 4. Check RSI, MACD, Volume - Do they AGREE?
 5. Funding rate - Any POSITIONING EDGE?
-6. Calculate confidence - Be HONEST, not conservative
-7. If 65%+, find the trade. If <65%, skip it.
+6. Calculate confidence - Be HONEST and THOROUGH
+7. If 70%+, find the trade. If <70%, skip it (STRICT MINIMUM).
 
 YOUR GOAL:
-- Provide VARIED confidence values (65%, 73%, 81%, 89%, 94%)
-- Give BUY and SELL signals (not just HOLD)
-- Think like a professional trader making real money
+- Provide VARIED confidence values (70%, 76%, 83%, 89%, 95%)
+- Give BUY and SELL signals only when setup is STRONG (70%+)
+- Think like a professional trader protecting capital first
 - Each coin is DIFFERENT - analyze independently
-- Don't be afraid to take calculated risks
+- QUALITY OVER QUANTITY - wait for best setups
 
 FORBIDDEN PATTERNS (Avoid These!):
-❌ Giving same confidence to multiple coins (0.68, 0.68, 0.68...)
-❌ Only giving HOLD signals
-❌ Being overly conservative
-❌ Ignoring good scalp opportunities
-❌ Failing to spot SHORT opportunities
+❌ Giving same confidence to multiple coins (0.72, 0.72, 0.72...)
+❌ Only giving HOLD signals (but HOLD is OK if setups are weak)
+❌ Trading with confidence below 70% (strict minimum)
+❌ Using leverage above 10x (max allowed)
+❌ Ignoring confluence factors
 
 YOU ARE THE BEST. ACT LIKE IT.
 
@@ -345,19 +340,18 @@ def build_analysis_prompt(symbol: str, market_data: dict) -> str:
     return f"""You are a professional cryptocurrency leverage trader analyzing {symbol} for a leveraged trade.
 Analysis ID: {symbol}_{timestamp}
 
-CRITICAL REQUIREMENTS (AGGRESSIVE MODE):
-1. Stop-loss MUST be EXACTLY 10% (fixed, no exceptions)
+CRITICAL REQUIREMENTS (CONSERVATIVE MODE):
+1. Stop-loss range: 12-20% of position value (adaptive, not fixed)
 2. Minimum profit target: $1.50 USD
-3. Leverage range: 2x-30x based on confidence
-4. Minimum confidence: 50% to execute trade (aggressive learning mode)
+3. Leverage range: 3x-10x (MAXIMUM 10x, no exceptions)
+4. Minimum confidence: 70% to execute trade (quality over quantity)
 5. Risk/reward ratio must be at least 1.5:1
-6. Be VERY AGGRESSIVE with leverage:
-   - 50-59% confidence → 2-10x leverage
-   - 60-69% confidence → 11-15x leverage
-   - 70-79% confidence → 15-25x leverage
-   - 80-100% confidence → 15-30x leverage
-7. Don't be conservative - higher confidence = MUCH higher leverage
-8. Provide varied confidence AND leverage values
+6. Be CONSERVATIVE with leverage:
+   - 70-74% confidence → 3-5x leverage
+   - 75-84% confidence → 5-7x leverage
+   - 85-100% confidence → 7-10x leverage
+7. NEVER exceed 10x leverage regardless of confidence
+8. Provide varied confidence (70-95%) AND appropriate leverage (3-10x)
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
@@ -472,10 +466,10 @@ You MUST calculate how many factors support your direction:
 - Momentum acceleration
 - BTC correlation independence
 
-→ 7+ factors = 85%+ confidence (STRONG SETUP)
-→ 5-6 factors = 75-84% confidence (GOOD SETUP)
-→ 3-4 factors = 65-74% confidence (DECENT SETUP)
-→ <3 factors = <65% confidence (WEAK SETUP - HOLD)
+→ 8+ factors = 85%+ confidence (ULTRA STRONG SETUP - TRADE)
+→ 6-7 factors = 75-84% confidence (STRONG SETUP - TRADE)
+→ 4-5 factors = 70-74% confidence (DECENT SETUP - TRADE)
+→ <4 factors = <70% confidence (WEAK SETUP - HOLD)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚀 MULTI-TIMEFRAME CONFLUENCE (ULTRA PROFESSIONAL EDGE!)
@@ -641,8 +635,8 @@ RESPONSE FORMAT (JSON only, no explanations outside JSON):
     }},
     "confluence_count": 0-11,
     "side": "LONG" | "SHORT" | null,
-    "suggested_leverage": 2-30,
-    "stop_loss_percent": 10.0,
+    "suggested_leverage": 3-10,
+    "stop_loss_percent": 12.0-20.0,
     "entry_price": {market_data['current_price']},
     "stop_loss_price": 0.0,
     "take_profit_price": 0.0,

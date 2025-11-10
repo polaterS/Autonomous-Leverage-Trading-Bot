@@ -37,11 +37,11 @@ class RiskManager:
 
         logger.info(f"Validating trade: {symbol} {side} {leverage}x with {stop_loss_percent}% stop-loss")
 
-        # RULE 1: Stop-loss must be between 5-10%
-        if stop_loss_percent < 5 or stop_loss_percent > 10:
+        # RULE 1: Stop-loss must be between 12-20%
+        if stop_loss_percent < 12 or stop_loss_percent > 20:
             return {
                 'approved': False,
-                'reason': f'Stop-loss {stop_loss_percent}% outside required range (5-10%)',
+                'reason': f'Stop-loss {stop_loss_percent}% outside required range (12-20%)',
                 'adjusted_params': None
             }
 
@@ -68,18 +68,14 @@ class RiskManager:
             leverage = 2
             trade_params['leverage'] = 2
 
-        # RULE 4: Check concurrent positions limit (DYNAMIC BASED ON CAPITAL)
-        # Each position = $100, so max positions = capital / 100
-        # $1000 capital → 10 positions, $1100 → 11 positions, etc.
+        # RULE 4: Check concurrent positions limit (FIXED AT 5)
+        # Conservative mode: Maximum 5 positions regardless of capital
+        # Each position = $50 (5% of capital)
         active_positions = await db.get_active_positions()
         current_capital = await db.get_current_capital()
 
-        # Calculate dynamic max positions based on capital
-        max_concurrent = int(current_capital / 100)
-
-        # Hard cap from config (safety limit)
-        config_max = self.settings.max_concurrent_positions
-        max_concurrent = min(max_concurrent, config_max)
+        # Fixed maximum: 5 positions (conservative mode)
+        max_concurrent = self.settings.max_concurrent_positions
 
         if len(active_positions) >= max_concurrent:
             return {
@@ -169,7 +165,7 @@ class RiskManager:
             trade_params['leverage'] = adjusted_leverage
 
         # RULE 8: Liquidation distance must be safe - AUTO-ADJUST LEVERAGE IF NEEDED
-        min_liq_distance = Decimal("0.10")  # Minimum 10% distance required
+        min_liq_distance = Decimal("0.15")  # Minimum 15% distance required (increased for safety)
         liq_price = calculate_liquidation_price(current_price, leverage, side)
         liq_distance = abs(current_price - liq_price) / current_price
 
@@ -198,7 +194,7 @@ class RiskManager:
                 # Even 2x leverage doesn't provide enough distance - reject
                 return {
                     'approved': False,
-                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 10%, even with 2x leverage)',
+                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 15%, even with 2x leverage)',
                     'adjusted_params': None
                 }
 
@@ -303,13 +299,11 @@ class RiskManager:
                 'reason': f'Insufficient capital: ${float(current_capital):.2f} < ${float(min_required_capital):.2f} required'
             }
 
-        # Check 2: Max concurrent positions (DYNAMIC based on capital)
+        # Check 2: Max concurrent positions (FIXED AT 5)
         active_positions = await db.get_active_positions()
 
-        # Calculate dynamic max positions: capital / 100
-        max_concurrent = int(current_capital / 100)
-        config_max = self.settings.max_concurrent_positions
-        max_concurrent = min(max_concurrent, config_max)
+        # Fixed maximum: 5 positions (conservative mode)
+        max_concurrent = self.settings.max_concurrent_positions
 
         if len(active_positions) >= max_concurrent:
             return {
