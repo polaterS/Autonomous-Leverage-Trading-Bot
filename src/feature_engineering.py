@@ -178,9 +178,14 @@ class FeatureEngineering:
             volume_current = float(indicators_15m.get('volume', 0))
             volume_sma = float(indicators_15m.get('volume_sma_20', volume_current))
 
+            # Safe division checks
+            volume_surge = (volume_current / volume_sma) if volume_sma > 1e-10 else 1.0
+            volume_volatility = (float(indicators_15m.get('volume_std', 0)) / volume_sma) if volume_sma > 1e-10 else 0.0
+            high_volume = 1.0 if (volume_sma > 1e-10 and (volume_current / volume_sma) > 1.5) else 0.0
+
             features = [
                 # Volume surge
-                (volume_current / volume_sma) if volume_sma > 0 else 1.0,  # F21
+                volume_surge,  # F21
 
                 # 24h volume (log scale for stability)
                 np.log1p(volume_24h) / 20,  # F22 (normalized)
@@ -192,10 +197,10 @@ class FeatureEngineering:
                 float(snapshot.get('buy_sell_ratio', 1.0)),  # F24
 
                 # Volume volatility
-                float(indicators_15m.get('volume_std', 0)) / (volume_sma + 1),  # F25
+                volume_volatility,  # F25
 
                 # High volume confirmation
-                1.0 if (volume_current / volume_sma) > 1.5 else 0.0,  # F26
+                high_volume,  # F26
             ]
 
             return features
@@ -344,10 +349,16 @@ class FeatureEngineering:
             x = np.arange(len(volume_history))
             y = np.array(volume_history)
 
-            slope = np.polyfit(x, y, 1)[0]
-            return np.tanh(slope / np.mean(y))  # Normalized slope
+            # Check for zero or near-zero mean to prevent division by zero
+            y_mean = np.mean(y)
+            if y_mean < 1e-10:  # Extremely low volume
+                return 0.0
 
-        except:
+            slope = np.polyfit(x, y, 1)[0]
+            return np.tanh(slope / y_mean)  # Normalized slope
+
+        except Exception as e:
+            # Catch all errors including division by zero, polyfit errors
             return 0.0
 
     def _calculate_rsi_alignment(self, snapshot: Dict, side: str) -> float:
