@@ -334,16 +334,36 @@ class PositionMonitor:
                     # - If position is LONG and ML says SELL → exit
                     # - If position is SHORT and ML says BUY → exit
                     # - Confidence must be >= 55%
+                    #
+                    # FALLBACK: If ML confidence is too low (<30%), use technical analysis
+                    # to detect if position is in critical danger zone
 
                     should_exit = False
                     reason = ""
+                    ml_confidence = ml_prediction.get('confidence', 0)
 
-                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_prediction['confidence'] >= 0.55:
+                    # PRIMARY: High confidence ML exit (>=55%)
+                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_confidence >= 0.55:
                         should_exit = True
-                        reason = f"ML predicts SELL (conf: {ml_prediction['confidence']:.0%})"
-                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_prediction['confidence'] >= 0.55:
+                        reason = f"ML predicts SELL (conf: {ml_confidence:.0%})"
+                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_confidence >= 0.55:
                         should_exit = True
-                        reason = f"ML predicts BUY (conf: {ml_prediction['confidence']:.0%})"
+                        reason = f"ML predicts BUY (conf: {ml_confidence:.0%})"
+
+                    # FALLBACK: ML confidence too low (<30%) + critical loss (>$7)
+                    # Use simple technical rule: exit if loss >$7 and getting worse
+                    elif ml_confidence < 0.30 and unrealized_pnl < Decimal("-7.0"):
+                        # Check if price is moving away from entry (loss increasing)
+                        entry_price = Decimal(str(position['entry_price']))
+                        price_move_percent = abs((current_price - entry_price) / entry_price) * 100
+
+                        if price_move_percent > 0.8:  # Moved >0.8% away from entry
+                            should_exit = True
+                            reason = f"Low ML conf ({ml_confidence:.0%}) + Critical loss (${float(unrealized_pnl):.2f})"
+                            logger.warning(
+                                f"⚠️ FALLBACK EXIT: ML confidence too low, using technical stop. "
+                                f"Loss: ${float(unrealized_pnl):.2f}, Price move: {float(price_move_percent):.2f}%"
+                            )
 
                     if should_exit:
                         logger.info(f"🧠 ML recommends exit: {reason}")

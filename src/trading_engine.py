@@ -152,6 +152,12 @@ class AutonomousTradingEngine:
                     )
 
                     try:
+                        # CRITICAL: Re-check if trading is still enabled before scanning
+                        # (user might have stopped bot between checks)
+                        if not await self.check_trading_enabled():
+                            logger.warning("⏸️  Trading was disabled, skipping scan")
+                            continue
+
                         # Check if we have enough capital for new positions
                         risk_manager = get_risk_manager()
                         can_trade_check = await risk_manager.can_open_position()

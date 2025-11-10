@@ -701,9 +701,12 @@ class MarketScanner:
         elif "NEUTRAL" in sentiment_upper or "MIXED" in sentiment_upper:
             score += 7   # Neutral - no clear direction
         else:
-            # Trading against market breadth (risky!)
-            score += 0   # No points for counter-trend trades
-            logger.warning(f"⚠️ Trading AGAINST market breadth: {market_sentiment} vs {trade_side}")
+            # Trading against market breadth (VERY RISKY!)
+            score -= 20  # HEAVY PENALTY for counter-trend trades
+            logger.warning(
+                f"⚠️ COUNTER-TREND: {market_sentiment} market but {trade_side} trade. "
+                f"Score penalty: -20 points"
+            )
 
         # FACTOR 3: Market Regime Appropriateness (20 points - reduced from 25)
         regime = market_data.get('market_regime', 'UNKNOWN')
