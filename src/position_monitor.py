@@ -333,7 +333,7 @@ class PositionMonitor:
                     # Exit logic:
                     # - If position is LONG and ML says SELL → exit
                     # - If position is SHORT and ML says BUY → exit
-                    # - Confidence must be >= 55%
+                    # - Confidence must be >= 42.5% (OPTIMIZED: lowered from 55%)
                     #
                     # FALLBACK: If ML confidence is too low (<30%), use technical analysis
                     # to detect if position is in critical danger zone
@@ -342,11 +342,12 @@ class PositionMonitor:
                     reason = ""
                     ml_confidence = ml_prediction.get('confidence', 0)
 
-                    # PRIMARY: High confidence ML exit (>=55%)
-                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_confidence >= 0.55:
+                    # PRIMARY: High confidence ML exit (>=42.5%)
+                    # OPTIMIZED: Lowered from 55% to 42.5% for earlier exits
+                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_confidence >= 0.425:
                         should_exit = True
                         reason = f"ML predicts SELL (conf: {ml_confidence:.0%})"
-                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_confidence >= 0.55:
+                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_confidence >= 0.425:
                         should_exit = True
                         reason = f"ML predicts BUY (conf: {ml_confidence:.0%})"
 

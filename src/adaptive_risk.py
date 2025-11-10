@@ -61,7 +61,7 @@ class AdaptiveRiskManager:
             base_stop_loss: Default stop-loss percentage (10%)
 
         Returns:
-            Adaptive stop-loss percentage (5-12%)
+            Adaptive stop-loss percentage (5.5-11.5%) - OPTIMIZED
         """
         try:
             await self._update_performance_cache()
@@ -76,12 +76,12 @@ class AdaptiveRiskManager:
             # Blend general and symbol-specific win rates
             blended_wr = (recent_wr * 0.6) + (symbol_wr * 0.4)
 
-            # Adaptive stop-loss logic:
-            # 80%+ WR → 11-12% SL (wider, let winners run)
-            # 70-79% WR → 10-11% SL (slightly wider)
-            # 60-69% WR → 9-10% SL (standard)
-            # 50-59% WR → 7-9% SL (tighter)
-            # <50% WR → 5-7% SL (very tight, cut losses fast)
+            # Adaptive stop-loss logic (OPTIMIZED):
+            # 80%+ WR → 11.5% SL (wider, let winners run)
+            # 70-79% WR → 10.5% SL (slightly wider)
+            # 60-69% WR → 9.5% SL (standard)
+            # 50-59% WR → 7.0% SL (tighter)
+            # <50% WR → 5.5% SL (very tight, cut losses fast) - OPTIMIZED from 6.0%
 
             if blended_wr >= 80:
                 adaptive_sl = 11.5
@@ -93,10 +93,10 @@ class AdaptiveRiskManager:
                 adaptive_sl = 9.5
                 logger.debug(f"ADAPTIVE SL: Medium WR ({blended_wr:.0f}%) → Standard SL {adaptive_sl:.1f}%")
             elif blended_wr >= 50:
-                adaptive_sl = 7.5
+                adaptive_sl = 7.0
                 logger.warning(f"⚠️ ADAPTIVE SL: Low WR ({blended_wr:.0f}%) → Tighter SL {adaptive_sl:.1f}%")
             else:
-                adaptive_sl = 6.0
+                adaptive_sl = 5.5
                 logger.warning(f"🚨 ADAPTIVE SL: Very Low WR ({blended_wr:.0f}%) → Very Tight SL {adaptive_sl:.1f}%")
 
             return adaptive_sl
@@ -134,14 +134,14 @@ class AdaptiveRiskManager:
             symbol_perf = await self._get_symbol_performance(symbol, side)
             avg_win_percent = symbol_perf.get('avg_win_percent', 3.0)
 
-            # Adaptive TP logic:
+            # Adaptive TP logic (OPTIMIZED):
             # Use 70% of average winning move as TP target
             # This ensures we capture profits before reversal
             tp_percent = avg_win_percent * 0.70
 
-            # Minimum TP: 1.5% (covers fees + small profit)
+            # Minimum TP: 2.0% (OPTIMIZED from 1.5% - wider target for better R:R)
             # Maximum TP: 8% (don't be too greedy)
-            tp_percent = max(1.5, min(tp_percent, 8.0))
+            tp_percent = max(2.0, min(tp_percent, 8.0))
 
             # Calculate TP price
             if side == 'LONG':
