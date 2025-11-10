@@ -648,7 +648,7 @@ class TradeExecutor:
                 exit_quality = exit_optimizer.calculate_exit_quality(
                     position,
                     realized_pnl,
-                    min_profit_usd,
+                    self.settings.min_profit_usd,
                     int(time_in_position_minutes)
                 )
 
