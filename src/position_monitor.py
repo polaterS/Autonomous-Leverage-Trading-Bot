@@ -308,46 +308,54 @@ class PositionMonitor:
             except Exception as exit_ml_error:
                 logger.warning(f"ML exit optimizer failed: {exit_ml_error}")
 
-            # === CHECK 4: AI exit signal (DISABLED IN ML-ONLY MODE) ===
-            # 🚫 ML-ONLY MODE: Skip AI exit signals, rely on technical exits only
-            should_check_ai = False  # Disabled for ML-ONLY mode
+            # === CHECK 4: ML-based exit signal ===
+            # Check if ML model recommends exiting (proactive loss prevention)
+            should_check_ml = self._should_request_ml_exit_signal(
+                position, unrealized_pnl, min_profit_usd, current_price
+            )
 
-            # OLD CODE (disabled):
-            # should_check_ai = self._should_request_ai_exit_signal(
-            #     position, unrealized_pnl, min_profit_usd, current_price
-            # )
-
-            if should_check_ai:
-                logger.info("Requesting AI exit signal...")
+            if should_check_ml:
+                logger.info("🧠 Requesting ML exit signal...")
                 self.last_ai_check_time = datetime.now()
 
                 try:
-                    # Gather quick market data
+                    # Get ML-based exit recommendation
+                    from src.ml_pattern_learner import get_ml_learner
+                    ml_learner = await get_ml_learner()
+
+                    # Gather market data for ML analysis
                     market_data = await self._gather_quick_market_data(symbol, current_price)
 
-                    # Get AI exit recommendation
+                    # Get ML prediction for current market conditions
                     ai_engine = get_ai_engine()
-                    duration = (datetime.now() - position.get('entry_time', datetime.now())).total_seconds()
+                    ml_prediction = await ai_engine._get_ml_only_prediction(symbol, market_data, ml_learner)
 
-                    position_for_ai = {
-                        **position,
-                        'unrealized_pnl_usd': unrealized_pnl,
-                        'duration': f"{int(duration//60)}m"
-                    }
+                    # Exit logic:
+                    # - If position is LONG and ML says SELL → exit
+                    # - If position is SHORT and ML says BUY → exit
+                    # - Confidence must be >= 55%
 
-                    exit_signal = await ai_engine.get_exit_signal(symbol, market_data, position_for_ai)
+                    should_exit = False
+                    reason = ""
 
-                    if exit_signal.get('should_exit') and exit_signal.get('confidence', 0) >= 0.70:
-                        logger.info(f"🤖 AI recommends exit: {exit_signal.get('reason')}")
+                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_prediction['confidence'] >= 0.55:
+                        should_exit = True
+                        reason = f"ML predicts SELL (conf: {ml_prediction['confidence']:.0%})"
+                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_prediction['confidence'] >= 0.55:
+                        should_exit = True
+                        reason = f"ML predicts BUY (conf: {ml_prediction['confidence']:.0%})"
+
+                    if should_exit:
+                        logger.info(f"🧠 ML recommends exit: {reason}")
                         await executor.close_position(
                             position,
                             current_price,
-                            f"AI exit signal - {exit_signal.get('reason')}"
+                            f"ML exit signal - {reason}"
                         )
                         return
 
                 except Exception as e:
-                    logger.warning(f"Failed to get AI exit signal: {e}")
+                    logger.warning(f"Failed to get ML exit signal: {e}")
 
             # === CHECK 5: Periodic updates moved to trading_engine ===
             # Individual position updates removed to prevent spam
@@ -471,6 +479,61 @@ class PositionMonitor:
                 return True
 
         # Default: Don't check AI
+        return False
+
+    def _should_request_ml_exit_signal(
+        self,
+        position: Dict[str, Any],
+        unrealized_pnl: Decimal,
+        min_profit_usd: Decimal,
+        current_price: Decimal
+    ) -> bool:
+        """
+        ML-based exit signal triggering - more aggressive than technical stops.
+        Checks every 60 seconds when position is in danger zone.
+
+        Args:
+            position: Position data
+            unrealized_pnl: Current unrealized P&L
+            min_profit_usd: Minimum profit target
+            current_price: Current price
+
+        Returns:
+            True if ML should be consulted for exit decision
+        """
+        # Time-based check
+        time_since_last_check = None
+        if self.last_ai_check_time:
+            time_since_last_check = (datetime.now() - self.last_ai_check_time).total_seconds()
+
+        # TRIGGER 1: Position losing money (ANY loss) - check every 60 seconds
+        if unrealized_pnl < 0:
+            if time_since_last_check is None or time_since_last_check >= 60:  # 1 min
+                logger.debug(f"🧠 ML check: Position in loss (${float(unrealized_pnl):.2f})")
+                return True
+
+        # TRIGGER 2: Approaching stop-loss (within 3% of stop-loss distance)
+        entry_price = Decimal(str(position['entry_price']))
+        stop_loss_price = Decimal(str(position['stop_loss_price']))
+        side = position['side']
+
+        if side == 'LONG':
+            distance_to_sl = (current_price - stop_loss_price) / entry_price
+        else:  # SHORT
+            distance_to_sl = (stop_loss_price - current_price) / entry_price
+
+        if distance_to_sl < Decimal("0.03"):  # Within 3% of stop-loss
+            if time_since_last_check is None or time_since_last_check >= 30:  # 30 sec
+                logger.debug("🧠 ML check: Approaching stop-loss")
+                return True
+
+        # TRIGGER 3: Near profit target - check if should take profit early
+        if min_profit_usd * Decimal("0.7") <= unrealized_pnl <= min_profit_usd * Decimal("1.5"):
+            if time_since_last_check is None or time_since_last_check >= 120:  # 2 min
+                logger.debug("🧠 ML check: Near profit target")
+                return True
+
+        # Default: Don't check ML
         return False
 
     async def _check_multi_timeframe_exit(
