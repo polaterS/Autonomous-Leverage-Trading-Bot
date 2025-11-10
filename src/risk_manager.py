@@ -68,14 +68,23 @@ class RiskManager:
             leverage = 2
             trade_params['leverage'] = 2
 
-        # RULE 4: Check concurrent positions limit (MULTI-POSITION SUPPORT)
+        # RULE 4: Check concurrent positions limit (DYNAMIC BASED ON CAPITAL)
+        # Each position = $100, so max positions = capital / 100
+        # $1000 capital → 10 positions, $1100 → 11 positions, etc.
         active_positions = await db.get_active_positions()
-        max_concurrent = self.settings.max_concurrent_positions
+        current_capital = await db.get_current_capital()
+
+        # Calculate dynamic max positions based on capital
+        max_concurrent = int(current_capital / 100)
+
+        # Hard cap from config (safety limit)
+        config_max = self.settings.max_concurrent_positions
+        max_concurrent = min(max_concurrent, config_max)
 
         if len(active_positions) >= max_concurrent:
             return {
                 'approved': False,
-                'reason': f'Maximum concurrent positions reached ({len(active_positions)}/{max_concurrent}).',
+                'reason': f'Maximum concurrent positions reached ({len(active_positions)}/{max_concurrent}). Capital: ${float(current_capital):.2f}',
                 'adjusted_params': None
             }
 
@@ -294,9 +303,13 @@ class RiskManager:
                 'reason': f'Insufficient capital: ${float(current_capital):.2f} < ${float(min_required_capital):.2f} required'
             }
 
-        # Check 2: Max concurrent positions
+        # Check 2: Max concurrent positions (DYNAMIC based on capital)
         active_positions = await db.get_active_positions()
-        max_concurrent = self.settings.max_concurrent_positions
+
+        # Calculate dynamic max positions: capital / 100
+        max_concurrent = int(current_capital / 100)
+        config_max = self.settings.max_concurrent_positions
+        max_concurrent = min(max_concurrent, config_max)
 
         if len(active_positions) >= max_concurrent:
             return {
