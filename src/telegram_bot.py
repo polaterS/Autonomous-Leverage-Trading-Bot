@@ -66,6 +66,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("scan", self.cmd_scan))
         self.application.add_handler(CommandHandler("chart", self.cmd_chart))
         self.application.add_handler(CommandHandler("mlstats", self.cmd_mlstats))
+        self.application.add_handler(CommandHandler("mlinsights", self.cmd_mlinsights))
         self.application.add_handler(CommandHandler("stopbot", self.cmd_stop_bot))
         self.application.add_handler(CommandHandler("startbot", self.cmd_start_bot))
         self.application.add_handler(CommandHandler("reset", self.cmd_reset_circuit_breaker))
@@ -152,6 +153,7 @@ Hoş geldiniz! Bot komutları:
 /chart - TradingView benzeri grafik oluştur
 /scan - Manuel market tarama
 /mlstats - ML öğrenme istatistikleri
+/mlinsights - 🧠 ML analiz + grafikler (AI öğrenme süreci)
 
 <b>🎮 Bot Kontrol:</b>
 /startbot - Botu başlat
@@ -180,6 +182,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /history - Kapalı pozisyon geçmişi
 /scan - Manuel market tarama yap
 /mlstats - ML öğrenme istatistikleri ve accuracy
+/mlinsights - 🧠 Detaylı ML analiz + grafikler (öğrenme eğrisi, pattern perf.)
 /startbot - Botu çalıştır
 /stopbot - Botu durdur
 /reset - Circuit breaker'ı resetle (3 ardışık loss sonrası)
@@ -735,6 +738,274 @@ Sorularınız için: @your_support
             await update.message.reply_text(
                 f"❌ ML istatistikleri alınamadı: {str(e)}\n\n"
                 f"Database bağlantısını kontrol edin.",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_mlinsights(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /mlinsights command - comprehensive ML analysis with graphs."""
+        try:
+            logger.info("🧠 /mlinsights command called")
+            await update.message.reply_text("🔬 ML analiz hazırlanıyor... Grafik oluşturuluyor...")
+
+            # Get ML learner and database data
+            from src.ml_pattern_learner import get_ml_learner
+            import matplotlib
+            matplotlib.use('Agg')  # Non-interactive backend
+            import matplotlib.pyplot as plt
+            import numpy as np
+            from io import BytesIO
+            from datetime import datetime, timedelta
+
+            ml = await get_ml_learner()
+
+            # Get all closed trades from database
+            query = """
+                SELECT
+                    symbol, side, entry_price, exit_price, realized_pnl_usd,
+                    entry_time, exit_time, ai_confidence, leverage,
+                    close_reason
+                FROM trade_history
+                ORDER BY exit_time ASC
+            """
+            async with self.db.pool.acquire() as conn:
+                all_trades = await conn.fetch(query)
+
+            if len(all_trades) < 10:
+                await update.message.reply_text(
+                    "📊 <b>ML INSIGHTS</b>\n\n"
+                    "Henüz yeterli veri yok (min 10 trade).\n"
+                    f"Mevcut trade sayısı: {len(all_trades)}\n\n"
+                    "Bot daha fazla trade yaptıkça detaylı analiz mevcut olacak!",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # === 1. LEARNING CURVE GRAPH ===
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+            fig.suptitle('🧠 ML LEARNING INSIGHTS', fontsize=16, fontweight='bold')
+
+            # 1a. Win Rate Evolution (Rolling Window)
+            window_size = min(10, len(all_trades) // 5)
+            win_rates = []
+            trade_numbers = []
+
+            for i in range(window_size, len(all_trades) + 1):
+                window = all_trades[i-window_size:i]
+                wins = sum(1 for t in window if float(t['realized_pnl_usd']) > 0)
+                wr = (wins / window_size) * 100
+                win_rates.append(wr)
+                trade_numbers.append(i)
+
+            ax1.plot(trade_numbers, win_rates, linewidth=2, color='#2E86DE', marker='o', markersize=3)
+            ax1.axhline(y=50, color='gray', linestyle='--', alpha=0.5, label='Break-even')
+            ax1.axhline(y=60, color='green', linestyle='--', alpha=0.5, label='Target (60%)')
+            ax1.fill_between(trade_numbers, win_rates, 50, where=np.array(win_rates) >= 50,
+                           alpha=0.3, color='green', label='Profit zone')
+            ax1.fill_between(trade_numbers, win_rates, 50, where=np.array(win_rates) < 50,
+                           alpha=0.3, color='red', label='Loss zone')
+            ax1.set_xlabel('Trade Number', fontweight='bold')
+            ax1.set_ylabel('Win Rate (%)', fontweight='bold')
+            ax1.set_title(f'📈 Learning Curve (Rolling {window_size}-trade window)', fontweight='bold')
+            ax1.legend(loc='upper left', fontsize=8)
+            ax1.grid(True, alpha=0.3)
+            ax1.set_ylim([0, 100])
+
+            # 1b. Cumulative P&L Over Time
+            cumulative_pnl = []
+            cum_sum = 0
+            for trade in all_trades:
+                cum_sum += float(trade['realized_pnl_usd'])
+                cumulative_pnl.append(cum_sum)
+
+            trade_nums = list(range(1, len(all_trades) + 1))
+            colors = ['green' if x >= 0 else 'red' for x in cumulative_pnl]
+            ax2.plot(trade_nums, cumulative_pnl, linewidth=2, color='#2E86DE')
+            ax2.fill_between(trade_nums, cumulative_pnl, 0, where=np.array(cumulative_pnl) >= 0,
+                           alpha=0.3, color='green')
+            ax2.fill_between(trade_nums, cumulative_pnl, 0, where=np.array(cumulative_pnl) < 0,
+                           alpha=0.3, color='red')
+            ax2.axhline(y=0, color='black', linestyle='-', alpha=0.5)
+            ax2.set_xlabel('Trade Number', fontweight='bold')
+            ax2.set_ylabel('Cumulative P&L ($)', fontweight='bold')
+            ax2.set_title('💰 Cumulative Profit/Loss', fontweight='bold')
+            ax2.grid(True, alpha=0.3)
+
+            # 1c. Confidence vs Actual Win Rate
+            confidence_buckets = {}
+            for trade in all_trades:
+                conf = trade.get('ai_confidence')
+                if conf:
+                    conf_bucket = int(float(conf) * 100 / 10) * 10  # 10% buckets
+                    if conf_bucket not in confidence_buckets:
+                        confidence_buckets[conf_bucket] = {'wins': 0, 'total': 0}
+                    confidence_buckets[conf_bucket]['total'] += 1
+                    if float(trade['realized_pnl_usd']) > 0:
+                        confidence_buckets[conf_bucket]['wins'] += 1
+
+            if confidence_buckets:
+                confs = sorted(confidence_buckets.keys())
+                actual_wrs = [confidence_buckets[c]['wins'] / confidence_buckets[c]['total'] * 100
+                            for c in confs]
+                trade_counts = [confidence_buckets[c]['total'] for c in confs]
+
+                # Bar plot with counts
+                bars = ax3.bar(confs, actual_wrs, width=8, alpha=0.7, color='#2E86DE', label='Actual Win Rate')
+                ax3.plot(confs, confs, 'r--', label='Perfect Calibration', linewidth=2)
+
+                # Add count labels on bars
+                for i, (conf, count) in enumerate(zip(confs, trade_counts)):
+                    ax3.text(conf, actual_wrs[i] + 2, f'n={count}',
+                           ha='center', va='bottom', fontsize=8, fontweight='bold')
+
+                ax3.set_xlabel('AI Confidence Level (%)', fontweight='bold')
+                ax3.set_ylabel('Actual Win Rate (%)', fontweight='bold')
+                ax3.set_title('🎯 Confidence Calibration (AI Accuracy)', fontweight='bold')
+                ax3.legend(loc='upper left', fontsize=9)
+                ax3.grid(True, alpha=0.3)
+                ax3.set_ylim([0, 100])
+
+            # 1d. Top Patterns Performance
+            pattern_performance = {}
+            if hasattr(ml, 'winning_patterns') and hasattr(ml, 'losing_patterns'):
+                all_patterns = set(ml.winning_patterns.keys()) | set(ml.losing_patterns.keys())
+                for pattern in all_patterns:
+                    wins = ml.winning_patterns.get(pattern, 0)
+                    losses = ml.losing_patterns.get(pattern, 0)
+                    total = wins + losses
+                    if total >= 5:  # Min 5 occurrences
+                        pattern_performance[pattern] = {
+                            'wins': wins,
+                            'total': total,
+                            'win_rate': (wins / total) * 100
+                        }
+
+            if pattern_performance:
+                # Get top 10 patterns by occurrence
+                sorted_patterns = sorted(pattern_performance.items(),
+                                       key=lambda x: x[1]['total'], reverse=True)[:10]
+
+                pattern_names = [p[0].replace('_', ' ').title()[:20] for p in sorted_patterns]
+                pattern_wrs = [p[1]['win_rate'] for p in sorted_patterns]
+                pattern_counts = [p[1]['total'] for p in sorted_patterns]
+
+                # Horizontal bar chart
+                colors_bar = ['green' if wr >= 60 else 'orange' if wr >= 50 else 'red'
+                            for wr in pattern_wrs]
+                bars = ax4.barh(pattern_names, pattern_wrs, color=colors_bar, alpha=0.7)
+
+                # Add count labels
+                for i, (wr, count) in enumerate(zip(pattern_wrs, pattern_counts)):
+                    ax4.text(wr + 2, i, f'{wr:.0f}% (n={count})',
+                           va='center', fontsize=8, fontweight='bold')
+
+                ax4.axvline(x=50, color='gray', linestyle='--', alpha=0.5, label='Break-even')
+                ax4.axvline(x=60, color='green', linestyle='--', alpha=0.5, label='Target')
+                ax4.set_xlabel('Win Rate (%)', fontweight='bold')
+                ax4.set_title('🔥 Top 10 Patterns by Frequency', fontweight='bold')
+                ax4.legend(loc='lower right', fontsize=8)
+                ax4.set_xlim([0, 100])
+                ax4.grid(True, alpha=0.3, axis='x')
+            else:
+                ax4.text(0.5, 0.5, 'Insufficient pattern data\n(min 5 occurrences each)',
+                       ha='center', va='center', fontsize=12, transform=ax4.transAxes)
+                ax4.set_title('🔥 Pattern Performance', fontweight='bold')
+
+            plt.tight_layout()
+
+            # Save graph to bytes
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+            buf.seek(0)
+            plt.close()
+
+            # Send graph
+            await update.message.reply_photo(
+                photo=buf,
+                caption="📊 <b>ML LEARNING INSIGHTS</b>\n\n"
+                       "🔬 Grafik açıklaması:\n"
+                       "• <b>Üst Sol:</b> Win rate gelişimi (öğrenme eğrisi)\n"
+                       "• <b>Üst Sağ:</b> Kümülatif kar/zarar trendi\n"
+                       "• <b>Alt Sol:</b> AI güven seviyesi doğruluğu (kalibrasyon)\n"
+                       "• <b>Alt Sağ:</b> En sık kullanılan pattern'ler ve başarı oranları\n\n"
+                       "<i>Detaylı istatistikler için /mlstats kullanın</i>",
+                parse_mode=ParseMode.HTML
+            )
+
+            # === 2. TEXT-BASED INSIGHTS ===
+            total_trades = len(all_trades)
+            winning_trades = [t for t in all_trades if float(t['realized_pnl_usd']) > 0]
+            overall_wr = (len(winning_trades) / total_trades * 100) if total_trades > 0 else 0
+            total_pnl = sum(float(t['realized_pnl_usd']) for t in all_trades)
+
+            # Calculate improvement trend
+            if total_trades >= 20:
+                first_half = all_trades[:total_trades//2]
+                second_half = all_trades[total_trades//2:]
+
+                first_wr = sum(1 for t in first_half if float(t['realized_pnl_usd']) > 0) / len(first_half) * 100
+                second_wr = sum(1 for t in second_half if float(t['realized_pnl_usd']) > 0) / len(second_half) * 100
+                improvement = second_wr - first_wr
+            else:
+                improvement = 0
+
+            message = "<b>🎓 ML LEARNING ANALYSIS</b>\n\n"
+            message += f"<b>📊 Overall Performance:</b>\n"
+            message += f"• Total Trades: {total_trades}\n"
+            wr_emoji = "🟢" if overall_wr >= 60 else "🟡" if overall_wr >= 50 else "🔴"
+            message += f"• Win Rate: {wr_emoji} {overall_wr:.1f}%\n"
+            pnl_emoji = "💰" if total_pnl > 0 else "📉"
+            message += f"• Total P&L: {pnl_emoji} ${total_pnl:+.2f}\n\n"
+
+            message += f"<b>📈 Learning Trend:</b>\n"
+            if improvement > 10:
+                message += f"🎉 <b>Excellent!</b> Win rate improved by {improvement:+.0f}%\n"
+                message += "ML is learning rapidly! Strategy is optimizing.\n\n"
+            elif improvement > 0:
+                message += f"✅ <b>Good!</b> Win rate improved by {improvement:+.0f}%\n"
+                message += "Steady improvement observed.\n\n"
+            elif improvement > -10:
+                message += f"📊 <b>Stable.</b> Win rate change: {improvement:+.0f}%\n"
+                message += "Performance is consistent.\n\n"
+            else:
+                message += f"⚠️ <b>Attention!</b> Win rate dropped by {abs(improvement):.0f}%\n"
+                message += "May need pattern re-evaluation or market shift.\n\n"
+
+            # Pattern insights
+            if pattern_performance:
+                best_patterns = sorted(pattern_performance.items(),
+                                     key=lambda x: x[1]['win_rate'], reverse=True)[:3]
+                message += f"<b>🏆 Best Performing Patterns:</b>\n"
+                for pattern, stats in best_patterns:
+                    if stats['win_rate'] >= 60:
+                        pattern_clean = pattern.replace('_', ' ').title()
+                        message += f"🟢 {pattern_clean}: {stats['win_rate']:.0f}% WR (n={stats['total']})\n"
+                message += "\n"
+
+            # Readiness assessment
+            message += f"<b>🎯 Live Trading Readiness:</b>\n"
+            if total_trades < 50:
+                message += f"⚠️ <b>Not Ready</b> - Need {50 - total_trades} more trades\n"
+                message += "Recommendation: Continue paper trading\n"
+            elif overall_wr < 55:
+                message += f"⚠️ <b>Not Ready</b> - Win rate below 55%\n"
+                message += "Recommendation: Wait for strategy optimization\n"
+            elif overall_wr >= 60:
+                message += f"✅ <b>Ready!</b> - Strong performance ({overall_wr:.0f}% WR)\n"
+                message += f"💡 Suggestion: Start with small capital ($100-200)\n"
+            else:
+                message += f"🟡 <b>Approaching Ready</b> - WR: {overall_wr:.0f}%\n"
+                message += f"Recommendation: Monitor for {60 - overall_wr:.0f}% more improvement\n"
+
+            message += "\n<i>📊 Use /mlstats for detailed statistics</i>"
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+            logger.info("✅ ML insights sent successfully with graphs")
+
+        except Exception as e:
+            logger.error(f"Error in mlinsights command: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ ML insights oluşturulamadı: {str(e)}\n\n"
+                f"Database bağlantısını veya matplotlib kurulumunu kontrol edin.",
                 parse_mode=ParseMode.HTML
             )
 
