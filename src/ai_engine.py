@@ -448,8 +448,8 @@ class AIConsensusEngine:
                 'confidence': ml_prediction['confidence'],
                 'weighted_consensus': False,
                 'reason': f"ML confidence below threshold ({ml_prediction['confidence']:.0%} < 50%)",
-                'suggested_leverage': 2,
-                'stop_loss_percent': 10.0,
+                'suggested_leverage': 3,  # Conservative minimum
+                'stop_loss_percent': 12.0,  # Conservative minimum
                 'risk_reward_ratio': 0.0,
                 'reasoning': 'ML confidence insufficient for trade',
                 'models_used': ['ML-ONLY'],
@@ -746,18 +746,20 @@ RESPONSE FORMAT (JSON only):
                 confidence = max(long_prediction['confidence'], short_prediction['confidence'])
                 reasoning = "No clear directional signal"
 
-            # Adaptive leverage based on confidence
-            if confidence >= 0.75:
-                leverage = 20  # High confidence
-            elif confidence >= 0.65:
-                leverage = 15  # Medium-high confidence
-            elif confidence >= 0.55:
-                leverage = 12  # Medium confidence
+            # CONSERVATIVE MODE: Adaptive leverage based on confidence
+            # Max 10x leverage, wider stops for safety
+            if confidence >= 0.85:
+                leverage = 10  # Ultra high confidence (max)
+                stop_loss = 20.0
+            elif confidence >= 0.75:
+                leverage = 7  # High confidence
+                stop_loss = 16.0
+            elif confidence >= 0.70:
+                leverage = 5  # Acceptable confidence
+                stop_loss = 14.0
             else:
-                leverage = 10  # Base confidence
-
-            # Adaptive stop-loss (will be overridden by adaptive_risk.py)
-            stop_loss = 10.0  # Base 10%, adaptive_risk will adjust
+                leverage = 3  # Low confidence (minimum)
+                stop_loss = 12.0
 
             logger.info(
                 f"🤖 REAL ML: {symbol} → {action.upper() if action != 'hold' else 'HOLD'} | "
@@ -802,8 +804,8 @@ RESPONSE FORMAT (JSON only):
                 'action': action,
                 'side': side,
                 'confidence': confidence,
-                'suggested_leverage': 10,
-                'stop_loss_percent': 10.0,
+                'suggested_leverage': 5,  # Conservative fallback
+                'stop_loss_percent': 14.0,  # Conservative fallback
                 'risk_reward_ratio': 2.0,
                 'reasoning': f"Fallback: ML failed, using simple rules",
                 'pattern_count': 0,
