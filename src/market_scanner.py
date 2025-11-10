@@ -682,71 +682,13 @@ class MarketScanner:
         """
         score = 0.0
 
-        # FACTOR 1: AI Confidence (25 points - reduced to make room for historical boost)
+        # FACTOR 1: AI Confidence (30 points)
         confidence = ai_analysis.get('confidence', 0)
-        score += confidence * 25
+        score += confidence * 30
 
-        # FACTOR 1.5: Historical Performance Boost (NEW - 10 points)
-        # Check recent LONG vs SHORT performance and boost the better performer
-        # This fixes the SHORT bias problem where AI predicts SELL but LONG performs better
-        try:
-            from src.database import get_db_client
-            db = await get_db_client()
-
-            # Get last 50 trades stats
-            recent_trades_query = '''
-                WITH recent_trades AS (
-                    SELECT side, realized_pnl_usd
-                    FROM trade_history
-                    ORDER BY exit_time DESC
-                    LIMIT 50
-                )
-                SELECT side,
-                       COUNT(*) as total,
-                       SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END) as wins
-                FROM recent_trades
-                GROUP BY side
-            '''
-            recent_stats = await db.pool.fetch(recent_trades_query)
-
-            long_wr = 0.0
-            short_wr = 0.0
-
-            for stat in recent_stats:
-                if stat['side'] == 'LONG' and stat['total'] > 0:
-                    long_wr = (stat['wins'] / stat['total']) * 100
-                elif stat['side'] == 'SHORT' and stat['total'] > 0:
-                    short_wr = (stat['wins'] / stat['total']) * 100
-
-            # Apply boost to the better performing side
-            if long_wr > short_wr + 15 and trade_side == "LONG":
-                # LONG significantly better → boost LONG trades
-                boost = 10
-                score += boost
-                logger.info(
-                    f"📈 HISTORICAL BOOST: LONG outperforming ({long_wr:.0f}% vs {short_wr:.0f}%) "
-                    f"→ +{boost} points for LONG"
-                )
-            elif short_wr > long_wr + 15 and trade_side == "SHORT":
-                # SHORT significantly better → boost SHORT trades
-                boost = 10
-                score += boost
-                logger.info(
-                    f"📉 HISTORICAL BOOST: SHORT outperforming ({short_wr:.0f}% vs {long_wr:.0f}%) "
-                    f"→ +{boost} points for SHORT"
-                )
-            elif long_wr > 0 and short_wr > 0:
-                # Both have data but similar performance → slight boost to better side
-                if long_wr > short_wr and trade_side == "LONG":
-                    boost = 5
-                    score += boost
-                    logger.debug(f"LONG slightly better ({long_wr:.0f}% vs {short_wr:.0f}%) → +{boost} pts")
-                elif short_wr > long_wr and trade_side == "SHORT":
-                    boost = 5
-                    score += boost
-                    logger.debug(f"SHORT slightly better ({short_wr:.0f}% vs {long_wr:.0f}%) → +{boost} pts")
-        except Exception as e:
-            logger.warning(f"Failed to calculate historical boost: {e}")
+        # NOTE: Historical Performance Boost removed due to async/sync conflict
+        # Will be re-implemented in async wrapper function in future update
+        # Counter-trend penalty below (FACTOR 2) helps reduce SHORT bias
 
         # FACTOR 2: Market Breadth Alignment (15 points)
         # If market sentiment aligns with trade direction, boost score

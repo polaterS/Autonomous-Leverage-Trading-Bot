@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS trading_config (
     id SERIAL PRIMARY KEY,
     initial_capital DECIMAL(20, 8) NOT NULL,
     current_capital DECIMAL(20, 8) NOT NULL,
+    starting_capital DECIMAL(20, 8),  -- Capital at session/day start (for drawdown calc)
     position_size_percent DECIMAL(5, 2) DEFAULT 0.80,
     min_stop_loss_percent DECIMAL(5, 2) DEFAULT 0.05,
     max_stop_loss_percent DECIMAL(5, 2) DEFAULT 0.10,
@@ -16,6 +17,19 @@ CREATE TABLE IF NOT EXISTS trading_config (
     is_trading_enabled BOOLEAN DEFAULT true,
     last_updated TIMESTAMP DEFAULT NOW()
 );
+
+-- Add starting_capital column if it doesn't exist (migration)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'trading_config' AND column_name = 'starting_capital'
+    ) THEN
+        ALTER TABLE trading_config ADD COLUMN starting_capital DECIMAL(20, 8);
+        -- Initialize starting_capital to current_capital for existing rows
+        UPDATE trading_config SET starting_capital = current_capital WHERE starting_capital IS NULL;
+    END IF;
+END $$;
 
 -- Active Positions (should only ever have 0 or 1 row)
 CREATE TABLE IF NOT EXISTS active_position (

@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -X utf8 -c:*)",
-      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -X utf8 analyze_system.py)"
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -X utf8 analyze_system.py)",
+      "Bash(tests/README.md)"
     ],
     "deny": [],
     "ask": []

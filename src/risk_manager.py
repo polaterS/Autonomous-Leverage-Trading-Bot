@@ -334,16 +334,61 @@ class RiskManager:
         """
         Check if daily trading limits have been reached.
 
-        NOTE: Daily loss limit DISABLED - user wants per-trade $10 limit only.
+        Includes:
+        - Maximum drawdown protection (20%)
+        - Consecutive losses
+        - Manual disable
 
         Returns:
             Dict with 'can_trade': bool, 'reason': str
         """
         db = await get_db_client()
 
-        # Daily loss limit check - DISABLED
-        # User preference: Each trade has its own $10 max loss (via stop-loss)
-        # No daily cumulative limit
+        # 🚨 CRITICAL: MAX DRAWDOWN PROTECTION (20%)
+        # Prevents catastrophic losses by stopping trading if capital drops too much
+        config = await db.get_trading_config()
+        current_capital = Decimal(str(config['current_capital']))
+        starting_capital = Decimal(str(config.get('starting_capital', current_capital)))
+
+        # Calculate drawdown from session/day start
+        if starting_capital > 0:
+            drawdown_percent = float(((starting_capital - current_capital) / starting_capital) * 100)
+
+            # Maximum 20% drawdown allowed
+            max_allowed_drawdown = 20.0
+
+            if drawdown_percent >= max_allowed_drawdown:
+                logger.critical(
+                    f"🚨 MAX DRAWDOWN REACHED: {drawdown_percent:.1f}% "
+                    f"(${float(starting_capital):.2f} → ${float(current_capital):.2f})"
+                )
+
+                # Auto-disable trading
+                await db.set_trading_enabled(False)
+
+                # Send critical alert
+                from src.telegram_notifier import get_notifier
+                notifier = get_notifier()
+                await notifier.send_alert(
+                    'critical',
+                    f"🚨 MAX DRAWDOWN PROTECTION ACTIVATED\n\n"
+                    f"Drawdown: {drawdown_percent:.1f}% (Max: {max_allowed_drawdown:.0f}%)\n"
+                    f"Starting Capital: ${float(starting_capital):.2f}\n"
+                    f"Current Capital: ${float(current_capital):.2f}\n"
+                    f"Loss: ${float(starting_capital - current_capital):.2f}\n\n"
+                    f"🛑 Trading STOPPED automatically for safety\n"
+                    f"Review performance before restarting with /startbot"
+                )
+
+                return {
+                    'can_trade': False,
+                    'reason': f'Max drawdown reached ({drawdown_percent:.1f}%)',
+                    'type': 'max_drawdown'
+                }
+
+            # Warning at 15% drawdown (before hitting limit)
+            elif drawdown_percent >= 15.0:
+                logger.warning(f"⚠️ High drawdown: {drawdown_percent:.1f}% (approaching 20% limit)")
 
         # Check consecutive losses
         consecutive_losses = await db.get_consecutive_losses()
@@ -355,7 +400,6 @@ class RiskManager:
             }
 
         # Check trading enabled
-        config = await db.get_trading_config()
         if not config.get('is_trading_enabled', True):
             return {
                 'can_trade': False,
