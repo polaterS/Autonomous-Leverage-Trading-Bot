@@ -414,10 +414,19 @@ Sorularınız için: @your_support
         try:
             logger.info("📊 /daily command called")
 
-            from datetime import datetime, time
+            from datetime import datetime, time, timezone, timedelta
 
-            # Get today's date at 00:00:00
-            today_start = datetime.combine(datetime.now().date(), time.min)
+            # Turkey timezone (UTC+3)
+            TURKEY_TZ = timezone(timedelta(hours=3))
+
+            # Get current time in Turkey timezone
+            now_turkey = datetime.now(TURKEY_TZ)
+
+            # Get today's date at 00:00:00 in Turkey timezone
+            today_start_turkey = datetime.combine(now_turkey.date(), time.min).replace(tzinfo=TURKEY_TZ)
+
+            # Convert to UTC for database query (database stores in UTC)
+            today_start = today_start_turkey.astimezone(timezone.utc).replace(tzinfo=None)
 
             # Query for today's trades
             query = """
@@ -434,10 +443,10 @@ Sorularınız için: @your_support
                 config = await conn.fetchrow("SELECT current_capital FROM trading_config WHERE id = 1")
 
             if not today_trades:
-                current_time = datetime.now().strftime('%H:%M:%S')
+                current_time_turkey = now_turkey.strftime('%H:%M:%S')
                 await update.message.reply_text(
                     f"📊 <b>GÜNLÜK PERFORMANS RAPORU</b>\n\n"
-                    f"⏰ {today_start.strftime('%d.%m.%Y')} 00:00 - {current_time}\n\n"
+                    f"⏰ {today_start_turkey.strftime('%d.%m.%Y')} 00:00 - {current_time_turkey}\n\n"
                     f"Bugün henüz kapalı trade yok.\n"
                     f"💰 Mevcut Sermaye: ${float(config['current_capital']):.2f}",
                     parse_mode=ParseMode.HTML
@@ -469,9 +478,9 @@ Sorularınız için: @your_support
             short_wr = (short_wins / len(short_trades) * 100) if short_trades else 0
 
             # Build message
-            current_time = datetime.now().strftime('%H:%M:%S')
+            current_time_turkey = now_turkey.strftime('%H:%M:%S')
             message = f"📊 <b>GÜNLÜK PERFORMANS RAPORU</b>\n\n"
-            message += f"⏰ {today_start.strftime('%d.%m.%Y')} 00:00 - {current_time}\n"
+            message += f"⏰ {today_start_turkey.strftime('%d.%m.%Y')} 00:00 - {current_time_turkey}\n"
             message += f"━━━━━━━━━━━━━━━━━━━━\n\n"
 
             # Overall Stats
@@ -516,7 +525,10 @@ Sorularınız için: @your_support
             for i, trade in enumerate(today_trades[:5], 1):
                 pnl = float(trade['realized_pnl_usd'])
                 emoji = "✅" if pnl > 0 else "❌"
-                time_str = trade['exit_time'].strftime('%H:%M')
+                # Convert UTC to Turkey time
+                exit_time_utc = trade['exit_time'].replace(tzinfo=timezone.utc)
+                exit_time_turkey = exit_time_utc.astimezone(TURKEY_TZ)
+                time_str = exit_time_turkey.strftime('%H:%M')
                 message += f"{emoji} {time_str} {trade['symbol']} {trade['side']} ${pnl:+.2f}\n"
 
             if total_trades > 5:
