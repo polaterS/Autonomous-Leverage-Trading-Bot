@@ -238,9 +238,13 @@ class MLPredictor:
                     if isinstance(entry_snapshot, dict):
                         snapshot = entry_snapshot
                     elif isinstance(entry_snapshot, str):
-                        # Try parsing JSON string
+                        # Try parsing JSON string (may be double-encoded!)
                         import json
                         snapshot = json.loads(entry_snapshot)
+
+                        # Check if still a string (double-encoded JSON)
+                        if isinstance(snapshot, str):
+                            snapshot = json.loads(snapshot)
                     else:
                         # Try converting to dict (may fail on malformed data)
                         try:

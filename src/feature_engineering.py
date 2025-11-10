@@ -112,7 +112,16 @@ class FeatureEngineering:
     def _extract_price_features(self, snapshot: Dict[str, Any], side: str) -> List[float]:
         """Extract 12 price action features."""
         try:
-            price = float(snapshot.get('current_price', 0))
+            # Handle both old and new price formats
+            # NEW: snapshot['current_price']
+            # OLD: snapshot['price']['current']
+            if 'current_price' in snapshot:
+                price = float(snapshot['current_price'])
+            elif 'price' in snapshot and isinstance(snapshot['price'], dict):
+                price = float(snapshot['price'].get('current', 0))
+            else:
+                price = 0.0
+
             indicators_15m = self._get_indicators(snapshot, '15m')
             indicators_1h = self._get_indicators(snapshot, '1h')
 
