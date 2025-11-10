@@ -350,20 +350,32 @@ class PositionMonitor:
                         should_exit = True
                         reason = f"ML predicts BUY (conf: {ml_confidence:.0%})"
 
-                    # FALLBACK: ML confidence too low (<30%) + critical loss (>$7)
-                    # Use simple technical rule: exit if loss >$7 and getting worse
-                    elif ml_confidence < 0.30 and unrealized_pnl < Decimal("-7.0"):
+                    # FALLBACK: ML confidence too low (<30%) + loss >$5 (reduced from $7)
+                    # Use simple technical rule: exit if loss >$5 and getting worse
+                    # This prevents waiting until -$10 stop-loss
+                    elif ml_confidence < 0.30 and unrealized_pnl < Decimal("-5.0"):
                         # Check if price is moving away from entry (loss increasing)
                         entry_price = Decimal(str(position['entry_price']))
                         price_move_percent = abs((current_price - entry_price) / entry_price) * 100
 
-                        if price_move_percent > 0.8:  # Moved >0.8% away from entry
+                        # More aggressive exit: >0.5% move (reduced from 0.8%)
+                        if price_move_percent > 0.5:
                             should_exit = True
-                            reason = f"Low ML conf ({ml_confidence:.0%}) + Critical loss (${float(unrealized_pnl):.2f})"
+                            reason = f"Low ML conf ({ml_confidence:.0%}) + Loss ${float(unrealized_pnl):.2f}"
                             logger.warning(
-                                f"⚠️ FALLBACK EXIT: ML confidence too low, using technical stop. "
+                                f"⚠️ FALLBACK EXIT: ML unreliable, cutting loss early. "
                                 f"Loss: ${float(unrealized_pnl):.2f}, Price move: {float(price_move_percent):.2f}%"
                             )
+
+                    # ADDITIONAL FALLBACK: Deep loss without ML signal (>$8)
+                    # Emergency exit before hitting -$10 stop-loss
+                    elif unrealized_pnl < Decimal("-8.0"):
+                        should_exit = True
+                        reason = f"Deep loss ${float(unrealized_pnl):.2f} - emergency exit"
+                        logger.warning(
+                            f"🚨 EMERGENCY EXIT: Loss approaching stop-loss threshold "
+                            f"(${float(unrealized_pnl):.2f}), exiting to prevent full -$10 loss"
+                        )
 
                     if should_exit:
                         logger.info(f"🧠 ML recommends exit: {reason}")

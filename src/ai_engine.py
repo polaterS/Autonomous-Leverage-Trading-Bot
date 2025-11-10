@@ -765,15 +765,16 @@ RESPONSE FORMAT (JSON only):
         else:
             # 🔥 DYNAMIC BASE CONFIDENCE based on pattern count
             # More patterns detected = Higher confidence (even without historical data)
+            # INCREASED from previous values to improve ML confidence
             pattern_count = len(pattern_features)
             if pattern_count >= 5:
-                base_confidence = 0.75  # 5+ patterns = Very strong setup
+                base_confidence = 0.80  # 5+ patterns = Very strong setup (was 0.75)
             elif pattern_count >= 4:
-                base_confidence = 0.65  # 4 patterns = Strong setup
+                base_confidence = 0.72  # 4 patterns = Strong setup (was 0.65)
             elif pattern_count >= 3:
-                base_confidence = 0.60  # 3 patterns = Good setup
+                base_confidence = 0.65  # 3 patterns = Good setup (was 0.60)
             else:
-                base_confidence = 0.50  # 2 or fewer = Neutral
+                base_confidence = 0.58  # 2 or fewer = Still tradeable (was 0.50)
 
         # 🚀 PATTERN COUNT BOOST: More patterns = Higher confidence
         # This works immediately, even before ML learns from data
@@ -788,7 +789,8 @@ RESPONSE FORMAT (JSON only):
             wins = ml_learner.winning_patterns.get(pattern, 0)
             losses = ml_learner.losing_patterns.get(pattern, 0)
             total = wins + losses
-            if total >= 5:  # Only use patterns with 5+ occurrences
+            # REDUCED from 5 to 3 - allow ML to learn faster with less data
+            if total >= 3:  # Only use patterns with 3+ occurrences
                 wr = wins / total
                 pattern_wrs.append(wr)
 
