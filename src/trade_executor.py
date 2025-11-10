@@ -632,6 +632,51 @@ class TradeExecutor:
             except Exception as ml_error:
                 logger.warning(f"ML learning failed: {ml_error} (trade still recorded)")
 
+            # 🎯 EXIT OPTIMIZER LEARNING: Train exit optimizer from this trade
+            try:
+                from src.exit_optimizer import get_exit_optimizer
+                exit_optimizer = get_exit_optimizer()
+
+                # Extract exit features at close time
+                exit_features = exit_optimizer.extract_exit_features(
+                    position, exit_price, {'indicators': {}}  # Empty market data for now
+                )
+
+                # Calculate exit quality
+                time_in_position = (exit_time - entry_time).total_seconds() / 60  # minutes
+                exit_quality = exit_optimizer.calculate_exit_quality(
+                    position,
+                    realized_pnl,
+                    min_profit_usd,
+                    int(time_in_position)
+                )
+
+                # Determine if exit was optimal (profit > 0 or loss < -$3)
+                was_optimal = realized_pnl > 0 or (realized_pnl < 0 and realized_pnl > Decimal("-3.0"))
+
+                # Train exit optimizer
+                exit_optimizer.learn_from_exit(exit_features, exit_quality, was_optimal)
+                logger.info(f"🎯 Exit Optimizer learned: Quality={exit_quality:.2f}, Optimal={was_optimal}")
+            except Exception as exit_error:
+                logger.warning(f"Exit optimizer learning failed: {exit_error}")
+
+            # 🤖 REAL ML PREDICTOR: Retrain periodically (every 50 trades)
+            try:
+                from src.ml_predictor import get_ml_predictor
+                ml_predictor = get_ml_predictor()
+
+                # Check if it's time to retrain (every 50 trades)
+                total_trades = await db.pool.fetchval("SELECT COUNT(*) FROM trade_history")
+                if total_trades % 50 == 0:
+                    logger.info(f"🔄 Retraining ML predictor ({total_trades} trades)...")
+                    training_success = await ml_predictor.train(force_retrain=True)
+                    if training_success:
+                        logger.info(f"✅ ML predictor retrained successfully!")
+                    else:
+                        logger.warning(f"⚠️ ML predictor retraining failed")
+            except Exception as ml_train_error:
+                logger.warning(f"ML predictor training failed: {ml_train_error}")
+
             # Remove active position
             await db.remove_active_position(position['id'])
 

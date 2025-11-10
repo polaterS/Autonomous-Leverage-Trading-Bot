@@ -19,6 +19,9 @@ scipy==1.11.4  # Statistical validation (t-tests, p-values, confidence intervals
 ta==0.11.0
 arch==6.3.0  # 🎯 #5: GARCH volatility prediction (forward-looking)
 
+# Machine Learning (Real ML, not rules!)
+scikit-learn==1.5.2  # 🤖 GradientBoosting classifier for entry/exit predictions
+
 # Charting & Visualization
 mplfinance==0.12.10b0
 matplotlib==3.8.2

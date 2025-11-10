@@ -699,222 +699,118 @@ RESPONSE FORMAT (JSON only):
 
     async def _get_ml_only_prediction(self, symbol: str, market_data: Dict[str, Any], ml_learner) -> Dict[str, Any]:
         """
-        🧠 ML-ONLY MODE: Use learned patterns when AI models are unavailable.
+        🧠 REAL ML MODE: Use trained GradientBoosting classifier.
 
-        Uses:
-        - Historical pattern matching
-        - Bayesian feature analysis
-        - Symbol-specific performance data
-        - Market regime adaptation
+        REPLACED: Hardcoded rules → Real sklearn ML model
+        Features:
+        - 40+ engineered numerical features
+        - GradientBoosting classifier trained on historical trades
+        - Calibrated probability estimates
+        - Feature importance tracking
+        - Online learning updates
 
         Args:
             symbol: Trading symbol
             market_data: Market indicators
-            ml_learner: ML pattern learner instance
+            ml_learner: ML pattern learner instance (kept for backwards compatibility)
 
         Returns:
             ML-based prediction with confidence score
         """
-        # Get technical indicators (already calculated in market_data)
-        indicators_1h = market_data.get('indicators', {}).get('1h', {})
-        indicators_4h = market_data.get('indicators', {}).get('4h', {})
+        try:
+            # 🚀 USE REAL ML PREDICTOR (GradientBoosting)
+            from src.ml_predictor import get_ml_predictor
+            ml_predictor = get_ml_predictor()
 
-        # Extract key features for pattern matching
-        rsi_1h = indicators_1h.get('rsi', 50)
-        trend_1h = indicators_1h.get('trend', 'neutral')
-        trend_4h = indicators_4h.get('trend', 'neutral')
+            # Get prediction for LONG position
+            long_prediction = await ml_predictor.predict(market_data, side='LONG')
 
-        # Build pattern features
-        pattern_features = []
+            # Get prediction for SHORT position
+            short_prediction = await ml_predictor.predict(market_data, side='SHORT')
 
-        # 1. Trend alignment
-        if trend_1h == 'uptrend' and trend_4h == 'uptrend':
-            pattern_features.append('strong_bullish_trend')
-        elif trend_1h == 'downtrend' and trend_4h == 'downtrend':
-            pattern_features.append('strong_bearish_trend')
-        elif trend_1h == 'uptrend':
-            pattern_features.append('bullish_trend')
-        elif trend_1h == 'downtrend':
-            pattern_features.append('bearish_trend')
-
-        # 2. RSI signals
-        if rsi_1h < 30:
-            pattern_features.append('rsi_oversold')
-        elif rsi_1h > 70:
-            pattern_features.append('rsi_overbought')
-        elif rsi_1h < 40:
-            pattern_features.append('rsi_weak')
-        elif rsi_1h > 60:
-            pattern_features.append('rsi_strong')
-
-        # 3. Market regime
-        market_regime = market_data.get('market_regime', 'UNKNOWN')
-        pattern_features.append(f'regime_{market_regime.lower()}')
-
-        # Calculate confidence from Bayesian features
-        confidence_scores = []
-        for feature in pattern_features:
-            if feature in ml_learner.bayesian_features:
-                bayesian_wr = ml_learner.get_bayesian_win_rate(feature)
-                weight = ml_learner.get_bayesian_weight(feature)
-                confidence_scores.append(bayesian_wr * weight)
-
-        # Base confidence from patterns
-        if confidence_scores:
-            base_confidence = sum(confidence_scores) / len(confidence_scores)
-        else:
-            # 🔥 DYNAMIC BASE CONFIDENCE based on pattern count
-            # More patterns detected = Higher confidence (even without historical data)
-            # INCREASED from previous values to improve ML confidence
-            pattern_count = len(pattern_features)
-            if pattern_count >= 5:
-                base_confidence = 0.80  # 5+ patterns = Very strong setup (was 0.75)
-            elif pattern_count >= 4:
-                base_confidence = 0.72  # 4 patterns = Strong setup (was 0.65)
-            elif pattern_count >= 3:
-                base_confidence = 0.65  # 3 patterns = Good setup (was 0.60)
-            else:
-                base_confidence = 0.58  # 2 or fewer = Still tradeable (was 0.50)
-
-        # 🚀 PATTERN COUNT BOOST: More patterns = Higher confidence
-        # This works immediately, even before ML learns from data
-        pattern_count = len(pattern_features)
-        pattern_boost = min(0.15, pattern_count * 0.03)  # +3% per pattern, max +15%
-        base_confidence = min(0.95, base_confidence + pattern_boost)
-
-        # 🧠 ML PATTERN WIN RATE ADJUSTMENT: Boost/penalize based on historical pattern success
-        pattern_wr_adjustment = 0.0
-        pattern_wrs = []
-        for pattern in pattern_features:
-            wins = ml_learner.winning_patterns.get(pattern, 0)
-            losses = ml_learner.losing_patterns.get(pattern, 0)
-            total = wins + losses
-            # REDUCED from 5 to 3 - allow ML to learn faster with less data
-            if total >= 3:  # Only use patterns with 3+ occurrences
-                wr = wins / total
-                pattern_wrs.append(wr)
-
-        if pattern_wrs:
-            avg_pattern_wr = sum(pattern_wrs) / len(pattern_wrs)
-            # Adjust confidence based on pattern success rate
-            # 85%+ WR → +10% confidence boost
-            # 75-84% WR → +5% confidence boost
-            # 60-74% WR → No change
-            # 50-59% WR → -5% confidence penalty
-            # <50% WR → -10% confidence penalty
-            if avg_pattern_wr >= 0.85:
-                pattern_wr_adjustment = 0.10
-                logger.info(f"🟢 {symbol}: Excellent pattern WR ({avg_pattern_wr:.1%}) → +10% confidence boost")
-            elif avg_pattern_wr >= 0.75:
-                pattern_wr_adjustment = 0.05
-                logger.debug(f"{symbol}: Good pattern WR ({avg_pattern_wr:.1%}) → +5% confidence boost")
-            elif avg_pattern_wr < 0.50:
-                pattern_wr_adjustment = -0.10
-                logger.warning(f"🔴 {symbol}: Poor pattern WR ({avg_pattern_wr:.1%}) → -10% confidence penalty")
-            elif avg_pattern_wr < 0.60:
-                pattern_wr_adjustment = -0.05
-                logger.warning(f"🟡 {symbol}: Below-average pattern WR ({avg_pattern_wr:.1%}) → -5% confidence penalty")
-
-        base_confidence = min(0.95, base_confidence + pattern_wr_adjustment)
-
-        # 📸 SNAPSHOT-BASED ML PREDICTION: DISABLED to reduce API calls
-        # Snapshot capture was causing 429 errors (too many API requests)
-        # ML will still learn from entry/exit snapshots (trade_executor.py)
-        # But won't use snapshot for live prediction to reduce API load
-        snapshot_adjustment = 0.0
-
-        base_confidence = min(0.95, base_confidence + snapshot_adjustment)
-
-        # Adjust confidence based on symbol historical performance
-        symbol_threshold = ml_learner.get_confidence_threshold(symbol)
-        symbol_adjustment = (symbol_threshold - 0.6) / 0.4  # Normalize around 0.6
-
-        final_confidence = base_confidence * (1 + symbol_adjustment * 0.2)  # ±20% adjustment
-
-        # 🌍 MARKET REGIME ADAPTATION: Adjust confidence based on current market conditions
-        regime = ml_learner.current_regime
-        regime_adjustment = 0.0
-
-        if regime == "HIGH_VOLATILITY_UNFAVORABLE":
-            # Unfavorable conditions → Very conservative (raise confidence bar)
-            regime_adjustment = 0.15  # +15% confidence required
-            logger.warning(f"⚠️ {symbol}: Unfavorable high volatility regime → +15% confidence required")
-        elif regime == "MIXED_CONDITIONS":
-            # Mixed conditions → Slightly conservative
-            regime_adjustment = 0.05  # +5% confidence required
-            logger.debug(f"{symbol}: Mixed conditions regime → +5% confidence required")
-        elif regime in ["BULL_TREND", "BEAR_TREND", "FAVORABLE_VOLATILE"]:
-            # Favorable conditions → Slightly aggressive (lower confidence bar)
-            regime_adjustment = -0.05  # -5% confidence required
-            logger.debug(f"{symbol}: Favorable {regime} regime → -5% confidence required")
-
-        final_confidence = max(0.50, min(0.95, final_confidence - regime_adjustment))  # Apply regime adjustment
-
-        # Determine action based on strongest pattern
-        action = 'hold'
-        side = None
-        leverage = 10  # Default aggressive leverage
-        stop_loss = 10.0  # FIXED: Always 10% for consistent risk management
-
-        # 🔥 ULTRA AGGRESSIVE ML LEARNING MODE - Trade on ANY bullish/bearish signal!
-        # Goal: Generate more diverse training data across all coins
-        pattern_count = len(pattern_features)
-
-        # Count bullish vs bearish signals
-        bullish_signals = sum(1 for p in pattern_features if 'bullish' in p or 'oversold' in p or 'weak' in p)
-        bearish_signals = sum(1 for p in pattern_features if 'bearish' in p or 'overbought' in p or 'strong' in p)
-
-        # AGGRESSIVE: Trade if confidence >= 45% AND any directional signal exists
-        if final_confidence >= 0.45:
-            if bullish_signals > bearish_signals and bullish_signals > 0:
-                # ANY bullish pattern detected → BUY
+            # Choose direction with higher confidence
+            if long_prediction['confidence'] > short_prediction['confidence']:
                 action = 'buy'
                 side = 'LONG'
-                # FIXED: Always 10% stop-loss for consistent $10 max loss with leverage adjustment
-                if final_confidence >= 0.75 and pattern_count >= 4:
-                    leverage = 30  # Ultra high confidence: 30x
-                    stop_loss = 10.0
-                elif final_confidence >= 0.65 and pattern_count >= 3:
-                    leverage = 20  # High confidence: 20x
-                    stop_loss = 10.0
-                elif final_confidence >= 0.55:
-                    leverage = 15  # Medium confidence: 15x
-                    stop_loss = 10.0
-                else:
-                    leverage = 10  # Base confidence: 10x
-                    stop_loss = 10.0
-
-            elif bearish_signals > bullish_signals and bearish_signals > 0:
-                # ANY bearish pattern detected → SELL
+                confidence = long_prediction['confidence']
+                reasoning = long_prediction['reasoning']
+            elif short_prediction['confidence'] > long_prediction['confidence']:
                 action = 'sell'
                 side = 'SHORT'
-                # FIXED: Always 10% stop-loss for consistent $10 max loss with leverage adjustment
-                if final_confidence >= 0.75 and pattern_count >= 4:
-                    leverage = 30  # Ultra high confidence: 30x
-                    stop_loss = 10.0
-                elif final_confidence >= 0.65 and pattern_count >= 3:
-                    leverage = 20  # High confidence: 20x
-                    stop_loss = 10.0
-                elif final_confidence >= 0.55:
-                    leverage = 15  # Medium confidence: 15x
-                    stop_loss = 10.0
-                else:
-                    leverage = 10  # Base confidence: 10x
-                    stop_loss = 10.0
+                confidence = short_prediction['confidence']
+                reasoning = short_prediction['reasoning']
+            else:
+                # Equal confidence or both below threshold
+                action = 'hold'
+                side = None
+                confidence = max(long_prediction['confidence'], short_prediction['confidence'])
+                reasoning = "No clear directional signal"
 
-        return {
-            'action': action,
-            'side': side,
-            'confidence': final_confidence,
-            'suggested_leverage': leverage,
-            'stop_loss_percent': stop_loss,
-            'risk_reward_ratio': 2.0,
-            'reasoning': f"ML-ONLY: {', '.join(pattern_features[:3])}",
-            'pattern_count': len(pattern_features),
-            'models_used': ['ML-ONLY'],
-            'weighted_consensus': False,
-            'ensemble_method': 'ml_only'
-        }
+            # Adaptive leverage based on confidence
+            if confidence >= 0.75:
+                leverage = 20  # High confidence
+            elif confidence >= 0.65:
+                leverage = 15  # Medium-high confidence
+            elif confidence >= 0.55:
+                leverage = 12  # Medium confidence
+            else:
+                leverage = 10  # Base confidence
+
+            # Adaptive stop-loss (will be overridden by adaptive_risk.py)
+            stop_loss = 10.0  # Base 10%, adaptive_risk will adjust
+
+            logger.info(
+                f"🤖 REAL ML: {symbol} → {action.upper() if action != 'hold' else 'HOLD'} | "
+                f"Confidence: {confidence:.1%} | "
+                f"Model trained: {long_prediction.get('model_trained', False)} | "
+                f"Samples: {long_prediction.get('training_samples', 0)}"
+            )
+
+            return {
+                'action': action,
+                'side': side,
+                'confidence': confidence,
+                'suggested_leverage': leverage,
+                'stop_loss_percent': stop_loss,
+                'risk_reward_ratio': 2.0,
+                'reasoning': reasoning,
+                'pattern_count': 0,  # Not used in real ML
+                'models_used': ['GradientBoosting-ML'],
+                'weighted_consensus': False,
+                'ensemble_method': 'ml_sklearn',
+                'model_trained': long_prediction.get('model_trained', False),
+                'training_samples': long_prediction.get('training_samples', 0),
+                'feature_importance': long_prediction.get('feature_importance')
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Real ML prediction failed: {e}")
+            # Fallback to simple rule-based prediction
+            indicators_1h = market_data.get('indicators', {}).get('1h', {})
+            rsi_1h = indicators_1h.get('rsi', 50)
+            trend_1h = indicators_1h.get('trend', 'neutral')
+
+            # Simple fallback logic
+            if rsi_1h < 35 and trend_1h == 'uptrend':
+                action, side, confidence = 'buy', 'LONG', 0.45
+            elif rsi_1h > 65 and trend_1h == 'downtrend':
+                action, side, confidence = 'sell', 'SHORT', 0.45
+            else:
+                action, side, confidence = 'hold', None, 0.30
+
+            return {
+                'action': action,
+                'side': side,
+                'confidence': confidence,
+                'suggested_leverage': 10,
+                'stop_loss_percent': 10.0,
+                'risk_reward_ratio': 2.0,
+                'reasoning': f"Fallback: ML failed, using simple rules",
+                'pattern_count': 0,
+                'models_used': ['FALLBACK'],
+                'weighted_consensus': False,
+                'ensemble_method': 'fallback'
+            }
 
 
 # Singleton instance
