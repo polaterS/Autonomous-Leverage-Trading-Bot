@@ -252,8 +252,21 @@ class MLPredictor:
                     side = trade['side']
                     is_winner = trade['is_winner']
 
-                    # Validate snapshot has required fields
-                    if not isinstance(snapshot, dict) or 'indicators_15m' not in snapshot:
+                    # Validate snapshot has required fields (basic market data)
+                    # Old snapshots may have different structures, so be flexible
+                    if not isinstance(snapshot, dict):
+                        skipped_count += 1
+                        continue
+
+                    # Check for at least some market data (price, trend, or indicators)
+                    has_market_data = (
+                        'price' in snapshot or
+                        'trend' in snapshot or
+                        'indicators_15m' in snapshot or
+                        'indicators' in snapshot
+                    )
+
+                    if not has_market_data:
                         skipped_count += 1
                         continue
 

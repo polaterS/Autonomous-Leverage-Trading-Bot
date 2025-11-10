@@ -34,6 +34,32 @@ class FeatureEngineering:
         self.feature_count = len(self.feature_names)
         logger.info(f"🔧 FeatureEngineering initialized with {self.feature_count} features")
 
+    def _get_indicators(self, snapshot: Dict[str, Any], timeframe: str = '15m') -> Dict[str, Any]:
+        """
+        Get indicators for a specific timeframe, handling both old and new snapshot formats.
+
+        OLD FORMAT: snapshot['indicators'] → direct dict
+        NEW FORMAT: snapshot['indicators']['15m'] → nested dict
+
+        Args:
+            snapshot: Market snapshot dictionary
+            timeframe: '15m', '1h', '4h', etc.
+
+        Returns:
+            Indicators dict for the specified timeframe
+        """
+        indicators = snapshot.get('indicators', {})
+
+        # Check if new format (nested with timeframes)
+        if timeframe in indicators:
+            return indicators.get(timeframe, {})
+
+        # Old format (direct indicators) - return as-is for '15m', empty for others
+        if timeframe == '15m':
+            return indicators
+        else:
+            return {}
+
     def extract_features(self, snapshot: Dict[str, Any], side: str = 'LONG') -> List[float]:
         """
         Extract numerical features from market snapshot.
@@ -87,8 +113,8 @@ class FeatureEngineering:
         """Extract 12 price action features."""
         try:
             price = float(snapshot.get('current_price', 0))
-            indicators_15m = snapshot.get('indicators', {}).get('15m', {})
-            indicators_1h = snapshot.get('indicators', {}).get('1h', {})
+            indicators_15m = self._get_indicators(snapshot, '15m')
+            indicators_1h = self._get_indicators(snapshot, '1h')
 
             # EMAs
             ema12_15m = float(indicators_15m.get('ema_12', price))
@@ -129,8 +155,8 @@ class FeatureEngineering:
     def _extract_momentum_features(self, snapshot: Dict[str, Any], side: str) -> List[float]:
         """Extract 8 momentum indicator features."""
         try:
-            indicators_15m = snapshot.get('indicators', {}).get('15m', {})
-            indicators_1h = snapshot.get('indicators', {}).get('1h', {})
+            indicators_15m = self._get_indicators(snapshot, '15m')
+            indicators_1h = self._get_indicators(snapshot, '1h')
             indicators_4h = snapshot.get('indicators', {}).get('4h', {})
 
             # RSI
@@ -173,7 +199,7 @@ class FeatureEngineering:
         """Extract 6 volume analysis features."""
         try:
             volume_24h = float(snapshot.get('volume_24h', 0))
-            indicators_15m = snapshot.get('indicators', {}).get('15m', {})
+            indicators_15m = self._get_indicators(snapshot, '15m')
 
             volume_current = float(indicators_15m.get('volume', 0))
             volume_sma = float(indicators_15m.get('volume_sma_20', volume_current))
@@ -212,8 +238,8 @@ class FeatureEngineering:
     def _extract_timeframe_features(self, snapshot: Dict[str, Any], side: str) -> List[float]:
         """Extract 4 multi-timeframe alignment features."""
         try:
-            indicators_15m = snapshot.get('indicators', {}).get('15m', {})
-            indicators_1h = snapshot.get('indicators', {}).get('1h', {})
+            indicators_15m = self._get_indicators(snapshot, '15m')
+            indicators_1h = self._get_indicators(snapshot, '1h')
             indicators_4h = snapshot.get('indicators', {}).get('4h', {})
 
             # Trend alignment
@@ -391,8 +417,8 @@ class FeatureEngineering:
     def _calculate_macd_alignment(self, snapshot: Dict, side: str) -> float:
         """Calculate MACD alignment across timeframes."""
         try:
-            indicators_15m = snapshot.get('indicators', {}).get('15m', {})
-            indicators_1h = snapshot.get('indicators', {}).get('1h', {})
+            indicators_15m = self._get_indicators(snapshot, '15m')
+            indicators_1h = self._get_indicators(snapshot, '1h')
 
             macd_15m = float(indicators_15m.get('macd', 0))
             macd_signal_15m = float(indicators_15m.get('macd_signal', 0))
