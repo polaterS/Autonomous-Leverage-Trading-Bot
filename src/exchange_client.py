@@ -327,6 +327,65 @@ class ExchangeClient:
         logger.error(f"CRITICAL: Stop-loss placement failed after {max_retries} attempts: {last_error}")
         raise Exception(f"Stop-loss order placement failed: {last_error}")
 
+    async def create_take_profit_order(
+        self,
+        symbol: str,
+        side: str,
+        amount: Decimal,
+        take_profit_price: Decimal
+    ) -> Dict[str, Any]:
+        """
+        Create a take-profit limit order.
+
+        Args:
+            symbol: Trading pair
+            side: 'buy' or 'sell' (opposite of position)
+            amount: Amount to trade
+            take_profit_price: Target price for take-profit
+
+        Returns:
+            Order info dict
+
+        Raises:
+            Exception if order placement fails
+        """
+        if self.paper_trading:
+            import time
+            import random
+            order_id = f'paper_tp_{int(time.time() * 1000)}_{random.randint(1000, 9999)}'
+
+            # Store paper take-profit order for monitoring
+            self.paper_orders[order_id] = {
+                'id': order_id,
+                'symbol': symbol,
+                'type': 'limit',
+                'side': side,
+                'amount': float(amount),
+                'price': float(take_profit_price),
+                'status': 'open',
+                'timestamp': int(time.time() * 1000)
+            }
+
+            logger.info(f"[PAPER] Take-profit order placed: {side} {amount:.6f} {symbol} @ ${take_profit_price:.4f}")
+            return self.paper_orders[order_id]
+
+        # Real trading - place limit order at take-profit price
+        try:
+            order = await self.exchange.create_order(
+                symbol=symbol,
+                type='limit',
+                side=side,
+                amount=float(amount),
+                price=float(take_profit_price)
+            )
+
+            logger.info(f"Take-profit order created: {side} {amount} {symbol} @ ${take_profit_price:.4f}")
+            return order
+
+        except Exception as e:
+            logger.error(f"Take-profit placement failed: {e}")
+            raise
+
     async def cancel_order(self, order_id: str, symbol: str) -> None:
         """Cancel an open order."""
         if self.paper_trading:

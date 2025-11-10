@@ -16,6 +16,7 @@ from src.config import get_settings
 from src.database import get_db_client
 from src.exchange_client import get_exchange_client
 from src.risk_manager import get_risk_manager
+from src.adaptive_risk import get_adaptive_risk_manager
 from src.telegram_notifier import get_notifier
 from src.utils import (
     setup_logging,
@@ -63,19 +64,33 @@ class TradeExecutor:
             db = await get_db_client()
             exchange = await get_exchange_client()
             notifier = get_notifier()
+            adaptive_risk = get_adaptive_risk_manager()
 
             # Get current capital
             current_capital = await db.get_current_capital()
 
-            # FIXED position size: Always $100 per trade
+            # 🎯 ADAPTIVE STOP-LOSS: Adjust based on recent performance
+            adaptive_sl_percent = await adaptive_risk.get_adaptive_stop_loss_percent(
+                symbol, side, base_stop_loss=float(stop_loss_percent)
+            )
+            stop_loss_percent = Decimal(str(adaptive_sl_percent))
+            logger.info(f"📊 Using adaptive SL: {adaptive_sl_percent:.1f}%")
+
+            # 🎯 TIME-BASED RISK: Adjust position size based on hour performance
+            time_multiplier = await adaptive_risk.get_time_based_risk_multiplier()
+
+            # FIXED position size: Always $100 per trade (but can be adjusted by time multiplier)
             # What changes: NUMBER of positions you can open
             # $1000 capital → 10 positions max
             # $1100 capital → 11 positions max
             # $900 capital → 9 positions max
-            FIXED_POSITION_SIZE_USD = Decimal("100.00")
+            FIXED_POSITION_SIZE_USD = Decimal("100.00") * Decimal(str(time_multiplier))
 
-            max_positions_allowed = int(current_capital / FIXED_POSITION_SIZE_USD)
-            logger.info(f"💰 Capital: ${current_capital:.2f} → Max positions: {max_positions_allowed} x $100")
+            max_positions_allowed = int(current_capital / Decimal("100.00"))  # Base calculation
+            logger.info(
+                f"💰 Capital: ${current_capital:.2f} → Max positions: {max_positions_allowed} x $100 "
+                f"(time multiplier: {time_multiplier}x)"
+            )
 
             quantity, position_value = calculate_position_size(
                 current_capital,
@@ -219,6 +234,25 @@ class TradeExecutor:
                 )
                 stop_loss_order_id = sl_order.get('id')
                 logger.info(f"✅ Stop-loss order placed: {stop_loss_order_id}")
+
+                # 🎯 ADAPTIVE TAKE-PROFIT: Place TP order based on symbol performance
+                take_profit_price = await adaptive_risk.get_adaptive_take_profit(
+                    symbol, side, entry_price, leverage
+                )
+
+                if take_profit_price:
+                    tp_order_side = 'sell' if side == 'LONG' else 'buy'
+                    try:
+                        tp_order = await exchange.create_take_profit_order(
+                            symbol,
+                            tp_order_side,
+                            quantity,
+                            take_profit_price
+                        )
+                        logger.info(f"🎯 Take-profit order placed: ${float(take_profit_price):.4f}")
+                    except Exception as tp_error:
+                        # TP placement failed - not critical, position still protected by SL
+                        logger.warning(f"Failed to place take-profit order: {tp_error}")
 
             except Exception as e:
                 # CRITICAL: Stop-loss placement failed - close position immediately
