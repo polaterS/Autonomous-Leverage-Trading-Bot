@@ -334,21 +334,21 @@ class AIConsensusEngine:
                                 analysis['action'] = 'buy'
                                 analysis['side'] = 'LONG'
 
-                                # 🎯 Calculate appropriate stop-loss and leverage based on confidence
-                                # FIXED: Always use 10% stop-loss for consistent $10 max loss on $100 position
+                                # 🎯 CONSERVATIVE MODE: Wider stops, lower leverage
+                                # Stop-loss: 12-20% (adaptive), Leverage: 3-10x max
                                 conf = analysis['confidence']
-                                if conf >= 0.90:
+                                if conf >= 0.85:  # 85%+ = Ultra high confidence
+                                    analysis['suggested_leverage'] = 10  # Max 10x
+                                    analysis['stop_loss_percent'] = 20.0  # Widest stop
+                                elif conf >= 0.75:  # 75-84% = High confidence
+                                    analysis['suggested_leverage'] = 7
+                                    analysis['stop_loss_percent'] = 16.0
+                                elif conf >= 0.70:  # 70-74% = Acceptable
                                     analysis['suggested_leverage'] = 5
-                                    analysis['stop_loss_percent'] = 10.0
-                                elif conf >= 0.80:
-                                    analysis['suggested_leverage'] = 4
-                                    analysis['stop_loss_percent'] = 10.0
-                                elif conf >= 0.70:
+                                    analysis['stop_loss_percent'] = 14.0
+                                else:  # <70% shouldn't happen (filtered out)
                                     analysis['suggested_leverage'] = 3
-                                    analysis['stop_loss_percent'] = 10.0
-                                else:  # 70-74% (threshold is now 70%)
-                                    analysis['suggested_leverage'] = 2
-                                    analysis['stop_loss_percent'] = 10.0
+                                    analysis['stop_loss_percent'] = 12.0
 
                                 logger.info(
                                     f"🎯 ML Override SUCCESS: {symbol} 'hold' → 'buy' LONG "
@@ -359,21 +359,21 @@ class AIConsensusEngine:
                                 analysis['action'] = 'sell'
                                 analysis['side'] = 'SHORT'
 
-                                # 🎯 Calculate appropriate stop-loss and leverage based on confidence
-                                # FIXED: Always use 10% stop-loss for consistent $10 max loss on $100 position
+                                # 🎯 CONSERVATIVE MODE: Wider stops, lower leverage
+                                # Stop-loss: 12-20% (adaptive), Leverage: 3-10x max
                                 conf = analysis['confidence']
-                                if conf >= 0.90:
+                                if conf >= 0.85:  # 85%+ = Ultra high confidence
+                                    analysis['suggested_leverage'] = 10  # Max 10x
+                                    analysis['stop_loss_percent'] = 20.0  # Widest stop
+                                elif conf >= 0.75:  # 75-84% = High confidence
+                                    analysis['suggested_leverage'] = 7
+                                    analysis['stop_loss_percent'] = 16.0
+                                elif conf >= 0.70:  # 70-74% = Acceptable
                                     analysis['suggested_leverage'] = 5
-                                    analysis['stop_loss_percent'] = 10.0
-                                elif conf >= 0.80:
-                                    analysis['suggested_leverage'] = 4
-                                    analysis['stop_loss_percent'] = 10.0
-                                elif conf >= 0.70:
+                                    analysis['stop_loss_percent'] = 14.0
+                                else:  # <70% shouldn't happen (filtered out)
                                     analysis['suggested_leverage'] = 3
-                                    analysis['stop_loss_percent'] = 10.0
-                                else:  # 70-74% (threshold is now 70%)
-                                    analysis['suggested_leverage'] = 2
-                                    analysis['stop_loss_percent'] = 10.0
+                                    analysis['stop_loss_percent'] = 12.0
 
                                 logger.info(
                                     f"🎯 ML Override SUCCESS: {symbol} 'hold' → 'sell' SHORT "
