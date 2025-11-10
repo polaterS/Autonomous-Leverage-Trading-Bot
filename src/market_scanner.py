@@ -280,6 +280,10 @@ class MarketScanner:
                 for opp in top_opportunities:
                     # Basic filters
                     if opp['confidence'] < min_confidence or opp['opportunity_score'] < min_score:
+                        logger.info(
+                            f"🚫 {opp['symbol']}: Confidence ({opp['confidence']:.1%}) < {min_confidence:.1%} "
+                            f"OR Score ({opp['opportunity_score']:.1f}) < {min_score:.1f} - skipping"
+                        )
                         continue
 
                     # 🧠 ML FILTER: Check if this trade's patterns have proven successful
