@@ -103,16 +103,17 @@ class TrailingStopLoss:
 
             # Update max profit if new peak achieved
             if profit_pct > max_profit_seen:
-                await db_client.execute(
-                    """
-                    UPDATE active_position
-                    SET max_profit_percent = $1,
-                        last_check_time = NOW()
-                    WHERE id = $2
-                    """,
-                    profit_pct,
-                    position_id
-                )
+                async with db_client.pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE active_position
+                        SET max_profit_percent = $1,
+                            last_check_time = NOW()
+                        WHERE id = $2
+                        """,
+                        profit_pct,
+                        position_id
+                    )
                 max_profit_seen = profit_pct
 
                 logger.debug(
@@ -127,15 +128,16 @@ class TrailingStopLoss:
 
             # Activate trailing stop if not already activated
             if not trailing_activated:
-                await db_client.execute(
-                    """
-                    UPDATE active_position
-                    SET trailing_stop_activated = TRUE,
-                        last_check_time = NOW()
-                    WHERE id = $1
-                    """,
-                    position_id
-                )
+                async with db_client.pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE active_position
+                        SET trailing_stop_activated = TRUE,
+                            last_check_time = NOW()
+                        WHERE id = $1
+                        """,
+                        position_id
+                    )
 
                 logger.info(
                     f"🎯 Trailing stop ACTIVATED: {symbol} {side} "
@@ -199,16 +201,17 @@ class TrailingStopLoss:
 
             if should_update_stop:
                 # Update stop-loss in database
-                await db_client.execute(
-                    """
-                    UPDATE active_position
-                    SET stop_loss_price = $1,
-                        last_check_time = NOW()
-                    WHERE id = $2
-                    """,
-                    float(trailing_stop_price),
-                    position_id
-                )
+                async with db_client.pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE active_position
+                        SET stop_loss_price = $1,
+                            last_check_time = NOW()
+                        WHERE id = $2
+                        """,
+                        float(trailing_stop_price),
+                        position_id
+                    )
 
                 logger.info(
                     f"✅ Trailing stop updated: {symbol} {side} "

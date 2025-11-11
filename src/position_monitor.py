@@ -71,15 +71,16 @@ class PositionMonitor:
             regime, regime_details = regime_detector.detect_regime(indicators, symbol)
 
             db = await get_db_client()
-            await db.execute(
-                """
-                UPDATE active_position
-                SET exit_market_regime = $1
-                WHERE id = $2
-                """,
-                regime.value,
-                position['id']
-            )
+            async with db.pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    UPDATE active_position
+                    SET exit_market_regime = $1
+                    WHERE id = $2
+                    """,
+                    regime.value,
+                    position['id']
+                )
 
             logger.debug(
                 f"📊 Exit regime stored: {regime.value} - {regime_details['description']}"
@@ -308,15 +309,16 @@ class PositionMonitor:
                 regime, regime_details = regime_detector.detect_regime(indicators, symbol)
 
                 # Store regime in position for ML exit decisions
-                await db.execute(
-                    """
-                    UPDATE active_position
-                    SET entry_market_regime = $1
-                    WHERE id = $2
-                    """,
-                    regime.value,
-                    position['id']
-                )
+                async with db.pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE active_position
+                        SET entry_market_regime = $1
+                        WHERE id = $2
+                        """,
+                        regime.value,
+                        position['id']
+                    )
 
                 logger.debug(
                     f"📊 Market regime: {regime.value} - {regime_details['description']}"
