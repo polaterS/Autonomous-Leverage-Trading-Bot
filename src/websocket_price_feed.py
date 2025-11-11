@@ -23,7 +23,7 @@ import logging
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta
 from decimal import Decimal
-import ccxt.pro as ccxtpro
+import ccxtpro
 from threading import Lock
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class WebSocketPriceFeed:
             exchange_id: Exchange name (default: binance)
         """
         self.exchange_id = exchange_id
-        self.exchange: Optional[ccxtpro.Exchange] = None
+        self.exchange = None  # ccxtpro exchange instance
 
         # Price cache: {symbol: {"price": Decimal, "timestamp": datetime}}
         self.price_cache: Dict[str, Dict] = {}
