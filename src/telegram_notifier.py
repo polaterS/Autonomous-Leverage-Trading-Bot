@@ -120,7 +120,7 @@ Sit back and monitor your portfolio! 💰
             f"💰 Position Size: <b>${float(position_value):.2f}</b>",
             f"💵 Entry Price: <b>${float(entry_price):.4f}</b>",
             f"📏 Quantity: <b>{float(position['quantity']):.6f}</b>\n",
-            f"🛑 <b>Stop-Loss: ${float(stop_loss_price):.4f}</b>",
+            f"🛑 Stop-Loss: <b>${float(stop_loss_price):.4f}</b>",
             f"   ├ Price Move: <b>{float(price_move_pct):.2f}%</b>",
             f"   └ Max Loss: <b>${float(usd_loss_at_sl):.2f}</b> (with {leverage}x leverage)\n",
             f"💎 Min Profit Target: <b>${float(position['min_profit_target_usd']):.2f}</b>",
