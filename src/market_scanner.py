@@ -415,16 +415,24 @@ class MarketScanner:
                 # This analyzes S/R, trend, volume BEFORE ML filtering
                 # Can boost ML confidence for perfect setups (e.g., 55% → 70%)
                 pa_result = None
-                from src.price_action_analyzer import get_price_action_analyzer
-                import pandas as pd
+
+                logger.info(f"🔍 {symbol} - Starting PA pre-analysis...")
 
                 try:
+                    from src.price_action_analyzer import get_price_action_analyzer
+                    import pandas as pd
+
+                    logger.info(f"✅ {symbol} - PA analyzer imported successfully")
+
                     pa_analyzer = get_price_action_analyzer()
 
                     # Get OHLCV data for price action (need 100+ candles for S/R detection)
                     ohlcv_15m = market_data.get('ohlcv_15m', [])
 
+                    logger.info(f"📊 {symbol} - OHLCV data length: {len(ohlcv_15m)} candles")
+
                     if len(ohlcv_15m) >= 50:  # Need minimum data for analysis
+                        logger.info(f"✅ {symbol} - Sufficient data for PA analysis (≥50 candles)")
                         # Convert to pandas DataFrame
                         df = pd.DataFrame(
                             ohlcv_15m,
@@ -463,9 +471,11 @@ class MarketScanner:
                                 'long': pa_long if pa_long['should_enter'] else None,
                                 'short': pa_short if pa_short['should_enter'] else None
                             }
+                    else:
+                        logger.info(f"⏸️ {symbol} - Insufficient data for PA analysis (need ≥50, got {len(ohlcv_15m)})")
 
                 except Exception as e:
-                    logger.warning(f"{symbol} - Price action pre-analysis failed: {e}")
+                    logger.error(f"❌ {symbol} - Price action pre-analysis EXCEPTION: {e}", exc_info=True)
 
                 # Get AI analyses (🎯 #7: Pass market sentiment for ML enhancement)
                 ai_engine = get_ai_engine()
