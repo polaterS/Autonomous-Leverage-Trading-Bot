@@ -411,6 +411,61 @@ class MarketScanner:
                     logger.warning(f"⚠️ {symbol} - Could not fetch data, skipping")
                     return None
 
+                # 🎯 PROFESSIONAL PRICE ACTION ANALYSIS (RUNS FIRST!)
+                # This analyzes S/R, trend, volume BEFORE ML filtering
+                # Can boost ML confidence for perfect setups (e.g., 55% → 70%)
+                pa_result = None
+                from src.price_action_analyzer import get_price_action_analyzer
+                import pandas as pd
+
+                try:
+                    pa_analyzer = get_price_action_analyzer()
+
+                    # Get OHLCV data for price action (need 100+ candles for S/R detection)
+                    ohlcv_15m = market_data.get('ohlcv_15m', [])
+
+                    if len(ohlcv_15m) >= 50:  # Need minimum data for analysis
+                        # Convert to pandas DataFrame
+                        df = pd.DataFrame(
+                            ohlcv_15m,
+                            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                        )
+                        current_price = market_data.get('current_price', df['close'].iloc[-1])
+
+                        # Analyze price action for BOTH buy and sell opportunities
+                        # (we don't know ML signal yet, so check both directions)
+                        pa_long = pa_analyzer.should_enter_trade(
+                            symbol=symbol,
+                            df=df,
+                            ml_signal='BUY',
+                            ml_confidence=50.0,  # Neutral starting point
+                            current_price=current_price
+                        )
+
+                        pa_short = pa_analyzer.should_enter_trade(
+                            symbol=symbol,
+                            df=df,
+                            ml_signal='SELL',
+                            ml_confidence=50.0,  # Neutral starting point
+                            current_price=current_price
+                        )
+
+                        # Store best PA setup for later use
+                        if pa_long['should_enter'] or pa_short['should_enter']:
+                            pa_result = {
+                                'long': pa_long if pa_long['should_enter'] else None,
+                                'short': pa_short if pa_short['should_enter'] else None
+                            }
+
+                            logger.debug(
+                                f"📊 {symbol} PA PRE-ANALYSIS: "
+                                f"LONG={'✅' if pa_long['should_enter'] else '❌'} (+{pa_long['confidence_boost']}%) | "
+                                f"SHORT={'✅' if pa_short['should_enter'] else '❌'} (+{pa_short['confidence_boost']}%)"
+                            )
+
+                except Exception as e:
+                    logger.debug(f"{symbol} - Price action pre-analysis failed: {e}")
+
                 # Get AI analyses (🎯 #7: Pass market sentiment for ML enhancement)
                 ai_engine = get_ai_engine()
                 individual_analyses = await ai_engine.get_individual_analyses(
@@ -433,79 +488,100 @@ class MarketScanner:
                         # Convert consensus to individual analysis format for consistency
                         individual_analyses = [ml_consensus]
                     else:
-                        logger.debug(f"🧠 ML-ONLY: {symbol} - No high-confidence prediction (holding)")
+                        # 🎯 NEW: Even if ML says HOLD, check if PA found perfect setup
+                        if pa_result:
+                            # ML said HOLD, but PA found opportunity - create synthetic analysis
+                            best_pa = None
+                            suggested_side = None
 
-                # 🎯 PRICE ACTION VALIDATION: Filter ML signals through professional price action
-                if individual_analyses:
-                    from src.price_action_analyzer import get_price_action_analyzer
-                    import pandas as pd
+                            if pa_result.get('long') and pa_result['long']['confidence_boost'] >= 15:
+                                best_pa = pa_result['long']
+                                suggested_side = 'buy'
+                            elif pa_result.get('short') and pa_result['short']['confidence_boost'] >= 15:
+                                best_pa = pa_result['short']
+                                suggested_side = 'sell'
 
+                            if best_pa and suggested_side:
+                                # PA setup is STRONG (≥15% boost) - override ML HOLD
+                                synthetic_confidence = (50 + best_pa['confidence_boost']) / 100
+
+                                logger.info(
+                                    f"🎯 {symbol} PA OVERRIDE: ML said HOLD but PA found {suggested_side.upper()} setup! "
+                                    f"Confidence: 50% + PA {best_pa['confidence_boost']}% = {synthetic_confidence*100:.0f}%"
+                                )
+
+                                individual_analyses = [{
+                                    'action': suggested_side,
+                                    'confidence': synthetic_confidence,
+                                    'price_action': {
+                                        'validated': True,
+                                        'reason': best_pa['reason'],
+                                        'stop_loss': best_pa['stop_loss'],
+                                        'targets': best_pa['targets'],
+                                        'rr_ratio': best_pa['rr_ratio'],
+                                        'confidence_boost': best_pa['confidence_boost'],
+                                        'pa_override': True
+                                    }
+                                }]
+
+                        if not individual_analyses:
+                            logger.debug(f"🧠 ML-ONLY: {symbol} - No high-confidence prediction (holding)")
+
+                # 🎯 PRICE ACTION CONFIDENCE BOOST: If ML predicted trade, boost with PA
+                if individual_analyses and pa_result:
                     try:
-                        # Get price action analyzer
-                        pa_analyzer = get_price_action_analyzer()
+                        # Skip if this was a PA override (already processed)
+                        if not any(a.get('price_action', {}).get('pa_override') for a in individual_analyses):
+                            # Get best analysis (highest confidence)
+                            best_analysis = max(individual_analyses, key=lambda x: x.get('confidence', 0))
+                            ml_signal = best_analysis.get('action', 'hold').upper()
+                            ml_confidence = best_analysis.get('confidence', 0) * 100  # Convert to percentage
 
-                        # Get best analysis (highest confidence)
-                        best_analysis = max(individual_analyses, key=lambda x: x.get('confidence', 0))
-                        ml_signal = best_analysis.get('action', 'hold').upper()
-                        ml_confidence = best_analysis.get('confidence', 0) * 100  # Convert to percentage
+                            # Get matching PA result (long for BUY, short for SELL)
+                            matching_pa = None
+                            if ml_signal == 'BUY' and pa_result.get('long'):
+                                matching_pa = pa_result['long']
+                            elif ml_signal == 'SELL' and pa_result.get('short'):
+                                matching_pa = pa_result['short']
 
-                        # Get OHLCV data for price action (need 100+ candles for S/R detection)
-                        ohlcv_15m = market_data.get('ohlcv_15m', [])
-
-                        if len(ohlcv_15m) >= 50:  # Need minimum data for analysis
-                            # Convert to pandas DataFrame
-                            df = pd.DataFrame(
-                                ohlcv_15m,
-                                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
-                            )
-
-                            # Price action validation
-                            current_price = market_data.get('current_price', df['close'].iloc[-1])
-
-                            pa_decision = pa_analyzer.should_enter_trade(
-                                symbol=symbol,
-                                df=df,
-                                ml_signal=ml_signal,
-                                ml_confidence=ml_confidence,
-                                current_price=current_price
-                            )
-
-                            # Apply price action filter
-                            if pa_decision['should_enter']:
+                            if matching_pa and matching_pa['should_enter']:
                                 # ✅ Price action confirms ML signal!
                                 # Boost confidence
-                                boosted_confidence = (ml_confidence + pa_decision['confidence_boost']) / 100
+                                boosted_confidence = (ml_confidence + matching_pa['confidence_boost']) / 100
 
                                 # Update analysis with boosted confidence and price action details
                                 for analysis in individual_analyses:
                                     analysis['confidence'] = boosted_confidence
                                     analysis['price_action'] = {
                                         'validated': True,
-                                        'reason': pa_decision['reason'],
-                                        'stop_loss': pa_decision['stop_loss'],
-                                        'targets': pa_decision['targets'],
-                                        'rr_ratio': pa_decision['rr_ratio'],
-                                        'confidence_boost': pa_decision['confidence_boost']
+                                        'reason': matching_pa['reason'],
+                                        'stop_loss': matching_pa['stop_loss'],
+                                        'targets': matching_pa['targets'],
+                                        'rr_ratio': matching_pa['rr_ratio'],
+                                        'confidence_boost': matching_pa['confidence_boost']
                                     }
 
                                 logger.info(
-                                    f"✅ {symbol} PRICE ACTION CONFIRMED: {pa_decision['reason']} | "
-                                    f"ML {ml_confidence:.0f}% + PA Boost +{pa_decision['confidence_boost']}% "
+                                    f"✅ {symbol} PRICE ACTION CONFIRMED: {matching_pa['reason']} | "
+                                    f"ML {ml_confidence:.0f}% + PA Boost +{matching_pa['confidence_boost']}% "
                                     f"= {boosted_confidence*100:.0f}%"
                                 )
-                            else:
+                            elif matching_pa:
                                 # ❌ Price action rejects ML signal - skip this trade
                                 logger.info(
-                                    f"⏸️ {symbol} PRICE ACTION REJECTED: {pa_decision['reason']} | "
+                                    f"⏸️ {symbol} PRICE ACTION REJECTED: {matching_pa['reason']} | "
                                     f"ML said {ml_signal} {ml_confidence:.0f}% but skipped"
                                 )
                                 individual_analyses = []  # Clear analyses to skip this symbol
-
-                        else:
-                            logger.debug(f"{symbol} - Insufficient OHLCV data for price action ({len(ohlcv_15m)} candles)")
+                            else:
+                                # No matching PA result - ML trade proceeds without PA boost
+                                logger.debug(
+                                    f"{symbol} - ML {ml_signal} but no matching PA setup "
+                                    f"(LONG: {pa_result.get('long') is not None}, SHORT: {pa_result.get('short') is not None})"
+                                )
 
                     except Exception as e:
-                        logger.warning(f"{symbol} - Price action validation failed: {e}")
+                        logger.warning(f"{symbol} - Price action boost failed: {e}")
                         # Don't block trade if price action fails - just log warning
 
                 logger.debug(f"✅ {symbol} - Scan complete")
