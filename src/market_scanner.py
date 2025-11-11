@@ -457,14 +457,14 @@ class MarketScanner:
                                 'short': pa_short if pa_short['should_enter'] else None
                             }
 
-                            logger.debug(
+                            logger.info(
                                 f"📊 {symbol} PA PRE-ANALYSIS: "
                                 f"LONG={'✅' if pa_long['should_enter'] else '❌'} (+{pa_long['confidence_boost']}%) | "
                                 f"SHORT={'✅' if pa_short['should_enter'] else '❌'} (+{pa_short['confidence_boost']}%)"
                             )
 
                 except Exception as e:
-                    logger.debug(f"{symbol} - Price action pre-analysis failed: {e}")
+                    logger.warning(f"{symbol} - Price action pre-analysis failed: {e}")
 
                 # Get AI analyses (🎯 #7: Pass market sentiment for ML enhancement)
                 ai_engine = get_ai_engine()
