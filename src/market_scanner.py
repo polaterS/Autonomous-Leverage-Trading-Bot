@@ -524,7 +524,11 @@ class MarketScanner:
 
                                 individual_analyses = [{
                                     'action': suggested_side,
+                                    'side': 'LONG' if suggested_side == 'buy' else 'SHORT',  # ← MISSING!
                                     'confidence': synthetic_confidence,
+                                    'model_name': 'PA-Override',
+                                    'models_used': ['PriceAction'],
+                                    'reasoning': best_pa['reason'],  # PA reasoning
                                     'price_action': {
                                         'validated': True,
                                         'reason': best_pa['reason'],
