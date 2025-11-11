@@ -112,36 +112,64 @@ Sit back and monitor your portfolio! 💰
         # Net position value after entry fee
         net_position_value = position_value - entry_fee
 
-        message = f"""
-{emoji} <b>NEW POSITION OPENED</b>
+        # Build base message
+        message_parts = [
+            f"{emoji} <b>NEW POSITION OPENED</b>\n",
+            f"💎 <b>{position['symbol']}</b>",
+            f"📊 Direction: <b>{position['side']} {position['leverage']}x</b>\n",
+            f"💰 Position Size: <b>${float(position_value):.2f}</b>",
+            f"💵 Entry Price: <b>${float(entry_price):.4f}</b>",
+            f"📏 Quantity: <b>{float(position['quantity']):.6f}</b>\n",
+            f"🛑 <b>Stop-Loss: ${float(stop_loss_price):.4f}</b>",
+            f"   ├ Price Move: <b>{float(price_move_pct):.2f}%</b>",
+            f"   └ Max Loss: <b>${float(usd_loss_at_sl):.2f}</b> (with {leverage}x leverage)\n",
+            f"💎 Min Profit Target: <b>${float(position['min_profit_target_usd']):.2f}</b>",
+            f"⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>\n",
+        ]
 
-💎 <b>{position['symbol']}</b>
-📊 Direction: <b>{position['side']} {position['leverage']}x</b>
+        # Add Price Action analysis if available
+        pa_data = position.get('price_action')
+        if pa_data and pa_data.get('validated'):
+            message_parts.append("📈 <b>PRICE ACTION ANALYSIS</b>")
 
-💰 Position Size: <b>${float(position_value):.2f}</b>
-💵 Entry Price: <b>${float(entry_price):.4f}</b>
-📏 Quantity: <b>{float(position['quantity']):.6f}</b>
+            # Show reason (e.g., "At major support", "Strong uptrend + volume surge")
+            reason = pa_data.get('reason', 'N/A')
+            message_parts.append(f"   📊 Setup: <b>{reason}</b>")
 
-🛑 <b>Stop-Loss: ${float(stop_loss_price):.4f}</b>
-   ├ Price Move: <b>{float(price_move_pct):.2f}%</b>
-   └ Max Loss: <b>${float(usd_loss_at_sl):.2f}</b> (with {leverage}x leverage)
+            # Show targets and risk/reward
+            targets = pa_data.get('targets', [])
+            if targets:
+                target_str = ", ".join([f"${float(t):.4f}" for t in targets[:3]])  # Show first 3 targets
+                message_parts.append(f"   🎯 Targets: <b>{target_str}</b>")
 
-💎 Min Profit Target: <b>${float(position['min_profit_target_usd']):.2f}</b>
-⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>
+            rr_ratio = pa_data.get('rr_ratio')
+            if rr_ratio:
+                message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_ratio):.2f}:1</b>")
 
-💸 <b>Trading Fees (Binance):</b>
-   ├ Entry Fee: <b>${float(entry_fee):.2f}</b> (0.05% taker)
-   ├ Est. Exit Fee: <b>${float(exit_fee_estimate):.2f}</b> (0.05% taker)
-   └ Total Fees: <b>${float(total_fees):.2f}</b>
+            # Show if PA override (ML said HOLD but PA opened trade)
+            if pa_data.get('pa_override'):
+                message_parts.append("   🎯 <b>PA OVERRIDE</b> (ML was cautious)")
 
-📊 <b>Net Position:</b>
-   └ After Entry Fee: <b>${float(net_position_value):.2f}</b>
+            confidence_boost = pa_data.get('confidence_boost', 0)
+            if confidence_boost > 0:
+                message_parts.append(f"   ⬆️ PA Boost: <b>+{confidence_boost}%</b>\n")
+            else:
+                message_parts.append("")  # Empty line
 
-🤖 AI Confidence: <b>{float(position.get('ai_confidence', 0))*100:.0f}%</b>
-🤝 Consensus: <b>{position.get('ai_model_consensus', 'N/A')}</b>
+        # Add fees and AI info
+        message_parts.extend([
+            f"💸 <b>Trading Fees (Binance):</b>",
+            f"   ├ Entry Fee: <b>${float(entry_fee):.2f}</b> (0.05% taker)",
+            f"   ├ Est. Exit Fee: <b>${float(exit_fee_estimate):.2f}</b> (0.05% taker)",
+            f"   └ Total Fees: <b>${float(total_fees):.2f}</b>\n",
+            f"📊 <b>Net Position:</b>",
+            f"   └ After Entry Fee: <b>${float(net_position_value):.2f}</b>\n",
+            f"🤖 AI Confidence: <b>{float(position.get('ai_confidence', 0))*100:.0f}%</b>",
+            f"🤝 Consensus: <b>{position.get('ai_model_consensus', 'N/A')}</b>\n",
+            f"⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}"
+        ])
 
-⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
-"""
+        message = "\n".join(message_parts)
         await self.send_message(message)
 
     async def send_position_update(self, position: Dict[str, Any], pnl: Decimal) -> None:
