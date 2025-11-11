@@ -451,17 +451,18 @@ class MarketScanner:
                         )
 
                         # Store best PA setup for later use
+                        # Always log PA analysis results (even if rejected) for transparency
+                        logger.info(
+                            f"📊 {symbol} PA PRE-ANALYSIS: "
+                            f"LONG={'✅' if pa_long['should_enter'] else '❌'} (+{pa_long['confidence_boost']}%) | "
+                            f"SHORT={'✅' if pa_short['should_enter'] else '❌'} (+{pa_short['confidence_boost']}%)"
+                        )
+
                         if pa_long['should_enter'] or pa_short['should_enter']:
                             pa_result = {
                                 'long': pa_long if pa_long['should_enter'] else None,
                                 'short': pa_short if pa_short['should_enter'] else None
                             }
-
-                            logger.info(
-                                f"📊 {symbol} PA PRE-ANALYSIS: "
-                                f"LONG={'✅' if pa_long['should_enter'] else '❌'} (+{pa_long['confidence_boost']}%) | "
-                                f"SHORT={'✅' if pa_short['should_enter'] else '❌'} (+{pa_short['confidence_boost']}%)"
-                            )
 
                 except Exception as e:
                     logger.warning(f"{symbol} - Price action pre-analysis failed: {e}")
