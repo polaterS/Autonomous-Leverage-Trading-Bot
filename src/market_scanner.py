@@ -426,7 +426,8 @@ class MarketScanner:
 
                     pa_analyzer = get_price_action_analyzer()
 
-                    # Get OHLCV data for price action (need 100+ candles for S/R detection)
+                    # Get FULL OHLCV data for price action (need 50+ candles for S/R detection)
+                    # Use ohlcv_15m key (contains full 100 candles, not the nested 'ohlcv' dict which only has 20)
                     ohlcv_15m = market_data.get('ohlcv_15m', [])
 
                     logger.info(f"📊 {symbol} - OHLCV data length: {len(ohlcv_15m)} candles")
@@ -788,11 +789,15 @@ class MarketScanner:
                 'current_price': current_price,
                 'volume_24h': ticker.get('quoteVolume', 0),
                 'ohlcv': {
-                    '5m': ohlcv_5m[-20:],    # Last 20 candles
+                    '5m': ohlcv_5m[-20:],    # Last 20 candles (for display/quick analysis)
                     '15m': ohlcv_15m[-20:],
                     '1h': ohlcv_1h[-20:],
                     '4h': ohlcv_4h[-20:]
                 },
+                # 🎯 FULL OHLCV DATA FOR PRICE ACTION ANALYSIS (need 50+ candles for S/R detection)
+                'ohlcv_15m': ohlcv_15m,    # Full 100 candles for PA
+                'ohlcv_1h': ohlcv_1h,      # Full 100 candles for PA
+                'ohlcv_4h': ohlcv_4h,      # Full 50 candles for PA
                 'indicators': {
                     '15m': indicators_15m,
                     '1h': indicators_1h,
