@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     use_paper_trading: bool = Field(default=True)
     enable_debug_logs: bool = Field(default=False)
     enable_short_trades: bool = Field(default=True)  # Enable SHORT trades for complete ML learning
+    enable_ml_exit: bool = Field(default=True)  # Enable ML-based early exit signals (set False to rely only on stop-loss/take-profit)
 
     # Trading Symbols (high liquidity perpetual futures) - 35 coins
     trading_symbols: list[str] = Field(default=[

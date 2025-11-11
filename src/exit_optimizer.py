@@ -216,8 +216,9 @@ class ExitTimingOptimizer:
         # Normalize score to confidence (0-1)
         confidence = min(1.0, exit_score)
 
-        # Decision threshold: exit if confidence > 0.50
-        should_exit = confidence >= 0.50
+        # ✅ CONSERVATIVE MODE: Decision threshold increased to 0.75 (from 0.50)
+        # This prevents premature exits on weak signals
+        should_exit = confidence >= 0.75
 
         # Build reasoning
         reasoning_parts = []
