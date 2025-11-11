@@ -48,6 +48,7 @@ class TradeQualityManager:
         # 🎯 RISK BUDGET SYSTEM (replaces time-based limits)
         self.hourly_slot_budget = 6.0  # Quality-weighted slots per hour (adaptive)
         self.recent_slot_usage: List[Tuple[datetime, float]] = []  # (time, slot_cost)
+        self.active_trade_slots: Dict[str, float] = {}  # symbol -> slot_cost for open positions
 
         # Portfolio risk thresholds
         self.max_portfolio_exposure = 0.70  # 70% of capital max
@@ -270,7 +271,15 @@ class TradeQualityManager:
 
         # ===== CHECK 2: Slot Budget =====
         slot_cost = self.calculate_slot_cost(confidence)
-        used_slots = sum(cost for _, cost in self.recent_slot_usage)
+
+        # ✅ FIXED: Calculate used slots based on ACTIVE POSITIONS ONLY (not historical 1h trades)
+        # This prevents the bug where /closeall leaves ghost slots blocking new trades
+        used_slots = sum(self.active_trade_slots.values())
+
+        # Clean up old historical slot usage (for potential future use, but not counted now)
+        now = datetime.now()
+        cutoff_time = now - timedelta(minutes=60)
+        self.recent_slot_usage = [(t, cost) for t, cost in self.recent_slot_usage if t > cutoff_time]
 
         # ===== CHECK 3: Performance Momentum (Adaptive Budget) =====
         try:
@@ -282,13 +291,13 @@ class TradeQualityManager:
         # Adjust budget based on performance
         adjusted_budget = self.hourly_slot_budget
 
-        if recent_pnl > 5.0:  # Winning streak
+        if recent_pnl > 10.0:  # Winning streak
             adjusted_budget *= 1.3  # +30% more trades
             logger.info(
                 f"📈 Performance bonus: +${recent_pnl:.2f} last hour → "
                 f"Slot budget increased to {adjusted_budget:.1f}"
             )
-        elif recent_pnl < -15.0:  # Losing streak
+        elif recent_pnl < -50.0:  # Losing streak (was -15.0, now -50.0 for more realistic threshold)
             adjusted_budget *= 0.7  # -30% trades (defensive)
             logger.warning(
                 f"📉 Drawdown protection: -${abs(recent_pnl):.2f} last hour → "
@@ -392,10 +401,14 @@ class TradeQualityManager:
         slot_cost = self.calculate_slot_cost(entry_confidence)
         self.recent_slot_usage.append((entry_time, slot_cost))
 
+        # Track this trade's slot cost for when it closes
+        self.active_trade_slots[symbol] = slot_cost
+
         logger.info(
             f"📝 Trade recorded: {symbol} @ {entry_time.strftime('%H:%M:%S')} | "
             f"Conf: {entry_confidence:.1f}% | "
-            f"Slot cost: {slot_cost:.1f}"
+            f"Slot cost: {slot_cost:.1f} | "
+            f"Active slots: {len(self.active_trade_slots)}"
         )
 
     def record_trade_closed(
@@ -431,6 +444,11 @@ class TradeQualityManager:
         # Keep only last 10 results per symbol
         if len(self.symbol_recent_results[symbol]) > 10:
             self.symbol_recent_results[symbol] = self.symbol_recent_results[symbol][-10:]
+
+        # ✅ CRITICAL FIX: Remove this trade's slot cost from active slots
+        if symbol in self.active_trade_slots:
+            removed_slot = self.active_trade_slots.pop(symbol)
+            logger.info(f"♻️ Freed slot for {symbol}: {removed_slot:.1f} (Active: {len(self.active_trade_slots)})")
 
         # Log if this creates a losing streak
         recent = self.symbol_recent_results[symbol]
