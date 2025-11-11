@@ -157,12 +157,13 @@ class DatabaseClient:
     # Trade History Methods
 
     async def record_trade(self, trade_data: Dict[str, Any]) -> int:
-        """Record completed trade in history with ML learning snapshots."""
+        """Record completed trade in history with ML learning snapshots and TIER 1 & 2 metrics."""
         async with self.pool.acquire() as conn:
             # Convert snapshot dicts to JSON strings for JSONB
             import json
             entry_snapshot_json = json.dumps(trade_data.get('entry_snapshot')) if trade_data.get('entry_snapshot') else None
             exit_snapshot_json = json.dumps(trade_data.get('exit_snapshot')) if trade_data.get('exit_snapshot') else None
+            partial_exit_details_json = json.dumps(trade_data.get('partial_exit_details')) if trade_data.get('partial_exit_details') else None
 
             row = await conn.fetchrow("""
                 INSERT INTO trade_history (
@@ -172,8 +173,11 @@ class DatabaseClient:
                     ai_model_consensus, ai_confidence, ai_reasoning, entry_time, is_winner,
                     entry_snapshot, exit_snapshot,
                     entry_slippage_percent, exit_slippage_percent,
-                    entry_fill_time_ms, exit_fill_time_ms
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+                    entry_fill_time_ms, exit_fill_time_ms,
+                    max_profit_percent_achieved, trailing_stop_triggered,
+                    had_partial_exits, partial_exit_details,
+                    entry_market_regime, exit_market_regime
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
                 RETURNING id
             """,
                 trade_data['symbol'],
@@ -198,7 +202,14 @@ class DatabaseClient:
                 trade_data.get('entry_slippage_percent'),
                 trade_data.get('exit_slippage_percent'),
                 trade_data.get('entry_fill_time_ms'),
-                trade_data.get('exit_fill_time_ms')
+                trade_data.get('exit_fill_time_ms'),
+                # 🎯 TIER 1 & 2 METRICS
+                trade_data.get('max_profit_percent_achieved', 0.0),
+                trade_data.get('trailing_stop_triggered', False),
+                trade_data.get('had_partial_exits', False),
+                partial_exit_details_json,
+                trade_data.get('entry_market_regime'),
+                trade_data.get('exit_market_regime')
             )
 
         trade_id = row['id']

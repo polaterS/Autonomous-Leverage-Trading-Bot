@@ -6,6 +6,11 @@ ENHANCED with:
 - Real-time WebSocket price updates (primary method)
 - REST API fallback for reliability
 - Sub-second position monitoring
+
+🎯 TIER 1 & TIER 2 FEATURES:
+- Trailing Stop-Loss: Locks in profits as position moves favorably
+- Partial Exit System: 3-tier scalping (2%, 4%, 6%)
+- Market Regime Detection: Adaptive exit thresholds
 """
 
 import asyncio
@@ -23,6 +28,11 @@ from src.websocket_client import get_ws_client
 from src.utils import setup_logging, calculate_pnl
 from src.indicators import calculate_indicators, detect_market_regime
 
+# 🎯 TIER 1 & TIER 2 IMPORTS
+from src.trailing_stop_loss import get_trailing_stop
+from src.partial_exit_manager import get_partial_exit_manager
+from src.market_regime_detector import get_regime_detector, MarketRegime
+
 logger = setup_logging()
 
 
@@ -38,6 +48,51 @@ class PositionMonitor:
         self.last_ai_check_time = None
         self.use_websocket = True  # Primary method
         self._ws_monitoring_task: Optional[asyncio.Task] = None
+
+    async def _store_exit_regime(
+        self,
+        position: Dict[str, Any],
+        indicators: Dict,
+        symbol: str
+    ) -> str:
+        """
+        🎯 TIER 2: Detect and store exit market regime before closing position.
+
+        Args:
+            position: Active position dict
+            indicators: Market indicators
+            symbol: Trading symbol
+
+        Returns:
+            Market regime string (e.g., 'strong_bullish_trend')
+        """
+        try:
+            regime_detector = get_regime_detector()
+            regime, regime_details = regime_detector.detect_regime(indicators, symbol)
+
+            db = await get_db_client()
+            await db.execute(
+                """
+                UPDATE active_position
+                SET exit_market_regime = $1
+                WHERE id = $2
+                """,
+                regime.value,
+                position['id']
+            )
+
+            logger.debug(
+                f"📊 Exit regime stored: {regime.value} - {regime_details['description']}"
+            )
+
+            # Store in position dict for immediate use
+            position['exit_market_regime'] = regime.value
+
+            return regime.value
+
+        except Exception as e:
+            logger.warning(f"Failed to store exit regime: {e}")
+            return 'weak_trend'  # Fallback
 
     async def check_position(self, position: Dict[str, Any]) -> None:
         """
@@ -145,40 +200,167 @@ class PositionMonitor:
                 await executor.close_position(position, current_price, close_reason)
                 return
 
-            # 🎯 #9: DYNAMIC TRAILING STOP-LOSS (check before emergency close)
-            # Update trailing stop if price moved favorably
+            # Get market indicators (needed for multiple checks below)
             try:
-                # Get current ATR for volatility-based stop distance
                 ohlcv_15m = await exchange.fetch_ohlcv(symbol, '15m', limit=50)
-                from src.indicators import calculate_indicators
                 indicators = calculate_indicators(ohlcv_15m)
-                atr_percent = indicators.get('atr_percent', 2.0)  # Default to 2% if unavailable
+                atr_percent = indicators.get('atr_percent', 2.0)
+            except Exception as e:
+                logger.warning(f"Failed to fetch indicators: {e}")
+                indicators = {}
+                atr_percent = 2.0
 
-                # Check if trailing stop should be updated
+            # ====================================================================
+            # 🎯 TIER 1 CHECK #1: PARTIAL EXIT SYSTEM (3-Tier Scalping)
+            # ====================================================================
+            # Check BEFORE trailing stop so we lock profits progressively
+            try:
+                partial_exit_mgr = get_partial_exit_manager()
+                tier_to_execute = await partial_exit_mgr.check_partial_exit_trigger(
+                    position, current_price
+                )
+
+                if tier_to_execute:
+                    logger.info(f"🎯 Executing partial exit: {tier_to_execute}")
+
+                    result = await partial_exit_mgr.execute_partial_exit(
+                        position, tier_to_execute, current_price,
+                        exchange, db, notifier
+                    )
+
+                    if result['success']:
+                        logger.info(
+                            f"✅ {tier_to_execute} executed: "
+                            f"Closed {result['closed_percentage']*100:.0f}%, "
+                            f"P&L ${float(result['realized_pnl']):+.2f}"
+                        )
+
+                        # If tier3 (full exit), position is closed
+                        if tier_to_execute == 'tier3':
+                            logger.info(f"🎉 Position fully closed via {tier_to_execute}")
+                            return
+
+                        # Otherwise, reload position data (quantity/value changed)
+                        position = await db.get_position_by_id(position['id'])
+
+                        # Recalculate P&L with new quantity
+                        pnl_data = calculate_pnl(
+                            Decimal(str(position['entry_price'])),
+                            current_price,
+                            Decimal(str(position['quantity'])),
+                            side,
+                            position['leverage'],
+                            Decimal(str(position['position_value_usd']))
+                        )
+                        unrealized_pnl = Decimal(str(pnl_data['unrealized_pnl']))
+
+                        logger.info(
+                            f"📊 Remaining position: {float(position['quantity']):.4f} units, "
+                            f"P&L: ${float(unrealized_pnl):+.2f}"
+                        )
+
+                    else:
+                        logger.error(f"❌ {tier_to_execute} failed: {result.get('error')}")
+
+            except Exception as partial_error:
+                logger.error(f"❌ Partial exit check failed: {partial_error}", exc_info=True)
+
+            # ====================================================================
+            # 🎯 TIER 1 CHECK #2: TRAILING STOP-LOSS
+            # ====================================================================
+            # Protects profits by locking in gains as position moves favorably
+            try:
+                trailing_stop = get_trailing_stop()
+                should_exit, new_stop, reason = await trailing_stop.update_trailing_stop(
+                    position, current_price, db
+                )
+
+                if should_exit:
+                    logger.info(f"🎯 Trailing stop TRIGGERED: {reason}")
+
+                    # 🎯 TIER 2: Store exit regime before closing
+                    await self._store_exit_regime(position, indicators, symbol)
+
+                    await notifier.send_alert(
+                        'success',
+                        f"🎯 TRAILING STOP EXIT\n"
+                        f"{symbol} {side}\n"
+                        f"{reason}\n"
+                        f"Profit locked: ${float(unrealized_pnl):+.2f}"
+                    )
+                    await executor.close_position(position, current_price, reason)
+                    return
+
+                if new_stop:
+                    logger.info(f"✅ Trailing stop moved to ${float(new_stop):.4f}")
+                    # Position already updated in database by trailing_stop module
+                    position['stop_loss_price'] = new_stop
+
+            except Exception as trailing_error:
+                logger.error(f"❌ Trailing stop check failed: {trailing_error}", exc_info=True)
+
+            # ====================================================================
+            # 🎯 TIER 2 CHECK: MARKET REGIME DETECTION
+            # ====================================================================
+            # Detect market regime for adaptive exit decisions later
+            try:
+                regime_detector = get_regime_detector()
+                regime, regime_details = regime_detector.detect_regime(indicators, symbol)
+
+                # Store regime in position for ML exit decisions
+                await db.execute(
+                    """
+                    UPDATE active_position
+                    SET entry_market_regime = $1
+                    WHERE id = $2
+                    """,
+                    regime.value,
+                    position['id']
+                )
+
+                logger.debug(
+                    f"📊 Market regime: {regime.value} - {regime_details['description']}"
+                )
+
+                # Store regime for later use
+                position['entry_market_regime'] = regime.value
+
+            except Exception as regime_error:
+                logger.warning(f"Market regime detection failed: {regime_error}")
+                regime = MarketRegime.WEAK_TREND
+                regime_details = {'description': 'Unknown regime'}
+
+            # 🎯 #9: DYNAMIC TRAILING STOP-LOSS (OLD IMPLEMENTATION - KEPT FOR COMPATIBILITY)
+            # Note: TIER 1 Trailing Stop above is the new implementation
+            # This is kept as backup/fallback
+            try:
+                # Check if trailing stop should be updated (old risk_manager method)
                 new_stop_price = await risk_manager.update_trailing_stop(
                     position, current_price, atr_percent
                 )
 
-                if new_stop_price is not None:
-                    # Update stop-loss in database
+                if new_stop_price is not None and not new_stop:
+                    # Only use this if TIER 1 trailing stop didn't trigger
                     async with db.pool.acquire() as conn:
                         await conn.execute(
                             "UPDATE active_position SET stop_loss_price = $1 WHERE id = $2",
-                            new_stop_price, position['id']
+                            float(new_stop_price), position['id']
                         )
-                    logger.info(f"✅ Trailing stop updated to ${float(new_stop_price):.4f}")
-
-                    # Update position dict for subsequent checks
+                    logger.debug(f"✅ Fallback trailing stop updated to ${float(new_stop_price):.4f}")
                     position['stop_loss_price'] = new_stop_price
 
             except Exception as trail_error:
-                logger.warning(f"Failed to update trailing stop: {trail_error}")
+                logger.debug(f"Fallback trailing stop check: {trail_error}")
 
             # === CRITICAL CHECK 1: Emergency close conditions ===
             should_emergency_close, emergency_reason = await risk_manager.should_emergency_close(position, current_price)
 
             if should_emergency_close:
                 logger.critical(f"🚨 EMERGENCY CLOSE: {emergency_reason}")
+
+                # 🎯 TIER 2: Store exit regime before closing
+                await self._store_exit_regime(position, indicators, symbol)
+
                 await notifier.send_alert('critical', f"Emergency closing position: {emergency_reason}")
                 await executor.close_position(position, current_price, emergency_reason)
                 return
@@ -189,6 +371,10 @@ class PositionMonitor:
 
             if distance_to_liq < Decimal("0.05"):  # Less than 5%
                 logger.critical(f"🚨 LIQUIDATION RISK! Distance: {float(distance_to_liq)*100:.2f}%")
+
+                # 🎯 TIER 2: Store exit regime before closing
+                await self._store_exit_regime(position, indicators, symbol)
+
                 await notifier.send_alert(
                     'critical',
                     f"🚨 LIQUIDATION RISK!\n"
@@ -237,6 +423,10 @@ class PositionMonitor:
                 # STRATEGY 2: Close remaining 50% if profit is 3x minimum target
                 if unrealized_pnl >= (min_profit_usd * 3) and has_partial_close:
                     logger.info(f"🎉 Excellent profit: ${float(unrealized_pnl):.2f} (3x target) - Closing remaining 50%")
+
+                    # 🎯 TIER 2: Store exit regime before closing
+                    await self._store_exit_regime(position, indicators, symbol)
+
                     await executor.close_position(
                         position,
                         current_price,
@@ -247,6 +437,10 @@ class PositionMonitor:
                 # STRATEGY 3: Full close if profit is 2x minimum (and no partial taken yet)
                 if unrealized_pnl >= (min_profit_usd * 2) and not has_partial_close:
                     logger.info(f"🎉 Excellent profit: ${float(unrealized_pnl):.2f} (2x target)")
+
+                    # 🎯 TIER 2: Store exit regime before closing
+                    await self._store_exit_regime(position, indicators, symbol)
+
                     await executor.close_position(
                         position,
                         current_price,
@@ -261,6 +455,10 @@ class PositionMonitor:
 
                 if tf_exit_signal:
                     logger.info("⚠️ Multi-timeframe exit signal detected")
+
+                    # 🎯 TIER 2: Store exit regime before closing
+                    await self._store_exit_regime(position, indicators, symbol)
+
                     await executor.close_position(
                         position,
                         current_price,
@@ -310,6 +508,10 @@ class PositionMonitor:
                         # ✅ INCREASED THRESHOLD: 75% confidence (from 70%)
                         if exit_prediction['should_exit'] and exit_prediction['confidence'] >= 0.75:
                             logger.info(f"💡 ML EXIT TRIGGERED: {exit_prediction['reasoning']}")
+
+                            # 🎯 TIER 2: Store exit regime before closing
+                            await self._store_exit_regime(position, indicators, symbol)
+
                             await executor.close_position(
                                 position,
                                 current_price,
@@ -398,6 +600,10 @@ class PositionMonitor:
 
                     if should_exit:
                         logger.info(f"🧠 ML recommends exit: {reason}")
+
+                        # 🎯 TIER 2: Store exit regime before closing
+                        await self._store_exit_regime(position, indicators, symbol)
+
                         await executor.close_position(
                             position,
                             current_price,

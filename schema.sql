@@ -59,7 +59,18 @@ CREATE TABLE IF NOT EXISTS active_position (
     -- 📸 ML LEARNING: Entry snapshot (captured when position opens)
     entry_snapshot JSONB,
     entry_slippage_percent DECIMAL(10, 6),
-    entry_fill_time_ms INTEGER
+    entry_fill_time_ms INTEGER,
+
+    -- 🎯 TIER 1: Trailing Stop-Loss
+    max_profit_percent DECIMAL(10, 4) DEFAULT 0.0,
+    trailing_stop_activated BOOLEAN DEFAULT FALSE,
+
+    -- 🎯 TIER 1: Partial Exit System
+    partial_exits_completed TEXT[] DEFAULT '{}',
+    original_quantity DECIMAL(20, 8),
+
+    -- 🎯 TIER 2: Market Regime Tracking
+    entry_market_regime VARCHAR(50)
 );
 
 -- Trade History with ML Learning Snapshots
@@ -94,7 +105,19 @@ CREATE TABLE IF NOT EXISTS trade_history (
     entry_slippage_percent DECIMAL(10, 6),
     exit_slippage_percent DECIMAL(10, 6),
     entry_fill_time_ms INTEGER,
-    exit_fill_time_ms INTEGER
+    exit_fill_time_ms INTEGER,
+
+    -- 🎯 TIER 1: Trailing Stop-Loss Metrics
+    max_profit_percent_achieved DECIMAL(10, 4),
+    trailing_stop_triggered BOOLEAN DEFAULT FALSE,
+
+    -- 🎯 TIER 1: Partial Exit Tracking
+    had_partial_exits BOOLEAN DEFAULT FALSE,
+    partial_exit_details JSONB,
+
+    -- 🎯 TIER 2: Market Regime at Entry/Exit
+    entry_market_regime VARCHAR(50),
+    exit_market_regime VARCHAR(50)
 );
 
 -- Performance indexes for trade_history
@@ -375,5 +398,166 @@ BEGIN
     RAISE NOTICE '  - trade_history: ai_reasoning, entry_snapshot, exit_snapshot, *_slippage_percent, *_fill_time_ms';
     RAISE NOTICE 'Added indexes:';
     RAISE NOTICE '  - GIN indexes on JSONB columns for fast queries';
+    RAISE NOTICE '============================================================';
+END $$;
+
+-- ============================================================
+-- 🎯 TIER 1 & TIER 2 MIGRATIONS
+-- ============================================================
+
+-- Add max_profit_percent to active_position (Trailing Stop-Loss)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='active_position' AND column_name='max_profit_percent') THEN
+        ALTER TABLE active_position ADD COLUMN max_profit_percent DECIMAL(10, 4) DEFAULT 0.0;
+        RAISE NOTICE '✅ Added max_profit_percent to active_position';
+    END IF;
+END $$;
+
+-- Add trailing_stop_activated to active_position
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='active_position' AND column_name='trailing_stop_activated') THEN
+        ALTER TABLE active_position ADD COLUMN trailing_stop_activated BOOLEAN DEFAULT FALSE;
+        RAISE NOTICE '✅ Added trailing_stop_activated to active_position';
+    END IF;
+END $$;
+
+-- Add partial_exits_completed to active_position (Partial Exit System)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='active_position' AND column_name='partial_exits_completed') THEN
+        ALTER TABLE active_position ADD COLUMN partial_exits_completed TEXT[] DEFAULT '{}';
+        RAISE NOTICE '✅ Added partial_exits_completed to active_position';
+    END IF;
+END $$;
+
+-- Add original_quantity to active_position
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='active_position' AND column_name='original_quantity') THEN
+        ALTER TABLE active_position ADD COLUMN original_quantity DECIMAL(20, 8);
+        RAISE NOTICE '✅ Added original_quantity to active_position';
+    END IF;
+END $$;
+
+-- Add entry_market_regime to active_position (Market Regime Detection)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='active_position' AND column_name='entry_market_regime') THEN
+        ALTER TABLE active_position ADD COLUMN entry_market_regime VARCHAR(50);
+        RAISE NOTICE '✅ Added entry_market_regime to active_position';
+    END IF;
+END $$;
+
+-- Add max_profit_percent_achieved to trade_history
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trade_history' AND column_name='max_profit_percent_achieved') THEN
+        ALTER TABLE trade_history ADD COLUMN max_profit_percent_achieved DECIMAL(10, 4);
+        RAISE NOTICE '✅ Added max_profit_percent_achieved to trade_history';
+    END IF;
+END $$;
+
+-- Add trailing_stop_triggered to trade_history
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trade_history' AND column_name='trailing_stop_triggered') THEN
+        ALTER TABLE trade_history ADD COLUMN trailing_stop_triggered BOOLEAN DEFAULT FALSE;
+        RAISE NOTICE '✅ Added trailing_stop_triggered to trade_history';
+    END IF;
+END $$;
+
+-- Add had_partial_exits to trade_history
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trade_history' AND column_name='had_partial_exits') THEN
+        ALTER TABLE trade_history ADD COLUMN had_partial_exits BOOLEAN DEFAULT FALSE;
+        RAISE NOTICE '✅ Added had_partial_exits to trade_history';
+    END IF;
+END $$;
+
+-- Add partial_exit_details to trade_history
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trade_history' AND column_name='partial_exit_details') THEN
+        ALTER TABLE trade_history ADD COLUMN partial_exit_details JSONB;
+        RAISE NOTICE '✅ Added partial_exit_details to trade_history';
+    END IF;
+END $$;
+
+-- Add entry_market_regime to trade_history
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trade_history' AND column_name='entry_market_regime') THEN
+        ALTER TABLE trade_history ADD COLUMN entry_market_regime VARCHAR(50);
+        RAISE NOTICE '✅ Added entry_market_regime to trade_history';
+    END IF;
+END $$;
+
+-- Add exit_market_regime to trade_history
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trade_history' AND column_name='exit_market_regime') THEN
+        ALTER TABLE trade_history ADD COLUMN exit_market_regime VARCHAR(50);
+        RAISE NOTICE '✅ Added exit_market_regime to trade_history';
+    END IF;
+END $$;
+
+-- Add index for trailing stop analysis
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_trailing_stop_triggered') THEN
+        CREATE INDEX idx_trailing_stop_triggered ON trade_history(trailing_stop_triggered)
+        WHERE trailing_stop_triggered = TRUE;
+        RAISE NOTICE '✅ Created index on trailing_stop_triggered';
+    END IF;
+END $$;
+
+-- Add index for partial exits analysis
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_partial_exits') THEN
+        CREATE INDEX idx_partial_exits ON trade_history(had_partial_exits)
+        WHERE had_partial_exits = TRUE;
+        RAISE NOTICE '✅ Created index on had_partial_exits';
+    END IF;
+END $$;
+
+-- Add index for market regime analysis
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_market_regime') THEN
+        CREATE INDEX idx_market_regime ON trade_history(entry_market_regime, exit_market_regime);
+        RAISE NOTICE '✅ Created index on market regimes';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    RAISE NOTICE '============================================================';
+    RAISE NOTICE '🎯 TIER 1 & TIER 2 MIGRATION COMPLETE!';
+    RAISE NOTICE '============================================================';
+    RAISE NOTICE 'TIER 1 Features:';
+    RAISE NOTICE '  ✅ Trailing Stop-Loss columns added';
+    RAISE NOTICE '  ✅ Partial Exit System columns added';
+    RAISE NOTICE '  ✅ Correlation tracking ready (uses existing ml_learner)';
+    RAISE NOTICE '';
+    RAISE NOTICE 'TIER 2 Features:';
+    RAISE NOTICE '  ✅ Market Regime Detection columns added';
+    RAISE NOTICE '  ✅ ML Continuous Learning (uses existing columns)';
+    RAISE NOTICE '';
+    RAISE NOTICE '📊 Performance indexes created';
     RAISE NOTICE '============================================================';
 END $$;

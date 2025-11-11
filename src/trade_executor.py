@@ -590,6 +590,20 @@ class TradeExecutor:
             # Record trade in history
             trade_duration = (datetime.now() - position.get('entry_time', datetime.now())).total_seconds()
 
+            # 🎯 TIER 1 & 2: Extract metadata for performance tracking
+            max_profit_achieved = position.get('max_profit_percent', 0.0)
+            trailing_stop_triggered = 'trailing stop' in close_reason.lower()
+            partial_exits_completed = position.get('partial_exits_completed', [])
+            had_partial_exits = len(partial_exits_completed) > 0 if partial_exits_completed else False
+
+            # Build partial exit details JSON
+            partial_exit_details = None
+            if had_partial_exits:
+                partial_exit_details = {
+                    'tiers_executed': partial_exits_completed,
+                    'max_profit_before_exit': max_profit_achieved
+                }
+
             trade_data = {
                 'symbol': symbol,
                 'side': side,
@@ -618,7 +632,19 @@ class TradeExecutor:
 
                 # 📸 ML LEARNING SNAPSHOTS
                 'entry_snapshot': position.get('entry_snapshot'),
-                'exit_snapshot': exit_snapshot
+                'exit_snapshot': exit_snapshot,
+
+                # 🎯 TIER 1: Trailing Stop-Loss Metrics
+                'max_profit_percent_achieved': max_profit_achieved,
+                'trailing_stop_triggered': trailing_stop_triggered,
+
+                # 🎯 TIER 1: Partial Exit Tracking
+                'had_partial_exits': had_partial_exits,
+                'partial_exit_details': partial_exit_details,
+
+                # 🎯 TIER 2: Market Regime Tracking
+                'entry_market_regime': position.get('entry_market_regime'),
+                'exit_market_regime': position.get('exit_market_regime')  # Set by position_monitor
             }
 
             await db.record_trade(trade_data)
@@ -661,22 +687,17 @@ class TradeExecutor:
             except Exception as exit_error:
                 logger.warning(f"Exit optimizer learning failed: {exit_error}")
 
-            # 🤖 REAL ML PREDICTOR: Retrain periodically (every 50 trades)
+            # 🎯 TIER 2: ML CONTINUOUS LEARNING - Auto-retrain every 50 trades
             try:
-                from src.ml_predictor import get_ml_predictor
-                ml_predictor = get_ml_predictor()
+                from src.ml_continuous_learner import get_continuous_learner
+                continuous_learner = get_continuous_learner()
 
-                # Check if it's time to retrain (every 50 trades)
-                total_trades = await db.pool.fetchval("SELECT COUNT(*) FROM trade_history")
-                if total_trades % 50 == 0:
-                    logger.info(f"🔄 Retraining ML predictor ({total_trades} trades)...")
-                    training_success = await ml_predictor.train(force_retrain=True)
-                    if training_success:
-                        logger.info(f"✅ ML predictor retrained successfully!")
-                    else:
-                        logger.warning(f"⚠️ ML predictor retraining failed")
+                # Check if retraining is needed and perform if so
+                await continuous_learner.on_trade_completed(trade_data, db)
+
+                logger.debug(f"🎓 Continuous learning check completed")
             except Exception as ml_train_error:
-                logger.warning(f"ML predictor training failed: {ml_train_error}")
+                logger.warning(f"ML continuous learning failed: {ml_train_error}")
 
             # Remove active position
             await db.remove_active_position(position['id'])
