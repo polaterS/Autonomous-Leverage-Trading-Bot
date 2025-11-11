@@ -537,15 +537,21 @@ class MarketScanner:
                                     f"Leverage: {suggested_leverage}x, Stop-Loss: {stop_loss_percent}%"
                                 )
 
+                                # Extract detailed PA analysis data
+                                pa_analysis = best_pa.get('analysis', {})
+                                sr_data = pa_analysis.get('support_resistance', {})
+                                trend_data = pa_analysis.get('trend', {})
+                                volume_data = pa_analysis.get('volume', {})
+
                                 individual_analyses = [{
                                     'action': suggested_side,
                                     'side': 'LONG' if suggested_side == 'buy' else 'SHORT',
                                     'confidence': synthetic_confidence,
-                                    'suggested_leverage': suggested_leverage,  # ← FIXED: Added missing key
-                                    'stop_loss_percent': stop_loss_percent,     # ← FIXED: Added missing key
+                                    'suggested_leverage': suggested_leverage,
+                                    'stop_loss_percent': stop_loss_percent,
                                     'model_name': 'PA-Override',
                                     'models_used': ['PriceAction'],
-                                    'reasoning': best_pa['reason'],  # PA reasoning
+                                    'reasoning': best_pa['reason'],
                                     'price_action': {
                                         'validated': True,
                                         'reason': best_pa['reason'],
@@ -553,7 +559,19 @@ class MarketScanner:
                                         'targets': best_pa['targets'],
                                         'rr_ratio': best_pa['rr_ratio'],
                                         'confidence_boost': best_pa['confidence_boost'],
-                                        'pa_override': True
+                                        'pa_override': True,
+                                        # ✅ NEW: Full PA analysis details for Telegram
+                                        'support_levels': [s['price'] for s in sr_data.get('support', [])[:3]],  # Top 3 support
+                                        'resistance_levels': [r['price'] for r in sr_data.get('resistance', [])[:3]],  # Top 3 resistance
+                                        'trend': trend_data.get('direction', 'N/A'),
+                                        'trend_strength': trend_data.get('strength', 'N/A'),
+                                        'adx': trend_data.get('adx', 0),
+                                        'volume_surge': volume_data.get('is_surge', False),
+                                        'volume_ratio': volume_data.get('surge_ratio', 1.0),
+                                        'obv_trend': volume_data.get('obv_trend', 'NEUTRAL'),
+                                        'vpoc': sr_data.get('vpoc', 0),
+                                        'indicators': ['Support/Resistance', 'Trend (ADX)', 'Volume (OBV)', 'Fibonacci'],
+                                        'timeframes': ['15m'],  # Primary timeframe used
                                     }
                                 }]
 
@@ -582,6 +600,12 @@ class MarketScanner:
                                 # Boost confidence
                                 boosted_confidence = (ml_confidence + matching_pa['confidence_boost']) / 100
 
+                                # Extract detailed PA analysis data
+                                pa_analysis = matching_pa.get('analysis', {})
+                                sr_data = pa_analysis.get('support_resistance', {})
+                                trend_data = pa_analysis.get('trend', {})
+                                volume_data = pa_analysis.get('volume', {})
+
                                 # Update analysis with boosted confidence and price action details
                                 for analysis in individual_analyses:
                                     analysis['confidence'] = boosted_confidence
@@ -591,7 +615,19 @@ class MarketScanner:
                                         'stop_loss': matching_pa['stop_loss'],
                                         'targets': matching_pa['targets'],
                                         'rr_ratio': matching_pa['rr_ratio'],
-                                        'confidence_boost': matching_pa['confidence_boost']
+                                        'confidence_boost': matching_pa['confidence_boost'],
+                                        # ✅ NEW: Full PA analysis details for Telegram
+                                        'support_levels': [s['price'] for s in sr_data.get('support', [])[:3]],
+                                        'resistance_levels': [r['price'] for r in sr_data.get('resistance', [])[:3]],
+                                        'trend': trend_data.get('direction', 'N/A'),
+                                        'trend_strength': trend_data.get('strength', 'N/A'),
+                                        'adx': trend_data.get('adx', 0),
+                                        'volume_surge': volume_data.get('is_surge', False),
+                                        'volume_ratio': volume_data.get('surge_ratio', 1.0),
+                                        'obv_trend': volume_data.get('obv_trend', 'NEUTRAL'),
+                                        'vpoc': sr_data.get('vpoc', 0),
+                                        'indicators': ['Support/Resistance', 'Trend (ADX)', 'Volume (OBV)', 'Fibonacci'],
+                                        'timeframes': ['15m'],
                                     }
 
                                 logger.info(

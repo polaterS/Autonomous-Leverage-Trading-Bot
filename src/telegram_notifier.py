@@ -136,15 +136,66 @@ Sit back and monitor your portfolio! 💰
             reason = pa_data.get('reason', 'N/A')
             message_parts.append(f"   📊 Setup: <b>{reason}</b>")
 
+            # ✅ NEW: Show Support/Resistance levels (numerical values)
+            support_levels = pa_data.get('support_levels', [])
+            resistance_levels = pa_data.get('resistance_levels', [])
+
+            if support_levels:
+                support_str = ", ".join([f"${float(s):.4f}" for s in support_levels])
+                message_parts.append(f"   🟢 Support: <b>{support_str}</b>")
+
+            if resistance_levels:
+                resistance_str = ", ".join([f"${float(r):.4f}" for r in resistance_levels])
+                message_parts.append(f"   🔴 Resistance: <b>{resistance_str}</b>")
+
+            # ✅ NEW: Show VPOC (Volume Point of Control)
+            vpoc = pa_data.get('vpoc', 0)
+            if vpoc > 0:
+                message_parts.append(f"   📊 VPOC: <b>${float(vpoc):.4f}</b>")
+
             # Show targets and risk/reward
             targets = pa_data.get('targets', [])
             if targets:
-                target_str = ", ".join([f"${float(t):.4f}" for t in targets[:3]])  # Show first 3 targets
+                target_str = ", ".join([f"${float(t):.4f}" for t in targets[:3]])
                 message_parts.append(f"   🎯 Targets: <b>{target_str}</b>")
 
             rr_ratio = pa_data.get('rr_ratio')
             if rr_ratio:
                 message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_ratio):.2f}:1</b>")
+
+            # ✅ NEW: Show Trend analysis
+            trend = pa_data.get('trend', 'N/A')
+            trend_strength = pa_data.get('trend_strength', 'N/A')
+            adx = pa_data.get('adx', 0)
+            if trend != 'N/A':
+                trend_emoji = '📈' if trend == 'UPTREND' else '📉' if trend == 'DOWNTREND' else '➡️'
+                message_parts.append(
+                    f"   {trend_emoji} Trend: <b>{trend}</b> | Strength: <b>{trend_strength}</b> (ADX: {float(adx):.1f})"
+                )
+
+            # ✅ NEW: Show Volume analysis
+            volume_surge = pa_data.get('volume_surge', False)
+            volume_ratio = pa_data.get('volume_ratio', 1.0)
+            obv_trend = pa_data.get('obv_trend', 'NEUTRAL')
+
+            surge_emoji = '🔥' if volume_surge else '📊'
+            obv_emoji = '⬆️' if obv_trend == 'RISING' else '⬇️' if obv_trend == 'FALLING' else '➡️'
+            message_parts.append(
+                f"   {surge_emoji} Volume: <b>{float(volume_ratio):.1f}x avg</b> | "
+                f"OBV: {obv_emoji} <b>{obv_trend}</b>"
+            )
+
+            # ✅ NEW: Show Indicators used
+            indicators = pa_data.get('indicators', [])
+            if indicators:
+                indicators_str = ", ".join(indicators)
+                message_parts.append(f"   🔧 Indicators: <b>{indicators_str}</b>")
+
+            # ✅ NEW: Show Timeframes analyzed
+            timeframes = pa_data.get('timeframes', [])
+            if timeframes:
+                timeframes_str = ", ".join(timeframes)
+                message_parts.append(f"   ⏱️ Timeframes: <b>{timeframes_str}</b>")
 
             # Show if PA override (ML said HOLD but PA opened trade)
             if pa_data.get('pa_override'):
