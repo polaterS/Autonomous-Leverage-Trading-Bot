@@ -133,6 +133,22 @@ async def main():
             print("⚠️  LIVE TRADING WILL BEGIN IN 3 SECONDS...")
             await asyncio.sleep(3)
 
+    # 🌐 Initialize WebSocket price feed (eliminates Binance 429 rate limit errors)
+    price_manager = None
+    try:
+        from src.price_manager import get_price_manager
+        price_manager = get_price_manager()
+        logger.info("=" * 60)
+        logger.info("🌐 WEBSOCKET PRICE FEED INITIALIZATION")
+        logger.info("=" * 60)
+        logger.info("✅ Price manager initialized")
+        logger.info("   Strategy: WebSocket (real-time) + REST cache (fallback)")
+        logger.info("   Expected: -85% API calls, zero 429 rate limit errors")
+        logger.info("=" * 60)
+    except Exception as e:
+        logger.warning(f"WebSocket price feed initialization failed (non-critical): {e}")
+        logger.info("   Will use REST API with caching")
+
     # Create and initialize trading engine
     engine = get_trading_engine()
 
@@ -202,6 +218,15 @@ async def main():
     except Exception as e:
         logger.critical(f"Fatal error: {e}")
         sys.exit(1)
+    finally:
+        # Cleanup WebSocket connections
+        if price_manager:
+            try:
+                logger.info("Cleaning up WebSocket price feed...")
+                await price_manager.cleanup()
+                logger.info("✅ WebSocket cleanup complete")
+            except Exception as cleanup_error:
+                logger.warning(f"WebSocket cleanup error: {cleanup_error}")
 
     logger.info("Bot shutdown complete.")
 

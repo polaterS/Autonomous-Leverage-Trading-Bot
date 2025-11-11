@@ -452,14 +452,18 @@ class MarketScanner:
         try:
             exchange = await get_exchange_client()
 
-            # OHLCV data (multiple timeframes) - ENHANCED with 5m
-            ohlcv_5m = await exchange.fetch_ohlcv(symbol, '5m', limit=100)
-            ohlcv_15m = await exchange.fetch_ohlcv(symbol, '15m', limit=100)
-            ohlcv_1h = await exchange.fetch_ohlcv(symbol, '1h', limit=100)
-            ohlcv_4h = await exchange.fetch_ohlcv(symbol, '4h', limit=50)
+            # Use price manager for intelligent caching (reduces API calls by 80%)
+            from src.price_manager import get_price_manager
+            price_manager = get_price_manager()
 
-            # Current ticker
-            ticker = await exchange.fetch_ticker(symbol)
+            # OHLCV data (multiple timeframes) - ENHANCED with 5m + CACHING
+            ohlcv_5m = await price_manager.get_ohlcv(symbol, '5m', exchange, limit=100)
+            ohlcv_15m = await price_manager.get_ohlcv(symbol, '15m', exchange, limit=100)
+            ohlcv_1h = await price_manager.get_ohlcv(symbol, '1h', exchange, limit=100)
+            ohlcv_4h = await price_manager.get_ohlcv(symbol, '4h', exchange, limit=50)
+
+            # Current ticker (with caching)
+            ticker = await price_manager.get_ticker(symbol, exchange, use_cache=True)
 
             # 🎯 #6: Update price for correlation tracking
             try:

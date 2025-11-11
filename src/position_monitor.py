@@ -113,30 +113,15 @@ class PositionMonitor:
             executor = get_trade_executor()
             notifier = get_notifier()
 
-            # Get current price - TRY WebSocket first (sub-second), fallback to REST
-            current_price = None
-            try:
-                from src.websocket_client import get_ws_client
-                ws_client = await get_ws_client()
+            # Get current price using hybrid price manager (WebSocket + REST cache)
+            from src.price_manager import get_price_manager
+            price_manager = get_price_manager()
 
-                # Subscribe to real-time price updates
-                await ws_client.subscribe_symbol(symbol)
-
-                # Try to get cached price from WebSocket
-                ws_price = await ws_client.get_price(symbol)
-
-                if ws_price is not None:
-                    current_price = ws_price
-                    logger.debug(f"📡 Using WebSocket price for {symbol}: ${float(current_price):.2f}")
-
-            except Exception as ws_error:
-                logger.warning(f"WebSocket price fetch failed: {ws_error}, falling back to REST API")
-
-            # Fallback to REST API if WebSocket unavailable
-            if current_price is None:
-                ticker = await exchange.fetch_ticker(symbol)
-                current_price = Decimal(str(ticker['last']))
-                logger.debug(f"🌐 Using REST API price for {symbol}: ${float(current_price):.2f}")
+            current_price = await price_manager.get_price(
+                symbol=symbol,
+                exchange=exchange,
+                is_active_position=True  # Prioritize WebSocket for active positions
+            )
 
             # Calculate current P&L
             pnl_data = calculate_pnl(

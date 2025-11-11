@@ -5,6 +5,7 @@ aiohttp==3.11.11
 
 # Exchange Integration
 ccxt==4.5.12
+ccxt.pro==4.5.12  # WebSocket support for real-time price feeds
 
 # AI APIs (Qwen3-Max + DeepSeek-V3.2)
 openai==1.58.1
