@@ -60,6 +60,13 @@ class TradeExecutor:
 
         logger.info(f"Opening position: {symbol} {side} {leverage}x")
 
+        # 🔍 DEBUG: Check if price_action data is present
+        pa_data = ai_analysis.get('price_action')
+        if pa_data:
+            logger.info(f"✅ Price action data present: validated={pa_data.get('validated')}, reason={pa_data.get('reason')}")
+        else:
+            logger.info("⚠️ No price action data in ai_analysis")
+
         try:
             db = await get_db_client()
             exchange = await get_exchange_client()
@@ -351,7 +358,10 @@ class TradeExecutor:
                 # 📸 ML LEARNING SNAPSHOT
                 'entry_snapshot': entry_snapshot,
                 'entry_slippage_percent': slippage_percent,
-                'entry_fill_time_ms': fill_time_ms
+                'entry_fill_time_ms': fill_time_ms,
+
+                # 🎯 PRICE ACTION ANALYSIS (NEW!)
+                'price_action': ai_analysis.get('price_action')
             }
 
             position_id = await db.create_active_position(position_data)
