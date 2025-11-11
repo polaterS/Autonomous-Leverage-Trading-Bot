@@ -84,33 +84,38 @@ class WebSocketPriceFeed:
             return
 
         try:
-            # Initialize CCXT Pro exchange (Pro version uses different import)
-            if self.exchange_id == 'binance':
-                from ccxtpro import binance as BinancePro
-                self.exchange = BinancePro({
-                    'apiKey': api_key,
-                    'secret': api_secret,
-                    'enableRateLimit': True,
-                    'options': {
-                        'defaultType': 'future',
-                        'watchOrderBook': {'limit': 1},
-                    }
-                })
-            else:
-                # Fallback for other exchanges
-                exchange_class = getattr(ccxtpro, self.exchange_id, None)
-                if not exchange_class:
-                    raise ValueError(f"Exchange {self.exchange_id} not supported in ccxtpro")
+            # Try multiple import methods for ccxtpro
+            try:
+                # Method 1: Direct import
+                if self.exchange_id == 'binance':
+                    from ccxtpro import binance as BinancePro
+                    exchange_class = BinancePro
+                else:
+                    exchange_class = getattr(ccxtpro, self.exchange_id)
+            except (ImportError, AttributeError) as import_error:
+                # Method 2: Try as module import
+                logger.warning(f"Direct import failed: {import_error}, trying module import...")
+                try:
+                    import importlib
+                    ccxtpro_module = importlib.import_module('ccxtpro')
+                    exchange_class = getattr(ccxtpro_module, self.exchange_id)
+                except Exception as module_error:
+                    logger.error(f"Module import also failed: {module_error}")
+                    raise ValueError(
+                        f"ccxtpro.{self.exchange_id} not available. "
+                        f"WebSocket disabled, will use REST API only."
+                    )
 
-                self.exchange = exchange_class({
-                    'apiKey': api_key,
-                    'secret': api_secret,
-                    'enableRateLimit': True,
-                    'options': {
-                        'defaultType': 'future',
-                        'watchOrderBook': {'limit': 1},
-                    }
-                })
+            # Initialize exchange
+            self.exchange = exchange_class({
+                'apiKey': api_key,
+                'secret': api_secret,
+                'enableRateLimit': True,
+                'options': {
+                    'defaultType': 'future',
+                    'watchOrderBook': {'limit': 1},
+                }
+            })
 
             if testnet:
                 self.exchange.set_sandbox_mode(True)
@@ -125,7 +130,8 @@ class WebSocketPriceFeed:
             logger.error(f"❌ Failed to start WebSocket: {e}")
             self.is_running = False
             self.is_connected = False
-            raise
+            # Don't raise - let REST API take over
+            logger.warning("⚠️ WebSocket unavailable, REST API cache will handle all requests")
 
     async def stop(self):
         """Stop WebSocket connection and cleanup."""
