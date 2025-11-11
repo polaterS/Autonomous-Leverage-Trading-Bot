@@ -92,6 +92,9 @@ class FeatureEngineering:
             # === SENTIMENT & EXTERNAL (4) ===
             features.extend(self._extract_sentiment_features(snapshot))
 
+            # === PRICE ACTION PROFESSIONAL (6) 🎯 NEW ===
+            features.extend(self._extract_professional_price_action(snapshot, side))
+
             # Validate feature count
             if len(features) != self.feature_count:
                 logger.warning(
@@ -502,6 +505,96 @@ class FeatureEngineering:
         except:
             return 0.5
 
+    def _extract_professional_price_action(self, snapshot: Dict, side: str) -> List[float]:
+        """
+        🎯 PROFESSIONAL PRICE ACTION FEATURES (6 features)
+
+        Extract features from price action analyzer for ML enhancement.
+        These are the SAME features professional traders use!
+
+        Features:
+        1. Distance to nearest support (normalized)
+        2. Distance to nearest resistance (normalized)
+        3. S/R strength score (number of touches)
+        4. Trend quality (ADX + direction alignment)
+        5. Volume confirmation (surge ratio)
+        6. Risk/Reward ratio
+
+        Args:
+            snapshot: Market snapshot
+            side: 'LONG' or 'SHORT'
+
+        Returns:
+            List of 6 price action features
+        """
+        try:
+            # Get price action analysis from snapshot (if available)
+            pa_analysis = snapshot.get('price_action', {})
+
+            if pa_analysis:
+                # Extract from pre-computed analysis
+                support_dist = float(pa_analysis.get('nearest_support_dist', 0.05))
+                resistance_dist = float(pa_analysis.get('nearest_resistance_dist', 0.05))
+                sr_strength = float(pa_analysis.get('sr_strength_score', 0.5))
+                trend_quality = float(pa_analysis.get('trend_quality', 0.5))
+                volume_conf = float(pa_analysis.get('volume_confirmation', 1.0))
+                rr_ratio = float(pa_analysis.get('rr_ratio', 2.0))
+
+            else:
+                # Fallback: estimate from basic indicators
+                current_price = float(snapshot.get('current_price', 1.0))
+
+                # Use support/resistance from snapshot if available
+                support_levels = snapshot.get('support_resistance', {}).get('support', [])
+                resistance_levels = snapshot.get('support_resistance', {}).get('resistance', [])
+
+                if support_levels and current_price > 0:
+                    nearest_support = min(support_levels, key=lambda x: abs(x.get('price', current_price) - current_price))
+                    support_dist = abs(current_price - nearest_support.get('price', current_price)) / current_price
+                    sr_strength = min(nearest_support.get('touches', 2) / 5.0, 1.0)  # Normalize to 0-1
+                else:
+                    support_dist = 0.02
+                    sr_strength = 0.5
+
+                if resistance_levels and current_price > 0:
+                    nearest_resistance = min(resistance_levels, key=lambda x: abs(x.get('price', current_price) - current_price))
+                    resistance_dist = abs(nearest_resistance.get('price', current_price) - current_price) / current_price
+                else:
+                    resistance_dist = 0.02
+
+                # Trend quality from ADX and trend alignment
+                indicators_15m = self._get_indicators(snapshot, '15m')
+                adx = float(indicators_15m.get('adx', 20)) / 100.0  # Normalize to 0-1
+                trend_alignment = self._extract_timeframe_features(snapshot, side)[0]
+                trend_quality = (adx + trend_alignment) / 2
+
+                # Volume confirmation
+                volume_surge = float(snapshot.get('volume_surge', False))
+                volume_conf = 1.5 if volume_surge else 1.0
+
+                # Risk/Reward ratio (estimate from S/R distance)
+                if support_dist > 0:
+                    rr_ratio = resistance_dist / support_dist
+                else:
+                    rr_ratio = 2.0
+
+            # Normalize and cap values
+            features = [
+                min(support_dist * 50, 1.0),      # F41: Normalized support distance
+                min(resistance_dist * 50, 1.0),   # F42: Normalized resistance distance
+                min(sr_strength, 1.0),             # F43: S/R strength (0-1)
+                min(trend_quality, 1.0),           # F44: Trend quality (0-1)
+                min(volume_conf / 2.0, 1.0),       # F45: Volume confirmation (0-1)
+                min(rr_ratio / 5.0, 1.0),          # F46: R/R ratio (normalized to 0-1, cap at 5:1)
+            ]
+
+            return features
+
+        except Exception as e:
+            logger.debug(f"Professional PA feature extraction failed: {e}")
+            # Return neutral values
+            return [0.5, 0.5, 0.5, 0.5, 1.0, 0.4]
+
     def _get_feature_names(self) -> List[str]:
         """Return list of all feature names for debugging/logging."""
         return [
@@ -527,6 +620,10 @@ class FeatureEngineering:
 
             # Sentiment (4)
             'funding_rate', 'market_breadth', 'fear_greed', 'hour_of_day',
+
+            # Professional Price Action (6) 🎯 NEW
+            'nearest_support_dist', 'nearest_resistance_dist', 'sr_strength_score',
+            'trend_quality', 'volume_confirmation', 'pa_rr_ratio',
         ]
 
     def get_feature_names(self) -> List[str]:

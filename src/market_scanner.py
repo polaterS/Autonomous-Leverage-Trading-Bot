@@ -435,6 +435,79 @@ class MarketScanner:
                     else:
                         logger.debug(f"🧠 ML-ONLY: {symbol} - No high-confidence prediction (holding)")
 
+                # 🎯 PRICE ACTION VALIDATION: Filter ML signals through professional price action
+                if individual_analyses:
+                    from src.price_action_analyzer import get_price_action_analyzer
+                    import pandas as pd
+
+                    try:
+                        # Get price action analyzer
+                        pa_analyzer = get_price_action_analyzer()
+
+                        # Get best analysis (highest confidence)
+                        best_analysis = max(individual_analyses, key=lambda x: x.get('confidence', 0))
+                        ml_signal = best_analysis.get('action', 'hold').upper()
+                        ml_confidence = best_analysis.get('confidence', 0) * 100  # Convert to percentage
+
+                        # Get OHLCV data for price action (need 100+ candles for S/R detection)
+                        ohlcv_15m = market_data.get('ohlcv_15m', [])
+
+                        if len(ohlcv_15m) >= 50:  # Need minimum data for analysis
+                            # Convert to pandas DataFrame
+                            df = pd.DataFrame(
+                                ohlcv_15m,
+                                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                            )
+
+                            # Price action validation
+                            current_price = market_data.get('current_price', df['close'].iloc[-1])
+
+                            pa_decision = pa_analyzer.should_enter_trade(
+                                symbol=symbol,
+                                df=df,
+                                ml_signal=ml_signal,
+                                ml_confidence=ml_confidence,
+                                current_price=current_price
+                            )
+
+                            # Apply price action filter
+                            if pa_decision['should_enter']:
+                                # ✅ Price action confirms ML signal!
+                                # Boost confidence
+                                boosted_confidence = (ml_confidence + pa_decision['confidence_boost']) / 100
+
+                                # Update analysis with boosted confidence and price action details
+                                for analysis in individual_analyses:
+                                    analysis['confidence'] = boosted_confidence
+                                    analysis['price_action'] = {
+                                        'validated': True,
+                                        'reason': pa_decision['reason'],
+                                        'stop_loss': pa_decision['stop_loss'],
+                                        'targets': pa_decision['targets'],
+                                        'rr_ratio': pa_decision['rr_ratio'],
+                                        'confidence_boost': pa_decision['confidence_boost']
+                                    }
+
+                                logger.info(
+                                    f"✅ {symbol} PRICE ACTION CONFIRMED: {pa_decision['reason']} | "
+                                    f"ML {ml_confidence:.0f}% + PA Boost +{pa_decision['confidence_boost']}% "
+                                    f"= {boosted_confidence*100:.0f}%"
+                                )
+                            else:
+                                # ❌ Price action rejects ML signal - skip this trade
+                                logger.info(
+                                    f"⏸️ {symbol} PRICE ACTION REJECTED: {pa_decision['reason']} | "
+                                    f"ML said {ml_signal} {ml_confidence:.0f}% but skipped"
+                                )
+                                individual_analyses = []  # Clear analyses to skip this symbol
+
+                        else:
+                            logger.debug(f"{symbol} - Insufficient OHLCV data for price action ({len(ohlcv_15m)} candles)")
+
+                    except Exception as e:
+                        logger.warning(f"{symbol} - Price action validation failed: {e}")
+                        # Don't block trade if price action fails - just log warning
+
                 logger.debug(f"✅ {symbol} - Scan complete")
                 return (symbol, individual_analyses, market_data)
 
