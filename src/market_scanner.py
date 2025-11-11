@@ -806,7 +806,7 @@ class MarketScanner:
 
     async def execute_trade(self, opportunity: Dict[str, Any]) -> None:
         """
-        Execute the trade with proper risk management.
+        Execute the trade with proper risk management and quality controls.
 
         Args:
             opportunity: Best opportunity dict with symbol, analysis, market_data
@@ -816,6 +816,31 @@ class MarketScanner:
         market_data = opportunity['market_data']
 
         logger.info(f"📊 Preparing to execute trade: {symbol} {analysis['side']}")
+
+        # 🎯 NEW: Trade Quality Manager validation (prevents overtrading and repeated failures)
+        from src.trade_quality_manager import get_trade_quality_manager
+        from src.database import get_db_client
+
+        quality_mgr = get_trade_quality_manager()
+        db = await get_db_client()
+
+        entry_confidence = analysis.get('confidence', 0) * 100  # Convert to percentage
+
+        # Validate trade quality (checks cooldowns, frequency limits, confidence gaps)
+        is_valid, rejection_reason = await quality_mgr.validate_trade_entry(
+            symbol, entry_confidence, db
+        )
+
+        if not is_valid:
+            logger.warning(f"❌ Trade quality check FAILED: {rejection_reason}")
+            notifier = get_notifier()
+            await notifier.send_alert(
+                'info',
+                f"⏸️ Trade skipped:\n{symbol} {analysis['side']}\n\n"
+                f"Reason: {rejection_reason}\n\n"
+                f"Quality controls prevent overtrading."
+            )
+            return
 
         # Validate with risk manager
         risk_manager = get_risk_manager()
@@ -843,6 +868,9 @@ class MarketScanner:
         if validation.get('adjusted_params'):
             trade_params = validation['adjusted_params']
             logger.info("Using risk-adjusted trade parameters")
+
+        # 🎯 Record trade opening in quality manager
+        quality_mgr.record_trade_opened(symbol, entry_confidence)
 
         # Execute trade
         executor = get_trade_executor()

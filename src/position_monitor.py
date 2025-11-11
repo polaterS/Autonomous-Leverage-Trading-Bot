@@ -470,21 +470,22 @@ class PositionMonitor:
 
             # 🎯 #10: ML-POWERED EXIT TIMING (check before AI for speed)
             # Fast ML-based exit decision using learned patterns
-            # CONSERVATIVE MODE: Minimum 10 minute hold time + 75% confidence threshold
+            # 🔧 IMPROVED: Minimum 5 minute hold time + 80% confidence threshold + entry confidence filter
             # Can be disabled via config: enable_ml_exit = False
             if self.settings.enable_ml_exit:
                 try:
                     from src.exit_optimizer import get_exit_optimizer
                     exit_optimizer = get_exit_optimizer()
 
-                    # ✅ MINIMUM HOLD TIME: 10 minutes before ML exit can trigger
+                    # ✅ MINIMUM HOLD TIME: 5 minutes before ML exit can trigger (reduced from 10)
+                    # This allows faster exits but still prevents immediate flips
                     entry_time = position.get('entry_time', datetime.now())
                     if isinstance(entry_time, str):
                         entry_time = datetime.fromisoformat(entry_time)
                     minutes_in_position = (datetime.now() - entry_time).total_seconds() / 60
 
-                    if minutes_in_position < 10:
-                        logger.debug(f"🔒 ML Exit blocked: Position only {minutes_in_position:.1f}m old (need 10m minimum)")
+                    if minutes_in_position < 5.0:
+                        logger.debug(f"🔒 ML Exit blocked: Position only {minutes_in_position:.1f}m old (need 5m minimum)")
                     else:
                         # Gather quick market data for exit features
                         quick_data = await self._gather_quick_market_data(symbol, current_price)
@@ -507,19 +508,36 @@ class PositionMonitor:
                             f"(confidence: {exit_prediction['confidence']:.1%})"
                         )
 
-                        # ✅ INCREASED THRESHOLD: 75% confidence (from 70%)
-                        if exit_prediction['should_exit'] and exit_prediction['confidence'] >= 0.75:
-                            logger.info(f"💡 ML EXIT TRIGGERED: {exit_prediction['reasoning']}")
+                        # ✅ INCREASED THRESHOLD: 80% confidence (from 75%)
+                        # ✅ ADDED FILTER: Exit confidence must be 5%+ higher than entry confidence
+                        exit_confidence_pct = exit_prediction['confidence'] * 100
+                        entry_confidence_pct = position.get('entry_confidence', 70.0)
+                        confidence_gap = exit_confidence_pct - entry_confidence_pct
 
-                            # 🎯 TIER 2: Store exit regime before closing
-                            await self._store_exit_regime(position, indicators, symbol)
+                        # Check 1: High confidence exit
+                        if exit_prediction['should_exit'] and exit_prediction['confidence'] >= 0.80:
+                            # Check 2: Confidence gap (prevent entry/exit conflict)
+                            if confidence_gap < 5.0:
+                                logger.info(
+                                    f"🔒 ML Exit blocked: Confidence gap too small "
+                                    f"(Exit {exit_confidence_pct:.1f}% vs Entry {entry_confidence_pct:.1f}%, "
+                                    f"gap: {confidence_gap:.1f}%, need 5%+ gap)"
+                                )
+                            else:
+                                logger.info(
+                                    f"💡 ML EXIT TRIGGERED: {exit_prediction['reasoning']} "
+                                    f"(Confidence gap: {confidence_gap:.1f}%)"
+                                )
 
-                            await executor.close_position(
-                                position,
-                                current_price,
-                                f"ML Exit Signal - {exit_prediction['reasoning']}"
-                            )
-                            return
+                                # 🎯 TIER 2: Store exit regime before closing
+                                await self._store_exit_regime(position, indicators, symbol)
+
+                                await executor.close_position(
+                                    position,
+                                    current_price,
+                                    f"ML Exit Signal - {exit_prediction['reasoning']}"
+                                )
+                                return
 
                 except Exception as exit_ml_error:
                     logger.warning(f"ML exit optimizer failed: {exit_ml_error}")
@@ -564,14 +582,25 @@ class PositionMonitor:
                     reason = ""
                     ml_confidence = ml_prediction.get('confidence', 0)
 
-                    # PRIMARY: High confidence ML exit (>=75%)
-                    # ✅ CONSERVATIVE: Increased from 42.5% to 75% to prevent premature exits
-                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_confidence >= 0.75:
-                        should_exit = True
-                        reason = f"ML predicts SELL (conf: {ml_confidence:.0%})"
-                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_confidence >= 0.75:
-                        should_exit = True
-                        reason = f"ML predicts BUY (conf: {ml_confidence:.0%})"
+                    # PRIMARY: High confidence ML exit (>=80%)
+                    # ✅ CONSERVATIVE: Increased from 75% to 80% to prevent premature exits
+                    # ✅ ADDED: Entry confidence filter (exit must be 5%+ higher than entry)
+                    entry_confidence_pct = position.get('entry_confidence', 70.0)
+                    ml_confidence_pct = ml_confidence * 100
+                    confidence_gap = ml_confidence_pct - entry_confidence_pct
+
+                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_confidence >= 0.80:
+                        if confidence_gap >= 5.0:
+                            should_exit = True
+                            reason = f"ML predicts SELL (conf: {ml_confidence:.0%}, gap: {confidence_gap:.1f}%)"
+                        else:
+                            logger.info(f"🔒 ML Exit blocked: SELL signal but confidence gap too small ({confidence_gap:.1f}%)")
+                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_confidence >= 0.80:
+                        if confidence_gap >= 5.0:
+                            should_exit = True
+                            reason = f"ML predicts BUY (conf: {ml_confidence:.0%}, gap: {confidence_gap:.1f}%)"
+                        else:
+                            logger.info(f"🔒 ML Exit blocked: BUY signal but confidence gap too small ({confidence_gap:.1f}%)")
 
                     # FALLBACK: ML confidence too low (<30%) + loss >$5 (reduced from $7)
                     # Use simple technical rule: exit if loss >$5 and getting worse

@@ -699,6 +699,34 @@ class TradeExecutor:
             except Exception as ml_train_error:
                 logger.warning(f"ML continuous learning failed: {ml_train_error}")
 
+            # 🎯 TRADE QUALITY MANAGER: Record trade outcome
+            try:
+                from src.trade_quality_manager import get_trade_quality_manager
+                quality_mgr = get_trade_quality_manager()
+
+                # Extract ML exit confidence if present in close reason
+                exit_confidence = 0.0
+                if 'ML' in close_reason or 'conf' in close_reason:
+                    # Try to extract confidence percentage from reason
+                    import re
+                    conf_match = re.search(r'(\d+)%', close_reason)
+                    if conf_match:
+                        exit_confidence = float(conf_match.group(1))
+
+                was_profitable = realized_pnl > 0
+
+                quality_mgr.record_trade_closed(
+                    symbol=symbol,
+                    was_profitable=was_profitable,
+                    exit_confidence=exit_confidence,
+                    pnl_usd=float(realized_pnl),
+                    exit_reason=close_reason
+                )
+
+                logger.info(f"📊 Trade outcome recorded in quality manager")
+            except Exception as quality_error:
+                logger.warning(f"Quality manager update failed: {quality_error}")
+
             # Remove active position
             await db.remove_active_position(position['id'])
 
