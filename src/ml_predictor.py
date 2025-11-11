@@ -52,12 +52,12 @@ class MLPredictor:
 
         # Primary model: GradientBoosting (best for tabular data)
         self.model = GradientBoostingClassifier(
-            n_estimators=100,           # Number of boosting stages
-            learning_rate=0.1,          # Shrinks contribution of each tree
-            max_depth=5,                # Maximum depth of trees
-            min_samples_split=20,       # Minimum samples to split node
-            min_samples_leaf=10,        # Minimum samples in leaf
-            subsample=0.8,              # Fraction of samples for each tree
+            n_estimators=150,           # 🎯 INCREASED: More trees for better generalization
+            learning_rate=0.05,         # 🎯 REDUCED: Slower learning = less overfitting
+            max_depth=4,                # 🎯 REDUCED: Shallower trees = better generalization
+            min_samples_split=30,       # 🎯 INCREASED: More conservative splits
+            min_samples_leaf=15,        # 🎯 INCREASED: Larger leaves = smoother predictions
+            subsample=0.7,              # 🎯 REDUCED: More regularization via sampling
             max_features='sqrt',        # Number of features per split
             random_state=42,
             verbose=0
@@ -313,10 +313,13 @@ class MLPredictor:
 
             # Calibrate probabilities for better confidence estimates
             logger.info("🔧 Calibrating probability estimates...")
+            # 🎯 IMPROVED: Use isotonic regression instead of sigmoid
+            # Isotonic is more flexible and produces better calibrated probabilities
+            # for tree-based models like GradientBoosting
             self.calibrated_model = CalibratedClassifierCV(
                 self.model,
                 cv='prefit',
-                method='sigmoid'
+                method='isotonic'  # Better than sigmoid for tree models
             )
             self.calibrated_model.fit(X_val, y_val)
 
