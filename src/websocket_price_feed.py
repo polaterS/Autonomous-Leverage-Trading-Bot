@@ -84,18 +84,33 @@ class WebSocketPriceFeed:
             return
 
         try:
-            # Initialize CCXT Pro exchange
-            exchange_class = getattr(ccxtpro, self.exchange_id)
+            # Initialize CCXT Pro exchange (Pro version uses different import)
+            if self.exchange_id == 'binance':
+                from ccxtpro import binance as BinancePro
+                self.exchange = BinancePro({
+                    'apiKey': api_key,
+                    'secret': api_secret,
+                    'enableRateLimit': True,
+                    'options': {
+                        'defaultType': 'future',
+                        'watchOrderBook': {'limit': 1},
+                    }
+                })
+            else:
+                # Fallback for other exchanges
+                exchange_class = getattr(ccxtpro, self.exchange_id, None)
+                if not exchange_class:
+                    raise ValueError(f"Exchange {self.exchange_id} not supported in ccxtpro")
 
-            self.exchange = exchange_class({
-                'apiKey': api_key,
-                'secret': api_secret,
-                'enableRateLimit': True,
-                'options': {
-                    'defaultType': 'future',
-                    'watchOrderBook': {'limit': 1},  # Minimal order book depth
-                }
-            })
+                self.exchange = exchange_class({
+                    'apiKey': api_key,
+                    'secret': api_secret,
+                    'enableRateLimit': True,
+                    'options': {
+                        'defaultType': 'future',
+                        'watchOrderBook': {'limit': 1},
+                    }
+                })
 
             if testnet:
                 self.exchange.set_sandbox_mode(True)
@@ -258,17 +273,29 @@ class WebSocketPriceFeed:
             if self.exchange:
                 await self.exchange.close()
 
-            # Re-initialize exchange
-            exchange_class = getattr(ccxtpro, self.exchange_id)
-            self.exchange = exchange_class({
-                'apiKey': self.exchange.apiKey,
-                'secret': self.exchange.secret,
-                'enableRateLimit': True,
-                'options': {
-                    'defaultType': 'future',
-                    'watchOrderBook': {'limit': 1},
-                }
-            })
+            # Re-initialize exchange (same logic as start())
+            if self.exchange_id == 'binance':
+                from ccxtpro import binance as BinancePro
+                self.exchange = BinancePro({
+                    'apiKey': self.exchange.apiKey,
+                    'secret': self.exchange.secret,
+                    'enableRateLimit': True,
+                    'options': {
+                        'defaultType': 'future',
+                        'watchOrderBook': {'limit': 1},
+                    }
+                })
+            else:
+                exchange_class = getattr(ccxtpro, self.exchange_id)
+                self.exchange = exchange_class({
+                    'apiKey': self.exchange.apiKey,
+                    'secret': self.exchange.secret,
+                    'enableRateLimit': True,
+                    'options': {
+                        'defaultType': 'future',
+                        'watchOrderBook': {'limit': 1},
+                    }
+                })
 
             self.is_connected = True
             self.reconnect_attempts = 0
