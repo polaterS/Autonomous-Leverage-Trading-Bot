@@ -517,15 +517,32 @@ class MarketScanner:
                                 # PA setup is STRONG (≥15% boost) - override ML HOLD
                                 synthetic_confidence = (50 + best_pa['confidence_boost']) / 100
 
+                                # Calculate leverage and stop-loss based on confidence (same logic as AI engine)
+                                if synthetic_confidence >= 0.85:  # 85%+ = Ultra high confidence
+                                    suggested_leverage = 10  # Max 10x
+                                    stop_loss_percent = 20.0  # Widest stop
+                                elif synthetic_confidence >= 0.75:  # 75-84% = High confidence
+                                    suggested_leverage = 7
+                                    stop_loss_percent = 16.0
+                                elif synthetic_confidence >= 0.70:  # 70-74% = Acceptable
+                                    suggested_leverage = 5
+                                    stop_loss_percent = 14.0
+                                else:  # <70% (typical for PA override: 65-70%)
+                                    suggested_leverage = 3
+                                    stop_loss_percent = 12.0
+
                                 logger.info(
                                     f"🎯 {symbol} PA OVERRIDE: ML said HOLD but PA found {suggested_side.upper()} setup! "
-                                    f"Confidence: 50% + PA {best_pa['confidence_boost']}% = {synthetic_confidence*100:.0f}%"
+                                    f"Confidence: 50% + PA {best_pa['confidence_boost']}% = {synthetic_confidence*100:.0f}% | "
+                                    f"Leverage: {suggested_leverage}x, Stop-Loss: {stop_loss_percent}%"
                                 )
 
                                 individual_analyses = [{
                                     'action': suggested_side,
-                                    'side': 'LONG' if suggested_side == 'buy' else 'SHORT',  # ← MISSING!
+                                    'side': 'LONG' if suggested_side == 'buy' else 'SHORT',
                                     'confidence': synthetic_confidence,
+                                    'suggested_leverage': suggested_leverage,  # ← FIXED: Added missing key
+                                    'stop_loss_percent': stop_loss_percent,     # ← FIXED: Added missing key
                                     'model_name': 'PA-Override',
                                     'models_used': ['PriceAction'],
                                     'reasoning': best_pa['reason'],  # PA reasoning
