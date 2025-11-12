@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # WIDENED: 20% max (from 10%) to avoid premature stops
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.58"), ge=0, le=1)  # 🎯 ML-OPTIMIZED: 58% minimum - ML model typically outputs 60-70% confidence, this allows quality trades while filtering weak signals
+    min_ai_confidence: Decimal = Field(default=Decimal("0.65"), ge=0, le=1)  # 🎯 QUALITY FIRST: 65% minimum (raised from 58%) - Filters low-quality signals, improves win rate by requiring stronger setups
     scan_interval_seconds: int = Field(default=30, ge=10)  # 🔥 AGGRESSIVE: 30 seconds for fast ML learning
     position_check_seconds: int = Field(default=15, ge=5)  # 🔥 AGGRESSIVE: 15 seconds for real-time monitoring
 

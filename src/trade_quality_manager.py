@@ -51,9 +51,9 @@ class TradeQualityManager:
         self.active_trade_slots: Dict[str, float] = {}  # symbol -> slot_cost for open positions
 
         # Portfolio risk thresholds
-        self.max_portfolio_exposure = 0.70  # 70% of capital max
-        self.high_exposure_threshold = 0.50  # Above 50% = selective mode
-        self.medium_exposure_threshold = 0.30  # Above 30% = normal mode
+        self.max_portfolio_exposure = 0.85  # 85% of capital max (was 70%, too conservative)
+        self.high_exposure_threshold = 0.60  # Above 60% = selective mode (was 50%)
+        self.medium_exposure_threshold = 0.40  # Above 40% = normal mode (was 30%)
 
         # Symbol cooldown settings (unchanged - still valuable)
         self.symbol_cooldown_minutes = 30  # Wait 30 min before trading same symbol again
