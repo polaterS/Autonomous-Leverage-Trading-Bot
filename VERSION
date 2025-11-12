@@ -1,5 +1,20 @@
-9467eeb-emergency-fixes
+consolidated-fix-v3.0
 Portfolio Exposure: 130%
 Max Positions: 3
 Market Direction Filter: ACTIVE
-Deployed: 2025-11-12 15:40:00
+Stop-Loss Enforcement: ACTIVE
+Railway Deployment: FORCE REBUILD
+Deployed: 2025-11-12 15:50:00
+
+CRITICAL FIXES INCLUDED:
+- Market direction filter (blocks SHORT in uptrend, LONG in downtrend)
+- Max 3 concurrent positions (risk control)
+- Portfolio exposure 130% max
+- Stop-loss manual enforcement
+- Version tracking for verification
+
+DEPLOYMENT VERIFICATION:
+On startup, you MUST see:
+1. "📦 DEPLOYMENT VERSION: consolidated-fix-v3.0"
+2. "⏸️ [SYMBOL] SHORT SKIPPED: SHORT in strong uptrend" (when applicable)
+3. "🎯 Active positions: X/3" (max 3, not 14!)

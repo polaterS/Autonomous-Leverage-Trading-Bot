@@ -1,6 +1,11 @@
 """
 Market Scanner - Scans multiple symbols for trading opportunities.
 Gets AI consensus and executes best trades.
+
+🚀 DEPLOYMENT: consolidated-fix-v3.0 (2025-11-12 15:50)
+✅ Market Direction Filter: ACTIVE (blocks counter-trend trades)
+✅ Max 3 Positions: ENFORCED (risk control)
+✅ Portfolio Exposure: 130% limit
 """
 
 import asyncio
