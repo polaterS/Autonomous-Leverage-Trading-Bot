@@ -145,8 +145,63 @@ class PositionMonitor:
                 f"P&L: ${float(unrealized_pnl):+.2f}"
             )
 
-            # === CHECK 0: TIME-BASED EXIT (AGGRESSIVE MODE) ===
-            # Close position if open for more than MAX_POSITION_HOURS
+            # ====================================================================
+            # 🛑 CRITICAL CHECK 0: MANUAL STOP-LOSS TRIGGER
+            # ====================================================================
+            # In paper trading mode, stop-loss orders are simulated and do NOT
+            # auto-execute. We MUST manually check if price hit stop-loss.
+            #
+            # This is the #1 priority check - prevents catastrophic losses.
+            # ADDED: 2025-11-12 after discovering 0/10 trades hit stop-loss
+            stop_loss_price = Decimal(str(position['stop_loss_price']))
+
+            sl_triggered = False
+            if side == 'LONG':
+                # LONG: Close if price drops to or below stop-loss
+                if current_price <= stop_loss_price:
+                    sl_triggered = True
+            else:  # SHORT
+                # SHORT: Close if price rises to or above stop-loss
+                if current_price >= stop_loss_price:
+                    sl_triggered = True
+
+            if sl_triggered:
+                logger.warning(
+                    f"🛑 STOP-LOSS TRIGGERED: {symbol} {side} | "
+                    f"Entry: ${float(position['entry_price']):.4f} | "
+                    f"Current: ${float(current_price):.4f} | "
+                    f"Stop: ${float(stop_loss_price):.4f} | "
+                    f"Loss: ${float(unrealized_pnl):+.2f}"
+                )
+
+                await notifier.send_alert(
+                    'warning',
+                    f"🛑 STOP-LOSS HIT\n\n"
+                    f"💎 {symbol}\n"
+                    f"📊 {side} {position['leverage']}x\n\n"
+                    f"📍 Entry: ${float(position['entry_price']):.4f}\n"
+                    f"💥 Exit: ${float(current_price):.4f}\n"
+                    f"🛑 Stop: ${float(stop_loss_price):.4f}\n\n"
+                    f"💰 P&L: ${float(unrealized_pnl):+.2f}\n\n"
+                    f"✅ Position closed automatically"
+                )
+
+                await executor.close_position(
+                    position,
+                    current_price,
+                    "Stop-loss triggered"
+                )
+                return
+
+            # ====================================================================
+            # 🔧 FIX #5: TIME-BASED EXIT (GRADUATED APPROACH)
+            # ====================================================================
+            # OLD: 8 hours max for all positions
+            # NEW: Dynamic based on P&L to cut losses faster
+            # - Profitable (>$1): 4h max
+            # - Small loss (<$2): 2h max
+            # - Medium loss ($2-$5): 1h max
+            # - Large loss (>$5): 30min max
             from datetime import datetime, timezone
             entry_time = position['entry_time']
             if isinstance(entry_time, str):
@@ -157,7 +212,15 @@ class PositionMonitor:
             now = datetime.now(timezone.utc)
             hours_open = (now - entry_time).total_seconds() / 3600
 
-            max_hours = self.settings.max_position_hours
+            # 🔧 DYNAMIC MAX HOURS based on P&L
+            if unrealized_pnl > Decimal("1.0"):
+                max_hours = 4.0  # Profitable: let it run longer
+            elif unrealized_pnl >= Decimal("-2.0"):
+                max_hours = 2.0  # Small loss: cut within 2h
+            elif unrealized_pnl >= Decimal("-5.0"):
+                max_hours = 1.0  # Medium loss: cut within 1h
+            else:
+                max_hours = 0.5  # Large loss: cut within 30min
 
             if hours_open >= max_hours:
                 close_reason = f"Time-based exit: {hours_open:.1f}h >= {max_hours}h max"
@@ -493,36 +556,27 @@ class PositionMonitor:
                             f"(confidence: {exit_prediction['confidence']:.1%})"
                         )
 
-                        # ✅ INCREASED THRESHOLD: 80% confidence (from 75%)
-                        # ✅ ADDED FILTER: Exit confidence must be 5%+ higher than entry confidence
+                        # 🔧 FIX #2: LOWERED THRESHOLD from 80% → 65% (2025-11-12)
+                        # Reason: ML exit never triggered (max confidence 35% vs 80% threshold)
+                        # Removed: Entry confidence gap filter (was blocking valid exits)
                         exit_confidence_pct = exit_prediction['confidence'] * 100
-                        entry_confidence_pct = position.get('entry_confidence', 70.0)
-                        confidence_gap = exit_confidence_pct - entry_confidence_pct
 
-                        # Check 1: High confidence exit
-                        if exit_prediction['should_exit'] and exit_prediction['confidence'] >= 0.80:
-                            # Check 2: Confidence gap (prevent entry/exit conflict)
-                            if confidence_gap < 5.0:
-                                logger.info(
-                                    f"🔒 ML Exit blocked: Confidence gap too small "
-                                    f"(Exit {exit_confidence_pct:.1f}% vs Entry {entry_confidence_pct:.1f}%, "
-                                    f"gap: {confidence_gap:.1f}%, need 5%+ gap)"
-                                )
-                            else:
-                                logger.info(
-                                    f"💡 ML EXIT TRIGGERED: {exit_prediction['reasoning']} "
-                                    f"(Confidence gap: {confidence_gap:.1f}%)"
-                                )
+                        # Check: Medium-high confidence exit (65%+)
+                        if exit_prediction['should_exit'] and exit_prediction['confidence'] >= 0.65:
+                            logger.info(
+                                f"💡 ML EXIT TRIGGERED: {exit_prediction['reasoning']} "
+                                f"(Confidence: {exit_confidence_pct:.1f}%)"
+                            )
 
-                                # 🎯 TIER 2: Store exit regime before closing
-                                await self._store_exit_regime(position, indicators, symbol)
+                            # 🎯 TIER 2: Store exit regime before closing
+                            await self._store_exit_regime(position, indicators, symbol)
 
-                                await executor.close_position(
-                                    position,
-                                    current_price,
-                                    f"ML Exit Signal - {exit_prediction['reasoning']}"
-                                )
-                                return
+                            await executor.close_position(
+                                position,
+                                current_price,
+                                f"ML Exit Signal - {exit_prediction['reasoning']}"
+                            )
+                            return
 
                 except Exception as exit_ml_error:
                     logger.warning(f"ML exit optimizer failed: {exit_ml_error}")
@@ -567,25 +621,17 @@ class PositionMonitor:
                     reason = ""
                     ml_confidence = ml_prediction.get('confidence', 0)
 
-                    # PRIMARY: High confidence ML exit (>=80%)
-                    # ✅ CONSERVATIVE: Increased from 75% to 80% to prevent premature exits
-                    # ✅ ADDED: Entry confidence filter (exit must be 5%+ higher than entry)
-                    entry_confidence_pct = position.get('entry_confidence', 70.0)
+                    # 🔧 FIX #2: LOWERED THRESHOLD from 80% → 55% (2025-11-12)
+                    # Reason: ML exit never triggered (max confidence 35% vs 80% threshold)
+                    # Removed: Entry confidence gap filter (was blocking valid exits)
                     ml_confidence_pct = ml_confidence * 100
-                    confidence_gap = ml_confidence_pct - entry_confidence_pct
 
-                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_confidence >= 0.80:
-                        if confidence_gap >= 5.0:
-                            should_exit = True
-                            reason = f"ML predicts SELL (conf: {ml_confidence:.0%}, gap: {confidence_gap:.1f}%)"
-                        else:
-                            logger.info(f"🔒 ML Exit blocked: SELL signal but confidence gap too small ({confidence_gap:.1f}%)")
-                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_confidence >= 0.80:
-                        if confidence_gap >= 5.0:
-                            should_exit = True
-                            reason = f"ML predicts BUY (conf: {ml_confidence:.0%}, gap: {confidence_gap:.1f}%)"
-                        else:
-                            logger.info(f"🔒 ML Exit blocked: BUY signal but confidence gap too small ({confidence_gap:.1f}%)")
+                    if side == 'LONG' and ml_prediction['action'] == 'sell' and ml_confidence >= 0.55:
+                        should_exit = True
+                        reason = f"ML predicts SELL (conf: {ml_confidence_pct:.1f}%)"
+                    elif side == 'SHORT' and ml_prediction['action'] == 'buy' and ml_confidence >= 0.55:
+                        should_exit = True
+                        reason = f"ML predicts BUY (conf: {ml_confidence_pct:.1f}%)"
 
                     # FALLBACK: ML confidence too low (<30%) + loss >$5 (reduced from $7)
                     # Use simple technical rule: exit if loss >$5 and getting worse
@@ -872,8 +918,10 @@ class PositionMonitor:
                     if rsi < 25 or (macd > macd_signal):
                         exit_signals += 1
 
-            # Require at least 2 out of 3 timeframes to agree
-            return exit_signals >= 2
+            # 🔧 FIX #4: LOWERED THRESHOLD from 2/3 → 1/3 (2025-11-12)
+            # Reason: Only triggered 1/10 trades (too conservative)
+            # Now triggers if ANY timeframe shows strong exit signal
+            return exit_signals >= 1
 
         except Exception as e:
             logger.warning(f"Multi-timeframe exit check failed: {e}")
