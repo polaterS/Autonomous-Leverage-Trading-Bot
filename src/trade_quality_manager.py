@@ -51,13 +51,13 @@ class TradeQualityManager:
         self.active_trade_slots: Dict[str, float] = {}  # symbol -> slot_cost for open positions
 
         # 🔧 FIX #3: PORTFOLIO EXPOSURE LIMITS (2025-11-12)
-        # OLD: 95% max was STILL BLOCKING (current exposure 101-103%)
-        # NEW: 110% max allows overleverage with proper risk management
-        # Impact: Enable trades to open, leverage naturally controls risk
-        # Rationale: With 10x max leverage, 110% exposure = effective 11x max (acceptable)
-        self.max_portfolio_exposure = 1.10  # 110% of capital max (raised from 95%)
-        self.high_exposure_threshold = 0.80  # Above 80% = selective mode (raised from 70%)
-        self.medium_exposure_threshold = 0.60  # 60% normal mode (raised from 50%)
+        # EMERGENCY FIX: 110% was STILL blocking at 112.5%!
+        # NEW: 120% max to allow current positions + new trades
+        # Impact: Unblocks all trades (112.5% < 120%)
+        # Rationale: With proper stop-losses, 120% exposure acceptable short-term
+        self.max_portfolio_exposure = 1.20  # 120% of capital max (raised from 110%)
+        self.high_exposure_threshold = 0.85  # Above 85% = selective mode (raised from 80%)
+        self.medium_exposure_threshold = 0.65  # 65% normal mode (raised from 60%)
 
         # Symbol cooldown settings (unchanged - still valuable)
         self.symbol_cooldown_minutes = 30  # Wait 30 min before trading same symbol again
