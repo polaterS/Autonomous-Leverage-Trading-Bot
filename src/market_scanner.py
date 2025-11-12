@@ -136,6 +136,44 @@ class MarketScanner:
                     )
                     continue
 
+                # 🔧 FIX #6: MARKET DIRECTION FILTER (2025-11-12)
+                # Don't open SHORT in uptrend or LONG in downtrend
+                # This prevents ML from predicting wrong direction
+                regime = market_data.get('market_regime', 'UNKNOWN')
+                mtf = market_data.get('multi_timeframe', {})
+                trend_15m = mtf.get('trend_15m', 'NEUTRAL')
+                trend_1h = mtf.get('trend_1h', 'NEUTRAL')
+
+                # Check if trade direction aligns with market trend
+                trade_side = analysis.get('side', 'LONG')
+                skip_trade = False
+                skip_reason = ""
+
+                # LONG trade in strong downtrend? SKIP!
+                if trade_side == 'LONG':
+                    if trend_15m == 'DOWNTREND' and trend_1h == 'DOWNTREND':
+                        skip_trade = True
+                        skip_reason = "LONG in strong downtrend (15m + 1h)"
+                    elif regime == 'TRENDING' and trend_1h == 'DOWNTREND':
+                        skip_trade = True
+                        skip_reason = "LONG in trending downmarket"
+
+                # SHORT trade in strong uptrend? SKIP!
+                elif trade_side == 'SHORT':
+                    if trend_15m == 'UPTREND' and trend_1h == 'UPTREND':
+                        skip_trade = True
+                        skip_reason = "SHORT in strong uptrend (15m + 1h)"
+                    elif regime == 'TRENDING' and trend_1h == 'UPTREND':
+                        skip_trade = True
+                        skip_reason = "SHORT in trending upmarket"
+
+                if skip_trade:
+                    logger.warning(
+                        f"⏸️ {symbol} {trade_side} SKIPPED: {skip_reason} | "
+                        f"ML Conf: {analysis.get('confidence', 0):.1%}"
+                    )
+                    continue
+
                 # Calculate comprehensive opportunity score (akan önce market sentiment belirlenmeli)
                 # Market sentiment henüz belirlenmedi, bu yüzden None geçiyoruz, sonra güncelleyeceğiz
                 opportunity_score = 0  # Placeholder, will calculate after market sentiment

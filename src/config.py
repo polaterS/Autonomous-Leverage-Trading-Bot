@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
     max_leverage: int = Field(default=10, ge=1, le=50)  # REDUCED: Max 10x (from 30x) for safety
-    max_concurrent_positions: int = Field(default=5, ge=1, le=30)  # REDUCED: Max 5 positions (from 20) to reduce risk exposure
+    max_concurrent_positions: int = Field(default=3, ge=1, le=30)  # CRITICAL: Max 3 positions (from 5) - Reduces risk during ML calibration phase
     position_size_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)  # REDUCED: $50 per position (from $100) for better capital preservation
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.12"), gt=0, le=1)  # WIDENED: 12% min (from 10%) for breathing room
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # WIDENED: 20% max (from 10%) to avoid premature stops
