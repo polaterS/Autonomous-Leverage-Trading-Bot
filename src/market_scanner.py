@@ -173,16 +173,39 @@ class MarketScanner:
         else:
             bullish_pct = bearish_pct = neutral_pct = 0
 
-        # Determine market sentiment (🎯 #7: Normalized format for ML)
-        if bullish_pct > 60:
-            market_sentiment = "BULLISH_STRONG"  # For ML
-            market_sentiment_display = "STRONG BULLISH"  # For display
+        # 🔧 FIX #2: CONTRARIAN MARKET BREADTH LOGIC (2025-11-12)
+        # When 70%+ traders agree on direction, market often moves OPPOSITE
+        # OLD: Follow majority (74% bearish → open SHORT → all lose)
+        # NEW: Contrarian when extreme sentiment detected
+
+        contrarian_mode = False
+
+        # Determine market sentiment with contrarian logic
+        if bearish_pct >= 70:
+            # 🎯 EXTREME BEARISH = CONTRARIAN BULLISH
+            # When 70%+ are bearish, short squeeze likely (prices go UP)
+            market_sentiment = "CONTRARIAN_BULLISH"
+            market_sentiment_display = "CONTRARIAN BULLISH (70%+ bearish → squeeze expected)"
+            contrarian_mode = True
+            logger.warning(f"⚠️ CONTRARIAN MODE: {bearish_pct:.0f}% bearish → Expecting SHORT SQUEEZE (prices UP)")
+
+        elif bullish_pct >= 70:
+            # 🎯 EXTREME BULLISH = CONTRARIAN BEARISH
+            # When 70%+ are bullish, long squeeze likely (prices go DOWN)
+            market_sentiment = "CONTRARIAN_BEARISH"
+            market_sentiment_display = "CONTRARIAN BEARISH (70%+ bullish → correction expected)"
+            contrarian_mode = True
+            logger.warning(f"⚠️ CONTRARIAN MODE: {bullish_pct:.0f}% bullish → Expecting LONG SQUEEZE (prices DOWN)")
+
+        elif bullish_pct > 60:
+            market_sentiment = "BULLISH_STRONG"
+            market_sentiment_display = "STRONG BULLISH"
         elif bullish_pct > 40:
             market_sentiment = "BULLISH"
             market_sentiment_display = "BULLISH"
         elif bearish_pct > 60:
-            market_sentiment = "BEARISH_STRONG"  # For ML
-            market_sentiment_display = "STRONG BEARISH"  # For display
+            market_sentiment = "BEARISH_STRONG"
+            market_sentiment_display = "STRONG BEARISH"
         elif bearish_pct > 40:
             market_sentiment = "BEARISH"
             market_sentiment_display = "BEARISH"
@@ -192,6 +215,8 @@ class MarketScanner:
 
         logger.info(f"📊 MARKET BREADTH: {bullish_pct:.0f}% bullish, {bearish_pct:.0f}% bearish, {neutral_pct:.0f}% neutral")
         logger.info(f"🎯 MARKET SENTIMENT: {market_sentiment}")
+        if contrarian_mode:
+            logger.warning(f"🔄 CONTRARIAN TRADING ACTIVE: Inverse signals expected!")
 
         # 🎯 NOW calculate opportunity scores with market sentiment factor + 🎯 #7: Store sentiment
         for opp in all_analyses:

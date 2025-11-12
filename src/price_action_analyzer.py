@@ -73,6 +73,13 @@ class PriceActionAnalyzer:
         self.volume_surge_multiplier = 2.0  # 2x average = surge
         self.volume_ma_period = 20  # Volume moving average
 
+        # 🔧 FIX #1: LOOSER PRICE TOLERANCES (2025-11-12)
+        # OLD: 2% to support/resistance was TOO STRICT (only 3/35 coins passed)
+        # NEW: 4% to support/resistance (professional trader standard)
+        # Impact: PA setups should increase from 3/35 → 12-18/35
+        self.support_resistance_tolerance = 0.04  # 4% tolerance (was 0.02)
+        self.room_to_opposite_level = 0.04  # 4% room required (was 0.03)
+
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
         self.sl_buffer = 0.005  # 0.5% buffer beyond S/R for stop-loss
@@ -604,14 +611,18 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # Check 1: Price should be near support (within 2%)
-            if dist_to_support > 0.02:
-                result['reason'] = f'Price too far from support ({dist_to_support*100:.1f}% away)'
+            # 🔧 FIX #1: Check 1 - Price should be near support (within 4%)
+            # OLD: 0.02 (2%) was too strict - only 3/35 coins passed
+            # NEW: 0.04 (4%) professional standard
+            if dist_to_support > self.support_resistance_tolerance:
+                result['reason'] = f'Price too far from support ({dist_to_support*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # Check 2: Should have room to resistance (>3%)
-            if dist_to_resistance < 0.03:
-                result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%)'
+            # 🔧 FIX #1: Check 2 - Should have room to resistance (>4%)
+            # OLD: 0.03 (3%) was too strict
+            # NEW: 0.04 (4%) allows more valid setups
+            if dist_to_resistance < self.room_to_opposite_level:
+                result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
             # Check 3: Trend should be UP or SIDEWAYS
@@ -681,14 +692,18 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # Check 1: Price should be near resistance (within 2%)
-            if dist_to_resistance > 0.02:
-                result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away)'
+            # 🔧 FIX #1: Check 1 - Price should be near resistance (within 4%)
+            # OLD: 0.02 (2%) was too strict
+            # NEW: 0.04 (4%) professional standard
+            if dist_to_resistance > self.support_resistance_tolerance:
+                result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # Check 2: Should have room to support (>3%)
-            if dist_to_support < 0.03:
-                result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%)'
+            # 🔧 FIX #1: Check 2 - Should have room to support (>4%)
+            # OLD: 0.03 (3%) was too strict
+            # NEW: 0.04 (4%) allows more valid setups
+            if dist_to_support < self.room_to_opposite_level:
+                result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
             # Check 3: Trend should be DOWN or SIDEWAYS

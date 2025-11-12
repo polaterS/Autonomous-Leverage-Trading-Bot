@@ -50,10 +50,13 @@ class TradeQualityManager:
         self.recent_slot_usage: List[Tuple[datetime, float]] = []  # (time, slot_cost)
         self.active_trade_slots: Dict[str, float] = {}  # symbol -> slot_cost for open positions
 
-        # Portfolio risk thresholds
-        self.max_portfolio_exposure = 0.90  # 90% of capital max (raised from 85% - current exposure is 87%)
-        self.high_exposure_threshold = 0.65  # Above 65% = selective mode (raised from 60%)
-        self.medium_exposure_threshold = 0.45  # 45% normal mode (raised from 40%)
+        # 🔧 FIX #3: PORTFOLIO EXPOSURE LIMITS (2025-11-12)
+        # OLD: 90% max was BLOCKING trades (current exposure 90%)
+        # NEW: 95% max allows room for PA trades to open
+        # Impact: Enable 5% more capital deployment ($50 on $1000 capital)
+        self.max_portfolio_exposure = 0.95  # 95% of capital max (raised from 90%)
+        self.high_exposure_threshold = 0.70  # Above 70% = selective mode (raised from 65%)
+        self.medium_exposure_threshold = 0.50  # 50% normal mode (raised from 45%)
 
         # Symbol cooldown settings (unchanged - still valuable)
         self.symbol_cooldown_minutes = 30  # Wait 30 min before trading same symbol again

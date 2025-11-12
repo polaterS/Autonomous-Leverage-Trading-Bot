@@ -330,11 +330,35 @@ class MLPredictor:
             logger.info(f"📈 Training accuracy: {train_score:.1%}")
             logger.info(f"📈 Validation accuracy: {val_score:.1%}")
 
-            # Check for overfitting
-            if train_score - val_score > 0.15:
+            # 🔧 FIX #5: STRICT OVERFITTING CHECK (2025-11-12)
+            # OLD: 15% gap allowed (too permissive)
+            # NEW: 10% gap maximum (professional standard)
+            # Impact: Model quality enforcement
+            overfitting_gap = train_score - val_score
+
+            if overfitting_gap > 0.10:
+                logger.error(
+                    f"❌ SEVERE OVERFITTING DETECTED! "
+                    f"train={train_score:.1%}, val={val_score:.1%}, gap={overfitting_gap:.1%}\n"
+                    f"   Model is learning noise, not patterns!\n"
+                    f"   Predictions will be unreliable in production.\n"
+                    f"   RECOMMENDATION: Collect more data or reduce model complexity."
+                )
+                # Still train but warn aggressively
+            elif overfitting_gap > 0.07:
                 logger.warning(
-                    f"⚠️ Possible overfitting: train={train_score:.1%}, "
-                    f"val={val_score:.1%}"
+                    f"⚠️ Moderate overfitting: train={train_score:.1%}, "
+                    f"val={val_score:.1%}, gap={overfitting_gap:.1%}"
+                )
+
+            # 🔧 FIX #6: LOW VALIDATION ACCURACY WARNING
+            # If validation accuracy < 55%, model is basically random
+            if val_score < 0.55:
+                logger.error(
+                    f"❌ VALIDATION ACCURACY TOO LOW: {val_score:.1%}\n"
+                    f"   Model barely better than coin flip (50%)!\n"
+                    f"   High confidence predictions will be WRONG.\n"
+                    f"   RECOMMENDATION: Feature engineering needed or more data."
                 )
 
             # Extract feature importance
