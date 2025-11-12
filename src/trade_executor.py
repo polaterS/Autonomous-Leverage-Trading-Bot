@@ -323,7 +323,14 @@ class TradeExecutor:
                     side=side,
                     snapshot_type="entry"
                 )
-                logger.info(f"📸 Entry snapshot captured for ML learning")
+
+                # 🎯 ADD PRICE ACTION DATA TO SNAPSHOT (for ML learning)
+                price_action_data = ai_analysis.get('price_action')
+                if price_action_data:
+                    entry_snapshot['price_action'] = price_action_data
+                    logger.info(f"📸 Entry snapshot captured for ML learning with PA data")
+                else:
+                    logger.info(f"📸 Entry snapshot captured for ML learning (ML-only)")
             except Exception as snapshot_error:
                 logger.warning(f"⚠️ Entry snapshot capture failed (non-critical): {snapshot_error}")
                 entry_snapshot = None
