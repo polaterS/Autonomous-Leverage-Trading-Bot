@@ -18,6 +18,18 @@ logger = setup_logging()
 
 # Version marker for deployment verification
 BOT_VERSION = "ML-ONLY-2.0"
+
+# Log deployment version from VERSION file
+try:
+    with open('VERSION', 'r') as f:
+        version_info = f.read().strip()
+        deployment_version = version_info.split()[0]
+        logger.info("="*70)
+        logger.info(f"📦 DEPLOYMENT VERSION: {deployment_version}")
+        logger.info("="*70)
+except:
+    logger.warning("⚠️ VERSION file not found")
+
 logger.info(f"🚀 Starting Autonomous Trading Bot v{BOT_VERSION}")
 
 
