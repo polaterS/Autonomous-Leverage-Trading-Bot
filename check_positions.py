@@ -1,45 +1,68 @@
-"""
-Quick script to check active positions and their hold times.
-"""
 import asyncio
-from src.database import get_db_client
-from datetime import datetime
+import asyncpg
+import os
 
 async def check_positions():
-    db = await get_db_client()
+    conn = await asyncpg.connect(os.environ['DATABASE_URL'])
 
-    positions = await db.get_active_positions()
+    print('='*70)
+    print('DATABASE KONTROL - AKTIF POZISYONLAR')
+    print('='*70)
+    print()
 
-    print("=" * 60)
-    print("ACTIVE POSITIONS CHECK")
-    print("=" * 60)
-    print(f"\nTotal active positions: {len(positions)}")
+    # Aktif pozisyonlar (table name: active_position, singular!)
+    positions = await conn.fetch('SELECT * FROM active_position ORDER BY entry_time DESC')
+
+    print(f'Aktif pozisyon sayisi: {len(positions)}')
+    print()
 
     if positions:
-        print("\nPosition details:")
-        for i, pos in enumerate(positions, 1):
-            entry_time = pos['entry_time']
-            if isinstance(entry_time, str):
-                entry_time = datetime.fromisoformat(entry_time)
-
-            duration = datetime.now() - entry_time
-            hours = duration.total_seconds() / 3600
-
-            pnl = float(pos.get('unrealized_pnl_usd', 0))
-            pnl_pct = (pnl / float(pos['position_value_usd'])) * 100 if float(pos['position_value_usd']) > 0 else 0
-
-            print(f"\n#{i} {pos['symbol']} {pos['side']} {pos['leverage']}x")
-            print(f"  Entry: {entry_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"  Duration: {hours:.1f} hours")
-            print(f"  Entry Price: ${float(pos['entry_price']):.4f}")
-            print(f"  Current Price: ${float(pos.get('current_price', pos['entry_price'])):.4f}")
-            print(f"  P&L: ${pnl:+.2f} ({pnl_pct:+.2f}%)")
-            print(f"  Position ID: {pos['id']}")
+        print('AKTIF POZISYONLAR:')
+        print('-'*70)
+        total_pnl = 0
+        for i, p in enumerate(positions, 1):
+            symbol = p['symbol']
+            side = p['side']
+            entry = float(p['entry_price'])
+            current = float(p['current_price']) if p['current_price'] else 0
+            pnl = float(p['unrealized_pnl_usd'] or 0)
+            total_pnl += pnl
+            time = p['entry_time'].strftime('%H:%M:%S')
+            print(f'{i}. {time} {symbol:20} {side:5} Entry: ${entry:8.4f} Current: ${current:8.4f} P&L: ${pnl:7.2f}')
+        print()
+        print(f'TOPLAM UNREALIZED P&L: ${total_pnl:.2f}')
+        print()
     else:
-        print("\n❌ No active positions found")
+        print('HICH AKTIF POZISYON YOK!')
+        print()
 
-    print("\n" + "=" * 60)
-    await db.close()
+    # Bugun kapanan
+    closed = await conn.fetch('''
+        SELECT symbol, side, realized_pnl_usd, close_reason, exit_time
+        FROM trade_history
+        WHERE exit_time >= CURRENT_DATE
+        ORDER BY exit_time DESC
+    ''')
 
-if __name__ == "__main__":
+    print(f'Bugun kapanan trade sayisi: {len(closed)}')
+    print()
+
+    if closed:
+        print('BUGUN KAPANAN TRADELER:')
+        print('-'*70)
+        total_realized = 0
+        for t in closed:
+            symbol = t['symbol']
+            side = t['side']
+            pnl = float(t['realized_pnl_usd'])
+            total_realized += pnl
+            reason = t['close_reason']
+            time = t['exit_time'].strftime('%H:%M:%S')
+            print(f'{time} {symbol:20} {side:5} ${pnl:7.2f} ({reason})')
+        print()
+        print(f'BUGUN TOPLAM REALIZED P&L: ${total_realized:.2f}')
+
+    await conn.close()
+
+if __name__ == '__main__':
     asyncio.run(check_positions())

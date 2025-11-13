@@ -547,11 +547,79 @@ class MarketScanner:
                 except Exception as e:
                     logger.error(f"❌ {symbol} - Price action pre-analysis EXCEPTION: {e}", exc_info=True)
 
+                # 🔥 TIER 3: MULTI-STRATEGY ANALYSIS (Regime-Based Strategy Selection)
+                strategy_analysis = None
+                try:
+                    from src.strategy_manager import get_strategy_manager
+
+                    strategy_mgr = get_strategy_manager()
+                    strategy_analysis = await strategy_mgr.analyze(market_data)
+
+                    if strategy_analysis and strategy_analysis.get('action') != 'HOLD':
+                        logger.info(
+                            f"📊 {symbol} STRATEGY: {strategy_analysis['strategy']} | "
+                            f"{strategy_analysis['action']} @ {strategy_analysis['confidence']:.0%} | "
+                            f"Regime: {strategy_analysis['regime']}"
+                        )
+                except Exception as e:
+                    logger.debug(f"{symbol} - Strategy analysis failed: {e}")
+
                 # Get AI analyses (🎯 #7: Pass market sentiment for ML enhancement)
                 ai_engine = get_ai_engine()
                 individual_analyses = await ai_engine.get_individual_analyses(
                     symbol, market_data, market_sentiment
                 )
+
+                # 🔥 TIER 3: STRATEGY CONSENSUS - Combine with AI/ML if available
+                if strategy_analysis and strategy_analysis.get('action') != 'HOLD':
+                    # Strategy found a signal! Let's see if AI/ML agrees
+                    if individual_analyses:
+                        # Both strategy and AI have opinions - check for confluence
+                        best_ai = max(individual_analyses, key=lambda x: x.get('confidence', 0))
+                        ai_action = best_ai.get('action', 'hold')
+                        ai_side = best_ai.get('side', '')
+
+                        strategy_action = strategy_analysis['action']
+                        strategy_side = strategy_analysis['side']
+
+                        # Check if they agree
+                        if ai_action == strategy_action and ai_side == strategy_side:
+                            # 🎯 PERFECT CONFLUENCE: Strategy + AI agree!
+                            # Boost AI confidence by strategy confidence
+                            confluence_boost = strategy_analysis['confidence'] * 0.15  # Max 15% boost
+                            old_confidence = best_ai['confidence']
+                            best_ai['confidence'] = min(old_confidence + confluence_boost, 0.95)  # Cap at 95%
+                            best_ai['strategy_confluence'] = {
+                                'strategy_name': strategy_analysis['strategy'],
+                                'strategy_confidence': strategy_analysis['confidence'],
+                                'confidence_boost': confluence_boost,
+                                'regime': strategy_analysis['regime']
+                            }
+
+                            logger.info(
+                                f"✅ {symbol} STRATEGY CONFLUENCE: {strategy_analysis['strategy']} + AI agree on {strategy_side} | "
+                                f"Confidence: {old_confidence:.0%} → {best_ai['confidence']:.0%} (+{confluence_boost:.0%})"
+                            )
+                    else:
+                        # Only strategy has a signal (AI/ML silent) - use strategy signal
+                        # Convert strategy to individual analysis format
+                        individual_analyses = [{
+                            'action': strategy_analysis['action'].lower(),
+                            'side': strategy_analysis['side'],
+                            'confidence': strategy_analysis['confidence'] / 100,  # Convert to decimal
+                            'suggested_leverage': strategy_analysis['suggested_leverage'],
+                            'stop_loss_percent': strategy_analysis['stop_loss_percent'],
+                            'model_name': f"Strategy-{strategy_analysis['strategy']}",
+                            'models_used': [strategy_analysis['strategy']],
+                            'reasoning': strategy_analysis.get('reasoning', f"{strategy_analysis['strategy']} strategy signal"),
+                            'strategy_only': True,
+                            'regime': strategy_analysis['regime']
+                        }]
+
+                        logger.info(
+                            f"🎯 {symbol} STRATEGY-ONLY: {strategy_analysis['strategy']} | "
+                            f"{strategy_analysis['action']} @ {strategy_analysis['confidence']:.0%}"
+                        )
 
                 # 🧠 ML-ONLY FALLBACK: If AI models failed, try ML-only prediction
                 if not individual_analyses:
@@ -910,6 +978,24 @@ class MarketScanner:
             # Liquidation Heatmap (Liquidity Magnet Detection)
             liquidation_map = estimate_liquidation_levels(current_price, ohlcv_1h, typical_leverage=10)
 
+            # 🔥 TIER 3: ORDER BOOK ANALYSIS (Whale Detection + Liquidity Zones)
+            order_book_analysis = {'signal': 'NEUTRAL', 'signal_strength': 'NONE', 'confidence_boost': 0.0}
+            try:
+                from src.order_book_analyzer import get_order_book_analyzer
+
+                ob_analyzer = get_order_book_analyzer()
+                order_book_analysis = await ob_analyzer.analyze_order_book(symbol)
+
+                if order_book_analysis.get('signal') != 'NEUTRAL':
+                    logger.info(
+                        f"📊 {symbol} ORDER BOOK: {order_book_analysis['signal']} "
+                        f"({order_book_analysis['signal_strength']}) | "
+                        f"Confidence Boost: +{order_book_analysis['confidence_boost']:.0%} | "
+                        f"Imbalance: {order_book_analysis.get('bid_ask_imbalance', 0):.1%}"
+                    )
+            except Exception as e:
+                logger.debug(f"{symbol} - Order book analysis failed: {e}")
+
             return {
                 'symbol': symbol,
                 'current_price': current_price,
@@ -950,7 +1036,9 @@ class MarketScanner:
                 'open_interest': open_interest_data,
                 'liquidation_map': liquidation_map,
                 # 🎯 #5: GARCH FORWARD-LOOKING VOLATILITY
-                'garch_volatility': garch_volatility
+                'garch_volatility': garch_volatility,
+                # 🔥 TIER 3: ORDER BOOK ANALYSIS (Whale Detection + Liquidity Zones)
+                'order_book_analysis': order_book_analysis
             }
 
         except Exception as e:
@@ -1059,6 +1147,29 @@ class MarketScanner:
             score += 5  # Strong volume confirmation
         else:
             score += 2  # Normal volume
+
+        # 🔥 TIER 3 FACTOR 7: Order Book Signal (0-15 points bonus)
+        # Whale positioning and liquidity zones provide institutional edge
+        ob_analysis = market_data.get('order_book_analysis', {})
+        ob_signal = ob_analysis.get('signal', 'NEUTRAL')
+        ob_strength = ob_analysis.get('signal_strength', 'NONE')
+
+        # Check if order book signal aligns with trade direction
+        if (ob_signal == 'BUY' and trade_side == 'LONG') or (ob_signal == 'SELL' and trade_side == 'SHORT'):
+            # Order book confirms our trade direction!
+            if ob_strength == 'STRONG':
+                score += 15  # Strong whale support (3+ confluence factors)
+                logger.debug(f"  Order Book STRONG confirmation: +15 points")
+            elif ob_strength == 'MODERATE':
+                score += 10  # Moderate whale support (2 factors)
+                logger.debug(f"  Order Book MODERATE confirmation: +10 points")
+            elif ob_strength == 'WEAK':
+                score += 5   # Weak whale support (1 factor)
+                logger.debug(f"  Order Book WEAK confirmation: +5 points")
+        elif ob_signal != 'NEUTRAL':
+            # Order book contradicts our trade direction - penalty
+            score -= 10
+            logger.warning(f"  Order Book CONTRADICTION: {ob_signal} vs {trade_side} trade (-10 points)")
 
         # Cap at 100
         return min(score, 100)
