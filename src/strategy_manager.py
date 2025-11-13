@@ -542,11 +542,11 @@ class StrategyManager:
         }
 
         # Strategy selection rules (regime -> strategy priority)
+        # 🔧 FIXED: Use correct MarketRegime enum names from market_regime_detector.py
         self.regime_strategy_map = {
-            MarketRegime.STRONG_BULLISH: [StrategyType.TREND_FOLLOWING, StrategyType.MOMENTUM],
-            MarketRegime.STRONG_BEARISH: [StrategyType.TREND_FOLLOWING, StrategyType.MOMENTUM],
-            MarketRegime.WEAK_BULLISH: [StrategyType.MEAN_REVERSION, StrategyType.TREND_FOLLOWING],
-            MarketRegime.WEAK_BEARISH: [StrategyType.MEAN_REVERSION, StrategyType.TREND_FOLLOWING],
+            MarketRegime.STRONG_BULLISH_TREND: [StrategyType.TREND_FOLLOWING, StrategyType.MOMENTUM],
+            MarketRegime.STRONG_BEARISH_TREND: [StrategyType.TREND_FOLLOWING, StrategyType.MOMENTUM],
+            MarketRegime.WEAK_TREND: [StrategyType.MEAN_REVERSION, StrategyType.TREND_FOLLOWING],
             MarketRegime.RANGING: [StrategyType.MEAN_REVERSION, StrategyType.BREAKOUT],
             MarketRegime.HIGH_VOLATILITY: [StrategyType.MOMENTUM, StrategyType.BREAKOUT]
         }
