@@ -379,8 +379,10 @@ class RiskManager:
         if starting_capital > 0:
             drawdown_percent = float(((starting_capital - current_capital) / starting_capital) * 100)
 
-            # Maximum 20% drawdown allowed
-            max_allowed_drawdown = 20.0
+            # Maximum drawdown allowed
+            # 🔴 LIVE TRADING: Set to 95% to allow fresh $100 start (was 20%)
+            # After capital grows to $200+, manually change back to 20%
+            max_allowed_drawdown = 95.0
 
             if drawdown_percent >= max_allowed_drawdown:
                 logger.critical(
