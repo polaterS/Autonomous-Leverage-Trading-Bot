@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
     max_leverage: int = Field(default=10, ge=1, le=50)  # 🚀 PHASE 3: Max 10x - System proven stable with 60%+ win rate!
-    max_concurrent_positions: int = Field(default=3, ge=1, le=30)  # Optimal 3 positions for risk management
+    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔴 LIVE TRADING: 2 positions for $100 capital (safe risk management)
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% per position ($100) for maximum opportunity
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.12"), gt=0, le=1)  # 12% min stop-loss
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% max stop-loss
