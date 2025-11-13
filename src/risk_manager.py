@@ -46,29 +46,27 @@ class RiskManager:
             bearish_pct = market_breadth.get('bearish_percent', 0)
             neutral_pct = market_breadth.get('neutral_percent', 0)
 
-            # Reject SHORT trades in bullish/neutral markets
+            # Reject SHORT trades if market not sufficiently bearish
             if side == 'SHORT':
-                non_bearish = bullish_pct + neutral_pct
-                if non_bearish > 60:  # Market not bearish enough
+                # 🔥 FIXED LOGIC: Require market to be AT LEAST 60% bearish for SHORT
+                if bearish_pct < 60:  # Market not bearish enough
                     return {
                         'approved': False,
-                        'reason': f'Market not bearish for SHORT (Bearish: {bearish_pct:.0f}%, Non-bearish: {non_bearish:.0f}%). Need >60% bearish.',
+                        'reason': f'Market not bearish enough for SHORT (Bearish: {bearish_pct:.0f}%). Need ≥60% bearish.',
                         'adjusted_params': None
                     }
-                elif bearish_pct < 35:  # Very weak bearish signal
-                    logger.warning(f"⚠️ Weak bearish market ({bearish_pct:.0f}%) for SHORT - risky!")
+                logger.info(f"✓ Market direction OK for SHORT: {bearish_pct:.0f}% bearish")
 
-            # Reject LONG trades in bearish/neutral markets
+            # Reject LONG trades if market not sufficiently bullish
             elif side == 'LONG':
-                non_bullish = bearish_pct + neutral_pct
-                if non_bullish > 60:  # Market not bullish enough
+                # 🔥 FIXED LOGIC: Require market to be AT LEAST 60% bullish for LONG
+                if bullish_pct < 60:  # Market not bullish enough
                     return {
                         'approved': False,
-                        'reason': f'Market not bullish for LONG (Bullish: {bullish_pct:.0f}%, Non-bullish: {non_bullish:.0f}%). Need >60% bullish.',
+                        'reason': f'Market not bullish enough for LONG (Bullish: {bullish_pct:.0f}%). Need ≥60% bullish.',
                         'adjusted_params': None
                     }
-                elif bullish_pct < 35:  # Very weak bullish signal
-                    logger.warning(f"⚠️ Weak bullish market ({bullish_pct:.0f}%) for LONG - risky!")
+                logger.info(f"✓ Market direction OK for LONG: {bullish_pct:.0f}% bullish")
 
         # RULE 1: Stop-loss must be between 12-20%
         if stop_loss_percent < 12 or stop_loss_percent > 20:
