@@ -131,8 +131,21 @@ def calculate_position_size(
         position_value = capital * position_size_percent
 
     # Calculate quantity
-    leverage_decimal = Decimal(str(leverage))
-    quantity = (position_value * leverage_decimal) / entry_price
+    # 🔴 CRITICAL FIX: Don't multiply by leverage here!
+    # Leverage is already applied by Binance when opening the position.
+    # We only need: quantity = margin / price (NOT margin * leverage / price)
+    #
+    # Example:
+    # - Margin (our capital): $10
+    # - Entry price: $0.52
+    # - Leverage: 10x
+    #
+    # WRONG (old): quantity = ($10 × 10) / $0.52 = 192 ADA
+    #              → Binance sees: 192 × $0.52 × 10x = $998 position! ❌
+    #
+    # CORRECT: quantity = $10 / $0.52 = 19.2 ADA
+    #          → Binance sees: 19.2 × $0.52 × 10x = $100 position! ✅
+    quantity = position_value / entry_price
 
     return quantity, position_value
 
