@@ -131,13 +131,39 @@ class MLPredictor:
             # Probability of winning trade
             win_probability = float(proba[1])
 
+            # 🔥 CRITICAL FIX: ML Bearish Bias Correction
+            # Model trained on 60% win rate data with bearish bias
+            # Adjust confidence based on market sentiment to counter bias
+            market_sentiment = snapshot.get('market_sentiment', 'NEUTRAL')
+            bias_adjustment = 0.0
+
             # Determine action based on side
             if side == 'LONG':
                 action = 'buy'
                 confidence = win_probability
+
+                # If market is bullish but model gives low confidence, boost it
+                if 'BULLISH' in str(market_sentiment).upper():
+                    bias_adjustment = 0.10  # +10% for LONG in bullish market
+                    logger.debug(f"🔧 Bias correction: +{bias_adjustment:.0%} (LONG in {market_sentiment} market)")
+                elif 'BEARISH' in str(market_sentiment).upper():
+                    bias_adjustment = -0.15  # -15% for LONG in bearish market
+                    logger.debug(f"🔧 Bias correction: {bias_adjustment:.0%} (LONG in {market_sentiment} market)")
+
             else:  # SHORT
                 action = 'sell'
                 confidence = win_probability
+
+                # If market is bearish, model already biased towards SELL - reduce it
+                if 'BEARISH' in str(market_sentiment).upper():
+                    bias_adjustment = -0.05  # -5% (model already too eager for SHORT)
+                    logger.debug(f"🔧 Bias correction: {bias_adjustment:.0%} (SHORT in {market_sentiment} market - reducing over-confidence)")
+                elif 'BULLISH' in str(market_sentiment).upper():
+                    bias_adjustment = -0.20  # -20% for SHORT in bullish market
+                    logger.debug(f"🔧 Bias correction: {bias_adjustment:.0%} (SHORT in {market_sentiment} market)")
+
+            # Apply bias correction (clamped to 0-1)
+            confidence = max(0.0, min(1.0, confidence + bias_adjustment))
 
             # Track confidence
             self.prediction_count += 1

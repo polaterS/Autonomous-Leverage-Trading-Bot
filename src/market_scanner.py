@@ -267,6 +267,13 @@ class MarketScanner:
             # 🎯 #7: Add market sentiment to each opportunity for ML
             opp['market_sentiment'] = market_sentiment
 
+            # 🔥 CRITICAL FIX: Add market breadth for direction filter
+            opp['market_breadth'] = {
+                'bullish_percent': bullish_pct,
+                'bearish_percent': bearish_pct,
+                'neutral_percent': neutral_pct
+            }
+
             opp['opportunity_score'] = self.calculate_opportunity_score(
                 opp['analysis'],
                 opp['market_data'],
@@ -1270,7 +1277,8 @@ class MarketScanner:
             'side': analysis['side'],
             'leverage': analysis['suggested_leverage'],
             'stop_loss_percent': analysis['stop_loss_percent'],
-            'current_price': market_data['current_price']
+            'current_price': market_data['current_price'],
+            'market_breadth': opportunity.get('market_breadth')  # For market direction filter
         }
 
         validation = await risk_manager.validate_trade(trade_params)

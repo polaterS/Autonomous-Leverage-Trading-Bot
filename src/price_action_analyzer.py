@@ -625,9 +625,15 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
-            # Check 3: Trend should be UP or SIDEWAYS
-            if trend['direction'] == 'DOWNTREND':
-                result['reason'] = 'Downtrend active - no LONG'
+            # 🔥 CRITICAL FIX: Check 3 - Trend should be UPTREND (strict!)
+            # SIDEWAYS market + resistance rejection can fake-out LONG setups
+            if trend['direction'] != 'UPTREND':
+                result['reason'] = f'{trend["direction"]} market - LONG requires clear UPTREND'
+                return result
+
+            # Additional: Even in UPTREND, trend must have some strength
+            if trend['strength'] == 'WEAK' and not volume['is_surge']:
+                result['reason'] = 'Weak uptrend without volume confirmation - no LONG'
                 return result
 
             # Check 4: Volume confirmation
@@ -706,9 +712,15 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
-            # Check 3: Trend should be DOWN or SIDEWAYS
-            if trend['direction'] == 'UPTREND':
-                result['reason'] = 'Uptrend active - no SHORT'
+            # 🔥 CRITICAL FIX: Check 3 - Trend should be DOWNTREND (strict!)
+            # SIDEWAYS market + support bounce can fake-out SHORT setups
+            if trend['direction'] != 'DOWNTREND':
+                result['reason'] = f'{trend["direction"]} market - SHORT requires clear DOWNTREND'
+                return result
+
+            # Additional: Even in DOWNTREND, trend must have some strength
+            if trend['strength'] == 'WEAK' and not volume['is_surge']:
+                result['reason'] = 'Weak downtrend without volume confirmation - no SHORT'
                 return result
 
             # Check 4: Volume confirmation
