@@ -555,10 +555,11 @@ class MarketScanner:
                     strategy_mgr = get_strategy_manager()
                     strategy_analysis = await strategy_mgr.analyze(market_data)
 
-                    if strategy_analysis and strategy_analysis.get('action') != 'HOLD':
+                    # 🔧 Fix: Case-insensitive comparison (strategy returns lowercase 'hold'/'buy'/'sell')
+                    if strategy_analysis and strategy_analysis.get('action', '').lower() != 'hold':
                         logger.info(
                             f"📊 {symbol} STRATEGY: {strategy_analysis['strategy']} | "
-                            f"{strategy_analysis['action']} @ {strategy_analysis['confidence']:.0%} | "
+                            f"{strategy_analysis['action'].upper()} @ {strategy_analysis['confidence']:.0%} | "
                             f"Regime: {strategy_analysis['regime']}"
                         )
                 except Exception as e:
@@ -571,7 +572,7 @@ class MarketScanner:
                 )
 
                 # 🔥 TIER 3: STRATEGY CONSENSUS - Combine with AI/ML if available
-                if strategy_analysis and strategy_analysis.get('action') != 'HOLD':
+                if strategy_analysis and strategy_analysis.get('action', '').lower() != 'hold':
                     # Strategy found a signal! Let's see if AI/ML agrees
                     if individual_analyses:
                         # Both strategy and AI have opinions - check for confluence
@@ -579,10 +580,10 @@ class MarketScanner:
                         ai_action = best_ai.get('action', 'hold')
                         ai_side = best_ai.get('side', '')
 
-                        strategy_action = strategy_analysis['action']
+                        strategy_action = strategy_analysis['action'].lower()  # Normalize to lowercase
                         strategy_side = strategy_analysis['side']
 
-                        # Check if they agree
+                        # Check if they agree (case-insensitive comparison)
                         if ai_action == strategy_action and ai_side == strategy_side:
                             # 🎯 PERFECT CONFLUENCE: Strategy + AI agree!
                             # Boost AI confidence by strategy confidence
@@ -603,12 +604,17 @@ class MarketScanner:
                     else:
                         # Only strategy has a signal (AI/ML silent) - use strategy signal
                         # Convert strategy to individual analysis format
+                        # 🔧 Calculate leverage and stop loss based on strategy confidence
+                        strategy_confidence = strategy_analysis['confidence']
+                        suggested_leverage = 5 if strategy_confidence < 0.80 else 7 if strategy_confidence < 0.90 else 10
+                        stop_loss_percent = 20.0 if strategy_confidence < 0.80 else 16.0 if strategy_confidence < 0.90 else 12.0
+
                         individual_analyses = [{
                             'action': strategy_analysis['action'].lower(),
                             'side': strategy_analysis['side'],
-                            'confidence': strategy_analysis['confidence'] / 100,  # Convert to decimal
-                            'suggested_leverage': strategy_analysis['suggested_leverage'],
-                            'stop_loss_percent': strategy_analysis['stop_loss_percent'],
+                            'confidence': strategy_analysis['confidence'],  # Already in decimal format (0.0-1.0)
+                            'suggested_leverage': suggested_leverage,
+                            'stop_loss_percent': stop_loss_percent,
                             'model_name': f"Strategy-{strategy_analysis['strategy']}",
                             'models_used': [strategy_analysis['strategy']],
                             'reasoning': strategy_analysis.get('reasoning', f"{strategy_analysis['strategy']} strategy signal"),
@@ -618,7 +624,7 @@ class MarketScanner:
 
                         logger.info(
                             f"🎯 {symbol} STRATEGY-ONLY: {strategy_analysis['strategy']} | "
-                            f"{strategy_analysis['action']} @ {strategy_analysis['confidence']:.0%}"
+                            f"{strategy_analysis['action'].upper()} @ {strategy_analysis['confidence']:.0%}"
                         )
 
                 # 🧠 ML-ONLY FALLBACK: If AI models failed, try ML-only prediction
