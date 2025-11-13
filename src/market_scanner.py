@@ -221,11 +221,19 @@ class MarketScanner:
         # When 70%+ traders agree on direction, market often moves OPPOSITE
         # OLD: Follow majority (74% bearish → open SHORT → all lose)
         # NEW: Contrarian when extreme sentiment detected
+        #
+        # 🔴 DISABLED TEMPORARILY (2025-11-13):
+        # - Win rate currently 49.5% (need 60%+)
+        # - Contrarian adds complexity and may reduce win rate
+        # - Testing simple trend-following for 20-30 trades
+        # - If win rate improves to 60%+, keep it disabled
+        # - Re-enable only if needed AND with higher threshold (95%+)
 
         contrarian_mode = False
 
         # Determine market sentiment with contrarian logic
-        if bearish_pct >= 70:
+        # 🔴 DISABLED: Changed threshold from 70 to 999 (never activates)
+        if bearish_pct >= 999:  # Was: 70 (DISABLED)
             # 🎯 EXTREME BEARISH = CONTRARIAN BULLISH
             # When 70%+ are bearish, short squeeze likely (prices go UP)
             market_sentiment = "CONTRARIAN_BULLISH"
@@ -233,7 +241,7 @@ class MarketScanner:
             contrarian_mode = True
             logger.warning(f"⚠️ CONTRARIAN MODE: {bearish_pct:.0f}% bearish → Expecting SHORT SQUEEZE (prices UP)")
 
-        elif bullish_pct >= 70:
+        elif bullish_pct >= 999:  # Was: 70 (DISABLED)
             # 🎯 EXTREME BULLISH = CONTRARIAN BEARISH
             # When 70%+ are bullish, long squeeze likely (prices go DOWN)
             market_sentiment = "CONTRARIAN_BEARISH"
