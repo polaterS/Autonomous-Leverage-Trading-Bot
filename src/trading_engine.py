@@ -118,10 +118,10 @@ class AutonomousTradingEngine:
                     ]
                     await asyncio.gather(*monitor_tasks, return_exceptions=True)
 
-                    # Send consolidated portfolio update every 5 minutes
+                    # Send consolidated portfolio update every 20 seconds (was 5 minutes)
                     should_send_portfolio_update = (
                         self.last_portfolio_update_time is None or
-                        (datetime.now() - self.last_portfolio_update_time).total_seconds() >= 300
+                        (datetime.now() - self.last_portfolio_update_time).total_seconds() >= 20
                     )
 
                     if should_send_portfolio_update:
