@@ -379,12 +379,14 @@ class RiskManager:
         if starting_capital > 0:
             drawdown_percent = float(((starting_capital - current_capital) / starting_capital) * 100)
 
-            # Maximum drawdown allowed
-            # 🔴 LIVE TRADING: Set to 95% to allow fresh $100 start (was 20%)
-            # After capital grows to $200+, manually change back to 20%
-            max_allowed_drawdown = 95.0
+            # Maximum drawdown allowed (20% = stop trading if daily loss exceeds 20%)
+            # 🔴 LIVE TRADING: Back to normal 20% threshold
+            # Database starting capital fixed to $100, so drawdown calculation is accurate
+            max_allowed_drawdown = 20.0
 
-            if drawdown_percent >= max_allowed_drawdown:
+            # Only trigger if we're in LOSS (drawdown > 0)
+            # If drawdown < 0, we're in PROFIT (ignore)
+            if drawdown_percent >= max_allowed_drawdown and drawdown_percent > 0:
                 logger.critical(
                     f"🚨 MAX DRAWDOWN REACHED: {drawdown_percent:.1f}% "
                     f"(${float(starting_capital):.2f} → ${float(current_capital):.2f})"
@@ -414,8 +416,13 @@ class RiskManager:
                 }
 
             # Warning at 15% drawdown (before hitting limit)
-            elif drawdown_percent >= 15.0:
+            # Only warn if in LOSS (drawdown > 0)
+            elif drawdown_percent >= 15.0 and drawdown_percent > 0:
                 logger.warning(f"⚠️ High drawdown: {drawdown_percent:.1f}% (approaching 20% limit)")
+            elif drawdown_percent < 0:
+                # We're in profit! Log positive performance
+                profit_percent = abs(drawdown_percent)
+                logger.info(f"📈 Daily profit: +{profit_percent:.1f}% (${float(starting_capital):.2f} → ${float(current_capital):.2f})")
 
         # Check consecutive losses
         consecutive_losses = await db.get_consecutive_losses()
