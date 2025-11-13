@@ -1,4 +1,5 @@
 -- Database Schema for Autonomous Leverage Trading Bot
+-- EMERGENCY FIX v3.2: Force rebuild to apply max_concurrent_positions=3
 
 -- Trading Configuration
 CREATE TABLE IF NOT EXISTS trading_config (
