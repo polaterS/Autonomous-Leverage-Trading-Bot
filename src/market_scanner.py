@@ -2,10 +2,11 @@
 Market Scanner - Scans multiple symbols for trading opportunities.
 Gets AI consensus and executes best trades.
 
-🚀 DEPLOYMENT: consolidated-fix-v3.0 (2025-11-12 15:50)
-✅ Market Direction Filter: ACTIVE (blocks counter-trend trades)
-✅ Max 3 Positions: ENFORCED (risk control)
+🚨 EMERGENCY DEPLOYMENT: v3.1 (2025-11-13 10:30) - CACHE BYPASS
+✅ Market Direction Filter: ACTIVE (blocks SHORT in 70%+ bearish, LONG in 70%+ bullish)
+✅ Max 3 Positions: ENFORCED (strict risk control)
 ✅ Portfolio Exposure: 130% limit
+✅ Contrarian Logic: ACTIVE (77% bearish = open LONG only)
 """
 
 import asyncio
