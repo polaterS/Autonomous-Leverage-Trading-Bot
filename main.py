@@ -50,6 +50,27 @@ async def main():
             logger.error(f"Database setup check failed: {e}")
             # Continue anyway - might be tables already exist
 
+    # 🔐 TIER 3: Security Validation (CRITICAL)
+    try:
+        from src.security_validator import get_security_validator
+        logger.info("🔐 Running TIER 3 security validation...")
+
+        validator = get_security_validator()
+        security_results = await validator.run_startup_checks()
+
+        # Critical: If security checks failed, stop bot
+        if security_results['checks_failed'] > 0:
+            logger.critical("🚨 CRITICAL SECURITY ISSUES DETECTED - BOT WILL NOT START")
+            logger.critical("Review security validation report above")
+            sys.exit(1)
+
+        logger.info(f"✅ Security validation passed ({security_results['checks_passed']} checks)")
+
+    except Exception as e:
+        logger.error(f"Security validation failed: {e}")
+        logger.critical("🚨 Cannot start bot without security validation")
+        sys.exit(1)
+
     # Database health check and auto-cleanup
     try:
         from src.db_maintenance import verify_database_health, cleanup_duplicate_configs
@@ -117,6 +138,36 @@ async def main():
     except Exception as e:
         logger.warning(f"ML model startup check failed (non-critical): {e}")
         logger.info("   Bot will use rule-based fallback")
+
+    # 🔐 TIER 3: Initialize API Key Manager
+    try:
+        from src.api_key_manager import get_api_key_manager
+
+        logger.info("🔑 Initializing API Key Manager...")
+        key_manager = get_api_key_manager()
+
+        # Check key expiration
+        expiration_status = await key_manager.check_key_expiration()
+
+        if expiration_status['expired']:
+            logger.critical(f"🚨 {len(expiration_status['expired'])} API key(s) EXPIRED!")
+            for service, info in expiration_status['expired'].items():
+                logger.critical(f"   - {service}: {info['days_overdue']} days overdue")
+
+        if expiration_status['expiring_soon']:
+            logger.warning(f"⚠️ {len(expiration_status['expiring_soon'])} API key(s) expiring soon")
+            for service, info in expiration_status['expiring_soon'].items():
+                logger.warning(f"   - {service}: {info['days_remaining']} days remaining")
+
+        # Get all key statuses
+        all_keys_status = key_manager.get_all_keys_status()
+        logger.info(f"✅ API Key Manager initialized - {len(all_keys_status)} keys tracked")
+
+    except ImportError:
+        logger.warning("⚠️ cryptography not installed - API key rotation disabled")
+        logger.info("   Install with: pip install cryptography")
+    except Exception as e:
+        logger.warning(f"API Key Manager initialization failed (non-critical): {e}")
 
     # Show risk warning if not paper trading
     if not settings.use_paper_trading:
