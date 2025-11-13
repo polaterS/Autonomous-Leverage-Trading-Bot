@@ -562,8 +562,15 @@ class MarketScanner:
                             f"{strategy_analysis['action'].upper()} @ {strategy_analysis['confidence']:.0%} | "
                             f"Regime: {strategy_analysis['regime']}"
                         )
+                    else:
+                        # Log when strategy returns HOLD (for debugging)
+                        logger.debug(
+                            f"📊 {symbol} STRATEGY: {strategy_analysis.get('strategy', 'unknown')} returned HOLD | "
+                            f"Regime: {strategy_analysis.get('regime', 'UNKNOWN')}"
+                        )
                 except Exception as e:
-                    logger.debug(f"{symbol} - Strategy analysis failed: {e}")
+                    # 🔧 CRITICAL: Changed to ERROR level so we can see it in Railway logs!
+                    logger.error(f"❌ {symbol} - Strategy analysis FAILED: {e}", exc_info=True)
 
                 # Get AI analyses (🎯 #7: Pass market sentiment for ML enhancement)
                 ai_engine = get_ai_engine()

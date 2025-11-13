@@ -1,6 +1,6 @@
-tier3-strategy-fix-v1.2-CRITICAL-BUGFIX
-TIER 3 Strategy Manager - CRITICAL BUG FIXED
-Deployed: 2025-11-13 16:50:00
+tier3-strategy-debug-v1.3-ERROR-LOGGING
+TIER 3 Strategy Manager - DEBUG LOGGING ENABLED
+Deployed: 2025-11-13 17:01:00
 
 🔥 CRITICAL FIX APPLIED:
 ✅ Strategy Manager case-sensitive bug FIXED (hold vs HOLD)
