@@ -558,12 +558,33 @@ class StrategyManager:
         Returns list of strategies in priority order.
         """
         try:
-            regime_enum = MarketRegime(market_regime.lower())
+            # Map old indicator regime strings to new MarketRegime enum
+            regime_mapping = {
+                'TRENDING': MarketRegime.WEAK_TREND,  # Generic trend, use weak trend strategies
+                'RANGING': MarketRegime.RANGING,
+                'VOLATILE': MarketRegime.HIGH_VOLATILITY,
+                'UNKNOWN': MarketRegime.WEAK_TREND,
+                # New enum values (direct mapping)
+                'strong_bullish_trend': MarketRegime.STRONG_BULLISH_TREND,
+                'strong_bearish_trend': MarketRegime.STRONG_BEARISH_TREND,
+                'weak_trend': MarketRegime.WEAK_TREND,
+                'ranging': MarketRegime.RANGING,
+                'high_volatility': MarketRegime.HIGH_VOLATILITY
+            }
+
+            # Try direct string mapping first
+            regime_key = market_regime.upper() if market_regime.isupper() else market_regime.lower()
+            if regime_key in regime_mapping:
+                regime_enum = regime_mapping[regime_key]
+            else:
+                # Try enum parsing as fallback
+                regime_enum = MarketRegime(market_regime.lower())
+
             return self.regime_strategy_map.get(
                 regime_enum,
                 [StrategyType.TREND_FOLLOWING]  # Default fallback
             )
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, KeyError):
             logger.warning(f"Unknown market regime: {market_regime}, using default")
             return [StrategyType.TREND_FOLLOWING]
 
