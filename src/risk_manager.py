@@ -213,41 +213,23 @@ class RiskManager:
             leverage = adjusted_leverage
             trade_params['leverage'] = adjusted_leverage
 
-        # RULE 8: Liquidation distance must be safe - AUTO-ADJUST LEVERAGE IF NEEDED
-        # 🔥 USER REQUESTED: Reduced from 15% to 8% to allow 10-20x leverage
-        # With 3-5% tight stops, 8% liq distance is sufficient safety margin
-        min_liq_distance = Decimal("0.08")  # Minimum 8% distance required (allows 10-20x leverage)
+        # RULE 8: Liquidation distance - DISABLED BY USER REQUEST
+        # REASON: 15-20x leverage requires tight liquidation distance (~6-7%)
+        # Protection now relies on:
+        # - Tight stop-loss (1.5-2.5%)
+        # - Fixed loss limit (-$1.50 to -$2.50)
+        # - Position monitoring every 60 seconds
+        #
+        # OLD: Required 8% liquidation distance, blocked all 15-20x trades
+        # NEW: Trust stop-loss system instead of liquidation distance
         liq_price = calculate_liquidation_price(current_price, leverage, side)
         liq_distance = abs(current_price - liq_price) / current_price
 
-        if liq_distance < min_liq_distance:
-            # Try to adjust leverage downward to increase liquidation distance (stay within 6x-10x)
-            logger.warning(f"Liquidation too close ({float(liq_distance)*100:.1f}%), adjusting leverage...")
-
-            # Find minimum leverage that gives 8%+ liquidation distance (but stay ≥6x)
-            adjusted_leverage = leverage
-            for test_lev in range(leverage - 1, self.settings.min_leverage - 1, -1):  # Try lower leverages (down to 6x)
-                test_liq_price = calculate_liquidation_price(current_price, test_lev, side)
-                test_liq_distance = abs(current_price - test_liq_price) / current_price
-
-                if test_liq_distance >= min_liq_distance:
-                    adjusted_leverage = test_lev
-                    liq_distance = test_liq_distance
-                    break
-
-            if adjusted_leverage < leverage:
-                logger.info(f"✅ Adjusted leverage {leverage}x → {adjusted_leverage}x (liq distance: {float(liq_distance)*100:.1f}%)")
-                leverage = adjusted_leverage
-                trade_params['leverage'] = adjusted_leverage
-                liq_price = calculate_liquidation_price(current_price, leverage, side)
-                liq_distance = abs(current_price - liq_price) / current_price
-            else:
-                # Even minimum leverage (6x) doesn't provide enough distance - reject
-                return {
-                    'approved': False,
-                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 8%, even with minimum leverage {self.settings.min_leverage}x)',
-                    'adjusted_params': None
-                }
+        logger.debug(
+            f"📊 Liquidation distance: {float(liq_distance)*100:.1f}% "
+            f"(liq price: ${float(liq_price):.4f}, leverage: {leverage}x, "
+            f"check disabled - trust stop-loss)"
+        )
 
         # RULE 9: Minimum profit target validation
         min_profit_pct = self.settings.min_profit_usd / position_value
