@@ -38,8 +38,8 @@ class Settings(BaseSettings):
     max_leverage: int = Field(default=20, ge=1, le=50)  # 🔥 AGGRESSIVE MODE: 10-20x leverage for maximum profit potential
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔴 LIVE TRADING: 2 positions for $100 capital
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% per position ($10) - dynamic based on leverage
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)  # 5% min stop-loss (tight for high leverage)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.08"), gt=0, le=1)  # 8% max stop-loss (max $5-6 risk per trade)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% min (ULTRA TIGHT for 10-20x leverage)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)  # 5% max (keeps liquidation far enough)
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)  # 🔥 MAXIMUM AGGRESSIVE: 50% minimum - Maximum learning opportunity (AI+ML full test)
@@ -300,13 +300,13 @@ SCENARIO 5 - BREAKOUT PERFECTION (92% Confidence):
 - All confluence factors aligned
 → ACTION: BUY (LONG), confidence 0.92, leverage 10x (max), breakout trade
 
-STOP-LOSS PLACEMENT (AGGRESSIVE MODE - TIGHT STOPS):
-- Stop-loss range: 5-8% of position value (tight for high leverage 10-20x)
-- With high leverage (10-20x), this translates to 0.5-1.6% price movement
-- Maximum risk per trade: $5-6 on $10 position (50-60% of position)
+STOP-LOSS PLACEMENT (ULTRA AGGRESSIVE MODE - VERY TIGHT STOPS):
+- Stop-loss range: 3-5% of position value (ULTRA TIGHT for 10-20x leverage)
+- With high leverage (10-20x), this translates to 0.3-1.0% price movement
+- Maximum risk per trade: $3-5 on $10 position (30-50% of position)
 - Place BELOW recent swing low for longs (minimal breathing room)
 - Place ABOVE recent swing high for shorts (accept some stop-hunt risk)
-- Tight stops required for 10-20x leverage to limit losses
+- VERY tight stops required for 10-20x leverage to keep liquidation far enough
 - Higher leverage = tighter stops = more frequent exits BUT larger profit potential
 
 TAKE-PROFIT STRATEGY:
