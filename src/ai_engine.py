@@ -169,6 +169,12 @@ class AIConsensusEngine:
                     if ml_result.get('regime_warning'):
                         analysis['regime_warning'] = ml_result['regime_warning']
 
+                    # 🔧 CRITICAL: Apply ML FIX action/side conversion
+                    if ml_result.get('action'):
+                        analysis['action'] = ml_result['action']
+                    if ml_result.get('side'):
+                        analysis['side'] = ml_result['side']
+
                     logger.info(
                         f"🧠 {model_name} ML Enhanced: {symbol} confidence "
                         f"{analysis['original_confidence']:.1%} → {analysis['confidence']:.1%} "

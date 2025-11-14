@@ -1450,7 +1450,10 @@ class MLPatternLearner:
                 'reasoning': ml_reasoning,
                 'regime_warning': regime_warning,
                 'feature_scores': {k: v for k, v in self.feature_scores.items() if v > 0.2},
-                'symbol_win_rate': perf['wins'] / (perf['wins'] + perf['losses']) if perf and (perf['wins'] + perf['losses']) > 0 else None
+                'symbol_win_rate': perf['wins'] / (perf['wins'] + perf['losses']) if perf and (perf['wins'] + perf['losses']) > 0 else None,
+                # 🔧 CRITICAL: Return modified action/side from ML FIX
+                'action': ai_analysis.get('action'),
+                'side': ai_analysis.get('side')
             }
 
         except Exception as e:
