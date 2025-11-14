@@ -97,7 +97,8 @@ async def migrate():
         raise
     finally:
         await db.pool.release(conn)
-        await db.close()
+        # DON'T close the pool - main bot needs it!
+        # await db.close()
 
 
 if __name__ == "__main__":
