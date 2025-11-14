@@ -211,8 +211,14 @@ class AutonomousTradingEngine:
                     # Can open more but waiting for scan interval
                     time_until_next_scan = scan_interval - (datetime.now() - self.last_scan_time).total_seconds()
                     logger.debug(
-                        f"⏳ Next scan in {int(time_until_next_scan)}s "
-                        f"({num_positions}/{max_positions} positions)"
+                        f"⏳ Position slots available ({num_positions}/{max_positions}), "
+                        f"next scan in {int(time_until_next_scan)}s (cost optimization)"
+                    )
+                else:
+                    # All position slots filled - no scan needed (cost optimization)
+                    logger.debug(
+                        f"💰 All slots filled ({num_positions}/{max_positions}), "
+                        f"skipping scan to save DeepSeek API costs"
                     )
 
                 # STEP 3: Sleep based on whether we have positions

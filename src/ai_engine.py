@@ -1,7 +1,7 @@
 """
 AI Consensus Engine for trading analysis.
-🧠 PURE ML AUTONOMOUS MODE: AI models bypassed, using ML pattern learning only.
-Version: 2.0 - ML-ONLY (No API calls)
+🧠 HYBRID MODE: DeepSeek AI + ML Pattern Learning
+Version: 3.0 - AI+ML Consensus (Cost-Optimized)
 """
 
 import asyncio
@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-ML_ONLY_VERSION = "2.0-ML-PURE"
-logger.info(f"🧠 AI Engine initialized - Mode: {ML_ONLY_VERSION} (AI APIs bypassed)")
+HYBRID_VERSION = "3.0-AI+ML-HYBRID"
+logger.info(f"🧠 AI Engine initialized - Mode: {HYBRID_VERSION} (DeepSeek AI + ML Consensus)")
 
 
 class AIConsensusEngine:
@@ -125,30 +125,17 @@ class AIConsensusEngine:
         market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
     ) -> List[Dict[str, Any]]:
         """
-        🚫 DISABLED IN ML-ONLY MODE - This function should never be called.
+        🧠 HYBRID MODE: DeepSeek AI analysis (cost-optimized).
 
-        Returns empty list to force fallback to ML-ONLY mode.
+        Only called when position slots are available (smart scan logic).
+        Returns DeepSeek analysis for AI+ML consensus.
         """
-        logger.debug(f"get_individual_analyses() called for {symbol} - ML-ONLY mode active, returning empty list")
-        return []  # Force ML-ONLY fallback
+        logger.info(f"🧠 AI+ML HYBRID: Requesting DeepSeek analysis for {symbol}...")
 
-        # 🚫 OLD AI CODE DISABLED BELOW (unreachable)
-        """
-        🎯 #2: MULTI-MODEL ENSEMBLE - Get analyses from BOTH Qwen3-Max AND DeepSeek.
+        # 🎯 AI MODE ENABLED: DeepSeek-V3 (cost optimized)
+        logger.info(f"🧠 DeepSeek AI analysis for {symbol}...")
 
-        Uses weighted voting based on historical model performance per symbol and regime.
-
-        Args:
-            symbol: Trading symbol
-            market_data: Market data dict with price, indicators, etc.
-            market_sentiment: Market breadth sentiment (BULLISH_STRONG, BULLISH, NEUTRAL, BEARISH, BEARISH_STRONG)
-
-        Returns:
-            List of individual analyses with ML-adjusted confidence from both models
-        """
-        logger.info(f"🎯 Requesting AI analysis for {symbol} (DeepSeek only)...")
-
-        # 🎯 SINGLE MODEL: DeepSeek only (Qwen3-Max disabled - no API key)
+        # 🎯 SINGLE MODEL: DeepSeek only (cost-optimized)
         deepseek_task = self._analyze_with_retry(
             self._analyze_with_deepseek,
             symbol,
@@ -400,65 +387,39 @@ class AIConsensusEngine:
 
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        🎯 #2: Get WEIGHTED ENSEMBLE consensus from multiple AI models.
+        🧠 HYBRID MODE: AI+ML Consensus Engine (Cost-Optimized)
 
-        Uses dynamic model weighting based on historical performance per symbol and regime.
+        Combines DeepSeek AI analysis with ML pattern learning for optimal decisions.
+        Only calls AI when position slots are available (smart scan logic).
 
         Args:
             symbol: Trading symbol
             market_data: Market data dict with price, indicators, etc.
 
         Returns:
-            Weighted consensus analysis with action, confidence, and reasoning
+            AI+ML consensus analysis with action, confidence, and reasoning
         """
-        # 🧠 ML-ONLY MODE: Skip cache entirely (cache may contain old AI analyses)
-        # Check Redis cache first (much faster than PostgreSQL)
-        # DISABLED: Cache may contain old AI-based predictions, we need fresh ML predictions
-        # redis = await get_redis_client()
-        # cached = await redis.get_cached_ai_analysis(symbol, '5m')
-        # if cached:
-        #     logger.debug(f"✅ Using cached AI analysis for {symbol} (from Redis)")
-        #     return cached
-
-        # 🧠 ML-ONLY MODE: Skip AI entirely, use pure ML pattern learning
         from src.ml_pattern_learner import get_ml_learner
         ml_learner = await get_ml_learner()
 
-        # Determine market sentiment for ML context
+        # Determine market sentiment for context
         market_sentiment = market_data.get('market_sentiment', 'NEUTRAL')
 
-        # 🎯 ALWAYS use ML-ONLY prediction (AI disabled for pure ML learning)
-        logger.debug(f"🧠 Using ML-ONLY mode for {symbol} (AI bypassed)")
+        # 🧠 HYBRID MODE: AI + ML Consensus
+        logger.debug(f"🧠 AI+ML HYBRID mode for {symbol}")
 
-        # Get ML prediction directly
-        ml_prediction = await self._get_ml_only_prediction(symbol, market_data, ml_learner)
+        # Get AI analysis (DeepSeek)
+        analyses = await self.get_individual_analyses(symbol, market_data, market_sentiment)
 
-        # Handle ML confidence check
-        if ml_prediction['confidence'] >= 0.50:
-            logger.debug(
-                f"ML-ONLY: {symbol} {ml_prediction['action']} @ {ml_prediction['confidence']:.0%} "
-                f"(patterns: {ml_prediction['pattern_count']})"
-            )
+        # Handle case where AI analysis fails or returns empty
+        if not analyses:
+            logger.warning(f"⚠️ DeepSeek AI unavailable for {symbol}, falling back to ML-only")
+            ml_prediction = await self._get_ml_only_prediction(symbol, market_data, ml_learner)
+            ml_prediction['models_used'] = ['ML-ONLY (AI fallback)']
+            ml_prediction['ensemble_method'] = 'ml_fallback'
             return ml_prediction
-        else:
-            logger.debug(f"ML-ONLY: {symbol} confidence too low ({ml_prediction['confidence']:.0%}) - holding")
-            return {
-                'action': 'hold',
-                'side': None,
-                'confidence': ml_prediction['confidence'],
-                'weighted_consensus': False,
-                'reason': f"ML confidence below threshold ({ml_prediction['confidence']:.0%} < 50%)",
-                'suggested_leverage': 3,  # Conservative minimum
-                'stop_loss_percent': 12.0,  # Conservative minimum
-                'risk_reward_ratio': 0.0,
-                'reasoning': 'ML confidence insufficient for trade',
-                'models_used': ['ML-ONLY'],
-                'ensemble_method': 'ml_pure'
-            }
 
-        # 🎯 OLD CODE REMOVED: AI ensemble voting (now using pure ML)
-        # The rest of the AI ensemble code is kept but never executed
-        # 🎯 #2: WEIGHTED ENSEMBLE VOTING (disabled - using ML-ONLY)
+        # 🎯 AI+ML CONSENSUS: Weighted ensemble
         market_regime = market_data.get('market_regime', 'UNKNOWN')
         consensus = ml_learner.calculate_weighted_ensemble(
             analyses, symbol, market_regime
@@ -470,33 +431,13 @@ class AIConsensusEngine:
 
         # Track which models were used
         consensus['models_used'] = [a.get('model_name', 'unknown') for a in analyses]
-
-        # 🎯 ADAPTIVE CACHE TTL: Adjust based on market volatility
-        adaptive_ttl = self._calculate_adaptive_cache_ttl(market_data)
-
-        # Cache result in Redis (fast access with adaptive duration)
-        await redis.cache_ai_analysis(
-            symbol, '5m', consensus,
-            adaptive_ttl
-        )
-
-        # Also cache in database for analysis/debugging
-        db = await get_db_client()
-        try:
-            await db.set_ai_cache(
-                symbol, 'consensus', '5m', consensus,
-                adaptive_ttl
-            )
-        except Exception as e:
-            logger.warning(f"Failed to cache in DB (non-critical): {e}")
-
-        logger.info(f"💾 Cached weighted ensemble for {symbol} (TTL: {adaptive_ttl}s)")
+        consensus['ensemble_method'] = 'ai_ml_hybrid'
 
         logger.info(
-            f"✅ 🎯 WEIGHTED ENSEMBLE for {symbol}: {consensus['action'].upper()} "
-            f"(confidence: {consensus['confidence']:.1%}, "
-            f"strength: {consensus.get('consensus_strength', 0):.1%}, "
-            f"models: {len(analyses)})"
+            f"✅ 🧠 AI+ML CONSENSUS for {symbol}: {consensus['action'].upper()} "
+            f"@ {consensus['confidence']:.1%} "
+            f"(AI: {analyses[0].get('original_confidence', 0):.1%} "
+            f"→ ML-adjusted: {analyses[0].get('confidence', 0):.1%})"
         )
 
         return consensus

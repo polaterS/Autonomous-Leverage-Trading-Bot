@@ -1,10 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(railway logs:*)",
-      "Bash(pip install:*)",
-      "Bash(python:*)",
-      "Bash(git add:*)"
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
