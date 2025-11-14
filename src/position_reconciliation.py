@@ -202,6 +202,18 @@ class PositionReconciliationSystem:
                     # Determine side
                     side = 'LONG' if pos.get('side') == 'long' else 'SHORT'
 
+                    # Safe leverage extraction (Binance may return None or 0)
+                    leverage_raw = pos.get('leverage')
+                    if leverage_raw is None or leverage_raw == 0:
+                        # Calculate from margin and notional if available
+                        margin_raw = pos.get('initialMargin', 0) or pos.get('collateral', 0)
+                        if margin_raw and notional:
+                            leverage = int(abs(notional) / float(margin_raw))
+                        else:
+                            leverage = 1  # Default fallback
+                    else:
+                        leverage = int(leverage_raw)
+
                     open_positions.append({
                         'symbol': pos['symbol'],
                         'side': side,
@@ -209,7 +221,7 @@ class PositionReconciliationSystem:
                         'notional': abs(notional),  # Position value in USD
                         'entry_price': entry_price,
                         'unrealized_pnl': float(pos.get('unrealizedPnl', 0)),
-                        'leverage': int(pos.get('leverage', 1)),
+                        'leverage': leverage,
                         'raw_data': pos  # Keep original for debugging
                     })
 
