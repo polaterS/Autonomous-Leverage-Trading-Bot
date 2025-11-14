@@ -157,6 +157,9 @@ class PositionReconciliationSystem:
                     ])
                 )
 
+            # 🔥 FIX 3: Check and add missing stop-loss orders
+            await self._check_and_fix_stop_losses(matched_positions, results, exchange, notifier)
+
             # Log final status
             if orphaned_positions or ghost_positions:
                 logger.warning(
@@ -354,6 +357,107 @@ class PositionReconciliationSystem:
         """Force immediate reconciliation (useful for manual triggers)."""
         logger.info("🔄 Manual sync triggered")
         return await self.reconcile_positions(on_startup=False)
+
+    async def _check_and_fix_stop_losses(
+        self,
+        matched_positions: List[tuple],
+        results: Dict,
+        exchange,
+        notifier
+    ) -> None:
+        """
+        🔥 CRITICAL: Check if positions have stop-loss orders and add if missing.
+
+        Args:
+            matched_positions: List of (binance_pos, db_pos) tuples
+            results: Results dict to append actions
+            exchange: Exchange client
+            notifier: Telegram notifier
+        """
+        from decimal import Decimal
+
+        logger.info("🛡️ Checking stop-loss protection for all positions...")
+
+        positions_without_sl = []
+
+        for binance_pos, db_pos in matched_positions:
+            symbol = db_pos['symbol']
+
+            try:
+                # Fetch all open orders for this symbol
+                orders = await exchange.fetch_open_orders(symbol)
+
+                # Check if there's a stop-loss order
+                has_stop_loss = any(
+                    order.get('type', '').lower() in ['stop_market', 'stop', 'stop_loss']
+                    for order in orders
+                )
+
+                if not has_stop_loss:
+                    logger.warning(f"⚠️ {symbol} has NO STOP-LOSS! Adding protection...")
+                    positions_without_sl.append((binance_pos, db_pos))
+
+                    # Calculate stop-loss price from database
+                    stop_loss_price = Decimal(str(db_pos.get('stop_loss_price', 0)))
+
+                    if stop_loss_price <= 0:
+                        # If no SL in DB, calculate conservative one (5% for safety)
+                        from src.utils import calculate_stop_loss_price
+                        entry_price = Decimal(str(db_pos['entry_price']))
+                        stop_loss_price = calculate_stop_loss_price(
+                            entry_price,
+                            db_pos['side'],
+                            5.0,  # 5% conservative stop
+                            db_pos['leverage']
+                        )
+                        logger.warning(f"   No SL in DB, using 5% conservative: ${float(stop_loss_price):.4f}")
+
+                    # Place stop-loss order
+                    side = 'buy' if db_pos['side'] == 'SHORT' else 'sell'
+                    quantity = Decimal(str(db_pos['quantity']))
+
+                    try:
+                        await exchange.create_stop_loss_order(
+                            symbol=symbol,
+                            side=side,
+                            amount=quantity,
+                            stop_price=stop_loss_price
+                        )
+
+                        logger.info(f"✅ Stop-loss added for {symbol}: {side} @ ${float(stop_loss_price):.4f}")
+                        results['actions_taken'].append(
+                            f"🛡️ Added stop-loss for {symbol} @ ${float(stop_loss_price):.4f}"
+                        )
+
+                    except Exception as e:
+                        logger.error(f"❌ Failed to add stop-loss for {symbol}: {e}")
+                        results['actions_taken'].append(
+                            f"❌ Failed to add stop-loss for {symbol}: {str(e)[:50]}"
+                        )
+
+                else:
+                    logger.debug(f"✅ {symbol} has stop-loss protection")
+
+            except Exception as e:
+                logger.error(f"Failed to check stop-loss for {symbol}: {e}")
+
+        # Send alert if positions were unprotected
+        if positions_without_sl:
+            await notifier.send_alert(
+                'critical',
+                f"🚨 <b>UNPROTECTED POSITIONS FIXED</b>\n\n"
+                f"Found {len(positions_without_sl)} position(s) WITHOUT stop-loss:\n\n" +
+                "\n".join([
+                    f"• {db_pos['symbol']} {db_pos['side']} {db_pos['leverage']}x"
+                    for _, db_pos in positions_without_sl
+                ]) +
+                f"\n\n✅ Stop-loss orders added automatically!\n"
+                f"Your positions are now protected."
+            )
+
+            logger.warning(
+                f"🛡️ Stop-loss protection added to {len(positions_without_sl)} position(s)"
+            )
 
 
 # Singleton instance

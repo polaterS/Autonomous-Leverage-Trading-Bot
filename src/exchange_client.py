@@ -305,26 +305,58 @@ class ExchangeClient:
 
         for attempt in range(max_retries):
             try:
+                # 🔥 CRITICAL FIX: Binance Futures requires specific params for stop-loss
+                # - reduceOnly: true (must close position, not open new one)
+                # - stopPrice: trigger price
+                # - closePosition: false (we specify amount, not close entire position)
                 order = await self.exchange.create_order(
                     symbol=symbol,
                     type='stop_market',
                     side=side,
                     amount=float(amount),
-                    params={'stopPrice': float(stop_price)}
+                    params={
+                        'stopPrice': float(stop_price),
+                        'reduceOnly': True,  # 🔥 CRITICAL: Must be True for Binance Futures
+                        'closePosition': False  # We specify exact amount
+                    }
                 )
 
-                logger.info(f"Stop-loss order created: {side} {amount} {symbol} @ ${stop_price:.4f}")
+                logger.info(f"✅ Stop-loss order created: {side} {amount} {symbol} @ ${stop_price:.4f} (Order ID: {order.get('id', 'N/A')})")
                 return order
 
             except Exception as e:
                 last_error = e
-                logger.warning(f"Stop-loss placement attempt {attempt + 1}/{max_retries} failed: {e}")
+                error_msg = str(e).lower()
+                logger.warning(f"⚠️ Stop-loss placement attempt {attempt + 1}/{max_retries} failed: {e}")
+
+                # Log detailed error for debugging
+                if 'reduce' in error_msg or 'position' in error_msg:
+                    logger.error("💥 REDUCE_ONLY error - Binance rejected stop-loss!")
 
                 if attempt < max_retries - 1:
                     await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
 
         # All retries failed
-        logger.error(f"CRITICAL: Stop-loss placement failed after {max_retries} attempts: {last_error}")
+        logger.error(f"🚨 CRITICAL: Stop-loss placement failed after {max_retries} attempts: {last_error}")
+
+        # Send critical alert
+        try:
+            from src.telegram_notifier import get_notifier
+            notifier = get_notifier()
+            await notifier.send_alert(
+                'critical',
+                f"🚨 STOP-LOSS PLACEMENT FAILED\n\n"
+                f"Symbol: {symbol}\n"
+                f"Side: {side}\n"
+                f"Amount: {amount}\n"
+                f"Stop Price: ${float(stop_price):.4f}\n\n"
+                f"Error: {last_error}\n\n"
+                f"⚠️ POSITION IS UNPROTECTED!\n"
+                f"Manual intervention required!"
+            )
+        except:
+            pass
+
         raise Exception(f"Stop-loss order placement failed: {last_error}")
 
     async def create_take_profit_order(
