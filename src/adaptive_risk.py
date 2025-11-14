@@ -112,38 +112,40 @@ class AdaptiveRiskManager:
         symbol: str,
         side: str,
         entry_price: Decimal,
-        leverage: int
+        leverage: int,
+        position_value: Decimal = Decimal("50.0")  # Default $50 per position
     ) -> Optional[Decimal]:
         """
-        Calculate adaptive take-profit price based on symbol volatility and success patterns.
+        Calculate adaptive take-profit price for $2.0 target profit.
 
-        Logic:
-        - High volatility coins → Wider TP (larger swings)
-        - Low volatility coins → Tighter TP (smaller moves)
-        - Learn from historical: What TP levels worked best?
+        🎯 USER REQUESTED: $1.5-2.5 profit per trade
+        This method calculates TP for $2.0 profit (middle of range)
 
         Args:
             symbol: Trading symbol
             side: LONG or SHORT
             entry_price: Entry price
             leverage: Leverage used
+            position_value: Position value in USD (default $50)
 
         Returns:
             Take-profit price or None if no TP recommended
         """
         try:
-            # Get symbol volatility and performance
-            symbol_perf = await self._get_symbol_performance(symbol, side)
-            avg_win_percent = symbol_perf.get('avg_win_percent', 3.0)
+            # 🎯 USER REQUESTED: $2.0 profit target
+            # Calculate price move needed for $2.0 profit
+            # Formula: $2.0 = position_value * price_move * leverage
+            target_profit_usd = Decimal("2.0")
+            leverage_decimal = Decimal(str(leverage))
 
-            # Adaptive TP logic (OPTIMIZED):
-            # Use 70% of average winning move as TP target
-            # This ensures we capture profits before reversal
-            tp_percent = avg_win_percent * 0.70
+            # Calculate required price move percentage
+            # price_move = $2.0 / (position_value * leverage)
+            tp_percent = float((target_profit_usd / (position_value * leverage_decimal)) * 100)
 
-            # Minimum TP: 2.0% (OPTIMIZED from 1.5% - wider target for better R:R)
-            # Maximum TP: 8% (don't be too greedy)
-            tp_percent = max(2.0, min(tp_percent, 8.0))
+            # Safety bounds: 0.3% to 1.5% (reasonable for 6x-10x leverage with $50-60 positions)
+            # With $57 position at 10x: $2.0 profit = 0.35% price move
+            # With $57 position at 6x: $2.0 profit = 0.58% price move
+            tp_percent = max(0.3, min(tp_percent, 1.5))
 
             # Calculate TP price
             if side == 'LONG':
@@ -152,8 +154,8 @@ class AdaptiveRiskManager:
                 tp_price = entry_price * (1 - Decimal(str(tp_percent / 100)))
 
             logger.info(
-                f"🎯 ADAPTIVE TP: {symbol} {side} → {tp_percent:.1f}% "
-                f"(based on avg win: {avg_win_percent:.1f}%) → ${float(tp_price):.4f}"
+                f"🎯 ADAPTIVE TP: {symbol} {side} → {tp_percent:.2f}% "
+                f"(target: $2.0 profit with {leverage}x) → ${float(tp_price):.4f}"
             )
 
             return tp_price

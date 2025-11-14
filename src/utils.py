@@ -319,10 +319,11 @@ def calculate_profit_targets(
     """
     Calculate scaled profit targets for partial exit strategy.
 
-    🎯 STRATEGY:
-    - Target 1: Close 50% of position for guaranteed profit ($8)
-    - Target 2: Trail remaining 50% for bigger gains ($12-15)
-    - After T1 hit: Move stop-loss to breakeven (zero risk)
+    🎯 STRATEGY (USER REQUESTED: $1.5-2.5 profit per trade):
+    - Target 1: Close 50% of position for guaranteed profit ($1.5)
+    - Target 2: Close remaining 50% for additional profit ($1.0)
+    - Total profit if both targets hit: $2.5
+    - Conservative approach: Small but consistent wins
 
     Args:
         entry_price: Entry price of position
@@ -335,74 +336,40 @@ def calculate_profit_targets(
         Dict with profit_target_1, profit_target_2, target_1_profit_usd, target_2_profit_usd
     """
 
-    # Calculate ATR-based targets (if market data available)
-    atr = None
-    if market_data:
-        indicators = market_data.get('indicators', {})
-        atr_data = indicators.get('15m', {}).get('volatility', {})
-        atr = atr_data.get('atr')
+    # 🎯 USER REQUESTED: $1.5-2.5 profit targets
+    # Calculate price move needed for $1.5 and $2.5 profit
+    leverage_decimal = Decimal(str(leverage))
 
-    # Fallback ATR if not provided (1.5% of price)
-    if not atr:
-        atr = entry_price * Decimal("0.015")
-
-    atr = Decimal(str(atr))
+    # Target 1: $1.5 profit on 50% of position
+    # Formula: $1.5 = (position_value * 0.5) * price_move * leverage
+    # So: price_move = $1.5 / (position_value * 0.5 * leverage)
+    target_1_profit = Decimal("1.5")
+    target_1_distance_pct = target_1_profit / (position_value * Decimal("0.5") * leverage_decimal)
 
     if side == 'LONG':
-        # TARGET 1: First resistance OR 1.5x ATR (aim for $8 profit)
-        # With $100 position at 10-14x leverage, need ~0.6-0.8% price move for $8
-        target_1_distance_pct = Decimal("0.008")  # 0.8% = $8 profit on $100 with 10x
+        # For LONG: profit from price increase
+        # TARGET 1: Small move for $1.5 profit (0.3-0.5% typically)
 
-        # Check if resistance is nearby
-        if market_data:
-            sr = market_data.get('indicators', {}).get('15m', {}).get('support_resistance', {})
-            resistance = sr.get('nearest_resistance')
+        # Just use calculated target for consistency
+        profit_target_1 = entry_price * (Decimal("1") + target_1_distance_pct)
 
-            if resistance:
-                resistance = Decimal(str(resistance))
-                # Use resistance if it's 0.8-3% away (good target zone)
-                distance_to_resistance = (resistance - entry_price) / entry_price
-
-                if Decimal("0.008") <= distance_to_resistance <= Decimal("0.03"):
-                    # Use resistance as target (but leave 1% room for safety)
-                    profit_target_1 = resistance * Decimal("0.99")
-                else:
-                    # Resistance too far/close, use calculated target
-                    profit_target_1 = entry_price * (Decimal("1") + target_1_distance_pct)
-            else:
-                profit_target_1 = entry_price * (Decimal("1") + target_1_distance_pct)
-        else:
-            profit_target_1 = entry_price * (Decimal("1") + target_1_distance_pct)
-
-        # TARGET 2: 2.5x ATR OR next resistance (aim for $12-15)
-        target_2_distance_pct = Decimal("0.015")  # 1.5% = $15 profit on $100 with 10x
+        # TARGET 2: $2.5 total profit ($1.5 from T1 + $1.0 from T2)
+        # For remaining 50%: need $1.0 profit
+        target_2_additional_profit = Decimal("1.0")
+        target_2_distance_pct = target_2_additional_profit / (position_value * Decimal("0.5") * leverage_decimal)
         profit_target_2 = entry_price * (Decimal("1") + target_2_distance_pct)
 
     else:  # SHORT
-        # TARGET 1: First support OR 1.5x ATR (aim for $8 profit)
-        target_1_distance_pct = Decimal("0.008")  # 0.8%
+        # For SHORT: profit from price decrease
+        # TARGET 1: Small move for $1.5 profit (0.3-0.5% typically)
 
-        # Check if support is nearby
-        if market_data:
-            sr = market_data.get('indicators', {}).get('15m', {}).get('support_resistance', {})
-            support = sr.get('nearest_support')
+        # Just use calculated target for consistency
+        profit_target_1 = entry_price * (Decimal("1") - target_1_distance_pct)
 
-            if support:
-                support = Decimal(str(support))
-                distance_to_support = (entry_price - support) / entry_price
-
-                if Decimal("0.008") <= distance_to_support <= Decimal("0.03"):
-                    # Use support as target (leave 1% room)
-                    profit_target_1 = support * Decimal("1.01")
-                else:
-                    profit_target_1 = entry_price * (Decimal("1") - target_1_distance_pct)
-            else:
-                profit_target_1 = entry_price * (Decimal("1") - target_1_distance_pct)
-        else:
-            profit_target_1 = entry_price * (Decimal("1") - target_1_distance_pct)
-
-        # TARGET 2: 2.5x ATR OR next support
-        target_2_distance_pct = Decimal("0.015")  # 1.5%
+        # TARGET 2: $2.5 total profit ($1.5 from T1 + $1.0 from T2)
+        # For remaining 50%: need $1.0 profit
+        target_2_additional_profit = Decimal("1.0")
+        target_2_distance_pct = target_2_additional_profit / (position_value * Decimal("0.5") * leverage_decimal)
         profit_target_2 = entry_price * (Decimal("1") - target_2_distance_pct)
 
     # Calculate expected profit in USD for each target

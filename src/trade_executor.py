@@ -259,9 +259,9 @@ class TradeExecutor:
                 stop_loss_order_id = sl_order.get('id')
                 logger.info(f"✅ Stop-loss order placed: {stop_loss_order_id}")
 
-                # 🎯 ADAPTIVE TAKE-PROFIT: Place TP order based on symbol performance
+                # 🎯 ADAPTIVE TAKE-PROFIT: Place TP order for $2.0 profit target
                 take_profit_price = await adaptive_risk.get_adaptive_take_profit(
-                    symbol, side, entry_price, leverage
+                    symbol, side, entry_price, leverage, position_value
                 )
 
                 if take_profit_price:
