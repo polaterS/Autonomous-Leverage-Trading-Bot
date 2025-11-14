@@ -228,8 +228,8 @@ class TradeQualityManager:
                 # ✅ FIXED: Use real exchange balance for exposure calculation
                 try:
                     from src.exchange_client import get_exchange_client
-                    exchange = get_exchange_client()
-                    real_balance = await exchange.fetch_balance()
+                    exchange = get_exchange_client()  # Singleton, not async
+                    real_balance = await exchange.fetch_balance()  # This is async
                     current_capital = float(real_balance)
                 except Exception as balance_err:
                     logger.warning(f"Could not fetch real balance: {balance_err}, using fallback")

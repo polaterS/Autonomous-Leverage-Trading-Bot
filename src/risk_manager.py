@@ -503,8 +503,8 @@ class RiskManager:
 
         # 🔥 USE REAL BALANCE FROM EXCHANGE (not database capital)
         from src.exchange_client import get_exchange_client
-        exchange = get_exchange_client()
-        real_balance = await exchange.fetch_balance()
+        exchange = get_exchange_client()  # Singleton, not async
+        real_balance = await exchange.fetch_balance()  # This is async
 
         # Get active positions to calculate how to split balance
         active_positions = await db.get_active_positions()
