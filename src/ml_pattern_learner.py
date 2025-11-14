@@ -1395,37 +1395,48 @@ class MLPatternLearner:
                     logger.info(f"   📊 Indicator signals: Bullish={bullish_count}, Bearish={bearish_count}")
                     logger.info(f"      RSI(15m)={rsi_15m:.1f}, RSI(1h)={rsi_1h:.1f}, MACD={macd_hist:.2f}, Flow={order_flow:.0f}")
 
+                    # 🔥 AGGRESSIVE MODE: Dynamic leverage 10-20x based on confidence
+                    # Calculate leverage: Higher confidence = Higher leverage
+                    if adjusted_confidence >= 0.80:
+                        leverage = 20  # Ultra high confidence: 20x
+                        stop_loss = 5.0  # Tight stop for max risk $5-6
+                    elif adjusted_confidence >= 0.70:
+                        leverage = 17  # High confidence: 17x
+                        stop_loss = 6.0
+                    elif adjusted_confidence >= 0.60:
+                        leverage = 14  # Good confidence: 14x
+                        stop_loss = 6.5
+                    else:  # 50-60%
+                        leverage = 10  # Minimum: 10x
+                        stop_loss = 7.0
+
                     if bullish_count > bearish_count:
                         ai_analysis['action'] = 'buy'
                         ai_analysis['side'] = 'LONG'
-                        # 🔧 CRITICAL FIX: Set stop_loss and leverage (was missing!)
-                        ai_analysis['stop_loss_percent'] = 14.0  # Conservative 14% stop
-                        ai_analysis['suggested_leverage'] = 5    # Moderate 5x leverage
-                        logger.info(f"   ✅ ML FIX: Converted to LONG (bullish signals dominate) | SL=14% | 5x")
+                        ai_analysis['stop_loss_percent'] = stop_loss
+                        ai_analysis['suggested_leverage'] = leverage
+                        logger.info(f"   ✅ ML FIX: Converted to LONG (bullish signals dominate) | SL={stop_loss}% | {leverage}x")
                     elif bearish_count > bullish_count:
                         ai_analysis['action'] = 'sell'
                         ai_analysis['side'] = 'SHORT'
-                        # 🔧 CRITICAL FIX: Set stop_loss and leverage (was missing!)
-                        ai_analysis['stop_loss_percent'] = 14.0  # Conservative 14% stop
-                        ai_analysis['suggested_leverage'] = 5    # Moderate 5x leverage
-                        logger.info(f"   ✅ ML FIX: Converted to SHORT (bearish signals dominate) | SL=14% | 5x")
+                        ai_analysis['stop_loss_percent'] = stop_loss
+                        ai_analysis['suggested_leverage'] = leverage
+                        logger.info(f"   ✅ ML FIX: Converted to SHORT (bearish signals dominate) | SL={stop_loss}% | {leverage}x")
                     else:
                         # Tie - use RSI as tiebreaker
                         avg_rsi = (rsi_15m + rsi_1h) / 2
                         if avg_rsi < 50:
                             ai_analysis['action'] = 'buy'
                             ai_analysis['side'] = 'LONG'
-                            # 🔧 CRITICAL FIX: Set stop_loss and leverage (was missing!)
-                            ai_analysis['stop_loss_percent'] = 14.0
-                            ai_analysis['suggested_leverage'] = 5
-                            logger.info(f"   ✅ ML FIX: Converted to LONG (RSI tiebreaker: {avg_rsi:.1f}) | SL=14% | 5x")
+                            ai_analysis['stop_loss_percent'] = stop_loss
+                            ai_analysis['suggested_leverage'] = leverage
+                            logger.info(f"   ✅ ML FIX: Converted to LONG (RSI tiebreaker: {avg_rsi:.1f}) | SL={stop_loss}% | {leverage}x")
                         else:
                             ai_analysis['action'] = 'sell'
                             ai_analysis['side'] = 'SHORT'
-                            # 🔧 CRITICAL FIX: Set stop_loss and leverage (was missing!)
-                            ai_analysis['stop_loss_percent'] = 14.0
-                            ai_analysis['suggested_leverage'] = 5
-                            logger.info(f"   ✅ ML FIX: Converted to SHORT (RSI tiebreaker: {avg_rsi:.1f}) | SL=14% | 5x")
+                            ai_analysis['stop_loss_percent'] = stop_loss
+                            ai_analysis['suggested_leverage'] = leverage
+                            logger.info(f"   ✅ ML FIX: Converted to SHORT (RSI tiebreaker: {avg_rsi:.1f}) | SL={stop_loss}% | {leverage}x")
                 else:
                     logger.warning(f"   ⚠️ ML FIX: No market_data available, cannot convert 'hold' to action")
 
