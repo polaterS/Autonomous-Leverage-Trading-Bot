@@ -1361,6 +1361,59 @@ class MLPatternLearner:
             adjusted_confidence = base_confidence + ml_adjustment
             adjusted_confidence = max(0.0, min(1.0, adjusted_confidence))  # Clamp to [0, 1]
 
+            # 🔧 CRITICAL FIX: Re-evaluate action if confidence crosses threshold
+            # If DeepSeek returned "hold" but ML boosted confidence ≥ 50%, convert to buy/sell
+            current_action = ai_analysis.get('action', 'hold')
+            original_side = ai_analysis.get('side')
+
+            logger.info(f"   🔍 ML FIX CHECK: confidence={adjusted_confidence:.1%}, action={current_action}, side={original_side}")
+
+            if adjusted_confidence >= 0.50 and current_action == 'hold':
+                logger.info(f"   🔧 ML FIX TRIGGERED: Converting 'hold' to tradeable action (confidence crossed 50% threshold)")
+
+                # Use market data indicators to determine direction
+                if market_data:
+                    rsi_15m = market_data.get('rsi_15m', 50)
+                    rsi_1h = market_data.get('rsi_1h', 50)
+                    macd_hist = market_data.get('macd_hist_15m', 0)
+                    order_flow = market_data.get('order_flow_imbalance', 0)
+
+                    # Count bullish vs bearish signals
+                    rsi_bullish = rsi_15m < 40 or rsi_1h < 40
+                    rsi_bearish = rsi_15m > 60 or rsi_1h > 60
+                    macd_bullish = macd_hist > 0
+                    macd_bearish = macd_hist < 0
+                    flow_bullish = order_flow > 500
+                    flow_bearish = order_flow < -500
+
+                    bullish_count = sum([rsi_bullish, macd_bullish, flow_bullish])
+                    bearish_count = sum([rsi_bearish, macd_bearish, flow_bearish])
+
+                    logger.info(f"   📊 Indicator signals: Bullish={bullish_count}, Bearish={bearish_count}")
+                    logger.info(f"      RSI(15m)={rsi_15m:.1f}, RSI(1h)={rsi_1h:.1f}, MACD={macd_hist:.2f}, Flow={order_flow:.0f}")
+
+                    if bullish_count > bearish_count:
+                        ai_analysis['action'] = 'buy'
+                        ai_analysis['side'] = 'LONG'
+                        logger.info(f"   ✅ ML FIX: Converted to LONG (bullish signals dominate)")
+                    elif bearish_count > bullish_count:
+                        ai_analysis['action'] = 'sell'
+                        ai_analysis['side'] = 'SHORT'
+                        logger.info(f"   ✅ ML FIX: Converted to SHORT (bearish signals dominate)")
+                    else:
+                        # Tie - use RSI as tiebreaker
+                        avg_rsi = (rsi_15m + rsi_1h) / 2
+                        if avg_rsi < 50:
+                            ai_analysis['action'] = 'buy'
+                            ai_analysis['side'] = 'LONG'
+                            logger.info(f"   ✅ ML FIX: Converted to LONG (RSI tiebreaker: {avg_rsi:.1f})")
+                        else:
+                            ai_analysis['action'] = 'sell'
+                            ai_analysis['side'] = 'SHORT'
+                            logger.info(f"   ✅ ML FIX: Converted to SHORT (RSI tiebreaker: {avg_rsi:.1f})")
+                else:
+                    logger.warning(f"   ⚠️ ML FIX: No market_data available, cannot convert 'hold' to action")
+
             # 7. Decision (🎯 #4: Use symbol-specific threshold)
             symbol_threshold = self.get_confidence_threshold(symbol)
             should_trade = adjusted_confidence >= symbol_threshold
