@@ -422,7 +422,7 @@ class AIConsensusEngine:
         # 🎯 AI+ML CONSENSUS: Weighted ensemble
         market_regime = market_data.get('market_regime', 'UNKNOWN')
         consensus = ml_learner.calculate_weighted_ensemble(
-            analyses, symbol, market_regime
+            analyses, symbol, market_regime, market_data
         )
 
         # Add risk/reward ratio if not present

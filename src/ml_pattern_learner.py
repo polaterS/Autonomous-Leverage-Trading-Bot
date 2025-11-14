@@ -766,7 +766,8 @@ class MLPatternLearner:
         self,
         analyses: List[Dict],
         symbol: str,
-        market_regime: str
+        market_regime: str,
+        market_data: Dict[str, Any] = None
     ) -> Dict:
         """
         🎯 #2: Calculate weighted ensemble consensus from multiple AI models.
@@ -815,41 +816,84 @@ class MLPatternLearner:
                         f"(confidence {final_confidence:.1%} ≥ 50% threshold, AI side hint)"
                     )
                 else:
-                    # No side hint - extract direction from AI reasoning (RSI/MACD/OrderFlow)
-                    reasoning = result.get('reasoning', '').lower()
+                    # No side hint - use market_data to determine direction
+                    if market_data:
+                        # Extract indicator values directly from market data
+                        rsi_15m = market_data.get('rsi_15m', 50)
+                        rsi_1h = market_data.get('rsi_1h', 50)
+                        macd_hist = market_data.get('macd_hist_15m', 0)
+                        order_flow = market_data.get('order_flow_imbalance', 0)
 
-                    # Parse indicators from reasoning
-                    rsi_bullish = 'rsi' in reasoning and any(word in reasoning for word in ['bullish', 'oversold', 'rising'])
-                    rsi_bearish = 'rsi' in reasoning and any(word in reasoning for word in ['bearish', 'overbought', 'falling'])
-                    macd_bullish = 'macd' in reasoning and any(word in reasoning for word in ['bullish', 'positive', 'rising'])
-                    macd_bearish = 'macd' in reasoning and any(word in reasoning for word in ['bearish', 'negative', 'falling'])
-                    flow_bullish = any(word in reasoning for word in ['buying pressure', 'positive flow', 'accumulation'])
-                    flow_bearish = any(word in reasoning for word in ['selling pressure', 'negative flow', 'distribution'])
+                        # Determine bullish/bearish based on indicators
+                        rsi_bullish = rsi_15m < 40 or rsi_1h < 40  # Oversold
+                        rsi_bearish = rsi_15m > 60 or rsi_1h > 60  # Overbought
+                        macd_bullish = macd_hist > 0  # Positive MACD
+                        macd_bearish = macd_hist < 0  # Negative MACD
+                        flow_bullish = order_flow > 500  # Strong buy pressure
+                        flow_bearish = order_flow < -500  # Strong sell pressure
 
-                    # Count bullish vs bearish signals
-                    bullish_count = sum([rsi_bullish, macd_bullish, flow_bullish])
-                    bearish_count = sum([rsi_bearish, macd_bearish, flow_bearish])
+                        # Count signals
+                        bullish_count = sum([rsi_bullish, macd_bullish, flow_bullish])
+                        bearish_count = sum([rsi_bearish, macd_bearish, flow_bearish])
 
-                    if bullish_count > bearish_count:
-                        result['action'] = 'buy'
-                        result['side'] = 'LONG'
-                        logger.info(
-                            f"   🔧 ML FIX: Changed action 'hold' → 'buy' LONG "
-                            f"(confidence {final_confidence:.1%}, {bullish_count} bullish signals)"
-                        )
-                    elif bearish_count > bullish_count:
-                        result['action'] = 'sell'
-                        result['side'] = 'SHORT'
-                        logger.info(
-                            f"   🔧 ML FIX: Changed action 'hold' → 'sell' SHORT "
-                            f"(confidence {final_confidence:.1%}, {bearish_count} bearish signals)"
-                        )
+                        if bullish_count > bearish_count:
+                            result['action'] = 'buy'
+                            result['side'] = 'LONG'
+                            logger.info(
+                                f"   🔧 ML FIX: Changed action 'hold' → 'buy' LONG "
+                                f"(confidence {final_confidence:.1%}, {bullish_count} bullish signals: "
+                                f"RSI={rsi_15m:.0f}, MACD={macd_hist:.4f}, Flow={order_flow:.0f})"
+                            )
+                        elif bearish_count > bullish_count:
+                            result['action'] = 'sell'
+                            result['side'] = 'SHORT'
+                            logger.info(
+                                f"   🔧 ML FIX: Changed action 'hold' → 'sell' SHORT "
+                                f"(confidence {final_confidence:.1%}, {bearish_count} bearish signals: "
+                                f"RSI={rsi_15m:.0f}, MACD={macd_hist:.4f}, Flow={order_flow:.0f})"
+                            )
+                        else:
+                            # Truly uncertain - keep as hold
+                            logger.warning(
+                                f"   ⚠️ ML: Confidence {final_confidence:.1%} ≥ 50% but no clear direction "
+                                f"(bullish={bullish_count}, bearish={bearish_count}). "
+                                f"RSI={rsi_15m:.0f}, MACD={macd_hist:.4f}, Flow={order_flow:.0f}"
+                            )
                     else:
-                        # Truly uncertain - keep as hold
-                        logger.warning(
-                            f"   ⚠️ ML: Confidence {final_confidence:.1%} ≥ 50% but no clear direction "
-                            f"(bullish={bullish_count}, bearish={bearish_count}). Keeping as hold."
-                        )
+                        # No market_data available - fallback to reasoning parse
+                        reasoning = result.get('reasoning', '').lower()
+
+                        # Parse indicators from reasoning
+                        rsi_bullish = 'rsi' in reasoning and any(word in reasoning for word in ['bullish', 'oversold', 'rising'])
+                        rsi_bearish = 'rsi' in reasoning and any(word in reasoning for word in ['bearish', 'overbought', 'falling'])
+                        macd_bullish = 'macd' in reasoning and any(word in reasoning for word in ['bullish', 'positive', 'rising'])
+                        macd_bearish = 'macd' in reasoning and any(word in reasoning for word in ['bearish', 'negative', 'falling'])
+                        flow_bullish = any(word in reasoning for word in ['buying pressure', 'positive flow', 'accumulation'])
+                        flow_bearish = any(word in reasoning for word in ['selling pressure', 'negative flow', 'distribution'])
+
+                        # Count bullish vs bearish signals
+                        bullish_count = sum([rsi_bullish, macd_bullish, flow_bullish])
+                        bearish_count = sum([rsi_bearish, macd_bearish, flow_bearish])
+
+                        if bullish_count > bearish_count:
+                            result['action'] = 'buy'
+                            result['side'] = 'LONG'
+                            logger.info(
+                                f"   🔧 ML FIX: Changed action 'hold' → 'buy' LONG "
+                                f"(confidence {final_confidence:.1%}, {bullish_count} bullish signals from reasoning)"
+                            )
+                        elif bearish_count > bullish_count:
+                            result['action'] = 'sell'
+                            result['side'] = 'SHORT'
+                            logger.info(
+                                f"   🔧 ML FIX: Changed action 'hold' → 'sell' SHORT "
+                                f"(confidence {final_confidence:.1%}, {bearish_count} bearish signals from reasoning)"
+                            )
+                        else:
+                            logger.warning(
+                                f"   ⚠️ ML: Confidence {final_confidence:.1%} ≥ 50% but no clear direction. "
+                                f"No market_data and reasoning parse failed."
+                            )
 
             return result
 
