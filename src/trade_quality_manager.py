@@ -236,28 +236,14 @@ class TradeQualityManager:
                 )
             return False, None
 
-        elif portfolio_exposure >= self.high_exposure_threshold:
-            # High risk - need high confidence
-            required_confidence = 70.0
-            if confidence < required_confidence:
-                if reason_if_blocked:
-                    return False, (
-                        f"🎯 High exposure ({portfolio_exposure:.1%}) requires "
-                        f"confidence ≥{required_confidence:.0f}% (got {confidence:.1f}%)"
-                    )
-                return False, None
-
-        elif portfolio_exposure >= self.medium_exposure_threshold:
-            # Medium risk - need decent confidence
-            required_confidence = 62.0
-            if confidence < required_confidence:
-                if reason_if_blocked:
-                    return False, (
-                        f"🎯 Medium exposure ({portfolio_exposure:.1%}) requires "
-                        f"confidence ≥{required_confidence:.0f}% (got {confidence:.1f}%)"
-                    )
-                return False, None
-        # else: Low exposure (<30%), use config's min_ai_confidence (58%)
+        # ===== EXPOSURE-BASED CONFIDENCE REQUIREMENTS: DISABLED BY USER REQUEST =====
+        # User wants maximum trading opportunities without exposure-based confidence gates
+        # Only critical exposure (>100%) blocks trades now
+        # High/Medium exposure checks removed - trust AI confidence at all exposure levels
+        logger.debug(
+            f"📊 Portfolio exposure: {portfolio_exposure:.1%} "
+            f"(confidence: {confidence:.1f}%, exposure checks disabled)"
+        )
 
         # ===== CHECK 2: Slot Budget ===== 🚫 DISABLED BY USER REQUEST
         # User wants to maximize trading opportunities without slot budget limits
