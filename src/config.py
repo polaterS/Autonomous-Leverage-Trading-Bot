@@ -35,7 +35,8 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
-    max_leverage: int = Field(default=20, ge=1, le=50)  # 🔥 AGGRESSIVE MODE: 10-20x leverage for maximum profit potential
+    min_leverage: int = Field(default=6, ge=1, le=50)  # Minimum leverage (6x)
+    max_leverage: int = Field(default=10, ge=1, le=50)  # Maximum leverage (10x)
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔴 LIVE TRADING: 2 positions for $100 capital
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% per position ($10) - dynamic based on leverage
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% min (ULTRA TIGHT for 10-20x leverage)

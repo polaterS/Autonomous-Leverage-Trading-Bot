@@ -225,9 +225,17 @@ class TradeQualityManager:
                     for p in active_positions
                 )
 
-                # ✅ FIXED: Use hardcoded capital for paper trading (no bot_state table needed)
-                # In production, this should come from exchange balance or bot_state table
-                current_capital = 1000.0  # Paper trading starting capital
+                # ✅ FIXED: Use real exchange balance for exposure calculation
+                try:
+                    from src.exchange_client import get_exchange_client
+                    exchange = get_exchange_client()
+                    real_balance = await exchange.fetch_balance()
+                    current_capital = float(real_balance)
+                except Exception as balance_err:
+                    logger.warning(f"Could not fetch real balance: {balance_err}, using fallback")
+                    # Fallback to database capital if exchange fetch fails
+                    db_config = await db_client.get_trading_config()
+                    current_capital = float(db_config.get('current_capital', 1000.0))
 
                 # Calculate exposure ratio
                 portfolio_exposure = total_position_value / current_capital if current_capital > 0 else 0.0
@@ -276,58 +284,35 @@ class TradeQualityManager:
                 return False, None
         # else: Low exposure (<30%), use config's min_ai_confidence (58%)
 
-        # ===== CHECK 2: Slot Budget =====
+        # ===== CHECK 2: Slot Budget ===== 🚫 DISABLED BY USER REQUEST
+        # User wants to maximize trading opportunities without slot budget limits
+        # Slot tracking still maintained for statistics but not used for blocking trades
         slot_cost = self.calculate_slot_cost(confidence)
 
-        # ✅ FIXED: Calculate used slots based on ACTIVE POSITIONS ONLY (not historical 1h trades)
-        # This prevents the bug where /closeall leaves ghost slots blocking new trades
-        used_slots = sum(self.active_trade_slots.values())
-
-        # Clean up old historical slot usage (for potential future use, but not counted now)
+        # Clean up old historical slot usage (for statistics only)
         now = datetime.now()
         cutoff_time = now - timedelta(minutes=60)
         self.recent_slot_usage = [(t, cost) for t, cost in self.recent_slot_usage if t > cutoff_time]
 
-        # ===== CHECK 3: Performance Momentum (Adaptive Budget) =====
+        # Calculate used slots for statistics (not used for blocking)
+        used_slots = sum(self.active_trade_slots.values())
+
+        # ===== CHECK 3: Performance Momentum (Adaptive Budget) ===== 🚫 DISABLED
+        # Slot budget system disabled, so no need to adjust budget
+        # Performance tracking still available for logging purposes
         try:
             recent_pnl = await self._get_recent_pnl(db_client, hours=1)
         except Exception as e:
             logger.warning(f"Could not get recent P&L: {e}")
             recent_pnl = 0.0
 
-        # Adjust budget based on performance
-        adjusted_budget = self.hourly_slot_budget
+        # Log performance for monitoring (but don't block trades)
+        if recent_pnl > 10.0:
+            logger.info(f"📈 Strong performance: +${recent_pnl:.2f} last hour")
+        elif recent_pnl < -50.0:
+            logger.warning(f"📉 Drawdown detected: -${abs(recent_pnl):.2f} last hour")
 
-        if recent_pnl > 10.0:  # Winning streak
-            adjusted_budget *= 1.3  # +30% more trades
-            logger.info(
-                f"📈 Performance bonus: +${recent_pnl:.2f} last hour → "
-                f"Slot budget increased to {adjusted_budget:.1f}"
-            )
-        elif recent_pnl < -50.0:  # Losing streak (was -15.0, now -50.0 for more realistic threshold)
-            adjusted_budget *= 0.7  # -30% trades (defensive)
-            logger.warning(
-                f"📉 Drawdown protection: -${abs(recent_pnl):.2f} last hour → "
-                f"Slot budget reduced to {adjusted_budget:.1f}"
-            )
-
-        # Check if we have budget for this trade
-        if used_slots + slot_cost > adjusted_budget:
-            if reason_if_blocked:
-                # Find when oldest slot expires
-                if self.recent_slot_usage:
-                    oldest_slot_time = min(t for t, _ in self.recent_slot_usage)
-                    time_until_available = 60 - ((now - oldest_slot_time).total_seconds() / 60)
-                else:
-                    time_until_available = 0
-
-                return False, (
-                    f"🎰 Slot budget full: {used_slots:.1f}/{adjusted_budget:.1f} used. "
-                    f"This trade costs {slot_cost:.1f} slots (conf: {confidence:.1f}%). "
-                    f"Wait {time_until_available:.0f}m OR find better opportunity "
-                    f"(≥70% = 0.75 slots, ≥75% = 0.5 slots)"
-                )
-            return False, None
+        # 🔓 SLOT BUDGET DISABLED: Always allow trades (slot tracking kept for stats only)
 
         # ===== ALL CHECKS PASSED! =====
         logger.info(

@@ -101,16 +101,21 @@ class RiskManager:
                 'adjusted_params': None
             }
 
-        # RULE 3: Leverage check
-        if leverage > self.settings.max_leverage:
-            # Adjust leverage down to max
-            logger.warning(f"Leverage {leverage}x exceeds maximum, adjusting to {self.settings.max_leverage}x")
-            leverage = self.settings.max_leverage
+        # RULE 3: Leverage check - ENFORCE 6x-10x RANGE
+        min_leverage = self.settings.min_leverage  # 6x
+        max_leverage = self.settings.max_leverage  # 10x
+
+        if leverage > max_leverage:
+            # Adjust leverage down to max (10x)
+            logger.warning(f"Leverage {leverage}x exceeds maximum, adjusting to {max_leverage}x")
+            leverage = max_leverage
             trade_params['leverage'] = leverage
 
-        if leverage < 2:
-            leverage = 2
-            trade_params['leverage'] = 2
+        if leverage < min_leverage:
+            # Adjust leverage up to minimum (6x)
+            logger.warning(f"Leverage {leverage}x below minimum, adjusting to {min_leverage}x")
+            leverage = min_leverage
+            trade_params['leverage'] = min_leverage
 
         # RULE 4: Check concurrent positions limit (FIXED AT 5)
         # Conservative mode: Maximum 5 positions regardless of capital
@@ -193,14 +198,14 @@ class RiskManager:
         max_acceptable_loss = current_capital * Decimal("0.20")  # 20% of capital max
 
         if max_loss_per_trade > max_acceptable_loss:
-            # Try to reduce leverage
+            # Try to reduce leverage (but stay within 6x-10x range)
             adjusted_leverage = int((max_acceptable_loss / position_value) / (Decimal(str(stop_loss_percent)) / 100))
-            adjusted_leverage = max(2, min(adjusted_leverage, self.settings.max_leverage))
+            adjusted_leverage = max(self.settings.min_leverage, min(adjusted_leverage, self.settings.max_leverage))
 
-            if adjusted_leverage < 2:
+            if adjusted_leverage < self.settings.min_leverage:
                 return {
                     'approved': False,
-                    'reason': f'Potential loss ${max_loss_per_trade:.2f} exceeds 20% of capital even with minimum leverage',
+                    'reason': f'Potential loss ${max_loss_per_trade:.2f} exceeds 20% of capital even with minimum leverage ({self.settings.min_leverage}x)',
                     'adjusted_params': None
                 }
 
@@ -216,12 +221,12 @@ class RiskManager:
         liq_distance = abs(current_price - liq_price) / current_price
 
         if liq_distance < min_liq_distance:
-            # Try to adjust leverage downward to increase liquidation distance
+            # Try to adjust leverage downward to increase liquidation distance (stay within 6x-10x)
             logger.warning(f"Liquidation too close ({float(liq_distance)*100:.1f}%), adjusting leverage...")
 
-            # Find minimum leverage that gives 8%+ liquidation distance
+            # Find minimum leverage that gives 8%+ liquidation distance (but stay ≥6x)
             adjusted_leverage = leverage
-            for test_lev in range(leverage - 1, 1, -1):  # Try lower leverages (down to 2x)
+            for test_lev in range(leverage - 1, self.settings.min_leverage - 1, -1):  # Try lower leverages (down to 6x)
                 test_liq_price = calculate_liquidation_price(current_price, test_lev, side)
                 test_liq_distance = abs(current_price - test_liq_price) / current_price
 
@@ -237,10 +242,10 @@ class RiskManager:
                 liq_price = calculate_liquidation_price(current_price, leverage, side)
                 liq_distance = abs(current_price - liq_price) / current_price
             else:
-                # Even 2x leverage doesn't provide enough distance - reject
+                # Even minimum leverage (6x) doesn't provide enough distance - reject
                 return {
                     'approved': False,
-                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 8%, even with 2x leverage)',
+                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 8%, even with minimum leverage {self.settings.min_leverage}x)',
                     'adjusted_params': None
                 }
 
@@ -472,12 +477,15 @@ class RiskManager:
         opportunity_score: float = 75.0
     ) -> Decimal:
         """
-        Calculate optimal position size using DYNAMIC SIZING with Kelly Criterion.
+        Calculate optimal position size using REAL BALANCE from Binance.
+
+        🔥 USER REQUESTED: Use actual exchange balance, not database capital
+        Example: 116 USDT balance → 2 positions = 58 USDT per position
 
         Factors considered:
-        1. Win rate history (Kelly Criterion)
-        2. AI confidence
-        3. Opportunity score
+        1. Real exchange balance (from Binance)
+        2. Number of active positions + this new position
+        3. AI confidence and opportunity score adjustments
         4. Maximum risk limits
 
         Args:
@@ -492,14 +500,37 @@ class RiskManager:
             Position value in USD
         """
         db = await get_db_client()
-        current_capital = await db.get_current_capital()
 
-        # METHOD 1: Static size (fallback)
-        static_size = current_capital * self.settings.position_size_percent
+        # 🔥 USE REAL BALANCE FROM EXCHANGE (not database capital)
+        from src.exchange_client import get_exchange_client
+        exchange = get_exchange_client()
+        real_balance = await exchange.fetch_balance()
 
-        # METHOD 2: Kelly Criterion with historical win rate
+        # Get active positions to calculate how to split balance
+        active_positions = await db.get_active_positions()
+        current_position_count = len(active_positions)
+
+        # Calculate how many positions we can have (max from settings)
+        max_positions = self.settings.max_concurrent_positions  # 2 positions
+
+        # Split balance equally among max positions
+        # Example: 116 USDT / 2 positions = 58 USDT per position
+        base_size_per_position = real_balance / Decimal(str(max_positions))
+
+        logger.info(
+            f"💰 Real balance position sizing: "
+            f"Balance: ${float(real_balance):.2f} USDT | "
+            f"Max positions: {max_positions} | "
+            f"Current positions: {current_position_count} | "
+            f"Base size per position: ${float(base_size_per_position):.2f}"
+        )
+
+        # METHOD 1: Real balance size (primary method)
+        static_size = base_size_per_position
+
+        # METHOD 2: Kelly Criterion with historical win rate (using real balance)
         kelly_size = await self._calculate_kelly_position_size(
-            current_capital, stop_loss_percent, leverage
+            real_balance, stop_loss_percent, leverage
         )
 
         # METHOD 3: Confidence-adjusted sizing
@@ -527,8 +558,8 @@ class RiskManager:
             opportunity_adjusted_size
         )
 
-        # Absolute maximum risk check (never risk more than 15% per trade)
-        max_risk = current_capital * Decimal("0.15")
+        # Absolute maximum risk check (never risk more than 15% per trade, using real balance)
+        max_risk = real_balance * Decimal("0.15")
         stop_loss_decimal = Decimal(str(stop_loss_percent)) / 100
         max_position_from_risk = max_risk / (stop_loss_decimal * leverage)
 
