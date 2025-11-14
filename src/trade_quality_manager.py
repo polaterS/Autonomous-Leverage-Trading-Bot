@@ -119,63 +119,38 @@ class TradeQualityManager:
             (can_trade, reason_if_not)
         """
 
-        # Check 1: Symbol cooldown
+        # Check 1: Symbol cooldown - 🔓 DISABLED BY USER REQUEST
+        # User wants maximum trading opportunities without cooldown restrictions
+        # Note: Still tracking for statistics, but NOT blocking trades
         if symbol in self.symbol_last_trade:
             last_trade_time = self.symbol_last_trade[symbol]
             time_since_last = (datetime.now() - last_trade_time).total_seconds() / 60
+            # Log for monitoring but don't block
+            logger.debug(f"📊 {symbol} last traded {time_since_last:.1f}m ago (cooldown disabled)")
 
-            # Determine cooldown based on last trade result
-            recent_results = self.symbol_recent_results.get(symbol, [])
-            if recent_results and recent_results[-1].get('was_loss', False):
-                cooldown_needed = self.symbol_cooldown_if_loss_minutes
-            else:
-                cooldown_needed = self.symbol_cooldown_minutes
-
-            if time_since_last < cooldown_needed:
-                if reason_if_blocked:
-                    return False, (
-                        f"❄️ Symbol cooldown: {symbol} was traded {time_since_last:.1f}m ago, "
-                        f"need {cooldown_needed}m cooldown"
-                    )
-                return False, None
-
-        # Check 2: Symbol failure streak (3+ losses in a row = extended cooldown)
+        # Check 2: Symbol failure streak - 🔓 DISABLED BY USER REQUEST
+        # Extended cooldown after 3 losses disabled
+        # Quality protection now relies on:
+        # - Technical validation (4 layers)
+        # - Market sentiment filtering
+        # - AI+ML ensemble confidence
         recent_results = self.symbol_recent_results.get(symbol, [])
         if len(recent_results) >= 3:
             last_three = recent_results[-3:]
             if all(r.get('was_loss', False) for r in last_three):
-                # All last 3 trades were losses
-                if symbol in self.symbol_last_trade:
-                    last_trade_time = self.symbol_last_trade[symbol]
-                    time_since_last = (datetime.now() - last_trade_time).total_seconds() / 60
-                    extended_cooldown = 120  # 2 hours after 3 losses
+                logger.debug(f"⚠️ {symbol} has 3 consecutive losses (not blocking, cooldown disabled)")
 
-                    if time_since_last < extended_cooldown:
-                        if reason_if_blocked:
-                            return False, (
-                                f"🚫 {symbol} has 3 consecutive losses. "
-                                f"Extended cooldown: {time_since_last:.1f}m / {extended_cooldown}m"
-                            )
-                        return False, None
-
-        # Check 3: Entry/Exit confidence gap
-        # If last trade exited due to high confidence ML signal,
-        # new entry must have significantly higher confidence
+        # Check 3: Entry/Exit confidence gap - 🔓 DISABLED BY USER REQUEST
+        # Confidence gap check disabled - let ML+technical validation handle quality
         if recent_results:
             last_result = recent_results[-1]
             last_exit_confidence = last_result.get('exit_confidence', 0)
+            logger.debug(
+                f"📊 {symbol} last exit confidence: {last_exit_confidence:.1f}%, "
+                f"new entry: {entry_confidence:.1f}% (gap check disabled)"
+            )
 
-            if last_exit_confidence >= 75.0:  # Last exit had high confidence
-                confidence_gap = entry_confidence - last_exit_confidence
-
-                if confidence_gap < self.min_confidence_gap:
-                    if reason_if_blocked:
-                        return False, (
-                            f"⚖️ Confidence gap too small: Entry {entry_confidence:.1f}% vs "
-                            f"Last Exit {last_exit_confidence:.1f}% (need +{self.min_confidence_gap}% gap)"
-                        )
-                    return False, None
-
+        # ✅ All symbol-specific checks DISABLED - always allow
         return True, None
 
     async def can_open_new_trade(
