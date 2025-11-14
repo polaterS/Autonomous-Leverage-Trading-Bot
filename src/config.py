@@ -35,13 +35,13 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
-    min_leverage: int = Field(default=6, ge=1, le=50)  # Minimum leverage (6x)
-    max_leverage: int = Field(default=10, ge=1, le=50)  # Maximum leverage (10x)
+    min_leverage: int = Field(default=15, ge=1, le=50)  # Minimum leverage (15x) - USER REQUEST
+    max_leverage: int = Field(default=20, ge=1, le=50)  # Maximum leverage (20x) - USER REQUEST
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔴 LIVE TRADING: 2 positions for $100 capital
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% per position ($10) - dynamic based on leverage
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.03"), gt=0, le=1)  # 3% min (ULTRA TIGHT for 10-20x leverage)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)  # 5% max (keeps liquidation far enough)
-    min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.015"), gt=0, le=1)  # 1.5% min (ULTRA TIGHT for 15-20x leverage)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with high leverage)
+    min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target (close position)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)  # 🔥 MAXIMUM AGGRESSIVE: 50% minimum - Maximum learning opportunity (AI+ML full test)
     scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     use_paper_trading: bool = Field(default=True)
     enable_debug_logs: bool = Field(default=False)
     enable_short_trades: bool = Field(default=True)  # Enable SHORT trades for complete ML learning
-    enable_ml_exit: bool = Field(default=True)  # Enable ML-based early exit signals (set False to rely only on stop-loss/take-profit)
+    enable_ml_exit: bool = Field(default=False)  # ML exit DISABLED - rely only on stop-loss/take-profit/trailing (USER REQUEST: positions closing too fast)
 
     # Trading Symbols (high liquidity perpetual futures) - 35 coins
     trading_symbols: list[str] = Field(default=[
