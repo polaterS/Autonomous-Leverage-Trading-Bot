@@ -1371,12 +1371,13 @@ class MLPatternLearner:
 
             logger.info(f"   🔍 ML FIX CHECK: confidence={adjusted_confidence:.1%}, action={current_action}, side={original_side}")
 
-            # 🎯 ML FIX: Convert "hold" ONLY if confidence ≥60% (balanced threshold)
-            # REASONING: 65% was too conservative - too few trades opened
-            #            50% was too aggressive - many weak trades
-            # NEW: 60% balanced threshold for quality trades (aim for $5-10 profit per trade)
-            if adjusted_confidence >= 0.60 and current_action == 'hold':
-                logger.info(f"   🔧 ML FIX TRIGGERED: Converting 'hold' to tradeable action (confidence ≥60%)")
+            # 🎯 ML FIX: Convert "hold" ONLY if confidence ≥50% (aggressive threshold)
+            # REASONING: Technical validation system now provides 4-layer filtering
+            #            Pre-trade validation will reject weak setups anyway
+            # NEW: 50% threshold allows ML to find more opportunities
+            #      Quality control handled by technical validation (S/R, volume, order flow, MTF)
+            if adjusted_confidence >= 0.50 and current_action == 'hold':
+                logger.info(f"   🔧 ML FIX TRIGGERED: Converting 'hold' to tradeable action (confidence ≥50%)")
 
                 # Use market data indicators to determine direction
                 if market_data:
