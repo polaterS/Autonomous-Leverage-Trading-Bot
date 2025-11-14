@@ -18,8 +18,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (cache bust: v1.2-FORCE-REBUILD-ATTEMPT10)
+# Copy application code (cache bust: v1.3-NUCLEAR-CACHE-CLEAR-ATTEMPT11)
 COPY . .
+
+# 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
+RUN find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
+    find /app -type f -name "*.pyc" -delete 2>/dev/null || true && \
+    find /app -type f -name "*.pyo" -delete 2>/dev/null || true
 
 # Create directories for logs and data
 RUN mkdir -p /app/logs /app/data
