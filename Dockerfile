@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code (cache bust: v1.1)
 COPY . .
 
 # Create directories for logs and data
