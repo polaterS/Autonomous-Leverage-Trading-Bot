@@ -1371,14 +1371,14 @@ class MLPatternLearner:
 
             logger.info(f"   🔍 ML FIX CHECK: confidence={adjusted_confidence:.1%}, action={current_action}, side={original_side}")
 
-            # 🎯 ML FIX: Use centralized ML FIX method (threshold=65%)
+            # 🎯 ML FIX: Use centralized ML FIX method (threshold=50%)
             # CONSOLIDATION: Replaced duplicate logic with centralized apply_ml_fix()
             ai_analysis = self.apply_ml_fix(
                 analysis=ai_analysis,
                 symbol=symbol,
                 confidence=adjusted_confidence,
                 market_data=market_data,
-                threshold=0.65  # 65% threshold (balanced between old 70% and 50%)
+                threshold=0.50  # 50% threshold (more aggressive, more opportunities)
             )
 
             # 7. Decision (🎯 #4: Use symbol-specific threshold)

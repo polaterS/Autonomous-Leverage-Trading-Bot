@@ -189,7 +189,7 @@ class AIConsensusEngine:
                         symbol=symbol,
                         confidence=analysis['confidence'],
                         market_data=market_data,
-                        threshold=0.65  # 65% threshold (balanced between old 70% and 50%)
+                        threshold=0.50  # 50% threshold (more aggressive, more opportunities)
                     )
 
                 except Exception as ml_error:
