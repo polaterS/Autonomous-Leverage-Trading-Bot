@@ -10,7 +10,7 @@ VALIDATION LAYERS:
 3. Order Flow Alignment
 4. Multi-Timeframe Confluence
 
-Requirements: 75% of checks must pass for trade approval.
+Requirements: 50% of checks must pass for trade approval (2 out of 4).
 """
 
 from typing import Dict, List, Tuple, Optional, Any
@@ -29,14 +29,14 @@ class TechnicalValidator:
 
     def __init__(self):
         # Validation thresholds
-        self.min_pass_rate = 0.75  # 75% of checks must pass
+        self.min_pass_rate = 0.50  # 50% of checks must pass (2 out of 4)
         self.max_sr_distance = 0.03  # Max 3% from support/resistance
         self.min_volume_surge = 1.2  # Min 1.2x average volume
         self.min_order_flow_strength = 5.0  # Min 5% order flow imbalance
 
         logger.info(
             f"✅ TechnicalValidator initialized:\n"
-            f"   - Min pass rate: {self.min_pass_rate:.0%}\n"
+            f"   - Min pass rate: {self.min_pass_rate:.0%} (2/4 checks)\n"
             f"   - Max S/R distance: {self.max_sr_distance:.0%}\n"
             f"   - Min volume surge: {self.min_volume_surge}x\n"
             f"   - Min order flow: {self.min_order_flow_strength}%"
