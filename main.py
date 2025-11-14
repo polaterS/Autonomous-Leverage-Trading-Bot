@@ -71,6 +71,19 @@ async def main():
         logger.critical("🚨 Cannot start bot without security validation")
         sys.exit(1)
 
+    # 🔧 CRITICAL: Run profit target migration (if needed)
+    try:
+        logger.info("🔧 Checking for required database migrations...")
+        from migrations.add_profit_targets import migrate
+        await migrate()
+        logger.info("✅ Database migrations completed successfully!")
+    except Exception as e:
+        # If columns already exist, that's fine
+        if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+            logger.info("✅ Migration columns already exist")
+        else:
+            logger.error(f"⚠️ Migration check failed (non-critical): {e}")
+
     # Database health check and auto-cleanup
     try:
         from src.db_maintenance import verify_database_health, cleanup_duplicate_configs
