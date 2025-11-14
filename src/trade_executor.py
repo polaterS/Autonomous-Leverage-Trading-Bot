@@ -124,6 +124,21 @@ class TradeExecutor:
                 side
             )
 
+            # 🎯 PROFIT TARGETS: Calculate scaled exit targets for partial exit strategy
+            from src.utils import calculate_profit_targets
+            profit_targets = calculate_profit_targets(
+                entry_price=entry_price,
+                side=side,
+                position_value=position_value,
+                leverage=leverage,
+                market_data=market_data
+            )
+
+            profit_target_1 = profit_targets['profit_target_1']
+            profit_target_2 = profit_targets['profit_target_2']
+            target_1_profit = profit_targets['target_1_profit_usd']
+            target_2_profit = profit_targets['target_2_profit_usd']
+
             logger.info(f"Position details:")
             logger.info(f"  Quantity: {quantity:.6f}")
             logger.info(f"  Position Value: ${position_value:.2f}")
@@ -131,6 +146,8 @@ class TradeExecutor:
             logger.info(f"  Stop-Loss: ${stop_loss_price:.4f}")
             logger.info(f"  Liquidation: ${liquidation_price:.4f}")
             logger.info(f"  Min Profit Price: ${min_profit_price:.4f}")
+            logger.info(f"🎯 Profit Target 1 (50%): ${float(profit_target_1):.4f} (Est. profit: ${float(target_1_profit):.2f})")
+            logger.info(f"🎯 Profit Target 2 (50%): ${float(profit_target_2):.4f} (Est. total: ${float(target_2_profit):.2f})")
 
             # Set leverage and margin mode on exchange
             await exchange.set_leverage(symbol, leverage)
@@ -368,7 +385,13 @@ class TradeExecutor:
                 'entry_fill_time_ms': fill_time_ms,
 
                 # 🎯 PRICE ACTION ANALYSIS (NEW!)
-                'price_action': ai_analysis.get('price_action')
+                'price_action': ai_analysis.get('price_action'),
+
+                # 🎯 PARTIAL EXIT TARGETS (NEW!)
+                'profit_target_1': profit_target_1,
+                'profit_target_2': profit_target_2,
+                'partial_exit_done': False,
+                'partial_exit_profit': Decimal("0")
             }
 
             position_id = await db.create_active_position(position_data)

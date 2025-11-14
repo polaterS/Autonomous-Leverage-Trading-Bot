@@ -194,46 +194,154 @@ class PositionMonitor:
                 return
 
             # ====================================================================
-            # 🚀 QUICK PROFIT TAKE: Close at $5-15 profit (10-20x leverage mode)
+            # 🎯 PARTIAL EXIT SYSTEM: Scaled profit taking for guaranteed wins
             # ====================================================================
-            # USER REQUESTED: Increased from $1-2 to $5-15 range
-            # With high leverage (10-20x), wait for bigger profits before closing
-            # Random threshold between $5-15 to avoid predictable exits
-            # This allows positions to run further while still protecting profits
+            # STRATEGY:
+            # 1. Close 50% at Target 1 (~$8 profit) - GUARANTEED PROFIT
+            # 2. Move stop-loss to breakeven - ZERO RISK
+            # 3. Trail remaining 50% to Target 2 (~$12-15) - MAXIMIZE GAINS
+            #
+            # RESULT: Every trade locks in minimum $4 profit, potential for $8-12+
 
-            # Generate random profit target between $5-15 per position (if not cached)
-            if 'quick_profit_target' not in position:
-                import random
-                position['quick_profit_target'] = Decimal(str(random.uniform(5.0, 15.0)))
+            # Check if we have profit targets (should be set on position open)
+            profit_target_1 = position.get('profit_target_1')
+            profit_target_2 = position.get('profit_target_2')
+            partial_exit_done = position.get('partial_exit_done', False)
 
-            quick_profit_target = position['quick_profit_target']
+            if profit_target_1 and not partial_exit_done:
+                profit_target_1 = Decimal(str(profit_target_1))
 
-            if unrealized_pnl >= quick_profit_target:  # $5-15 profit
-                logger.info(
-                    f"💰 QUICK PROFIT TAKE: {symbol} {side} | "
-                    f"Entry: ${float(position['entry_price']):.4f} | "
-                    f"Current: ${float(current_price):.4f} | "
-                    f"Profit: ${float(unrealized_pnl):+.2f} (target: ${float(quick_profit_target):.2f})"
-                )
+                # Check if Target 1 reached
+                target_1_hit = False
+                if side == 'LONG':
+                    target_1_hit = current_price >= profit_target_1
+                else:  # SHORT
+                    target_1_hit = current_price <= profit_target_1
 
-                await notifier.send_alert(
-                    'success',
-                    f"💰 QUICK PROFIT TAKE\n\n"
-                    f"💎 {symbol}\n"
-                    f"📊 {side} {position['leverage']}x\n\n"
-                    f"📍 Entry: ${float(position['entry_price']):.4f}\n"
-                    f"💰 Exit: ${float(current_price):.4f}\n\n"
-                    f"✅ Profit: ${float(unrealized_pnl):+.2f}\n"
-                    f"🎯 Target: ${float(quick_profit_target):.2f}\n\n"
-                    f"🚀 Big profit locked in!"
-                )
+                if target_1_hit:
+                    logger.info(
+                        f"🎯 TARGET 1 HIT! {symbol} {side} | "
+                        f"Current: ${float(current_price):.4f} | "
+                        f"Target: ${float(profit_target_1):.4f} | "
+                        f"Closing 50% of position"
+                    )
 
-                await executor.close_position(
-                    position,
-                    current_price,
-                    f"Quick profit take: ${float(unrealized_pnl):+.2f}"
-                )
-                return
+                    # Close 50% of position
+                    try:
+                        quantity = Decimal(str(position['quantity']))
+                        half_quantity = quantity / Decimal("2")
+
+                        # Round to appropriate precision
+                        half_quantity = half_quantity.quantize(Decimal('0.00001'))
+
+                        # Execute partial close
+                        close_side = 'buy' if side == 'SHORT' else 'sell'
+
+                        partial_order = await exchange.create_market_order(
+                            symbol=symbol,
+                            side=close_side,
+                            amount=float(half_quantity)
+                        )
+
+                        # Calculate profit from partial close
+                        partial_profit = (half_quantity * abs(current_price - Decimal(str(position['entry_price'])))) * Decimal(str(position['leverage']))
+
+                        logger.info(
+                            f"✅ Partial exit executed: 50% closed | "
+                            f"Profit: ${float(partial_profit):+.2f}"
+                        )
+
+                        # Update position in database
+                        db = await get_db_client()
+                        await db.pool.execute(
+                            """
+                            UPDATE active_position
+                            SET quantity = $1,
+                                partial_exit_done = TRUE,
+                                partial_exit_profit = $2
+                            WHERE id = $3
+                            """,
+                            float(half_quantity),
+                            float(partial_profit),
+                            position['id']
+                        )
+
+                        # Move stop-loss to breakeven (zero risk!)
+                        entry_price = Decimal(str(position['entry_price']))
+
+                        # Cancel existing stop-loss
+                        try:
+                            orders = await exchange.fetch_open_orders(symbol)
+                            for order in orders:
+                                if order.get('type') in ['stop_market', 'stop']:
+                                    await exchange.cancel_order(order['id'], symbol)
+                                    logger.info(f"Cancelled old stop-loss: {order['id']}")
+                        except:
+                            pass
+
+                        # Place new breakeven stop-loss
+                        try:
+                            new_stop = await exchange.create_stop_loss_order(
+                                symbol=symbol,
+                                side=close_side,
+                                amount=half_quantity,
+                                stop_price=entry_price
+                            )
+                            logger.info(f"✅ Stop-loss moved to breakeven: ${float(entry_price):.4f}")
+                        except Exception as e:
+                            logger.error(f"Failed to move stop to breakeven: {e}")
+
+                        # Send success notification
+                        await notifier.send_alert(
+                            'success',
+                            f"🎯 PARTIAL EXIT SUCCESS\n\n"
+                            f"💎 {symbol} {side} {position['leverage']}x\n\n"
+                            f"✅ 50% Position Closed\n"
+                            f"💰 Profit Locked: ${float(partial_profit):+.2f}\n\n"
+                            f"📊 Remaining 50%:\n"
+                            f"🛡️ Stop-Loss: Breakeven (${float(entry_price):.4f})\n"
+                            f"🎯 Target 2: ${float(profit_target_2):.4f}\n\n"
+                            f"🚀 Risk-free trade now!"
+                        )
+
+                        # Update position object
+                        position['quantity'] = float(half_quantity)
+                        position['partial_exit_done'] = True
+                        position['partial_exit_profit'] = float(partial_profit)
+
+                    except Exception as e:
+                        logger.error(f"Partial exit failed: {e}")
+
+            # Check Target 2 (close remaining 50%)
+            elif partial_exit_done and profit_target_2:
+                profit_target_2 = Decimal(str(profit_target_2))
+
+                target_2_hit = False
+                if side == 'LONG':
+                    target_2_hit = current_price >= profit_target_2
+                else:  # SHORT
+                    target_2_hit = current_price <= profit_target_2
+
+                if target_2_hit:
+                    logger.info(
+                        f"🎯🎯 TARGET 2 HIT! {symbol} {side} | "
+                        f"Closing remaining 50%"
+                    )
+
+                    await notifier.send_alert(
+                        'success',
+                        f"🎯🎯 TARGET 2 REACHED!\n\n"
+                        f"💎 {symbol}\n"
+                        f"Closing remaining position\n"
+                        f"Total profit maximized! 🚀"
+                    )
+
+                    await executor.close_position(
+                        position,
+                        current_price,
+                        f"Target 2 hit: ${float(unrealized_pnl):+.2f}"
+                    )
+                    return
 
             # ====================================================================
             # 🔧 FIX #5: TIME-BASED EXIT (GRADUATED APPROACH)

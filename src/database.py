@@ -187,8 +187,9 @@ class DatabaseClient:
                     position_value_usd, stop_loss_price, stop_loss_percent,
                     min_profit_target_usd, min_profit_price, liquidation_price,
                     exchange_order_id, stop_loss_order_id, ai_model_consensus, ai_confidence, ai_reasoning,
-                    entry_snapshot, entry_slippage_percent, entry_fill_time_ms
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                    entry_snapshot, entry_slippage_percent, entry_fill_time_ms,
+                    profit_target_1, profit_target_2, partial_exit_done, partial_exit_profit
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
                 RETURNING id
             """,
                 position_data['symbol'],
@@ -210,7 +211,11 @@ class DatabaseClient:
                 position_data.get('ai_reasoning', ''),
                 entry_snapshot_json,
                 position_data.get('entry_slippage_percent'),
-                position_data.get('entry_fill_time_ms')
+                position_data.get('entry_fill_time_ms'),
+                position_data.get('profit_target_1'),
+                position_data.get('profit_target_2'),
+                position_data.get('partial_exit_done', False),
+                position_data.get('partial_exit_profit', Decimal("0"))
             )
 
         position_id = row['id']
