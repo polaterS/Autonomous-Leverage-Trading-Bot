@@ -203,7 +203,9 @@ class RiskManager:
             trade_params['leverage'] = adjusted_leverage
 
         # RULE 8: Liquidation distance must be safe - AUTO-ADJUST LEVERAGE IF NEEDED
-        min_liq_distance = Decimal("0.15")  # Minimum 15% distance required (increased for safety)
+        # 🔥 USER REQUESTED: Reduced from 15% to 8% to allow 10-20x leverage
+        # With 3-5% tight stops, 8% liq distance is sufficient safety margin
+        min_liq_distance = Decimal("0.08")  # Minimum 8% distance required (allows 10-20x leverage)
         liq_price = calculate_liquidation_price(current_price, leverage, side)
         liq_distance = abs(current_price - liq_price) / current_price
 
@@ -211,7 +213,7 @@ class RiskManager:
             # Try to adjust leverage downward to increase liquidation distance
             logger.warning(f"Liquidation too close ({float(liq_distance)*100:.1f}%), adjusting leverage...")
 
-            # Find minimum leverage that gives 10%+ liquidation distance
+            # Find minimum leverage that gives 8%+ liquidation distance
             adjusted_leverage = leverage
             for test_lev in range(leverage - 1, 1, -1):  # Try lower leverages (down to 2x)
                 test_liq_price = calculate_liquidation_price(current_price, test_lev, side)
@@ -232,7 +234,7 @@ class RiskManager:
                 # Even 2x leverage doesn't provide enough distance - reject
                 return {
                     'approved': False,
-                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 15%, even with 2x leverage)',
+                    'reason': f'Liquidation too close: {float(liq_distance)*100:.1f}% (need at least 8%, even with 2x leverage)',
                     'adjusted_params': None
                 }
 
