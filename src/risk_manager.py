@@ -48,27 +48,27 @@ class RiskManager:
 
             # Reject SHORT trades if market not sufficiently bearish
             if side == 'SHORT':
-                # 🔥 USER REQUESTED: Reduced threshold from 60% to 50% (less restrictive)
-                # Allows more SHORT opportunities in moderately bearish markets
-                if bearish_pct < 50:  # Market not bearish enough
+                # 🔥 USER REQUESTED: Reduced threshold to 25% (very permissive)
+                # Only blocks SHORT when market is heavily bullish (75%+ bullish)
+                if bearish_pct < 25:  # Market not bearish enough
                     return {
                         'approved': False,
-                        'reason': f'Market not bearish enough for SHORT (Bearish: {bearish_pct:.0f}%). Need ≥50% bearish.',
+                        'reason': f'Market not bearish enough for SHORT (Bearish: {bearish_pct:.0f}%). Need ≥25% bearish.',
                         'adjusted_params': None
                     }
-                logger.info(f"✓ Market direction OK for SHORT: {bearish_pct:.0f}% bearish (≥50% threshold)")
+                logger.info(f"✓ Market direction OK for SHORT: {bearish_pct:.0f}% bearish (≥25% threshold)")
 
             # Reject LONG trades if market not sufficiently bullish
             elif side == 'LONG':
-                # 🔥 USER REQUESTED: Reduced threshold from 60% to 50% (less restrictive)
-                # Allows more LONG opportunities in moderately bullish markets
-                if bullish_pct < 50:  # Market not bullish enough
+                # 🔥 USER REQUESTED: Reduced threshold to 25% (very permissive)
+                # Only blocks LONG when market is heavily bearish (75%+ bearish)
+                if bullish_pct < 25:  # Market not bullish enough
                     return {
                         'approved': False,
-                        'reason': f'Market not bullish enough for LONG (Bullish: {bullish_pct:.0f}%). Need ≥50% bullish.',
+                        'reason': f'Market not bullish enough for LONG (Bullish: {bullish_pct:.0f}%). Need ≥25% bullish.',
                         'adjusted_params': None
                     }
-                logger.info(f"✓ Market direction OK for LONG: {bullish_pct:.0f}% bullish (≥50% threshold)")
+                logger.info(f"✓ Market direction OK for LONG: {bullish_pct:.0f}% bullish (≥25% threshold)")
 
         # RULE 1: Stop-loss must be within configured range (reads from database)
         db = await get_db_client()
