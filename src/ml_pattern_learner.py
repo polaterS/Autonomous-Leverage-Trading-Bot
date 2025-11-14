@@ -1157,6 +1157,9 @@ class MLPatternLearner:
         try:
             base_confidence = ai_analysis.get('confidence', 0.0)
 
+            # 🔍 DEPLOYMENT VERIFICATION LOG
+            logger.info(f"   🚀 ML ANALYZE_OPPORTUNITY START: symbol={symbol}, base_conf={base_confidence:.1%}, version=ATTEMPT#10")
+
             # 1. Check symbol historical performance
             perf = self.symbol_performance.get(symbol)
             symbol_modifier = 0.0
