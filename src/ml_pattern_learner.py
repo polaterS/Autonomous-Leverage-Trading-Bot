@@ -802,9 +802,11 @@ class MLPatternLearner:
             current_action = result.get('action', 'hold')
             original_side = result.get('side')
 
+            logger.info(f"   🔍 ML DEBUG (ALWAYS): confidence={final_confidence:.1%}, action={current_action}, side={original_side}")
+
             if final_confidence >= 0.50 and current_action == 'hold':
                 # ML enhanced confidence above threshold - should trade!
-                logger.info(f"   🔍 ML DEBUG: confidence={final_confidence:.1%}, action={current_action}, side={original_side}, market_data_exists={market_data is not None}")
+                logger.info(f"   🔍 ML DEBUG (IF TRUE): market_data_exists={market_data is not None}")
 
                 # Determine direction from indicators or original AI reasoning
                 if original_side:
