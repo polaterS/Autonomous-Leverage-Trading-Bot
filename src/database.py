@@ -79,6 +79,42 @@ class DatabaseClient:
             )
         logger.info(f"Trading {'enabled' if enabled else 'disabled'}")
 
+    async def sync_config_from_env(self) -> None:
+        """
+        Sync trading configuration from environment settings to database.
+        Used to update database when config.py values change.
+        """
+        from src.config import get_settings
+        settings = get_settings()
+
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE trading_config
+                SET min_stop_loss_percent = $1,
+                    max_stop_loss_percent = $2,
+                    max_leverage = $3,
+                    min_ai_confidence = $4,
+                    position_size_percent = $5,
+                    daily_loss_limit_percent = $6,
+                    max_consecutive_losses = $7,
+                    last_updated = NOW()
+                WHERE id = 1
+            """,
+                settings.min_stop_loss_percent,
+                settings.max_stop_loss_percent,
+                settings.max_leverage,
+                settings.min_ai_confidence,
+                settings.position_size_percent,
+                settings.daily_loss_limit_percent,
+                settings.max_consecutive_losses
+            )
+
+        logger.info(
+            f"✅ Config synced from environment: "
+            f"leverage={settings.max_leverage}x, "
+            f"stop-loss={float(settings.min_stop_loss_percent)*100}-{float(settings.max_stop_loss_percent)*100}%"
+        )
+
     # Active Position Methods
 
     async def get_active_position(self) -> Optional[Dict[str, Any]]:

@@ -45,6 +45,9 @@ class AutonomousTradingEngine:
             exchange = await get_exchange_client()
             logger.info("✅ Exchange connected")
 
+            # Sync config from environment (updates database with latest config.py values)
+            await db.sync_config_from_env()
+
             # Get initial config
             config = await db.get_trading_config()
             logger.info(f"✅ Trading config loaded: ${config['current_capital']} capital")
