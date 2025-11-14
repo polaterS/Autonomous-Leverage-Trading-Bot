@@ -194,18 +194,26 @@ class PositionMonitor:
                 return
 
             # ====================================================================
-            # 🚀 QUICK PROFIT TAKE: Close at $1-2 profit (10-20x leverage mode)
+            # 🚀 QUICK PROFIT TAKE: Close at $5-15 profit (10-20x leverage mode)
             # ====================================================================
-            # With high leverage (10-20x), small price movements = big profits
-            # Take quick $1-2 profits to compound capital faster
-            # This prevents giving back profits when market reverses
+            # USER REQUESTED: Increased from $1-2 to $5-15 range
+            # With high leverage (10-20x), wait for bigger profits before closing
+            # Random threshold between $5-15 to avoid predictable exits
+            # This allows positions to run further while still protecting profits
 
-            if unrealized_pnl >= Decimal("1.0"):  # $1+ profit
+            # Generate random profit target between $5-15 per position (if not cached)
+            if 'quick_profit_target' not in position:
+                import random
+                position['quick_profit_target'] = Decimal(str(random.uniform(5.0, 15.0)))
+
+            quick_profit_target = position['quick_profit_target']
+
+            if unrealized_pnl >= quick_profit_target:  # $5-15 profit
                 logger.info(
                     f"💰 QUICK PROFIT TAKE: {symbol} {side} | "
                     f"Entry: ${float(position['entry_price']):.4f} | "
                     f"Current: ${float(current_price):.4f} | "
-                    f"Profit: ${float(unrealized_pnl):+.2f}"
+                    f"Profit: ${float(unrealized_pnl):+.2f} (target: ${float(quick_profit_target):.2f})"
                 )
 
                 await notifier.send_alert(
@@ -215,8 +223,9 @@ class PositionMonitor:
                     f"📊 {side} {position['leverage']}x\n\n"
                     f"📍 Entry: ${float(position['entry_price']):.4f}\n"
                     f"💰 Exit: ${float(current_price):.4f}\n\n"
-                    f"✅ Profit: ${float(unrealized_pnl):+.2f}\n\n"
-                    f"🚀 Fast profit locked in!"
+                    f"✅ Profit: ${float(unrealized_pnl):+.2f}\n"
+                    f"🎯 Target: ${float(quick_profit_target):.2f}\n\n"
+                    f"🚀 Big profit locked in!"
                 )
 
                 await executor.close_position(
