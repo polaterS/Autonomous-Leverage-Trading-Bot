@@ -1371,11 +1371,12 @@ class MLPatternLearner:
 
             logger.info(f"   🔍 ML FIX CHECK: confidence={adjusted_confidence:.1%}, action={current_action}, side={original_side}")
 
-            # 🎯 ML FIX: Convert "hold" if confidence ≥50% (standard threshold)
-            # AI saying "hold" = "I'm uncertain" → ML provides conviction
-            # Balance between too aggressive (opens weak trades) and too conservative (misses opportunities)
-            if adjusted_confidence >= 0.50 and current_action == 'hold':
-                logger.info(f"   🔧 ML FIX TRIGGERED: Converting 'hold' to tradeable action (confidence ≥50%)")
+            # 🎯 ML FIX: Convert "hold" ONLY if confidence ≥65% (selective threshold)
+            # REASONING: 50% was too aggressive - opened many weak trades
+            # NEW: Require STRONG ML conviction (65%+) to override AI "hold"
+            # Trade quality > Trade quantity (aim for $5-10 profit per trade)
+            if adjusted_confidence >= 0.65 and current_action == 'hold':
+                logger.info(f"   🔧 ML FIX TRIGGERED: Converting 'hold' to tradeable action (confidence ≥65%)")
 
                 # Use market data indicators to determine direction
                 if market_data:
