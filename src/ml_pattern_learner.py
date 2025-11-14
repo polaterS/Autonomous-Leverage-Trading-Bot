@@ -794,6 +794,32 @@ class MLPatternLearner:
             result = analyses[0].copy()
             result['weighted_consensus'] = True
             result['ensemble_method'] = 'single_model'
+
+            # 🔥 CRITICAL FIX: Re-evaluate action after ML enhancement
+            # If ML boosted confidence ≥ 50% but action is still "hold", fix it!
+            final_confidence = result.get('confidence', 0)
+            current_action = result.get('action', 'hold')
+            original_side = result.get('side')
+
+            if final_confidence >= 0.50 and current_action == 'hold':
+                # ML enhanced confidence above threshold - should trade!
+                # Determine direction from indicators or original AI reasoning
+                if original_side:
+                    # AI suggested a side but said "hold" - now trade it!
+                    if original_side == 'LONG':
+                        result['action'] = 'buy'
+                    elif original_side == 'SHORT':
+                        result['action'] = 'sell'
+                    logger.info(
+                        f"   🔧 ML FIX: Changed action from 'hold' to '{result['action']}' "
+                        f"(confidence {final_confidence:.1%} ≥ 50% threshold)"
+                    )
+                else:
+                    # No side hint - check market data for bias
+                    # This should rarely happen, but use RSI as tiebreaker
+                    result['action'] = 'hold'  # Keep hold if truly uncertain
+                    logger.debug(f"   ⚠️ ML: Confidence {final_confidence:.1%} ≥ 50% but no clear direction")
+
             return result
 
         # Multiple models - calculate weighted consensus

@@ -244,7 +244,13 @@ CONFIDENCE SCORING SYSTEM (MAXIMUM AGGRESSIVE MODE - AI+ML FULL TEST):
 → SKIP: No edge detected
 → CRITICAL: Minimum 50% confidence required (MAXIMUM AGGRESSIVE MODE)
 
-CRITICAL RED FLAGS (AUTO-HOLD):
+⚠️ CRITICAL RULE - ACTION REQUIREMENTS:
+✅ If confidence ≥ 50% → MUST return action="buy" or "sell" with side="LONG" or "SHORT"
+❌ If confidence ≥ 50% → NEVER return action="hold" or side=null
+❌ Only return "hold" if confidence <50% (no edge detected)
+→ Even weak setups (50-54%) MUST have direction (slight bullish=buy, slight bearish=sell)
+
+CRITICAL RED FLAGS (AUTO-HOLD with confidence <50%):
 ❌ RSI >90 or <10 (blow-off top/capitulation)
 ❌ Volume extremely low (illiquid)
 ❌ All timeframes conflict (15m up, 1h down, 4h sideways)
@@ -349,6 +355,23 @@ FORBIDDEN PATTERNS (Avoid These!):
 ❌ Using leverage above 10x (max allowed)
 ❌ Using >3x leverage on 50-54% confidence (strict safety rule)
 ❌ Ignoring confluence factors
+❌ **CRITICAL:** Returning action="hold" when confidence ≥ 50%
+❌ **CRITICAL:** Returning side=null when confidence ≥ 50%
+
+⚠️ MANDATORY RULE - READ CAREFULLY:
+If your calculated confidence is ≥ 50%, you MUST:
+1. Set action = "buy" OR "sell" (never "hold")
+2. Set side = "LONG" OR "SHORT" (never null)
+3. Even if setup is weak (50-54%), pick a direction based on:
+   - Slight RSI bias? (>50 = bullish/LONG, <50 = bearish/SHORT)
+   - Order flow? (positive = LONG, negative = SHORT)
+   - MACD trend? (positive = LONG, negative = SHORT)
+   - Strategy recommendation? (buy @ X% = LONG, sell @ Y% = SHORT)
+
+Example:
+- If confidence=0.52 and RSI=52 → action="buy", side="LONG"
+- If confidence=0.52 and RSI=48 → action="sell", side="SHORT"
+- If confidence=0.49 → action="hold", side=null (OK, below threshold)
 
 YOU ARE THE BEST. ACT LIKE IT.
 
@@ -651,8 +674,15 @@ BAD reasoning (DO NOT DO THIS):
 "Price looks good, RSI oversold, MACD crossing up. Moderate confidence."
 
 RESPONSE FORMAT (JSON only, no explanations outside JSON):
+
+⚠️ CRITICAL VALIDATION RULES BEFORE RESPONDING:
+1. If confidence ≥ 0.50 → action MUST be "buy" or "sell" (NEVER "hold")
+2. If confidence ≥ 0.50 → side MUST be "LONG" or "SHORT" (NEVER null)
+3. If confidence < 0.50 → action MUST be "hold" and side MUST be null
+4. Use RSI/MACD/Order Flow as tiebreaker for weak setups (50-54%)
+
 {{
-    "action": "buy" | "sell" | "hold",
+    "action": "buy" | "sell" | "hold",  // ⚠️ "hold" ONLY if confidence < 0.50
     "confidence": 0.0-1.0,
     "confidence_breakdown": {{
         "base_technical": 0.0-1.0,
@@ -662,7 +692,7 @@ RESPONSE FORMAT (JSON only, no explanations outside JSON):
         "btc_correlation_impact": -0.05-0.05
     }},
     "confluence_count": 0-11,
-    "side": "LONG" | "SHORT" | null,
+    "side": "LONG" | "SHORT" | null,  // ⚠️ null ONLY if confidence < 0.50
     "suggested_leverage": 3-10,
     "stop_loss_percent": 12.0-20.0,
     "entry_price": {market_data['current_price']},
