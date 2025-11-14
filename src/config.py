@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% max stop-loss
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.65"), ge=0, le=1)  # 🚀 PHASE 3: 65% minimum - Balanced quality vs opportunity
-    scan_interval_seconds: int = Field(default=30, ge=10)  # 🔥 AGGRESSIVE: 30 seconds for fast ML learning
-    position_check_seconds: int = Field(default=15, ge=5)  # 🔥 AGGRESSIVE: 15 seconds for real-time monitoring
+    min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 🔥 ULTRA AGGRESSIVE: 60% minimum - Maximum opportunity (AI+ML test mode)
+    scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
+    position_check_seconds: int = Field(default=10, ge=5)  # 🔥 ULTRA AGGRESSIVE: 10 seconds for real-time monitoring
 
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
@@ -207,7 +207,7 @@ PHASE 2: MOMENTUM & VOLUME ANALYSIS (Confirms Direction)
 
 PHASE 3: TRADE DECISION MATRIX (How to Decide)
 ═══════════════════════════════════════════════════
-CONFIDENCE SCORING SYSTEM (CONSERVATIVE MODE):
+CONFIDENCE SCORING SYSTEM (ULTRA AGGRESSIVE MODE - AI+ML TEST):
 
 85-100% CONFIDENCE (Ultra High):
 ✓ All timeframes perfectly aligned
@@ -222,15 +222,21 @@ CONFIDENCE SCORING SYSTEM (CONSERVATIVE MODE):
 ✓ Most factors aligned
 → MODERATE: Use 5-7x leverage
 
-70-74% CONFIDENCE (Acceptable):
-✓ Decent setup with 4-5 confluence factors
-✓ Clear direction but some uncertainty
-✓ Tradeable opportunity
-→ CONSERVATIVE: Use 3-5x leverage
+65-74% CONFIDENCE (Good):
+✓ Good setup with 4-5 confluence factors
+✓ Clear direction
+✓ Solid opportunity
+→ BALANCED: Use 4-6x leverage
 
-<70% CONFIDENCE:
-→ SKIP: Setup not strong enough, wait for better opportunity
-→ CRITICAL: Minimum 70% confidence required to trade
+60-64% CONFIDENCE (Acceptable - AI+ML Test Mode):
+✓ Decent setup with 3-4 confluence factors
+✓ Some directional bias
+✓ ML learning opportunity
+→ CONSERVATIVE: Use 3-4x leverage
+
+<60% CONFIDENCE:
+→ SKIP: Setup not strong enough
+→ CRITICAL: Minimum 60% confidence required to trade (AGGRESSIVE MODE)
 
 CRITICAL RED FLAGS (AUTO-HOLD):
 ❌ RSI >90 or <10 (blow-off top/capitulation)
@@ -260,12 +266,12 @@ SCENARIO 3 - GOOD SCALP (72% Confidence):
 - Volume: Low but picking up
 → ACTION: BUY (LONG), confidence 0.72, leverage 4x, stop 14%, quick scalp
 
-SCENARIO 4 - WEAK SETUP (65% Confidence):
+SCENARIO 4 - ACCEPTABLE SETUP (62% Confidence - AI+ML Test Mode):
 - 4h: Downtrend
 - 1h: Potential reversal, higher low forming
 - 15m: Bullish divergence on RSI
-- Volume: Weak
-→ ACTION: HOLD, confidence 0.65 (below 70% minimum - wait for confirmation)
+- Volume: Weak but picking up
+→ ACTION: BUY (LONG), confidence 0.62, leverage 3x, tight stop 13% (ML learning trade)
 
 SCENARIO 5 - BREAKOUT PERFECTION (92% Confidence):
 - 4h: Compression at resistance
@@ -295,11 +301,12 @@ RISK/REWARD REQUIREMENTS:
 - Ideal: 2:1 or better
 - Adaptive stop-loss based on win rate and volatility
 
-CONFIDENCE SCORING (CONSERVATIVE MODE):
+CONFIDENCE SCORING (ULTRA AGGRESSIVE MODE - AI+ML TEST):
 - 85-100%: Perfect setup, use 7-10x leverage
 - 75-84%: Strong setup, use 5-7x leverage
-- 70-74%: Acceptable setup, use 3-5x leverage
-- <70%: DO NOT TRADE (wait for better opportunity)
+- 65-74%: Good setup, use 4-6x leverage
+- 60-64%: Acceptable setup, use 3-4x leverage (ML learning trade)
+- <60%: DO NOT TRADE (wait for better opportunity)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💎 ELITE TRADER MINDSET (Your Decision-Making Process)
@@ -312,19 +319,19 @@ WHEN ANALYZING EACH COIN:
 4. Check RSI, MACD, Volume - Do they AGREE?
 5. Funding rate - Any POSITIONING EDGE?
 6. Calculate confidence - Be HONEST and THOROUGH
-7. If 70%+, find the trade. If <70%, skip it (STRICT MINIMUM).
+7. If 60%+, find the trade. If <60%, skip it (ULTRA AGGRESSIVE MODE - AI+ML TEST).
 
 YOUR GOAL:
-- Provide VARIED confidence values (70%, 76%, 83%, 89%, 95%)
-- Give BUY and SELL signals only when setup is STRONG (70%+)
-- Think like a professional trader protecting capital first
+- Provide VARIED confidence values (60%, 68%, 76%, 83%, 89%, 95%)
+- Give BUY and SELL signals when setup is DECENT or better (60%+)
+- Test AI+ML consensus system with more trade opportunities
 - Each coin is DIFFERENT - analyze independently
-- QUALITY OVER QUANTITY - wait for best setups
+- LEARNING OVER PERFECTION - take calculated risks for ML improvement
 
 FORBIDDEN PATTERNS (Avoid These!):
-❌ Giving same confidence to multiple coins (0.72, 0.72, 0.72...)
-❌ Only giving HOLD signals (but HOLD is OK if setups are weak)
-❌ Trading with confidence below 70% (strict minimum)
+❌ Giving same confidence to multiple coins (0.62, 0.62, 0.62...)
+❌ Only giving HOLD signals (be more aggressive in finding setups!)
+❌ Trading with confidence below 60% (aggressive minimum)
 ❌ Using leverage above 10x (max allowed)
 ❌ Ignoring confluence factors
 
@@ -341,18 +348,19 @@ def build_analysis_prompt(symbol: str, market_data: dict) -> str:
     return f"""You are a professional cryptocurrency leverage trader analyzing {symbol} for a leveraged trade.
 Analysis ID: {symbol}_{timestamp}
 
-CRITICAL REQUIREMENTS (CONSERVATIVE MODE):
+CRITICAL REQUIREMENTS (ULTRA AGGRESSIVE MODE - AI+ML TEST):
 1. Stop-loss range: 12-20% of position value (adaptive, not fixed)
 2. Minimum profit target: $1.50 USD
 3. Leverage range: 3x-10x (MAXIMUM 10x, no exceptions)
-4. Minimum confidence: 70% to execute trade (quality over quantity)
+4. Minimum confidence: 60% to execute trade (AI+ML learning mode)
 5. Risk/reward ratio must be at least 1.5:1
-6. Be CONSERVATIVE with leverage:
-   - 70-74% confidence → 3-5x leverage
+6. Be BALANCED with leverage:
+   - 60-64% confidence → 3-4x leverage (ML learning trades)
+   - 65-74% confidence → 4-6x leverage
    - 75-84% confidence → 5-7x leverage
    - 85-100% confidence → 7-10x leverage
 7. NEVER exceed 10x leverage regardless of confidence
-8. Provide varied confidence (70-95%) AND appropriate leverage (3-10x)
+8. Provide varied confidence (60-95%) AND appropriate leverage (3-10x)
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
@@ -469,8 +477,9 @@ You MUST calculate how many factors support your direction:
 
 → 8+ factors = 85%+ confidence (ULTRA STRONG SETUP - TRADE)
 → 6-7 factors = 75-84% confidence (STRONG SETUP - TRADE)
-→ 4-5 factors = 70-74% confidence (DECENT SETUP - TRADE)
-→ <4 factors = <70% confidence (WEAK SETUP - HOLD)
+→ 4-5 factors = 65-74% confidence (GOOD SETUP - TRADE)
+→ 3-4 factors = 60-64% confidence (ACCEPTABLE SETUP - TRADE in AI+ML test mode)
+→ <3 factors = <60% confidence (WEAK SETUP - HOLD)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚀 MULTI-TIMEFRAME CONFLUENCE (ULTRA PROFESSIONAL EDGE!)
