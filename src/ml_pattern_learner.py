@@ -812,13 +812,44 @@ class MLPatternLearner:
                         result['action'] = 'sell'
                     logger.info(
                         f"   🔧 ML FIX: Changed action from 'hold' to '{result['action']}' "
-                        f"(confidence {final_confidence:.1%} ≥ 50% threshold)"
+                        f"(confidence {final_confidence:.1%} ≥ 50% threshold, AI side hint)"
                     )
                 else:
-                    # No side hint - check market data for bias
-                    # This should rarely happen, but use RSI as tiebreaker
-                    result['action'] = 'hold'  # Keep hold if truly uncertain
-                    logger.debug(f"   ⚠️ ML: Confidence {final_confidence:.1%} ≥ 50% but no clear direction")
+                    # No side hint - extract direction from AI reasoning (RSI/MACD/OrderFlow)
+                    reasoning = result.get('reasoning', '').lower()
+
+                    # Parse indicators from reasoning
+                    rsi_bullish = 'rsi' in reasoning and any(word in reasoning for word in ['bullish', 'oversold', 'rising'])
+                    rsi_bearish = 'rsi' in reasoning and any(word in reasoning for word in ['bearish', 'overbought', 'falling'])
+                    macd_bullish = 'macd' in reasoning and any(word in reasoning for word in ['bullish', 'positive', 'rising'])
+                    macd_bearish = 'macd' in reasoning and any(word in reasoning for word in ['bearish', 'negative', 'falling'])
+                    flow_bullish = any(word in reasoning for word in ['buying pressure', 'positive flow', 'accumulation'])
+                    flow_bearish = any(word in reasoning for word in ['selling pressure', 'negative flow', 'distribution'])
+
+                    # Count bullish vs bearish signals
+                    bullish_count = sum([rsi_bullish, macd_bullish, flow_bullish])
+                    bearish_count = sum([rsi_bearish, macd_bearish, flow_bearish])
+
+                    if bullish_count > bearish_count:
+                        result['action'] = 'buy'
+                        result['side'] = 'LONG'
+                        logger.info(
+                            f"   🔧 ML FIX: Changed action 'hold' → 'buy' LONG "
+                            f"(confidence {final_confidence:.1%}, {bullish_count} bullish signals)"
+                        )
+                    elif bearish_count > bullish_count:
+                        result['action'] = 'sell'
+                        result['side'] = 'SHORT'
+                        logger.info(
+                            f"   🔧 ML FIX: Changed action 'hold' → 'sell' SHORT "
+                            f"(confidence {final_confidence:.1%}, {bearish_count} bearish signals)"
+                        )
+                    else:
+                        # Truly uncertain - keep as hold
+                        logger.warning(
+                            f"   ⚠️ ML: Confidence {final_confidence:.1%} ≥ 50% but no clear direction "
+                            f"(bullish={bullish_count}, bearish={bearish_count}). Keeping as hold."
+                        )
 
             return result
 
