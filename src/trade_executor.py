@@ -60,6 +60,107 @@ class TradeExecutor:
 
         logger.info(f"Opening position: {symbol} {side} {leverage}x")
 
+        # ========================================================================
+        # 🎯 CRITICAL: PRE-TRADE TECHNICAL VALIDATION
+        # ========================================================================
+        # Validate trade against technical criteria BEFORE execution
+        # This prevents bad entries even if ML/AI confidence is high
+        from src.technical_validator import get_technical_validator
+
+        tech_validator = get_technical_validator()
+        tech_validation = tech_validator.validate_entry(
+            symbol=symbol,
+            side=side,
+            current_price=trade_params['current_price'],
+            market_data=market_data
+        )
+
+        if not tech_validation['valid']:
+            logger.warning(
+                f"❌ TECHNICAL VALIDATION FAILED: {symbol} {side}\n"
+                f"   Score: {tech_validation['score']:.0%}\n"
+                f"   Reason: {tech_validation['reason']}"
+            )
+            # Log individual check failures
+            for check_name, passed, reason in tech_validation['checks']:
+                if not passed:
+                    logger.warning(f"   ❌ {check_name}: {reason}")
+
+            return False
+
+        logger.info(
+            f"✅ Technical validation PASSED: {tech_validation['score']:.0%} "
+            f"({sum(1 for _, p, _ in tech_validation['checks'] if p)}/{len(tech_validation['checks'])} checks)"
+        )
+
+        # ========================================================================
+        # 🎯 PRIORITY 4: AGGRESSIVE MARKET SENTIMENT FILTERING
+        # ========================================================================
+        # Block trades with 60%+ opposite market sentiment (unless strong MTF confirmation)
+        market_sentiment = market_data.get('market_sentiment', 'NEUTRAL') if market_data else 'NEUTRAL'
+
+        # Extract MTF data for override check
+        multi_tf = market_data.get('multi_timeframe', {}) if market_data else {}
+        timeframe_agreement = multi_tf.get('timeframe_agreement', {})
+
+        # Count agreeing timeframes
+        agreeing_tfs = sum(
+            1 for tf_data in timeframe_agreement.values()
+            if tf_data.get('trend_direction') == side
+        )
+        total_tfs = len(timeframe_agreement)
+        mtf_agreement_ratio = agreeing_tfs / total_tfs if total_tfs > 0 else 0
+
+        # Check for sentiment conflicts
+        sentiment_blocks_trade = False
+        block_reason = ""
+
+        if side == 'LONG':
+            # Block LONG if market is BEARISH_STRONG (60%+ bearish)
+            if market_sentiment in ['BEARISH_STRONG', 'CONTRARIAN_BEARISH']:
+                # Allow override only if 75%+ MTF confirmation
+                if mtf_agreement_ratio >= 0.75:
+                    logger.warning(
+                        f"⚠️ SENTIMENT OVERRIDE: {symbol} LONG in {market_sentiment} market, "
+                        f"but {agreeing_tfs}/{total_tfs} timeframes agree ({mtf_agreement_ratio:.0%}) - ALLOWING"
+                    )
+                else:
+                    sentiment_blocks_trade = True
+                    block_reason = (
+                        f"Market sentiment {market_sentiment} conflicts with LONG trade "
+                        f"(only {mtf_agreement_ratio:.0%} MTF agreement, need ≥75%)"
+                    )
+
+        elif side == 'SHORT':
+            # Block SHORT if market is BULLISH_STRONG (60%+ bullish)
+            if market_sentiment in ['BULLISH_STRONG', 'CONTRARIAN_BULLISH']:
+                # Allow override only if 75%+ MTF confirmation
+                if mtf_agreement_ratio >= 0.75:
+                    logger.warning(
+                        f"⚠️ SENTIMENT OVERRIDE: {symbol} SHORT in {market_sentiment} market, "
+                        f"but {agreeing_tfs}/{total_tfs} timeframes agree ({mtf_agreement_ratio:.0%}) - ALLOWING"
+                    )
+                else:
+                    sentiment_blocks_trade = True
+                    block_reason = (
+                        f"Market sentiment {market_sentiment} conflicts with SHORT trade "
+                        f"(only {mtf_agreement_ratio:.0%} MTF agreement, need ≥75%)"
+                    )
+
+        if sentiment_blocks_trade:
+            logger.error(
+                f"❌ MARKET SENTIMENT FILTER BLOCKED: {symbol} {side}\n"
+                f"   Market: {market_sentiment}\n"
+                f"   MTF Agreement: {agreeing_tfs}/{total_tfs} = {mtf_agreement_ratio:.0%}\n"
+                f"   Reason: {block_reason}"
+            )
+            return False
+
+        logger.info(
+            f"✅ Market sentiment check PASSED: {market_sentiment} compatible with {side} "
+            f"(MTF: {mtf_agreement_ratio:.0%})"
+        )
+
         # 🔍 DEBUG: Check if price_action data is present
         pa_data = ai_analysis.get('price_action')
         if pa_data:

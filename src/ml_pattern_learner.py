@@ -1371,79 +1371,15 @@ class MLPatternLearner:
 
             logger.info(f"   🔍 ML FIX CHECK: confidence={adjusted_confidence:.1%}, action={current_action}, side={original_side}")
 
-            # 🎯 ML FIX: Convert "hold" ONLY if confidence ≥50% (aggressive threshold)
-            # REASONING: Technical validation system now provides 4-layer filtering
-            #            Pre-trade validation will reject weak setups anyway
-            # NEW: 50% threshold allows ML to find more opportunities
-            #      Quality control handled by technical validation (S/R, volume, order flow, MTF)
-            if adjusted_confidence >= 0.50 and current_action == 'hold':
-                logger.info(f"   🔧 ML FIX TRIGGERED: Converting 'hold' to tradeable action (confidence ≥50%)")
-
-                # Use market data indicators to determine direction
-                if market_data:
-                    rsi_15m = market_data.get('rsi_15m', 50)
-                    rsi_1h = market_data.get('rsi_1h', 50)
-                    macd_hist = market_data.get('macd_hist_15m', 0)
-                    order_flow = market_data.get('order_flow_imbalance', 0)
-
-                    # Count bullish vs bearish signals
-                    rsi_bullish = rsi_15m < 40 or rsi_1h < 40
-                    rsi_bearish = rsi_15m > 60 or rsi_1h > 60
-                    macd_bullish = macd_hist > 0
-                    macd_bearish = macd_hist < 0
-                    flow_bullish = order_flow > 500
-                    flow_bearish = order_flow < -500
-
-                    bullish_count = sum([rsi_bullish, macd_bullish, flow_bullish])
-                    bearish_count = sum([rsi_bearish, macd_bearish, flow_bearish])
-
-                    logger.info(f"   📊 Indicator signals: Bullish={bullish_count}, Bearish={bearish_count}")
-                    logger.info(f"      RSI(15m)={rsi_15m:.1f}, RSI(1h)={rsi_1h:.1f}, MACD={macd_hist:.2f}, Flow={order_flow:.0f}")
-
-                    # 🔥 AGGRESSIVE MODE: Dynamic leverage 10-20x with ULTRA TIGHT stops
-                    # Tighter stops (3-5%) = liquidation stays far enough for 10-20x leverage
-                    if adjusted_confidence >= 0.80:
-                        leverage = 20  # Ultra high confidence: 20x
-                        stop_loss = 3.0  # ULTRA TIGHT for 20x
-                    elif adjusted_confidence >= 0.70:
-                        leverage = 17  # High confidence: 17x
-                        stop_loss = 3.5  # ULTRA TIGHT for 17x
-                    elif adjusted_confidence >= 0.60:
-                        leverage = 14  # Good confidence: 14x
-                        stop_loss = 4.0  # TIGHT for 14x
-                    else:  # 50-60%
-                        leverage = 10  # Minimum: 10x
-                        stop_loss = 5.0  # TIGHT for 10x
-
-                    if bullish_count > bearish_count:
-                        ai_analysis['action'] = 'buy'
-                        ai_analysis['side'] = 'LONG'
-                        ai_analysis['stop_loss_percent'] = stop_loss
-                        ai_analysis['suggested_leverage'] = leverage
-                        logger.info(f"   ✅ ML FIX: Converted to LONG (bullish signals dominate) | SL={stop_loss}% | {leverage}x")
-                    elif bearish_count > bullish_count:
-                        ai_analysis['action'] = 'sell'
-                        ai_analysis['side'] = 'SHORT'
-                        ai_analysis['stop_loss_percent'] = stop_loss
-                        ai_analysis['suggested_leverage'] = leverage
-                        logger.info(f"   ✅ ML FIX: Converted to SHORT (bearish signals dominate) | SL={stop_loss}% | {leverage}x")
-                    else:
-                        # Tie - use RSI as tiebreaker
-                        avg_rsi = (rsi_15m + rsi_1h) / 2
-                        if avg_rsi < 50:
-                            ai_analysis['action'] = 'buy'
-                            ai_analysis['side'] = 'LONG'
-                            ai_analysis['stop_loss_percent'] = stop_loss
-                            ai_analysis['suggested_leverage'] = leverage
-                            logger.info(f"   ✅ ML FIX: Converted to LONG (RSI tiebreaker: {avg_rsi:.1f}) | SL={stop_loss}% | {leverage}x")
-                        else:
-                            ai_analysis['action'] = 'sell'
-                            ai_analysis['side'] = 'SHORT'
-                            ai_analysis['stop_loss_percent'] = stop_loss
-                            ai_analysis['suggested_leverage'] = leverage
-                            logger.info(f"   ✅ ML FIX: Converted to SHORT (RSI tiebreaker: {avg_rsi:.1f}) | SL={stop_loss}% | {leverage}x")
-                else:
-                    logger.warning(f"   ⚠️ ML FIX: No market_data available, cannot convert 'hold' to action")
+            # 🎯 ML FIX: Use centralized ML FIX method (threshold=65%)
+            # CONSOLIDATION: Replaced duplicate logic with centralized apply_ml_fix()
+            ai_analysis = self.apply_ml_fix(
+                analysis=ai_analysis,
+                symbol=symbol,
+                confidence=adjusted_confidence,
+                market_data=market_data,
+                threshold=0.65  # 65% threshold (balanced between old 70% and 50%)
+            )
 
             # 7. Decision (🎯 #4: Use symbol-specific threshold)
             symbol_threshold = self.get_confidence_threshold(symbol)
@@ -1905,6 +1841,216 @@ class MLPatternLearner:
             'losing_patterns': dict(sorted(self.losing_patterns.items(),
                                           key=lambda x: x[1], reverse=True)[:10])
         }
+
+    def apply_ml_fix(
+        self,
+        analysis: Dict[str, Any],
+        symbol: str,
+        confidence: float,
+        market_data: Optional[Dict[str, Any]] = None,
+        threshold: float = 0.65
+    ) -> Dict[str, Any]:
+        """
+        🎯 CENTRALIZED ML FIX: Convert 'hold' signals to actionable trades
+
+        CONSOLIDATION: This replaces duplicate ML FIX logic in:
+        - ai_engine.py (line 187, threshold 70%)
+        - ml_pattern_learner.py (line 1379, threshold 50%)
+
+        Single source of truth with configurable threshold.
+
+        Args:
+            analysis: AI/ML analysis dict (must have 'action', 'confidence', 'side')
+            symbol: Trading symbol
+            confidence: ML-adjusted confidence (0-1)
+            market_data: Market data dict with indicators, S/R, MTF, order flow
+            threshold: Minimum confidence to trigger ML FIX (default 0.65 = 65%)
+
+        Returns:
+            Modified analysis dict with converted action/side if triggered
+        """
+
+        current_action = analysis.get('action', 'hold')
+
+        # Only apply ML FIX if action is 'hold' and confidence meets threshold
+        if current_action != 'hold' or confidence < threshold:
+            return analysis
+
+        logger.info(
+            f"🔧 ML FIX TRIGGERED: {symbol} converting 'hold' → trade "
+            f"(confidence {confidence:.1%} ≥ {threshold:.0%})"
+        )
+
+        if not market_data:
+            logger.warning(f"⚠️ ML FIX: No market_data available for {symbol}, cannot convert 'hold'")
+            return analysis
+
+        # ========================================================================
+        # DETERMINE TRADE DIRECTION FROM MARKET DATA
+        # ========================================================================
+
+        # Extract multi-timeframe data
+        multi_tf = market_data.get('multi_timeframe', {})
+        timeframe_agreement = multi_tf.get('timeframe_agreement', {})
+        confluence = multi_tf.get('confluence_analysis', {})
+        trading_bias = confluence.get('trading_bias', 'NEUTRAL')
+
+        # Extract indicators
+        indicators = market_data.get('indicators', {})
+        indicators_15m = indicators.get('15m', {})
+        indicators_1h = indicators.get('1h', {})
+        indicators_4h = indicators.get('4h', {})
+
+        # RSI values
+        rsi_15m = indicators_15m.get('rsi', 50)
+        rsi_1h = indicators_1h.get('rsi', 50)
+        rsi_4h = indicators_4h.get('rsi', 50)
+
+        # Trends
+        trend_15m = indicators_15m.get('trend', 'neutral')
+        trend_1h = indicators_1h.get('trend', 'neutral')
+        trend_4h = indicators_4h.get('trend', 'neutral')
+
+        # MACD
+        macd_hist_15m = indicators_15m.get('macd_histogram', 0)
+        macd_hist_1h = indicators_1h.get('macd_histogram', 0)
+
+        # Order Flow
+        order_flow = market_data.get('order_flow', {})
+        order_flow_imbalance = order_flow.get('weighted_imbalance', 0)
+
+        # Market Sentiment
+        market_sentiment = market_data.get('market_sentiment', 'NEUTRAL')
+
+        # ========================================================================
+        # COUNT BULLISH VS BEARISH SIGNALS
+        # ========================================================================
+
+        bullish_signals = []
+        bearish_signals = []
+
+        # 1. Multi-Timeframe Bias
+        if trading_bias in ['LONG_PREFERRED', 'LONG_STRONG']:
+            bullish_signals.append('MTF bias LONG')
+        elif trading_bias in ['SHORT_PREFERRED', 'SHORT_STRONG']:
+            bearish_signals.append('MTF bias SHORT')
+
+        # 2. Timeframe Agreement (count agreeing TFs)
+        bullish_tfs = sum(
+            1 for tf_data in timeframe_agreement.values()
+            if tf_data.get('trend_direction') == 'LONG'
+        )
+        bearish_tfs = sum(
+            1 for tf_data in timeframe_agreement.values()
+            if tf_data.get('trend_direction') == 'SHORT'
+        )
+
+        if bullish_tfs >= 2:
+            bullish_signals.append(f'{bullish_tfs} TFs bullish')
+        if bearish_tfs >= 2:
+            bearish_signals.append(f'{bearish_tfs} TFs bearish')
+
+        # 3. Individual Trends
+        if trend_4h in ['uptrend', 'bullish']:
+            bullish_signals.append('4h uptrend')
+        elif trend_4h in ['downtrend', 'bearish']:
+            bearish_signals.append('4h downtrend')
+
+        if trend_1h in ['uptrend', 'bullish']:
+            bullish_signals.append('1h uptrend')
+        elif trend_1h in ['downtrend', 'bearish']:
+            bearish_signals.append('1h downtrend')
+
+        # 4. RSI (oversold/overbought)
+        if rsi_1h < 35 or rsi_15m < 35:
+            bullish_signals.append(f'RSI oversold (15m:{rsi_15m:.0f}, 1h:{rsi_1h:.0f})')
+        elif rsi_1h > 65 or rsi_15m > 65:
+            bearish_signals.append(f'RSI overbought (15m:{rsi_15m:.0f}, 1h:{rsi_1h:.0f})')
+
+        # 5. MACD
+        if macd_hist_1h > 0 and macd_hist_15m > 0:
+            bullish_signals.append('MACD bullish')
+        elif macd_hist_1h < 0 and macd_hist_15m < 0:
+            bearish_signals.append('MACD bearish')
+
+        # 6. Order Flow
+        if order_flow_imbalance > 5.0:
+            bullish_signals.append(f'Order flow +{order_flow_imbalance:.1f}%')
+        elif order_flow_imbalance < -5.0:
+            bearish_signals.append(f'Order flow {order_flow_imbalance:.1f}%')
+
+        # 7. Market Sentiment
+        if market_sentiment in ['BULLISH_STRONG', 'BULLISH']:
+            bullish_signals.append(f'Market {market_sentiment}')
+        elif market_sentiment in ['BEARISH_STRONG', 'BEARISH']:
+            bearish_signals.append(f'Market {market_sentiment}')
+
+        # ========================================================================
+        # DETERMINE DIRECTION AND APPLY ML FIX
+        # ========================================================================
+
+        bullish_count = len(bullish_signals)
+        bearish_count = len(bearish_signals)
+
+        logger.info(
+            f"   📊 Signal count: {bullish_count} bullish vs {bearish_count} bearish\n"
+            f"      Bullish: {', '.join(bullish_signals) if bullish_signals else 'none'}\n"
+            f"      Bearish: {', '.join(bearish_signals) if bearish_signals else 'none'}"
+        )
+
+        # Dynamic leverage based on confidence (6x-10x range for user's settings)
+        if confidence >= 0.75:
+            leverage = 10
+            stop_loss = 4.5
+        elif confidence >= 0.70:
+            leverage = 9
+            stop_loss = 4.0
+        elif confidence >= 0.65:
+            leverage = 8
+            stop_loss = 3.5
+        else:
+            leverage = 6
+            stop_loss = 3.0
+
+        direction = None
+        reason = ""
+
+        if bullish_count > bearish_count:
+            direction = 'LONG'
+            analysis['action'] = 'buy'
+            analysis['side'] = 'LONG'
+            reason = ', '.join(bullish_signals[:3])  # Top 3 reasons
+        elif bearish_count > bullish_count:
+            direction = 'SHORT'
+            analysis['action'] = 'sell'
+            analysis['side'] = 'SHORT'
+            reason = ', '.join(bearish_signals[:3])  # Top 3 reasons
+        else:
+            # Tie - use RSI as tiebreaker
+            avg_rsi = (rsi_15m + rsi_1h) / 2
+            if avg_rsi < 50:
+                direction = 'LONG'
+                analysis['action'] = 'buy'
+                analysis['side'] = 'LONG'
+                reason = f'RSI tiebreaker ({avg_rsi:.1f})'
+            else:
+                direction = 'SHORT'
+                analysis['action'] = 'sell'
+                analysis['side'] = 'SHORT'
+                reason = f'RSI tiebreaker ({avg_rsi:.1f})'
+
+        # Apply risk parameters
+        analysis['suggested_leverage'] = leverage
+        analysis['stop_loss_percent'] = stop_loss
+
+        logger.info(
+            f"✅ ML FIX SUCCESS: {symbol} 'hold' → {direction} "
+            f"({bullish_count}B vs {bearish_count}B signals)\n"
+            f"   Reason: {reason}\n"
+            f"   Risk: {leverage}x leverage, {stop_loss}% SL"
+        )
+
+        return analysis
 
 
 # Singleton instance

@@ -181,203 +181,16 @@ class AIConsensusEngine:
                         f"(Δ {ml_result['ml_adjustment']:+.1%})"
                     )
 
-                    # 🎯 ENHANCED ML OVERRIDE: Quality over quantity
-                    # Threshold adjusted: 65% → 62% → 58% → 70% (based on ML stats: 60% conf = 0% win rate!)
-                    # ML Data: 75% conf = 75% accuracy, 60% conf = 0% accuracy → Use 70% threshold
-                    if analysis['confidence'] >= 0.70 and analysis['action'] == 'hold':
-                        logger.info(
-                            f"🔍 ML Override Check: {symbol} conf={analysis['confidence']:.1%}, "
-                            f"action={analysis['action']}, attempting override..."
-                        )
-
-                        # 🛡️ SAFETY CHECK 1: Market Sentiment (NEW!)
-                        # Don't trade against strong market sentiment
-                        if market_sentiment == 'BEARISH_STRONG':
-                            logger.warning(
-                                f"⚠️ ML Override BLOCKED: {symbol} - STRONG BEARISH market sentiment "
-                                f"(unsafe to open LONG positions)"
-                            )
-                            # Skip override - too risky in strong bearish market
-                            # Keep action='hold'
-                        elif market_sentiment == 'BULLISH_STRONG':
-                            # Strong bullish OK for LONG, but check more
-                            pass
-
-                        # Continue with override checks only if market sentiment is acceptable
-                        elif market_sentiment not in ['BEARISH_STRONG']:
-                            # Determine direction from multiple sources (priority order)
-                            multi_tf = market_data.get('multi_timeframe', {})
-                            alignment = multi_tf.get('agreement', 'unknown')
-                            trend_alignment_raw = multi_tf.get('trend_alignment', 'unknown')
-
-                            indicators_1h = market_data.get('indicators', {}).get('1h', {})
-                            indicators_4h = market_data.get('indicators', {}).get('4h', {})
-                            trend_1h = indicators_1h.get('trend', 'unknown')
-                            trend_4h = indicators_4h.get('trend', 'unknown')
-                            rsi_1h = indicators_1h.get('rsi', 50)  # Default neutral
-
-                            # 🛡️ SAFETY CHECK 2: Multi-Timeframe Trend (ENHANCED!)
-                            # Count bearish/bullish timeframes
-                            bearish_count = sum([
-                                1 for t in [
-                                    indicators_1h.get('trend'),
-                                    indicators_4h.get('trend'),
-                                    market_data.get('indicators', {}).get('15m', {}).get('trend')
-                                ] if t in ['downtrend', 'bearish']
-                            ])
-
-                            bullish_count = sum([
-                                1 for t in [
-                                    indicators_1h.get('trend'),
-                                    indicators_4h.get('trend'),
-                                    market_data.get('indicators', {}).get('15m', {}).get('trend')
-                                ] if t in ['uptrend', 'bullish']
-                            ])
-
-                            # If 3/4 timeframes bearish → BLOCK LONG override
-                            if bearish_count >= 2 and 'bearish' in trend_alignment_raw.lower():
-                                logger.warning(
-                                    f"⚠️ ML Override BLOCKED: {symbol} - Multi-TF bearish "
-                                    f"(bearish_count={bearish_count}, alignment={trend_alignment_raw})"
-                                )
-                                # Skip override
-                            # If 3/4 timeframes bullish → BLOCK SHORT override
-                            elif bullish_count >= 2 and 'bullish' in trend_alignment_raw.lower():
-                                logger.warning(
-                                    f"⚠️ ML Override BLOCKED: {symbol} - Multi-TF bullish "
-                                    f"(bullish_count={bullish_count}, alignment={trend_alignment_raw}) "
-                                    f"- SHORT override blocked"
-                                )
-                                # Skip SHORT override, but allow LONG
-                                pass
-
-                            direction = None
-                            reason = ""
-                            skip_reason = ""
-
-                            # Priority 1: Strong Multi-timeframe alignment (3+ timeframes agree)
-                            if 'strong_bullish' in alignment.lower() or bullish_count >= 3:
-                                direction = 'buy'
-                                reason = f"strong multi-TF bullish ({bullish_count}/4)"
-                            elif 'strong_bearish' in alignment.lower() or bearish_count >= 3:
-                                direction = 'sell'
-                                reason = f"strong multi-TF bearish ({bearish_count}/4)"
-
-                            # Priority 2: Moderate Multi-timeframe alignment (2+ timeframes)
-                            elif 'bullish' in alignment.lower() and bullish_count >= 2:
-                                direction = 'buy'
-                                reason = f"multi-TF bullish ({bullish_count}/4)"
-                            elif 'bearish' in alignment.lower() and bearish_count >= 2:
-                                direction = 'sell'
-                                reason = f"multi-TF bearish ({bearish_count}/4)"
-
-                            # Priority 3: 4h trend (higher timeframe = more reliable)
-                            elif trend_4h in ['uptrend', 'bullish']:
-                                direction = 'buy'
-                                reason = f"4h trend {trend_4h}"
-                            elif trend_4h in ['downtrend', 'bearish']:
-                                direction = 'sell'
-                                reason = f"4h trend {trend_4h}"
-
-                            # Priority 4: 1h trend
-                            elif trend_1h in ['uptrend', 'bullish']:
-                                direction = 'buy'
-                                reason = f"1h trend {trend_1h}"
-                            elif trend_1h in ['downtrend', 'bearish']:
-                                direction = 'sell'
-                                reason = f"1h trend {trend_1h}"
-
-                            # Priority 5: RSI extremes (both LONG and SHORT opportunities)
-                            elif rsi_1h < 30:  # Very oversold = buy opportunity
-                                direction = 'buy'
-                                reason = f"RSI very oversold ({rsi_1h:.0f})"
-                            elif rsi_1h > 70:  # Very overbought = SHORT opportunity
-                                direction = 'sell'
-                                reason = f"RSI very overbought ({rsi_1h:.0f})"
-
-                            # Priority 6: Moderate RSI (AGGRESSIVE: confidence >= 60% for faster ML learning)
-                            elif analysis['confidence'] >= 0.60:
-                                if rsi_1h < 45:  # Moderately oversold (relaxed from 40)
-                                    direction = 'buy'
-                                    reason = f"RSI oversold ({rsi_1h:.0f}, ML conf {analysis['confidence']:.0%})"
-                                elif rsi_1h > 55:  # Moderately overbought (relaxed from 60)
-                                    direction = 'sell'
-                                    reason = f"RSI overbought ({rsi_1h:.0f}, ML conf {analysis['confidence']:.0%})"
-
-                            # Priority 7: 15m trend (ULTRA AGGRESSIVE - confidence >= 50%)
-                            elif analysis['confidence'] >= 0.50:
-                                trend_15m = analysis.get('trend_15m', 'neutral')
-                                if trend_15m in ['uptrend', 'bullish']:
-                                    direction = 'buy'
-                                    reason = f"15m trend {trend_15m} (ML conf {analysis['confidence']:.0%})"
-                                elif trend_15m in ['downtrend', 'bearish']:
-                                    direction = 'sell'
-                                    reason = f"15m trend {trend_15m} (ML conf {analysis['confidence']:.0%})"
-
-                            # 🛡️ SHORT TRADES CHECK: Block if disabled in settings
-                            if direction == 'sell' and not self.settings.enable_short_trades:
-                                logger.warning(
-                                    f"⚠️ ML Override BLOCKED: {symbol} - SHORT signal detected but SHORT trades disabled in settings "
-                                    f"(reason: {reason})"
-                                )
-                                direction = None  # Block SHORT if disabled
-
-                            # Apply override if direction found (LONG or SHORT)
-                            if direction == 'buy':
-                                analysis['action'] = 'buy'
-                                analysis['side'] = 'LONG'
-
-                                # 🎯 CONSERVATIVE MODE: Wider stops, lower leverage
-                                # Stop-loss: 12-20% (adaptive), Leverage: 3-10x max
-                                conf = analysis['confidence']
-                                if conf >= 0.85:  # 85%+ = Ultra high confidence
-                                    analysis['suggested_leverage'] = 10  # Max 10x
-                                    analysis['stop_loss_percent'] = 20.0  # Widest stop
-                                elif conf >= 0.75:  # 75-84% = High confidence
-                                    analysis['suggested_leverage'] = 7
-                                    analysis['stop_loss_percent'] = 16.0
-                                elif conf >= 0.70:  # 70-74% = Acceptable
-                                    analysis['suggested_leverage'] = 5
-                                    analysis['stop_loss_percent'] = 14.0
-                                else:  # <70% shouldn't happen (filtered out)
-                                    analysis['suggested_leverage'] = 3
-                                    analysis['stop_loss_percent'] = 12.0
-
-                                logger.info(
-                                    f"🎯 ML Override SUCCESS: {symbol} 'hold' → 'buy' LONG "
-                                    f"(ML conf: {analysis['confidence']:.1%}, {reason}, "
-                                    f"{analysis['suggested_leverage']}x lev, {analysis['stop_loss_percent']}% SL)"
-                                )
-                            elif direction == 'sell':
-                                analysis['action'] = 'sell'
-                                analysis['side'] = 'SHORT'
-
-                                # 🎯 CONSERVATIVE MODE: Wider stops, lower leverage
-                                # Stop-loss: 12-20% (adaptive), Leverage: 3-10x max
-                                conf = analysis['confidence']
-                                if conf >= 0.85:  # 85%+ = Ultra high confidence
-                                    analysis['suggested_leverage'] = 10  # Max 10x
-                                    analysis['stop_loss_percent'] = 20.0  # Widest stop
-                                elif conf >= 0.75:  # 75-84% = High confidence
-                                    analysis['suggested_leverage'] = 7
-                                    analysis['stop_loss_percent'] = 16.0
-                                elif conf >= 0.70:  # 70-74% = Acceptable
-                                    analysis['suggested_leverage'] = 5
-                                    analysis['stop_loss_percent'] = 14.0
-                                else:  # <70% shouldn't happen (filtered out)
-                                    analysis['suggested_leverage'] = 3
-                                    analysis['stop_loss_percent'] = 12.0
-
-                                logger.info(
-                                    f"🎯 ML Override SUCCESS: {symbol} 'hold' → 'sell' SHORT "
-                                    f"(ML conf: {analysis['confidence']:.1%}, {reason}, "
-                                    f"{analysis['suggested_leverage']}x lev, {analysis['stop_loss_percent']}% SL)"
-                                )
-                            else:
-                                logger.info(
-                                    f"⚠️ ML Override SKIPPED: {symbol} - No clear direction "
-                                f"(TF: {alignment}, 1h: {trend_1h}, RSI: {rsi_1h:.0f})"
-                            )
+                    # 🎯 CENTRALIZED ML FIX: Use centralized apply_ml_fix() method
+                    # CONSOLIDATION: Replaced 200-line duplicate logic with single method call
+                    # This ensures consistent ML FIX behavior across the entire system
+                    analysis = ml_learner.apply_ml_fix(
+                        analysis=analysis,
+                        symbol=symbol,
+                        confidence=analysis['confidence'],
+                        market_data=market_data,
+                        threshold=0.65  # 65% threshold (balanced between old 70% and 50%)
+                    )
 
                 except Exception as ml_error:
                     logger.warning(f"ML enhancement failed for {model_name} on {symbol}: {ml_error}")
@@ -393,57 +206,167 @@ class AIConsensusEngine:
 
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        🧠 HYBRID MODE: AI+ML Consensus Engine (Cost-Optimized)
+        🧠 AI+ML ENSEMBLE: Advanced Consensus Engine
 
-        Combines DeepSeek AI analysis with ML pattern learning for optimal decisions.
-        Only calls AI when position slots are available (smart scan logic).
+        🎯 PRIORITY 3 IMPLEMENTATION: Full ML Predictor Integration
+
+        Creates weighted ensemble between:
+        - DeepSeek AI (60% weight): Natural language reasoning
+        - ML Predictor GradientBoosting (40% weight): Statistical pattern recognition
+
+        Both models now contribute to EVERY decision (not just fallback).
 
         Args:
             symbol: Trading symbol
             market_data: Market data dict with price, indicators, etc.
 
         Returns:
-            AI+ML consensus analysis with action, confidence, and reasoning
+            AI+ML ensemble analysis with action, confidence, and reasoning
         """
         from src.ml_pattern_learner import get_ml_learner
+        from src.ml_predictor import get_ml_predictor
+
         ml_learner = await get_ml_learner()
+        ml_predictor = get_ml_predictor()
 
         # Determine market sentiment for context
         market_sentiment = market_data.get('market_sentiment', 'NEUTRAL')
 
-        # 🧠 HYBRID MODE: AI + ML Consensus
-        logger.debug(f"🧠 AI+ML HYBRID mode for {symbol}")
+        # 🧠 AI+ML ENSEMBLE: Both models run in parallel
+        logger.debug(f"🧠 AI+ML ENSEMBLE mode for {symbol}")
 
         # Get AI analysis (DeepSeek)
         analyses = await self.get_individual_analyses(symbol, market_data, market_sentiment)
 
-        # Handle case where AI analysis fails or returns empty
-        if not analyses:
-            logger.warning(f"⚠️ DeepSeek AI unavailable for {symbol}, falling back to ML-only")
-            ml_prediction = await self._get_ml_only_prediction(symbol, market_data, ml_learner)
-            ml_prediction['models_used'] = ['ML-ONLY (AI fallback)']
-            ml_prediction['ensemble_method'] = 'ml_fallback'
-            return ml_prediction
+        # Get ML Predictor analysis (GradientBoosting) - ALWAYS run, not just fallback
+        ml_long_pred = await ml_predictor.predict(market_data, side='LONG')
+        ml_short_pred = await ml_predictor.predict(market_data, side='SHORT')
 
-        # 🎯 AI+ML CONSENSUS: Weighted ensemble
-        market_regime = market_data.get('market_regime', 'UNKNOWN')
-        consensus = ml_learner.calculate_weighted_ensemble(
-            analyses, symbol, market_regime, market_data
-        )
-
-        # Add risk/reward ratio if not present
-        if 'risk_reward_ratio' not in consensus:
-            consensus['risk_reward_ratio'] = 0.0
-
-        # Track which models were used
-        consensus['models_used'] = [a.get('model_name', 'unknown') for a in analyses]
-        consensus['ensemble_method'] = 'ai_ml_hybrid'
+        # Choose ML direction with higher confidence
+        if ml_long_pred['confidence'] > ml_short_pred['confidence']:
+            ml_prediction = ml_long_pred
+            ml_side = 'LONG'
+        else:
+            ml_prediction = ml_short_pred
+            ml_side = 'SHORT'
 
         logger.info(
-            f"✅ 🧠 AI+ML CONSENSUS for {symbol}: {consensus['action'].upper()} "
-            f"@ {consensus['confidence']:.1%} "
-            f"(AI: {analyses[0].get('original_confidence', 0):.1%} "
-            f"→ ML-adjusted: {analyses[0].get('confidence', 0):.1%})"
+            f"🤖 ML Predictor: {ml_side} @ {ml_prediction['confidence']:.1%} | "
+            f"Reasoning: {ml_prediction['reasoning']}"
+        )
+
+        # Handle case where AI analysis fails or returns empty
+        if not analyses:
+            logger.warning(f"⚠️ DeepSeek AI unavailable for {symbol}, using ML Predictor ONLY")
+            return {
+                'action': ml_prediction['action'],
+                'side': ml_side,
+                'confidence': ml_prediction['confidence'],
+                'reasoning': f"ML-ONLY (AI unavailable): {ml_prediction['reasoning']}",
+                'suggested_leverage': 6,  # Conservative for ML-only
+                'stop_loss_percent': 4.0,
+                'models_used': ['ML-Predictor-ONLY'],
+                'ensemble_method': 'ml_only_fallback',
+                'risk_reward_ratio': 0.0
+            }
+
+        # 🎯 AI+ML ENSEMBLE: Weighted combination (60% AI + 40% ML)
+        ai_analysis = analyses[0]  # DeepSeek
+
+        # Get action/side from each model
+        ai_action = ai_analysis.get('action', 'hold')
+        ai_side = ai_analysis.get('side')
+        ai_confidence = ai_analysis.get('confidence', 0.0)
+
+        ml_action = ml_prediction['action']
+        ml_confidence = ml_prediction['confidence']
+
+        # Determine ensemble action and confidence
+        if ai_action == ml_action:
+            # ✅ AGREEMENT: Both models agree - boost confidence
+            ensemble_action = ai_action
+            ensemble_side = ai_side
+            ensemble_confidence = (ai_confidence * 0.60) + (ml_confidence * 0.40) + 0.05  # +5% agreement bonus
+            ensemble_confidence = min(0.95, ensemble_confidence)  # Cap at 95%
+            reasoning_suffix = "✅ AI+ML AGREE"
+            logger.info(f"✅ CONSENSUS: AI and ML AGREE on {ensemble_action.upper()} ({ensemble_confidence:.1%})")
+
+        elif ai_action == 'hold' and ml_action in ['buy', 'sell']:
+            # ML suggests trade, AI says hold - use ML if confidence high
+            if ml_confidence >= 0.65:
+                ensemble_action = ml_action
+                ensemble_side = ml_side
+                ensemble_confidence = ml_confidence * 0.70  # Reduce confidence (no AI support)
+                reasoning_suffix = "🤖 ML override (AI neutral)"
+                logger.info(f"🤖 ML OVERRIDE: ML {ml_action.upper()} @ {ml_confidence:.1%}, AI hold")
+            else:
+                ensemble_action = 'hold'
+                ensemble_side = None
+                ensemble_confidence = (ai_confidence * 0.60) + (ml_confidence * 0.40)
+                reasoning_suffix = "⏸️ ML weak, AI hold"
+                logger.info(f"⏸️ HOLD: ML confidence too low ({ml_confidence:.1%}), AI hold")
+
+        elif ml_action == 'hold' and ai_action in ['buy', 'sell']:
+            # AI suggests trade, ML says hold - use AI if confidence high
+            if ai_confidence >= 0.65:
+                ensemble_action = ai_action
+                ensemble_side = ai_side
+                ensemble_confidence = ai_confidence * 0.70  # Reduce confidence (no ML support)
+                reasoning_suffix = "🧠 AI override (ML neutral)"
+                logger.info(f"🧠 AI OVERRIDE: AI {ai_action.upper()} @ {ai_confidence:.1%}, ML hold")
+            else:
+                ensemble_action = 'hold'
+                ensemble_side = None
+                ensemble_confidence = (ai_confidence * 0.60) + (ml_confidence * 0.40)
+                reasoning_suffix = "⏸️ AI weak, ML hold"
+                logger.info(f"⏸️ HOLD: AI confidence too low ({ai_confidence:.1%}), ML hold")
+
+        else:
+            # ❌ CONFLICT: Models disagree on direction (buy vs sell)
+            # Use higher confidence, but reduce it significantly
+            if ai_confidence > ml_confidence:
+                ensemble_action = ai_action
+                ensemble_side = ai_side
+                ensemble_confidence = ai_confidence * 0.50  # 50% penalty for conflict
+                reasoning_suffix = "⚠️ CONFLICT - Using AI (higher confidence)"
+                logger.warning(
+                    f"⚠️ CONFLICT: AI {ai_action.upper()} ({ai_confidence:.1%}) vs "
+                    f"ML {ml_action.upper()} ({ml_confidence:.1%}) - Using AI with penalty"
+                )
+            else:
+                ensemble_action = ml_action
+                ensemble_side = ml_side
+                ensemble_confidence = ml_confidence * 0.50  # 50% penalty for conflict
+                reasoning_suffix = "⚠️ CONFLICT - Using ML (higher confidence)"
+                logger.warning(
+                    f"⚠️ CONFLICT: ML {ml_action.upper()} ({ml_confidence:.1%}) vs "
+                    f"AI {ai_action.upper()} ({ai_confidence:.1%}) - Using ML with penalty"
+                )
+
+        # Build ensemble result
+        consensus = {
+            'action': ensemble_action,
+            'side': ensemble_side,
+            'confidence': ensemble_confidence,
+            'reasoning': f"{ai_analysis.get('reasoning', '')} | {ml_prediction['reasoning']} | {reasoning_suffix}",
+            'suggested_leverage': ai_analysis.get('suggested_leverage', 6),
+            'stop_loss_percent': ai_analysis.get('stop_loss_percent', 4.0),
+            'models_used': ['DeepSeek-AI (60%)', 'ML-Predictor (40%)'],
+            'ensemble_method': 'ai_ml_weighted_ensemble',
+            'risk_reward_ratio': ai_analysis.get('risk_reward_ratio', 0.0),
+
+            # Include individual model outputs for transparency
+            'ai_confidence': ai_confidence,
+            'ai_action': ai_action,
+            'ml_confidence': ml_confidence,
+            'ml_action': ml_action,
+            'ml_reasoning': ml_prediction['reasoning']
+        }
+
+        logger.info(
+            f"✅ 🧠 AI+ML ENSEMBLE for {symbol}: {ensemble_action.upper()} "
+            f"@ {ensemble_confidence:.1%} | "
+            f"AI: {ai_action}@{ai_confidence:.1%} + ML: {ml_action}@{ml_confidence:.1%}"
         )
 
         return consensus
