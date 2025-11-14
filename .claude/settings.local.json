@@ -1,10 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git push:*)",
-      "Bash(git commit:*)",
-      "Bash(cat:*)",
-      "Bash(ben min 10x max 20x olacak şekilde kaç defa söyledim sana !\"\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(pozisyonum 5-10$ kazansın istiyorum\"\n\nEvery position now:\n1. Passes 4-layer technical validation before entry\n2. Has ML confidence ≥65% (not just 50%)\n3. Automatically takes partial profits at $8 target\n4. Moves to risk-free after first profit target\n5. Trails remaining position for bigger gains\n\nThe system prevents bad entries AND maximizes good entries.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

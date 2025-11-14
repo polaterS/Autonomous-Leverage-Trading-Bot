@@ -210,12 +210,14 @@ class PositionReconciliationSystem:
                     if leverage_raw is None or leverage_raw == 0:
                         # Calculate from margin and notional if available
                         margin_raw = pos.get('initialMargin', 0) or pos.get('collateral', 0)
-                        if margin_raw and notional:
-                            leverage = int(abs(notional) / float(margin_raw))
+                        if margin_raw and notional and float(margin_raw) > 0:
+                            calculated_lev = abs(notional) / float(margin_raw)
+                            leverage = max(1, int(calculated_lev))  # Ensure at least 1x
                         else:
-                            leverage = 1  # Default fallback
+                            leverage = 10  # Default to 10x if can't determine
+                            logger.warning(f"⚠️ Could not determine leverage for {pos['symbol']}, using 10x default")
                     else:
-                        leverage = int(leverage_raw)
+                        leverage = max(1, int(leverage_raw))  # Ensure at least 1x
 
                     open_positions.append({
                         'symbol': pos['symbol'],
@@ -273,7 +275,9 @@ class PositionReconciliationSystem:
             notional = Decimal(str(binance_position['notional']))
 
             # Calculate position value (margin used)
-            position_value_usd = notional / Decimal(str(leverage))
+            # SAFETY: Ensure leverage is at least 1 to prevent division by zero
+            safe_leverage = max(leverage, 1)
+            position_value_usd = notional / Decimal(str(safe_leverage))
 
             # Estimate stop-loss (use 10% default since we don't know original)
             from src.utils import calculate_stop_loss_price, calculate_liquidation_price
@@ -326,6 +330,28 @@ class PositionReconciliationSystem:
 
             logger.info(f"✅ Orphaned position imported: {symbol} (DB ID: {position_id})")
 
+            # 🛡️ CRITICAL: Add stop-loss protection for imported position
+            logger.info(f"🛡️ Adding stop-loss protection for imported position...")
+            close_side = 'sell' if side == 'LONG' else 'buy'
+
+            try:
+                sl_order = await exchange.create_stop_loss_order(
+                    symbol=symbol,
+                    side=close_side,
+                    amount=quantity,
+                    stop_price=stop_loss_price
+                )
+                logger.info(f"✅ Stop-loss added: {close_side} @ ${float(stop_loss_price):.4f}")
+
+                # Update database with stop-loss order ID
+                await db.pool.execute(
+                    "UPDATE active_position SET stop_loss_order_id = $1 WHERE id = $2",
+                    sl_order.get('id'), position_id
+                )
+            except Exception as sl_error:
+                logger.error(f"⚠️ Failed to add stop-loss for imported position: {sl_error}")
+                # Don't fail the import, but alert user
+
             # Send notification
             notifier = get_notifier()
             await notifier.send_alert(
@@ -334,9 +360,10 @@ class PositionReconciliationSystem:
                 f"<b>{symbol}</b> {side} {leverage}x\n"
                 f"Entry: ${float(entry_price):.4f}\n"
                 f"Current: ${float(current_price):.4f}\n"
-                f"Value: ${float(position_value_usd):.2f}\n\n"
+                f"Value: ${float(position_value_usd):.2f}\n"
+                f"🛡️ Stop-Loss: ${float(stop_loss_price):.4f}\n\n"
                 f"ℹ️ This position was on Binance but not in database.\n"
-                f"Now tracking it automatically."
+                f"Now tracking it automatically with protection."
             )
 
             return True
