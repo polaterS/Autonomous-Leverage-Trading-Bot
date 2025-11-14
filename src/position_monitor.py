@@ -194,6 +194,39 @@ class PositionMonitor:
                 return
 
             # ====================================================================
+            # 🚀 QUICK PROFIT TAKE: Close at $1-2 profit (10-20x leverage mode)
+            # ====================================================================
+            # With high leverage (10-20x), small price movements = big profits
+            # Take quick $1-2 profits to compound capital faster
+            # This prevents giving back profits when market reverses
+
+            if unrealized_pnl >= Decimal("1.0"):  # $1+ profit
+                logger.info(
+                    f"💰 QUICK PROFIT TAKE: {symbol} {side} | "
+                    f"Entry: ${float(position['entry_price']):.4f} | "
+                    f"Current: ${float(current_price):.4f} | "
+                    f"Profit: ${float(unrealized_pnl):+.2f}"
+                )
+
+                await notifier.send_alert(
+                    'success',
+                    f"💰 QUICK PROFIT TAKE\n\n"
+                    f"💎 {symbol}\n"
+                    f"📊 {side} {position['leverage']}x\n\n"
+                    f"📍 Entry: ${float(position['entry_price']):.4f}\n"
+                    f"💰 Exit: ${float(current_price):.4f}\n\n"
+                    f"✅ Profit: ${float(unrealized_pnl):+.2f}\n\n"
+                    f"🚀 Fast profit locked in!"
+                )
+
+                await executor.close_position(
+                    position,
+                    current_price,
+                    f"Quick profit take: ${float(unrealized_pnl):+.2f}"
+                )
+                return
+
+            # ====================================================================
             # 🔧 FIX #5: TIME-BASED EXIT (GRADUATED APPROACH)
             # ====================================================================
             # OLD: 8 hours max for all positions
