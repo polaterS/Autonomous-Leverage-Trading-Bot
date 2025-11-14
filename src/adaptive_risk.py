@@ -50,18 +50,18 @@ class AdaptiveRiskManager:
         """
         Calculate adaptive stop-loss percentage based on recent performance.
 
-        Logic:
-        - High win rate (>70%) → Wider stop-loss (let winners run)
-        - Low win rate (<50%) → Tighter stop-loss (cut losses fast)
+        Logic (ULTRA TIGHT for 10-20x leverage):
+        - High win rate (>70%) → 4.5-5.0% SL (let winners run within tight range)
+        - Low win rate (<50%) → 3.0-3.5% SL (cut losses FAST)
         - Symbol-specific: Each coin gets custom SL based on its performance
 
         Args:
             symbol: Trading symbol
             side: LONG or SHORT
-            base_stop_loss: Default stop-loss percentage (10%)
+            base_stop_loss: Default stop-loss percentage (ignored, uses 3-5% range)
 
         Returns:
-            Adaptive stop-loss percentage (5.5-11.5%) - OPTIMIZED
+            Adaptive stop-loss percentage (3.0-5.0%) - ULTRA TIGHT for 10-20x leverage
         """
         try:
             await self._update_performance_cache()
@@ -76,28 +76,29 @@ class AdaptiveRiskManager:
             # Blend general and symbol-specific win rates
             blended_wr = (recent_wr * 0.6) + (symbol_wr * 0.4)
 
-            # Adaptive stop-loss logic (WIDENED FOR LOWER LEVERAGE):
-            # With 3-5x leverage instead of 9x, we can use wider % stops
-            # 80%+ WR → 20% SL (let winners run)
-            # 70-79% WR → 18% SL (slightly wider)
-            # 60-69% WR → 16% SL (standard)
-            # 50-59% WR → 14% SL (moderate)
-            # <50% WR → 12% SL (tighter but still breathing room)
+            # Adaptive stop-loss logic (ULTRA TIGHT FOR 10-20x LEVERAGE):
+            # With 10-20x leverage, we MUST use very tight stops (3-5%)
+            # Win rate affects where in the 3-5% range we land
+            # 80%+ WR → 5.0% SL (max range, let winners run)
+            # 70-79% WR → 4.5% SL (slightly wider)
+            # 60-69% WR → 4.0% SL (standard)
+            # 50-59% WR → 3.5% SL (moderate)
+            # <50% WR → 3.0% SL (tightest, cut losses fast)
 
             if blended_wr >= 80:
-                adaptive_sl = 20.0
+                adaptive_sl = 5.0
                 logger.info(f"🎯 ADAPTIVE SL: High WR ({blended_wr:.0f}%) → Wider SL {adaptive_sl:.1f}%")
             elif blended_wr >= 70:
-                adaptive_sl = 18.0
+                adaptive_sl = 4.5
                 logger.info(f"📊 ADAPTIVE SL: Good WR ({blended_wr:.0f}%) → Standard+ SL {adaptive_sl:.1f}%")
             elif blended_wr >= 60:
-                adaptive_sl = 16.0
+                adaptive_sl = 4.0
                 logger.debug(f"ADAPTIVE SL: Medium WR ({blended_wr:.0f}%) → Standard SL {adaptive_sl:.1f}%")
             elif blended_wr >= 50:
-                adaptive_sl = 14.0
+                adaptive_sl = 3.5
                 logger.warning(f"⚠️ ADAPTIVE SL: Low WR ({blended_wr:.0f}%) → Moderate SL {adaptive_sl:.1f}%")
             else:
-                adaptive_sl = 12.0
+                adaptive_sl = 3.0
                 logger.warning(f"🚨 ADAPTIVE SL: Very Low WR ({blended_wr:.0f}%) → Tighter SL {adaptive_sl:.1f}%")
 
             return adaptive_sl
