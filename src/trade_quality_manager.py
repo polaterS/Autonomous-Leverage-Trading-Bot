@@ -318,8 +318,8 @@ class TradeQualityManager:
         logger.info(
             f"✅ Risk budget approved | "
             f"Conf: {confidence:.1f}% | "
-            f"Slot: {slot_cost:.1f} | "
-            f"Budget: {used_slots:.1f}→{used_slots+slot_cost:.1f}/{adjusted_budget:.1f} | "
+            f"Slot: {slot_cost:.1f} (stats only) | "
+            f"Used: {used_slots:.1f} slots | "
             f"Exposure: {portfolio_exposure:.1%}"
         )
 
