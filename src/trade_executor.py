@@ -61,37 +61,20 @@ class TradeExecutor:
         logger.info(f"Opening position: {symbol} {side} {leverage}x")
 
         # ========================================================================
-        # 🎯 CRITICAL: PRE-TRADE TECHNICAL VALIDATION
+        # 🎯 TECHNICAL VALIDATION: DISABLED BY USER REQUEST
         # ========================================================================
-        # Validate trade against technical criteria BEFORE execution
-        # This prevents bad entries even if ML/AI confidence is high
-        from src.technical_validator import get_technical_validator
-
-        tech_validator = get_technical_validator()
-        tech_validation = tech_validator.validate_entry(
-            symbol=symbol,
-            side=side,
-            current_price=trade_params['current_price'],
-            market_data=market_data
-        )
-
-        if not tech_validation['valid']:
-            logger.warning(
-                f"❌ TECHNICAL VALIDATION FAILED: {symbol} {side}\n"
-                f"   Score: {tech_validation['score']:.0%}\n"
-                f"   Reason: {tech_validation['reason']}"
-            )
-            # Log individual check failures
-            for check_name, passed, reason in tech_validation['checks']:
-                if not passed:
-                    logger.warning(f"   ❌ {check_name}: {reason}")
-
-            return False
-
-        logger.info(
-            f"✅ Technical validation PASSED: {tech_validation['score']:.0%} "
-            f"({sum(1 for _, p, _ in tech_validation['checks'] if p)}/{len(tech_validation['checks'])} checks)"
-        )
+        # Technical validation disabled - was blocking all trades due to missing data:
+        # - Order flow data consistently 0%
+        # - Multi-timeframe data missing (0/0 timeframes)
+        # - Volume too low (0.2x-0.3x average)
+        # Result: All trades failing at 25% pass rate (need 50%)
+        #
+        # User decision: Trust AI/ML confidence + market sentiment filter only
+        # Protection now relies on:
+        # - AI confidence ≥50%
+        # - Market sentiment filter (60%+ opposite blocked)
+        # - Risk management (stop-loss, leverage limits, position sizing)
+        logger.debug(f"⚠️ Technical validation DISABLED - trusting AI/ML confidence only")
 
         # ========================================================================
         # 🎯 PRIORITY 4: AGGRESSIVE MARKET SENTIMENT FILTERING
