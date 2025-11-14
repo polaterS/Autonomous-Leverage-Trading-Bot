@@ -74,6 +74,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("setcapital", self.cmd_set_capital))
         self.application.add_handler(CommandHandler("closeall", self.cmd_close_all_positions))
         self.application.add_handler(CommandHandler("ws", self.cmd_websocket_stats))
+        self.application.add_handler(CommandHandler("sync", self.cmd_force_sync))
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -193,6 +194,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /setcapital 1000 - Capital'i güncelle (örn: $1000)
 /closeall - Tüm açık pozisyonları kapat
 /ws - 🌐 WebSocket feed istatistikleri (API kullanımı)
+/sync - 🔄 Binance ↔ Database pozisyon senkronizasyonu (orphaned position fix)
 
 <b>Nasıl Çalışır?</b>
 
@@ -1558,6 +1560,68 @@ WebSocket + Cache = ~85% daha az API çağrısı
             logger.error(f"WebSocket stats command error: {e}")
             await update.message.reply_text(
                 f"❌ WebSocket istatistikleri alınırken hata:\n\n{str(e)[:200]}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_force_sync(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle /sync command - Force position reconciliation.
+
+        Checks if Binance positions match database and fixes any mismatches.
+        """
+        try:
+            await update.message.reply_text("🔄 <b>Position sync başlatılıyor...</b>", parse_mode=ParseMode.HTML)
+
+            from src.position_reconciliation import get_reconciliation_system
+            reconciliation = get_reconciliation_system()
+
+            # Run reconciliation
+            sync_results = await reconciliation.force_sync()
+
+            if sync_results.get('error'):
+                message = f"❌ <b>SYNC HATASI</b>\n\n{sync_results['error']}"
+            else:
+                binance_count = sync_results.get('binance_count', 0)
+                db_count = sync_results.get('database_count', 0)
+                matched = sync_results.get('matched_count', 0)
+                orphaned = sync_results.get('orphaned_count', 0)
+                ghosts = sync_results.get('ghost_count', 0)
+                actions = sync_results.get('actions_taken', [])
+
+                # Determine overall status
+                if orphaned == 0 and ghosts == 0:
+                    status_emoji = "✅"
+                    status_text = "Tüm pozisyonlar senkronize!"
+                else:
+                    status_emoji = "⚠️"
+                    status_text = "Senkronizasyon sorunları düzeltildi"
+
+                message = f"""
+{status_emoji} <b>POZİSYON SYNC TAMAMLANDI</b>
+
+<b>📊 Durum:</b>
+• Binance: {binance_count} pozisyon
+• Database: {db_count} pozisyon
+• ✅ Eşleşen: {matched}
+• ⚠️ Orphaned: {orphaned}
+• 👻 Ghost: {ghosts}
+
+<b>🔧 Yapılan İşlemler:</b>
+"""
+                if actions:
+                    for action in actions:
+                        message += f"• {action}\n"
+                else:
+                    message += "• Hiçbir işlem gerekmedi\n"
+
+                message += f"\n⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}"
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            logger.error(f"Error in /sync command: {e}")
+            await update.message.reply_text(
+                f"❌ <b>SYNC HATASI</b>\n\n{str(e)}",
                 parse_mode=ParseMode.HTML
             )
 

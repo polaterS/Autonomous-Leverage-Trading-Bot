@@ -49,6 +49,23 @@ class AutonomousTradingEngine:
             config = await db.get_trading_config()
             logger.info(f"✅ Trading config loaded: ${config['current_capital']} capital")
 
+            # 🔄 CRITICAL: Position reconciliation at startup
+            # Ensures Binance positions are synced with database
+            logger.info("🔄 Running startup position reconciliation...")
+            from src.position_reconciliation import get_reconciliation_system
+            reconciliation = get_reconciliation_system()
+            sync_results = await reconciliation.reconcile_positions(on_startup=True)
+
+            if sync_results.get('error'):
+                logger.error(f"⚠️ Position sync failed: {sync_results['error']}")
+            else:
+                logger.info(
+                    f"✅ Position sync completed: "
+                    f"{sync_results['matched_count']} matched, "
+                    f"{sync_results['orphaned_count']} orphaned, "
+                    f"{sync_results['ghost_count']} ghosts"
+                )
+
             logger.info("🚀 All systems initialized successfully!")
 
         except Exception as e:
@@ -102,6 +119,22 @@ class AutonomousTradingEngine:
 
                 # Get current position status (MULTI-POSITION SUPPORT)
                 db = await get_db_client()
+
+                # 🔄 PERIODIC POSITION SYNC: Check every 5 minutes for orphaned positions
+                from src.position_reconciliation import get_reconciliation_system
+                reconciliation = get_reconciliation_system()
+
+                if await reconciliation.check_sync_needed():
+                    logger.debug("🔄 Running periodic position sync...")
+                    sync_results = await reconciliation.reconcile_positions(on_startup=False)
+
+                    if sync_results.get('orphaned_count', 0) > 0 or sync_results.get('ghost_count', 0) > 0:
+                        logger.warning(
+                            f"🔧 Position sync: "
+                            f"{sync_results.get('orphaned_count', 0)} orphaned, "
+                            f"{sync_results.get('ghost_count', 0)} ghosts fixed"
+                        )
+
                 active_positions = await db.get_active_positions()
                 num_positions = len(active_positions) if active_positions else 0
 

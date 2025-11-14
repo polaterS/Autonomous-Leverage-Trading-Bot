@@ -94,7 +94,49 @@ class DatabaseClient:
             return [dict(row) for row in rows] if rows else []
 
     async def create_active_position(self, position_data: Dict[str, Any]) -> int:
-        """Create a new active position (supports multiple concurrent positions)."""
+        """
+        Create a new active position (supports multiple concurrent positions).
+
+        ENHANCED: Retry logic to prevent position tracking loss on DB failures.
+        """
+        max_retries = 3
+        retry_delay = 1  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                return await self._create_active_position_internal(position_data)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"⚠️ Database write failed (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+                    logger.info(f"Retrying in {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    # Final attempt failed - CRITICAL!
+                    logger.critical(
+                        f"🚨 CRITICAL: Failed to save position after {max_retries} attempts!"
+                    )
+                    logger.critical(f"Position data: {position_data['symbol']} {position_data['side']}")
+
+                    # Send emergency alert
+                    from src.telegram_notifier import get_notifier
+                    notifier = get_notifier()
+                    await notifier.send_alert(
+                        'critical',
+                        f"🚨 <b>DATABASE WRITE FAILURE</b>\n\n"
+                        f"Could NOT save position to database after {max_retries} attempts:\n\n"
+                        f"<b>{position_data['symbol']}</b> {position_data['side']}\n"
+                        f"Entry: ${float(position_data['entry_price']):.4f}\n\n"
+                        f"⚠️ Position is OPEN on Binance but NOT tracked!\n"
+                        f"Will be auto-recovered on next reconciliation cycle."
+                    )
+
+                    raise  # Re-raise to trigger position reconciliation
+
+    async def _create_active_position_internal(self, position_data: Dict[str, Any]) -> int:
+        """Internal method for actual database write."""
         async with self.pool.acquire() as conn:
             # Multi-position support: Don't delete existing positions
             # Just add the new one
