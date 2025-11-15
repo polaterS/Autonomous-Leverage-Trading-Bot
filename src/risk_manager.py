@@ -643,48 +643,41 @@ class RiskManager:
         """
         Determine if position should be emergency closed.
 
-        CRITICAL: Checks USD loss (not just price) to guarantee $10 max loss.
+        USER REQUEST: Only use Binance's real unrealized PNL, close at exactly ±$1
 
         Returns:
             (should_close: bool, reason: str)
         """
-        # Check liquidation distance
-        liquidation_price = Decimal(str(position['liquidation_price']))
-        liq_distance = abs(current_price - liquidation_price) / current_price
+        # ====================================================================
+        # 🚫 LIQUIDATION PANIC: DISABLED
+        # ====================================================================
+        # USER COMPLAINT: "çok hızlı kapatıyor pozisyonu daha binance tarafında 1 dolar kar olmadan kapatıyor"
+        # Bot was closing positions at 3-4% liquidation distance which is SAFE with 25x leverage
+        #
+        # OLD CODE (DISABLED):
+        # liquidation_price = Decimal(str(position['liquidation_price']))
+        # liq_distance = abs(current_price - liquidation_price) / current_price
+        # if liq_distance < Decimal("0.05"):
+        #     return True, f"EMERGENCY: Liquidation risk ({float(liq_distance)*100:.2f}% away)"
+        # ====================================================================
 
-        if liq_distance < Decimal("0.05"):
-            return True, f"EMERGENCY: Liquidation risk ({float(liq_distance)*100:.2f}% away)"
+        # ====================================================================
+        # ❌ STOP-LOSS CHECK: DISABLED (User wants ±$1 targets only)
+        # ====================================================================
+        # USER REQUEST: "1 dolar kar etti mi hemen kapancak. aynı şekilde 1 dolar zarar etti mi hemen kapanacak"
+        # Stop-loss set to 50% as wide safety net - ±$1 limits control exits
+        #
+        # OLD CODE (DISABLED):
+        # from src.utils import calculate_pnl
+        # pnl_data = calculate_pnl(...)
+        # unrealized_pnl = pnl_data['unrealized_pnl']
+        # MAX_LOSS_USD = Decimal("-10.00")
+        # if unrealized_pnl <= MAX_LOSS_USD:
+        #     return True, f"Stop-loss triggered: ${float(unrealized_pnl):.2f} loss"
+        # ====================================================================
 
-        # 🚨 CRITICAL: Check USD loss (PRIMARY stop-loss condition)
-        # Calculate current P&L with fees
-        from src.utils import calculate_pnl
-        pnl_data = calculate_pnl(
-            Decimal(str(position['entry_price'])),
-            current_price,
-            Decimal(str(position['quantity'])),
-            position['side'],
-            position['leverage'],
-            Decimal(str(position['position_value_usd'])),
-            include_fees=True
-        )
-
-        unrealized_pnl = pnl_data['unrealized_pnl']
-
-        # GUARANTEED $10 MAX LOSS (with fees included)
-        MAX_LOSS_USD = Decimal("-10.00")
-
-        if unrealized_pnl <= MAX_LOSS_USD:
-            return True, f"Stop-loss triggered: ${float(unrealized_pnl):.2f} loss (max -$10.00)"
-
-        # BACKUP: Also check price-based stop-loss (for exchange stop-loss orders)
-        stop_loss_price = Decimal(str(position['stop_loss_price']))
-        side = position['side']
-
-        if side == 'LONG' and current_price <= stop_loss_price * Decimal("1.001"):
-            return True, f"Price-based stop-loss triggered at ${float(current_price):.4f}"
-        elif side == 'SHORT' and current_price >= stop_loss_price * Decimal("0.999"):
-            return True, f"Price-based stop-loss triggered at ${float(current_price):.4f}"
-
+        # NO EMERGENCY CLOSE CONDITIONS
+        # Let position_monitor.py handle ±$1 profit/loss targets using Binance PNL
         return False, ""
 
     # 🎯 #9: DYNAMIC STOP-LOSS WITH VOLATILITY
