@@ -159,8 +159,7 @@ class TradeExecutor:
 
             # Get current capital (use real Binance balance, not config)
             try:
-                balance_info = await exchange.fetch_balance()
-                real_balance = Decimal(str(balance_info['USDT']['free']))
+                real_balance = await exchange.fetch_balance()  # Already returns Decimal
                 logger.info(f"💰 Real Binance balance: ${real_balance:.2f} USDT")
                 current_capital = real_balance
             except Exception as balance_error:
