@@ -178,20 +178,20 @@ class RiskManager:
         # Daily loss limit is now disabled to allow multiple trades per day
         # Each trade has its own $10 max loss via stop-loss calculation
 
-        # RULE 6: Consecutive losses check
+        # RULE 6: Consecutive losses check - DISABLED BY USER REQUEST
+        # REASON: User wants bot to keep trading regardless of loss streak
+        # Protection now relies on:
+        # - Per-trade loss limits: -$1.50 to -$2.50
+        # - Stop-loss: 1.5-2.5%
+        # - Maximum 10 concurrent positions (diversification)
+        #
+        # OLD: Stopped trading after 5-6 consecutive losses
+        # NEW: Never stop trading due to loss streak
         consecutive_losses = await db.get_consecutive_losses()
-        if consecutive_losses >= self.settings.max_consecutive_losses:
-            await db.record_circuit_breaker(
-                'consecutive_losses',
-                Decimal(consecutive_losses),
-                Decimal(self.settings.max_consecutive_losses),
-                'Trading paused after consecutive losses'
-            )
-            return {
-                'approved': False,
-                'reason': f'{consecutive_losses} consecutive losses - trading paused for review',
-                'adjusted_params': None
-            }
+        logger.debug(
+            f"📊 Consecutive losses: {consecutive_losses} "
+            f"(check disabled - bot will continue trading)"
+        )
 
         # RULE 7: Maximum loss per trade check
         max_loss_per_trade = position_value * (Decimal(str(stop_loss_percent)) / 100) * leverage
@@ -426,14 +426,13 @@ class RiskManager:
                 profit_percent = abs(drawdown_percent)
                 logger.info(f"📈 Daily profit: +{profit_percent:.1f}% (${float(starting_capital):.2f} → ${float(current_capital):.2f})")
 
-        # Check consecutive losses
+        # Check consecutive losses - DISABLED BY USER REQUEST
+        # User wants bot to continue trading regardless of loss streak
         consecutive_losses = await db.get_consecutive_losses()
-        if consecutive_losses >= self.settings.max_consecutive_losses:
-            return {
-                'can_trade': False,
-                'reason': f'{consecutive_losses} consecutive losses',
-                'type': 'consecutive_losses'
-            }
+        logger.debug(
+            f"📊 Consecutive losses: {consecutive_losses} "
+            f"(limit check disabled - bot continues trading)"
+        )
 
         # Check trading enabled
         if not config.get('is_trading_enabled', True):
