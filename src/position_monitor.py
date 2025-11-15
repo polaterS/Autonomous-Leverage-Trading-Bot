@@ -194,18 +194,20 @@ class PositionMonitor:
                 return
 
             # ====================================================================
-            # 💰 USER REQUEST: FIXED PROFIT TARGET ($1.00)
+            # 💰 PROFIT TARGET: $1.00 (FIXED)
             # ====================================================================
-            # LATEST UPDATE: User wants $1 profit = immediate close
-            # Strategy:
-            # 1. Profit target: $1.00 → Close ENTIRE position
-            # 2. Loss limit: Stop-loss only (1.5-2.5%)
-            # 3. Simple: Hit $1 profit = done!
+            # USER REQUEST: Close position when profit reaches $1.00
             #
-            # REMOVED: $1.50-$2.50 range (too high)
+            # Strategy:
+            # 1. Profit target: $1.00 → Close ENTIRE position immediately
+            # 2. Loss limit: Stop-loss only (1.5-2.5%)
+            # 3. Simple rule: $1 profit = close position
+            #
+            # REMOVED: $1.50-$2.50 range (too high for small capital)
             # REMOVED: Loss limit -$1.50 to -$2.50 (rely on stop-loss instead)
+            # ====================================================================
 
-            # Profit target: $1.00
+            # Profit target: $1.00 (user requested)
             profit_target = Decimal("1.00")
 
             # CHECK: PROFIT TARGET HIT ($1.00)
