@@ -456,25 +456,35 @@ class PositionMonitor:
                 await executor.close_position(position, current_price, emergency_reason)
                 return
 
-            # === CRITICAL CHECK 2: Liquidation distance ===
+            # ====================================================================
+            # 🚫 LIQUIDATION CHECK: DISABLED (Causing premature exits)
+            # ====================================================================
+            # USER ISSUE: Bot closing positions after 6-32 seconds with "Liquidation risk (4% away)"
+            # - "çok hızlı kapatıyor pozisyonu daha binance tarafında 1 dolar kar olmadan kapatıyor"
+            # - Translation: "Closes too fast, before $1 profit on Binance"
+            #
+            # PROBLEM:
+            # - Check triggered at <5% distance to liquidation
+            # - With 25x leverage, 4% distance is NORMAL and SAFE
+            # - Positions closed before reaching ±$1 profit/loss targets
+            #
+            # SOLUTION: Disable this check
+            # - Let ±$1 profit/loss targets control exits
+            # - 50% stop-loss is wide enough for protection
+            # - User wants positions to run until hitting $1 targets
+            # ====================================================================
+
+            # OLD CODE (DISABLED):
+            # liquidation_price = Decimal(str(position['liquidation_price']))
+            # distance_to_liq = abs(current_price - liquidation_price) / current_price
+            # if distance_to_liq < Decimal("0.05"):
+            #     await executor.close_position(position, current_price, "EMERGENCY - Liquidation risk")
+            #     return
+
+            # Log distance for monitoring but don't close
             liquidation_price = Decimal(str(position['liquidation_price']))
             distance_to_liq = abs(current_price - liquidation_price) / current_price
-
-            if distance_to_liq < Decimal("0.05"):  # Less than 5%
-                logger.critical(f"🚨 LIQUIDATION RISK! Distance: {float(distance_to_liq)*100:.2f}%")
-
-                # 🎯 TIER 2: Store exit regime before closing
-                await self._store_exit_regime(position, indicators, symbol)
-
-                await notifier.send_alert(
-                    'critical',
-                    f"🚨 LIQUIDATION RISK!\n"
-                    f"{symbol} {side}\n"
-                    f"Distance to liquidation: {float(distance_to_liq)*100:.2f}%\n"
-                    f"Closing position immediately!"
-                )
-                await executor.close_position(position, current_price, "EMERGENCY - Liquidation risk")
-                return
+            logger.debug(f"📊 Liquidation distance: {float(distance_to_liq)*100:.2f}% (monitoring only)")
 
             # === OLD CHECK 3: ADVANCED PROFIT TAKING - DISABLED ===
             # REASON: User requested simple $1.50-$2.50 profit/loss targets
