@@ -83,12 +83,14 @@ class RiskManager:
         min_sl = float(config['min_stop_loss_percent']) * 100  # Convert to percentage
         max_sl = float(config['max_stop_loss_percent']) * 100
 
-        if stop_loss_percent < min_sl or stop_loss_percent > max_sl:
-            return {
-                'approved': False,
-                'reason': f'Stop-loss {stop_loss_percent}% outside required range ({min_sl}-{max_sl}%)',
-                'adjusted_params': None
-            }
+        # 🔧 DISABLED: Stop-loss validation (user wants ±$1 limits only)
+        # Stop-loss is set to 50% as emergency safety net
+        # if stop_loss_percent < min_sl or stop_loss_percent > max_sl:
+        #     return {
+        #         'approved': False,
+        #         'reason': f'Stop-loss {stop_loss_percent}% outside required range ({min_sl}-{max_sl}%)',
+        #         'adjusted_params': None
+        #     }
 
         # RULE 2: Check if we have enough capital
         current_capital = await db.get_current_capital()
