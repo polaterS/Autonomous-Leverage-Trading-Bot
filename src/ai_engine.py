@@ -1,7 +1,7 @@
 """
 AI Consensus Engine for trading analysis.
 🤖 ML-ONLY MODE: Using ONLY our trained ML model (DeepSeek AI disabled)
-Version: 4.0 - ML-ONLY (User Request: Better performance with ML-only)
+Version: 5.0 - ULTRA AGGRESSIVE ($100 positions, 25-30x leverage, ±$1 targets)
 """
 
 import asyncio
@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-ML_ONLY_VERSION = "4.0-ML-ONLY"
-logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (ML-ONLY, DeepSeek AI disabled)")
+ML_ONLY_VERSION = "5.0-ULTRA-AGGRESSIVE"
+logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} ($100 positions, 25-30x leverage, ±$1 targets)")
 
 
 class AIConsensusEngine:
