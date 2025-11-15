@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-ML_ONLY_VERSION = "5.0-ULTRA-AGGRESSIVE"
-logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} ($100 positions, 25-30x leverage, ±$1 targets)")
+ML_ONLY_VERSION = "5.1-INVERSE-ML"  # NEW: ML signals INVERSED + fixed liquidation panic
+logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (ML INVERSED, 25-30x leverage, ±$1 targets)")
 
 
 class AIConsensusEngine:
@@ -234,23 +234,40 @@ class AIConsensusEngine:
         ml_long_pred = await ml_predictor.predict(market_data, side='LONG')
         ml_short_pred = await ml_predictor.predict(market_data, side='SHORT')
 
-        # Choose ML direction with higher confidence
+        # ====================================================================
+        # 🔄 INVERSE ML STRATEGY: Do THE OPPOSITE of what ML predicts!
+        # ====================================================================
+        # USER REQUEST: "ML hangi pozisyon için örneğin BNB USDT için 25x LONG öneriyor ya
+        #                sen onu SHORT yap tam tersini yap tam tersi ile işleme girsin"
+        #
+        # ML says LONG → We go SHORT
+        # ML says SHORT → We go LONG
+        # ====================================================================
+
+        # Choose ML direction with higher confidence (we'll inverse this!)
         if ml_long_pred['confidence'] > ml_short_pred['confidence']:
             ml_prediction = ml_long_pred
-            ml_side = 'LONG'
+            ml_original_side = 'LONG'
+            ml_inverse_side = 'SHORT'  # DO OPPOSITE!
+            inverse_action = 'sell'
         else:
             ml_prediction = ml_short_pred
-            ml_side = 'SHORT'
+            ml_original_side = 'SHORT'
+            ml_inverse_side = 'LONG'  # DO OPPOSITE!
+            inverse_action = 'buy'
 
         logger.info(
-            f"🤖 ML Predictor (ONLY): {ml_side} @ {ml_prediction['confidence']:.1%} | "
-            f"Reasoning: {ml_prediction['reasoning']}"
+            f"🤖 ML Predictor ORIGINAL: {ml_original_side} @ {ml_prediction['confidence']:.1%}"
+        )
+        logger.info(
+            f"🔄 INVERSED TO: {ml_inverse_side} @ {ml_prediction['confidence']:.1%} | "
+            f"Reasoning: {ml_prediction['reasoning']} (INVERSED!)"
         )
 
-        # Return ML-only result (no AI ensemble)
+        # Return ML-only result with INVERSE side!
         return {
-            'action': ml_prediction['action'],
-            'side': ml_side,
+            'action': inverse_action,  # Opposite action
+            'side': ml_inverse_side,  # Opposite side
             'confidence': ml_prediction['confidence'],
             'reasoning': f"ML-ONLY: {ml_prediction['reasoning']}",
             'suggested_leverage': 25,  # 🔧 USER: 25-30x leverage (minimum 25x)
