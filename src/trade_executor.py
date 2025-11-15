@@ -157,8 +157,15 @@ class TradeExecutor:
             notifier = get_notifier()
             adaptive_risk = get_adaptive_risk_manager()
 
-            # Get current capital
-            current_capital = await db.get_current_capital()
+            # Get current capital (use real Binance balance, not config)
+            try:
+                balance_info = await exchange.fetch_balance()
+                real_balance = Decimal(str(balance_info['USDT']['free']))
+                logger.info(f"💰 Real Binance balance: ${real_balance:.2f} USDT")
+                current_capital = real_balance
+            except Exception as balance_error:
+                logger.warning(f"Could not fetch real balance, using DB capital: {balance_error}")
+                current_capital = await db.get_current_capital()
 
             # 🎯 ADAPTIVE STOP-LOSS: Adjust based on recent performance
             adaptive_sl_percent = await adaptive_risk.get_adaptive_stop_loss_percent(
