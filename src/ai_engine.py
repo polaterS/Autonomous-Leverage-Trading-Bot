@@ -254,7 +254,7 @@ class AIConsensusEngine:
             'confidence': ml_prediction['confidence'],
             'reasoning': f"ML-ONLY: {ml_prediction['reasoning']}",
             'suggested_leverage': 25,  # 🔧 USER: 25-30x leverage (minimum 25x)
-            'stop_loss_percent': 5.0,  # 🔧 5% stop-loss (with 25x leverage = 0.20% price stop, with 30x = 0.167%)
+            'stop_loss_percent': 10.0,  # 🔧 WIDENED: 10% stop-loss (with 25x leverage = 0.40% price stop) - -$1 loss limit takes priority
             'models_used': ['ML-Predictor-ONLY'],
             'ensemble_method': 'ml_only',
             'risk_reward_ratio': 0.0
