@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
     min_leverage: int = Field(default=15, ge=1, le=50)  # Minimum leverage (15x) - USER REQUEST
     max_leverage: int = Field(default=20, ge=1, le=50)  # Maximum leverage (20x) - USER REQUEST
-    max_concurrent_positions: int = Field(default=10, ge=1, le=30)  # 🔥 USER REQUEST: 10 concurrent positions (aggressive diversification)
+    max_concurrent_positions: int = Field(default=3, ge=1, le=30)  # 🔧 USER REQUEST: 3 concurrent positions (prevent overtrading and immediate stop-losses)
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% per position ($10) - dynamic based on leverage
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.015"), gt=0, le=1)  # 1.5% min (ULTRA TIGHT for 15-20x leverage)
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with high leverage)

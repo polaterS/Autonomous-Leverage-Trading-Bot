@@ -254,7 +254,7 @@ class AIConsensusEngine:
             'confidence': ml_prediction['confidence'],
             'reasoning': f"ML-ONLY: {ml_prediction['reasoning']}",
             'suggested_leverage': 15,  # Use configured leverage (15-20x)
-            'stop_loss_percent': 2.0,  # Use configured stop-loss (1.5-2.5%)
+            'stop_loss_percent': 5.0,  # 🔧 INCREASED 2.0% → 5.0% to prevent immediate stop-loss triggers (with 15x leverage = 0.33% price stop)
             'models_used': ['ML-Predictor-ONLY'],
             'ensemble_method': 'ml_only',
             'risk_reward_ratio': 0.0
