@@ -48,64 +48,30 @@ class AdaptiveRiskManager:
         base_stop_loss: float = 10.0
     ) -> float:
         """
-        Calculate adaptive stop-loss percentage based on recent performance.
+        DISABLED: Adaptive stop-loss based on win rate.
 
-        Logic (ULTRA TIGHT for 10-20x leverage):
-        - High win rate (>70%) → 4.5-5.0% SL (let winners run within tight range)
-        - Low win rate (<50%) → 3.0-3.5% SL (cut losses FAST)
-        - Symbol-specific: Each coin gets custom SL based on its performance
+        USER REQUEST: Use fixed stop-loss only (1.5-2.5% from config.py)
+        Exit strategy now relies on:
+        - Fixed stop-loss: 1.5-2.5% (from config)
+        - Fixed loss limit: -$1.50 to -$2.50 (from position_monitor.py)
+        - Fixed profit target: $1.50-$2.50 (from position_monitor.py)
 
-        Args:
-            symbol: Trading symbol
-            side: LONG or SHORT
-            base_stop_loss: Default stop-loss percentage (ignored, uses 3-5% range)
+        OLD LOGIC (DISABLED):
+        - Win rate-based SL adjustment (3-5% range)
+        - Symbol-specific performance tracking
+        - Adaptive tightening/widening based on recent results
+
+        REASON FOR DISABLING:
+        - Conflicted with user's fixed profit/loss targets
+        - Made positions close too early (before -$1.50 loss limit)
+        - User wants simple, predictable exit points
 
         Returns:
-            Adaptive stop-loss percentage (3.0-5.0%) - ULTRA TIGHT for 10-20x leverage
+            base_stop_loss (from config, not adjusted)
         """
-        try:
-            await self._update_performance_cache()
-
-            # Get recent performance for this side
-            recent_wr = self.performance_cache.get(f'{side}_wr', 60.0)
-
-            # Get symbol-specific performance
-            symbol_perf = await self._get_symbol_performance(symbol, side)
-            symbol_wr = symbol_perf.get('win_rate', recent_wr)
-
-            # Blend general and symbol-specific win rates
-            blended_wr = (recent_wr * 0.6) + (symbol_wr * 0.4)
-
-            # Adaptive stop-loss logic (ULTRA TIGHT FOR 10-20x LEVERAGE):
-            # With 10-20x leverage, we MUST use very tight stops (3-5%)
-            # Win rate affects where in the 3-5% range we land
-            # 80%+ WR → 5.0% SL (max range, let winners run)
-            # 70-79% WR → 4.5% SL (slightly wider)
-            # 60-69% WR → 4.0% SL (standard)
-            # 50-59% WR → 3.5% SL (moderate)
-            # <50% WR → 3.0% SL (tightest, cut losses fast)
-
-            if blended_wr >= 80:
-                adaptive_sl = 5.0
-                logger.info(f"🎯 ADAPTIVE SL: High WR ({blended_wr:.0f}%) → Wider SL {adaptive_sl:.1f}%")
-            elif blended_wr >= 70:
-                adaptive_sl = 4.5
-                logger.info(f"📊 ADAPTIVE SL: Good WR ({blended_wr:.0f}%) → Standard+ SL {adaptive_sl:.1f}%")
-            elif blended_wr >= 60:
-                adaptive_sl = 4.0
-                logger.debug(f"ADAPTIVE SL: Medium WR ({blended_wr:.0f}%) → Standard SL {adaptive_sl:.1f}%")
-            elif blended_wr >= 50:
-                adaptive_sl = 3.5
-                logger.warning(f"⚠️ ADAPTIVE SL: Low WR ({blended_wr:.0f}%) → Moderate SL {adaptive_sl:.1f}%")
-            else:
-                adaptive_sl = 3.0
-                logger.warning(f"🚨 ADAPTIVE SL: Very Low WR ({blended_wr:.0f}%) → Tighter SL {adaptive_sl:.1f}%")
-
-            return adaptive_sl
-
-        except Exception as e:
-            logger.error(f"Failed to calculate adaptive SL: {e}")
-            return base_stop_loss
+        # Return config-based stop-loss without adaptation
+        logger.debug(f"📊 Adaptive SL DISABLED - using fixed config stop-loss: {base_stop_loss:.1f}%")
+        return base_stop_loss
 
     async def get_adaptive_take_profit(
         self,

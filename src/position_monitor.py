@@ -263,60 +263,32 @@ class PositionMonitor:
                 return
 
             # ====================================================================
-            # 🔧 FIX #5: TIME-BASED EXIT (GRADUATED APPROACH)
+            # TIME-BASED EXIT: DISABLED BY USER REQUEST
             # ====================================================================
-            # OLD: 8 hours max for all positions
-            # NEW: Dynamic based on P&L to cut losses faster
+            # USER WANTS: Simple fixed profit/loss targets only
+            # - Profit: $1.50-$2.50 → Close
+            # - Loss: -$1.50 to -$2.50 → Close
+            # - Stop-loss: 1.5-2.5% → Emergency close
+            #
+            # OLD LOGIC (DISABLED):
             # - Profitable (>$1): 4h max
-            # - Small loss (<$2): 2h max
+            # - Small loss (<$2): 2h max (CONFLICTED with -$1.50 to -$2.50 loss limit!)
             # - Medium loss ($2-$5): 1h max
             # - Large loss (>$5): 30min max
-            from datetime import datetime, timezone
-            entry_time = position['entry_time']
-            if isinstance(entry_time, str):
-                entry_time = datetime.fromisoformat(entry_time)
-            elif not entry_time.tzinfo:
-                entry_time = entry_time.replace(tzinfo=timezone.utc)
+            #
+            # REASON FOR DISABLING:
+            # - Closed positions too early (before reaching profit/loss targets)
+            # - Created unpredictable exit timing
+            # - User wants positions to run until hitting fixed $ targets
+            #
+            # NEW STRATEGY: Let positions run indefinitely until:
+            # 1. Profit target hit: $1.50-$2.50
+            # 2. Loss limit hit: -$1.50 to -$2.50
+            # 3. Stop-loss triggered: 1.5-2.5%
+            # 4. Trailing stop triggered (locks profits)
 
-            now = datetime.now(timezone.utc)
-            hours_open = (now - entry_time).total_seconds() / 3600
-
-            # 🔧 DYNAMIC MAX HOURS based on P&L
-            if unrealized_pnl > Decimal("1.0"):
-                max_hours = 4.0  # Profitable: let it run longer
-            elif unrealized_pnl >= Decimal("-2.0"):
-                max_hours = 2.0  # Small loss: cut within 2h
-            elif unrealized_pnl >= Decimal("-5.0"):
-                max_hours = 1.0  # Medium loss: cut within 1h
-            else:
-                max_hours = 0.5  # Large loss: cut within 30min
-
-            if hours_open >= max_hours:
-                close_reason = f"Time-based exit: {hours_open:.1f}h >= {max_hours}h max"
-
-                # Close with profit or cut loss
-                if unrealized_pnl > 0:
-                    logger.info(f"⏰ {close_reason} | Taking profit: ${float(unrealized_pnl):+.2f}")
-                    await notifier.send_alert(
-                        'success',
-                        f"⏰ TIME EXIT (PROFIT)\n"
-                        f"{symbol} {side}\n"
-                        f"Open {hours_open:.1f}h (max {max_hours}h)\n"
-                        f"P&L: ${float(unrealized_pnl):+.2f}"
-                    )
-                else:
-                    logger.warning(f"⏰ {close_reason} | Cutting loss: ${float(unrealized_pnl):+.2f}")
-                    await notifier.send_alert(
-                        'warning',
-                        f"⏰ TIME EXIT (LOSS)\n"
-                        f"{symbol} {side}\n"
-                        f"Open {hours_open:.1f}h (max {max_hours}h)\n"
-                        f"P&L: ${float(unrealized_pnl):+.2f}\n"
-                        f"Cutting loss and moving on..."
-                    )
-
-                await executor.close_position(position, current_price, close_reason)
-                return
+            logger.debug(f"⏰ Time-based exit DISABLED - position will run until profit/loss targets hit")
+            # Continue to other checks below (no time-based close)
 
             # Get market indicators (needed for multiple checks below)
             try:
