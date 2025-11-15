@@ -637,7 +637,8 @@ class TradeExecutor:
             # Previously only cancelled stop-loss, leaving limit/TP orders open
             # This caused old orders to immediately close new positions!
             try:
-                open_orders = await exchange.fetch_open_orders(symbol)
+                # Access CCXT exchange object directly (exchange.exchange)
+                open_orders = await exchange.exchange.fetch_open_orders(symbol)
                 if open_orders:
                     logger.info(f"🗑️ Cancelling {len(open_orders)} open orders for {symbol}")
                     for order in open_orders:
