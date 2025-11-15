@@ -633,13 +633,31 @@ class TradeExecutor:
             exchange = await get_exchange_client()
             notifier = get_notifier()
 
-            # Cancel stop-loss order if exists
-            if position.get('stop_loss_order_id'):
-                try:
-                    await exchange.cancel_order(position['stop_loss_order_id'], symbol)
-                    logger.info("Stop-loss order cancelled")
-                except Exception as e:
-                    logger.warning(f"Could not cancel stop-loss order: {e}")
+            # 🔧 CRITICAL FIX: Cancel ALL open orders for this symbol
+            # Previously only cancelled stop-loss, leaving limit/TP orders open
+            # This caused old orders to immediately close new positions!
+            try:
+                open_orders = await exchange.fetch_open_orders(symbol)
+                if open_orders:
+                    logger.info(f"🗑️ Cancelling {len(open_orders)} open orders for {symbol}")
+                    for order in open_orders:
+                        try:
+                            await exchange.cancel_order(order['id'], symbol)
+                            logger.info(f"  ✅ Cancelled order {order['id']} ({order['type']} {order['side']})")
+                        except Exception as cancel_err:
+                            logger.warning(f"  ⚠️ Could not cancel order {order['id']}: {cancel_err}")
+                else:
+                    logger.info(f"No open orders to cancel for {symbol}")
+            except Exception as e:
+                logger.warning(f"Could not fetch/cancel open orders: {e}")
+
+                # Fallback: Try to cancel known order IDs from position record
+                if position.get('stop_loss_order_id'):
+                    try:
+                        await exchange.cancel_order(position['stop_loss_order_id'], symbol)
+                        logger.info("Stop-loss order cancelled (fallback)")
+                    except Exception as e2:
+                        logger.warning(f"Fallback SL cancel failed: {e2}")
 
             # 📊 EXECUTION QUALITY MONITORING: Track exit fill time and slippage
             exit_start_time = datetime.now()
