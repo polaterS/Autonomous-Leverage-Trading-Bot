@@ -226,15 +226,22 @@ class TradeQualityManager:
             portfolio_exposure = 0.0
             total_position_value = 0.0
 
-        # Dynamic confidence threshold based on exposure
-        if portfolio_exposure >= self.max_portfolio_exposure:
-            # Critical risk level - no new trades
-            if reason_if_blocked:
-                return False, (
-                    f"🚫 Portfolio exposure critical: {portfolio_exposure:.1%} "
-                    f"(${total_position_value:.0f}). Close positions first!"
-                )
-            return False, None
+        # Portfolio exposure check - DISABLED BY USER REQUEST
+        # REASON: With 10 concurrent positions, exposure can reach 1000%+ (normal)
+        # Each position uses 10% capital with 15-20x leverage = 150-200% exposure per position
+        # 10 positions × 150% = 1500% total exposure (expected with 10 positions)
+        #
+        # Protection now relies on:
+        # - Per-position loss limit: -$1.50 to -$2.50
+        # - Stop-loss: 1.5-2.5% on each position
+        # - Max 10 concurrent positions (config limit)
+        #
+        # OLD: Blocked trades at 100% exposure (only 1 position allowed!)
+        # NEW: Allow any exposure level up to 10 positions
+        logger.debug(
+            f"📊 Portfolio exposure: {portfolio_exposure:.1%} "
+            f"(${total_position_value:.0f}, check disabled - up to 10 positions allowed)"
+        )
 
         # ===== EXPOSURE-BASED CONFIDENCE REQUIREMENTS: DISABLED BY USER REQUEST =====
         # User wants maximum trading opportunities without exposure-based confidence gates
