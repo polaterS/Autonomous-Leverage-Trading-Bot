@@ -170,17 +170,21 @@ class TradeExecutor:
             # 🎯 TIME-BASED RISK: Adjust position size based on hour performance
             time_multiplier = await adaptive_risk.get_time_based_risk_multiplier()
 
-            # FIXED position size: Always $100 per trade (but can be adjusted by time multiplier)
+            # FIXED position size: $10 per trade (adjusted by time multiplier)
+            # 🔧 REDUCED FROM $100 → $10 TO FIX "Margin is insufficient" ERRORS
+            # With $100 capital and 10 positions: 10 × $10 = $100 total margin (perfect fit)
+            # Old $100 size: 9 positions × $75 = $675 margin (too much for small capital!)
+            #
             # What changes: NUMBER of positions you can open
-            # $1000 capital → 10 positions max
-            # $1100 capital → 11 positions max
-            # $900 capital → 9 positions max
-            FIXED_POSITION_SIZE_USD = Decimal("100.00") * Decimal(str(time_multiplier))
+            # $100 capital → 10 positions max × $10 = $100 margin used
+            # $110 capital → 11 positions max × $10 = $110 margin used
+            # $90 capital → 9 positions max × $10 = $90 margin used
+            FIXED_POSITION_SIZE_USD = Decimal("10.00") * Decimal(str(time_multiplier))
 
-            max_positions_allowed = int(current_capital / Decimal("100.00"))  # Base calculation
+            max_positions_allowed = int(current_capital / Decimal("10.00"))  # Base calculation
             logger.info(
-                f"💰 Capital: ${current_capital:.2f} → Max positions: {max_positions_allowed} x $100 "
-                f"(time multiplier: {time_multiplier}x)"
+                f"💰 Capital: ${current_capital:.2f} → Max positions: {max_positions_allowed} x $10 "
+                f"(time multiplier: {time_multiplier}x, position size: ${FIXED_POSITION_SIZE_USD})"
             )
 
             quantity, position_value = calculate_position_size(
