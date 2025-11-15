@@ -35,12 +35,12 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
-    min_leverage: int = Field(default=15, ge=1, le=50)  # Minimum leverage (15x) - USER REQUEST
-    max_leverage: int = Field(default=20, ge=1, le=50)  # Maximum leverage (20x) - USER REQUEST
-    max_concurrent_positions: int = Field(default=3, ge=1, le=30)  # 🔧 USER REQUEST: 3 concurrent positions (prevent overtrading and immediate stop-losses)
+    min_leverage: int = Field(default=25, ge=1, le=50)  # Minimum leverage (25x) - USER REQUEST
+    max_leverage: int = Field(default=30, ge=1, le=50)  # Maximum leverage (30x) - USER REQUEST
+    max_concurrent_positions: int = Field(default=3, ge=1, le=30)  # 🔧 USER: 3 positions max (Railway env + code sync)
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% per position ($10) - dynamic based on leverage
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.015"), gt=0, le=1)  # 1.5% min (ULTRA TIGHT for 15-20x leverage)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with high leverage)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.015"), gt=0, le=1)  # 1.5% min (ULTRA TIGHT for 25-30x leverage)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with 25-30x leverage)
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target (close position)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.50"), ge=0, le=1)  # 🔥 MAXIMUM AGGRESSIVE: 50% minimum - Maximum learning opportunity (AI+ML full test)
@@ -215,31 +215,31 @@ CONFIDENCE SCORING SYSTEM (MAXIMUM AGGRESSIVE MODE - AI+ML FULL TEST):
 ✓ 8+ confluence factors
 ✓ Strong momentum + volume + no major risks
 ✓ Perfect entry trigger at key level
-→ MAXIMUM AGGRESSIVE: Use 18-20x leverage
+→ MAXIMUM AGGRESSIVE: Use 28-30x leverage
 
 75-84% CONFIDENCE (High):
 ✓ Strong setup with 6-7 confluence factors
 ✓ Clear directional bias
 ✓ Most factors aligned
-→ AGGRESSIVE: Use 15-17x leverage
+→ AGGRESSIVE: Use 26-28x leverage
 
 65-74% CONFIDENCE (Good):
 ✓ Good setup with 4-5 confluence factors
 ✓ Clear direction
 ✓ Solid opportunity
-→ MODERATE: Use 12-14x leverage
+→ MODERATE: Use 25-26x leverage
 
 55-64% CONFIDENCE (Acceptable):
 ✓ Decent setup with 3-4 confluence factors
 ✓ Some directional bias
 ✓ ML learning opportunity
-→ BALANCED: Use 10-12x leverage
+→ BALANCED: Use 25x leverage
 
 50-54% CONFIDENCE (Speculative - Maximum Learning Mode):
 ✓ Weak setup with 2-3 confluence factors
 ✓ Slight edge detected by AI
 ✓ Pure ML learning trade
-→ MINIMUM: Use 10x leverage ONLY
+→ MINIMUM: Use 25x leverage (hard minimum)
 
 <50% CONFIDENCE:
 → SKIP: No edge detected
@@ -323,11 +323,11 @@ RISK/REWARD REQUIREMENTS:
 - Adaptive stop-loss based on win rate and volatility
 
 CONFIDENCE SCORING (MAXIMUM AGGRESSIVE MODE - HIGH LEVERAGE):
-- 85-100%: Perfect setup, use 18-20x leverage (max risk $5-6 per trade)
-- 75-84%: Strong setup, use 15-17x leverage (max risk $5-6 per trade)
-- 65-74%: Good setup, use 12-14x leverage (max risk $5-6 per trade)
-- 55-64%: Acceptable setup, use 10-12x leverage (max risk $5-6 per trade)
-- 50-54%: Speculative setup, use 10x leverage ONLY (max risk $5-6 per trade)
+- 85-100%: Perfect setup, use 28-30x leverage (max risk $5 per trade)
+- 75-84%: Strong setup, use 26-28x leverage (max risk $5 per trade)
+- 65-74%: Good setup, use 25-26x leverage (max risk $5 per trade)
+- 55-64%: Acceptable setup, use 25x leverage (max risk $5 per trade)
+- 50-54%: Speculative setup, use 25x leverage (hard minimum, max risk $5)
 - <50%: DO NOT TRADE (no edge detected)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -354,8 +354,8 @@ FORBIDDEN PATTERNS (Avoid These!):
 ❌ Giving same confidence to multiple coins (0.52, 0.52, 0.52...)
 ❌ Only giving HOLD signals (be VERY aggressive in finding setups!)
 ❌ Trading with confidence below 50% (no edge = no trade)
-❌ Using leverage above 10x (max allowed)
-❌ Using >3x leverage on 50-54% confidence (strict safety rule)
+❌ Using leverage above 30x (hard maximum limit)
+❌ Using leverage below 25x (hard minimum limit)
 ❌ Ignoring confluence factors
 ❌ **CRITICAL:** Returning action="hold" when confidence ≥ 50%
 ❌ **CRITICAL:** Returning side=null when confidence ≥ 50%
@@ -391,18 +391,19 @@ Analysis ID: {symbol}_{timestamp}
 CRITICAL REQUIREMENTS (MAXIMUM AGGRESSIVE MODE - HIGH LEVERAGE):
 1. Stop-loss range: 5-8% of position value (tight stops for high leverage)
 2. Minimum profit target: $1.50 USD
-3. Leverage range: 10x-20x (AGGRESSIVE MODE for maximum profit)
+3. Leverage range: 25x-30x (ULTRA AGGRESSIVE MODE for maximum profit)
 4. Minimum confidence: 50% to execute trade (maximum ML learning mode)
 5. Risk/reward ratio must be at least 1.5:1
 6. STRICT leverage rules based on confidence:
-   - 50-54% confidence → 10x leverage (minimum aggressive)
-   - 55-64% confidence → 10-12x leverage
-   - 65-74% confidence → 12-14x leverage
-   - 75-84% confidence → 15-17x leverage
-   - 85-100% confidence → 18-20x leverage (maximum)
-7. NEVER exceed 20x leverage regardless of confidence (hard limit)
-8. Stop-loss must ensure max $5-6 loss per trade
-9. Provide varied confidence (50-95%) AND appropriate leverage (10-20x)
+   - 50-54% confidence → 25x leverage (hard minimum)
+   - 55-64% confidence → 25x leverage
+   - 65-74% confidence → 25-26x leverage
+   - 75-84% confidence → 26-28x leverage
+   - 85-100% confidence → 28-30x leverage (maximum)
+7. NEVER exceed 30x leverage regardless of confidence (hard limit)
+8. NEVER go below 25x leverage (hard minimum)
+9. Stop-loss must ensure max $5 loss per trade
+10. Provide varied confidence (50-95%) AND appropriate leverage (25-30x)
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
@@ -695,7 +696,7 @@ RESPONSE FORMAT (JSON only, no explanations outside JSON):
     }},
     "confluence_count": 0-11,
     "side": "LONG" | "SHORT" | null,  // ⚠️ null ONLY if confidence < 0.50
-    "suggested_leverage": 3-10,
+    "suggested_leverage": 25-30,
     "stop_loss_percent": 12.0-20.0,
     "entry_price": {market_data['current_price']},
     "stop_loss_price": 0.0,

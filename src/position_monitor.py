@@ -210,11 +210,11 @@ class PositionMonitor:
             # Profit target: $1.00 (user requested)
             profit_target = Decimal("1.00")
 
-            # CHECK: PROFIT TARGET HIT ($1.00)
+            # CHECK: PROFIT TARGET HIT (+$1.00)
             if unrealized_pnl >= profit_target:
                 logger.info(
                     f"🎯 PROFIT TARGET HIT! {symbol} {side} | "
-                    f"P&L: ${float(unrealized_pnl):+.2f} (target: $1.00) | "
+                    f"P&L: ${float(unrealized_pnl):+.2f} (target: +$1.00) | "
                     f"Closing ENTIRE position"
                 )
 
@@ -223,7 +223,7 @@ class PositionMonitor:
                     f"🎯 PROFIT TARGET REACHED!\n\n"
                     f"💎 {symbol} {side} {position['leverage']}x\n\n"
                     f"💰 Profit: ${float(unrealized_pnl):+.2f}\n"
-                    f"🎯 Target: $1.00\n\n"
+                    f"🎯 Target: +$1.00\n\n"
                     f"✅ Full position closed\n"
                     f"🚀 Target achieved!"
                 )
@@ -232,6 +232,41 @@ class PositionMonitor:
                     position,
                     current_price,
                     f"Profit target hit: ${float(unrealized_pnl):+.2f}"
+                )
+                return
+
+            # ====================================================================
+            # 🔴 LOSS LIMIT: -$1.00 (IMMEDIATE EXIT)
+            # ====================================================================
+            # USER REQUEST: Close position when loss reaches -$1.00
+            # Position can stay open indefinitely between -$1 and +$1
+            # ====================================================================
+
+            # Loss limit: -$1.00 (user requested)
+            loss_limit = Decimal("-1.00")
+
+            # CHECK: LOSS LIMIT HIT (-$1.00)
+            if unrealized_pnl <= loss_limit:
+                logger.warning(
+                    f"🔴 LOSS LIMIT HIT! {symbol} {side} | "
+                    f"P&L: ${float(unrealized_pnl):+.2f} (limit: -$1.00) | "
+                    f"Closing ENTIRE position"
+                )
+
+                await notifier.send_alert(
+                    'warning',
+                    f"🔴 LOSS LIMIT REACHED\n\n"
+                    f"💎 {symbol} {side} {position['leverage']}x\n\n"
+                    f"💰 Loss: ${float(unrealized_pnl):+.2f}\n"
+                    f"🔴 Limit: -$1.00\n\n"
+                    f"✅ Position closed\n"
+                    f"🛡️ Capital protected"
+                )
+
+                await executor.close_position(
+                    position,
+                    current_price,
+                    f"Loss limit hit: ${float(unrealized_pnl):+.2f}"
                 )
                 return
 
