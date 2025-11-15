@@ -146,52 +146,13 @@ class PositionMonitor:
             )
 
             # ====================================================================
-            # 🛑 CRITICAL CHECK 0: MANUAL STOP-LOSS TRIGGER
+            # 🛑 STOP-LOSS CHECK: DISABLED (±$1 limits control exits)
             # ====================================================================
-            # In paper trading mode, stop-loss orders are simulated and do NOT
-            # auto-execute. We MUST manually check if price hit stop-loss.
+            # USER REQUEST: Only close at ±$1, ignore stop-loss triggers
+            # Stop-loss is set very wide (50%) as emergency safety net only
             #
-            # This is the #1 priority check - prevents catastrophic losses.
-            # ADDED: 2025-11-12 after discovering 0/10 trades hit stop-loss
-            stop_loss_price = Decimal(str(position['stop_loss_price']))
-
-            sl_triggered = False
-            if side == 'LONG':
-                # LONG: Close if price drops to or below stop-loss
-                if current_price <= stop_loss_price:
-                    sl_triggered = True
-            else:  # SHORT
-                # SHORT: Close if price rises to or above stop-loss
-                if current_price >= stop_loss_price:
-                    sl_triggered = True
-
-            if sl_triggered:
-                logger.warning(
-                    f"🛑 STOP-LOSS TRIGGERED: {symbol} {side} | "
-                    f"Entry: ${float(position['entry_price']):.4f} | "
-                    f"Current: ${float(current_price):.4f} | "
-                    f"Stop: ${float(stop_loss_price):.4f} | "
-                    f"Loss: ${float(unrealized_pnl):+.2f}"
-                )
-
-                await notifier.send_alert(
-                    'warning',
-                    f"🛑 STOP-LOSS HIT\n\n"
-                    f"💎 {symbol}\n"
-                    f"📊 {side} {position['leverage']}x\n\n"
-                    f"📍 Entry: ${float(position['entry_price']):.4f}\n"
-                    f"💥 Exit: ${float(current_price):.4f}\n"
-                    f"🛑 Stop: ${float(stop_loss_price):.4f}\n\n"
-                    f"💰 P&L: ${float(unrealized_pnl):+.2f}\n\n"
-                    f"✅ Position closed automatically"
-                )
-
-                await executor.close_position(
-                    position,
-                    current_price,
-                    "Stop-loss triggered"
-                )
-                return
+            # This check is SKIPPED - ±$1 profit/loss limits below will handle exits
+            # ====================================================================
 
             # ====================================================================
             # 💰 PROFIT TARGET: $1.00 (FIXED)
