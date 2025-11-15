@@ -123,17 +123,48 @@ class PositionMonitor:
                 is_active_position=True  # Prioritize WebSocket for active positions
             )
 
-            # Calculate current P&L
-            pnl_data = calculate_pnl(
-                Decimal(str(position['entry_price'])),
-                current_price,
-                Decimal(str(position['quantity'])),
-                side,
-                position['leverage'],
-                Decimal(str(position['position_value_usd']))
-            )
+            # ====================================================================
+            # 🎯 FETCH REAL UNREALIZED PNL FROM BINANCE
+            # ====================================================================
+            # USER REQUEST: Use Binance's actual unrealized PNL (ROI = Unrealized PNL / Initial Margin)
+            # This is more accurate than manual calculation
+            try:
+                binance_position = await exchange.exchange.fetch_positions([symbol])
+                real_unrealized_pnl = None
 
-            unrealized_pnl = Decimal(str(pnl_data['unrealized_pnl']))
+                for pos in binance_position:
+                    if pos['symbol'] == symbol and float(pos.get('contracts', 0)) > 0:
+                        # Binance provides unrealized PNL directly
+                        real_unrealized_pnl = Decimal(str(pos.get('unrealizedPnl', 0)))
+                        logger.info(f"📊 Binance Real Unrealized PNL: ${float(real_unrealized_pnl):+.2f}")
+                        break
+
+                if real_unrealized_pnl is not None:
+                    unrealized_pnl = real_unrealized_pnl
+                else:
+                    # Fallback to manual calculation if Binance data not available
+                    logger.warning(f"⚠️ Binance position not found for {symbol}, using manual PNL calculation")
+                    pnl_data = calculate_pnl(
+                        Decimal(str(position['entry_price'])),
+                        current_price,
+                        Decimal(str(position['quantity'])),
+                        side,
+                        position['leverage'],
+                        Decimal(str(position['position_value_usd']))
+                    )
+                    unrealized_pnl = Decimal(str(pnl_data['unrealized_pnl']))
+            except Exception as binance_pnl_error:
+                # Fallback to manual calculation on error
+                logger.warning(f"⚠️ Could not fetch Binance PNL, using manual calculation: {binance_pnl_error}")
+                pnl_data = calculate_pnl(
+                    Decimal(str(position['entry_price'])),
+                    current_price,
+                    Decimal(str(position['quantity'])),
+                    side,
+                    position['leverage'],
+                    Decimal(str(position['position_value_usd']))
+                )
+                unrealized_pnl = Decimal(str(pnl_data['unrealized_pnl']))
 
             # Update position in database
             await db.update_position_price(position['id'], current_price, unrealized_pnl)
