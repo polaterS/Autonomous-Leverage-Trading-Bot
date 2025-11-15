@@ -194,28 +194,25 @@ class PositionMonitor:
                 return
 
             # ====================================================================
-            # 💰 USER REQUEST: FIXED PROFIT/LOSS TARGETS ($1.50-$2.50)
+            # 💰 USER REQUEST: FIXED PROFIT TARGET ($1.00)
             # ====================================================================
-            # NEW STRATEGY (15-20x leverage):
-            # 1. Profit target: $1.50-$2.50 → Close ENTIRE position
-            # 2. Loss limit: -$1.50 to -$2.50 → Close ENTIRE position
-            # 3. No partial exits - simple all-or-nothing approach
-            # 4. Works with stop-loss as additional safety (1.5-2.5%)
+            # LATEST UPDATE: User wants $1 profit = immediate close
+            # Strategy:
+            # 1. Profit target: $1.00 → Close ENTIRE position
+            # 2. Loss limit: Stop-loss only (1.5-2.5%)
+            # 3. Simple: Hit $1 profit = done!
             #
-            # DISABLED: Old partial exit system (50% at Target 1, etc.)
-            # REASON: User wants simple fixed targets with full position close
+            # REMOVED: $1.50-$2.50 range (too high)
+            # REMOVED: Loss limit -$1.50 to -$2.50 (rely on stop-loss instead)
 
-            # Calculate target range
-            profit_target_low = Decimal("1.50")
-            profit_target_high = Decimal("2.50")
-            loss_limit_low = Decimal("-1.50")
-            loss_limit_high = Decimal("-2.50")
+            # Profit target: $1.00
+            profit_target = Decimal("1.00")
 
-            # CHECK 1: PROFIT TARGET HIT ($1.50 to $2.50)
-            if profit_target_low <= unrealized_pnl <= profit_target_high:
+            # CHECK: PROFIT TARGET HIT ($1.00)
+            if unrealized_pnl >= profit_target:
                 logger.info(
                     f"🎯 PROFIT TARGET HIT! {symbol} {side} | "
-                    f"P&L: ${float(unrealized_pnl):+.2f} (target: $1.50-$2.50) | "
+                    f"P&L: ${float(unrealized_pnl):+.2f} (target: $1.00) | "
                     f"Closing ENTIRE position"
                 )
 
@@ -224,7 +221,7 @@ class PositionMonitor:
                     f"🎯 PROFIT TARGET REACHED!\n\n"
                     f"💎 {symbol} {side} {position['leverage']}x\n\n"
                     f"💰 Profit: ${float(unrealized_pnl):+.2f}\n"
-                    f"🎯 Target: $1.50-$2.50\n\n"
+                    f"🎯 Target: $1.00\n\n"
                     f"✅ Full position closed\n"
                     f"🚀 Target achieved!"
                 )
@@ -233,32 +230,6 @@ class PositionMonitor:
                     position,
                     current_price,
                     f"Profit target hit: ${float(unrealized_pnl):+.2f}"
-                )
-                return
-
-            # CHECK 2: LOSS LIMIT HIT (-$1.50 to -$2.50)
-            # Additional safety BEFORE stop-loss triggers
-            if loss_limit_high <= unrealized_pnl <= loss_limit_low:
-                logger.warning(
-                    f"🛑 LOSS LIMIT HIT! {symbol} {side} | "
-                    f"P&L: ${float(unrealized_pnl):+.2f} (limit: -$1.50 to -$2.50) | "
-                    f"Closing ENTIRE position"
-                )
-
-                await notifier.send_alert(
-                    'warning',
-                    f"🛑 LOSS LIMIT REACHED\n\n"
-                    f"💎 {symbol} {side} {position['leverage']}x\n\n"
-                    f"💸 Loss: ${float(unrealized_pnl):+.2f}\n"
-                    f"🛑 Limit: -$1.50 to -$2.50\n\n"
-                    f"✅ Full position closed\n"
-                    f"🛡️ Loss contained before stop-loss"
-                )
-
-                await executor.close_position(
-                    position,
-                    current_price,
-                    f"Loss limit hit: ${float(unrealized_pnl):+.2f}"
                 )
                 return
 
