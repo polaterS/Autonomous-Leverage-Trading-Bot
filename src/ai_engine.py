@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-ML_ONLY_VERSION = "6.2-PA-INTEGRATED"  # CLASSIC + PA/ML: Real S/R, trend, volume data for better ML predictions
-logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (PA-enhanced ML, ±$0.85 targets, 4-6x leverage)")
+PA_ONLY_VERSION = "6.3-PA-ONLY"  # PA-ONLY MODE: ML disabled, using only Support/Resistance + Trend + Volume
+logger.info(f"📊 AI Engine initialized - Mode: {PA_ONLY_VERSION} (PA-ONLY: ML disabled, S/R+Trend+Volume, 20x leverage, 4-5% SL)")
 
 
 class AIConsensusEngine:
@@ -206,68 +206,157 @@ class AIConsensusEngine:
 
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        🤖 ML-ONLY MODE: Using ONLY our trained ML model
+        📊 PA-ONLY MODE: Using ONLY Price Action analysis
 
-        USER REQUEST: "DeepSeek AI modeli kullandığımızdan beri zarar ediyoruz.
-        Sadece bizim ML modeli kullanmasını istiyorum dün sadece onu kullanırken 15 dolar kar ettirmişti"
+        USER REQUEST: "C: ML'Yİ KAPAT, SADECE PA KULLAN
+        ML model %63.7 accuracy ile çok kötü tahmin yapıyor.
+        Sadece Price Action (Support/Resistance, Trend, Volume) kullansın."
 
-        CHANGE: Disabled DeepSeek AI completely, using ONLY ML Predictor
-        REASON: Better performance with ML-only ($15 profit yesterday)
+        CHANGE: Disabled ML Predictor completely, using ONLY Price Action
+        REASON: ML trained on bad data (59.7% win rate), making bad predictions
 
         Args:
             symbol: Trading symbol
             market_data: Market data dict with price, indicators, etc.
 
         Returns:
-            ML-only analysis with action, confidence, and reasoning
+            PA-only analysis with action, confidence, and reasoning
         """
-        from src.ml_pattern_learner import get_ml_learner
-        from src.ml_predictor import get_ml_predictor
+        from src.price_action_analyzer import PriceActionAnalyzer
+        import pandas as pd
 
-        ml_learner = await get_ml_learner()
-        ml_predictor = get_ml_predictor()
+        logger.debug(f"📊 PA-ONLY mode for {symbol} (ML disabled by user request)")
 
-        # 🤖 ML-ONLY MODE: Skip DeepSeek AI entirely
-        logger.debug(f"🤖 ML-ONLY mode for {symbol} (DeepSeek AI disabled by user request)")
+        # Initialize PA analyzer
+        pa_analyzer = PriceActionAnalyzer()
 
-        # Get ML Predictor analysis (GradientBoosting) - THIS IS THE ONLY MODEL NOW
-        ml_long_pred = await ml_predictor.predict(market_data, side='LONG')
-        ml_short_pred = await ml_predictor.predict(market_data, side='SHORT')
+        # Get current price
+        current_price = float(market_data.get('price', 0))
+        if current_price == 0:
+            logger.error(f"❌ No price data for {symbol}")
+            return {
+                'action': 'hold',
+                'side': None,
+                'confidence': 0.0,
+                'reasoning': 'No price data available',
+                'suggested_leverage': 20,
+                'stop_loss_percent': 4.0,
+                'models_used': ['PA-ONLY'],
+                'ensemble_method': 'pa_only',
+                'risk_reward_ratio': 0.0,
+                'price_action': None
+            }
 
-        # ====================================================================
-        # 🎯 NORMAL ML STRATEGY: Use ML predictions as-is (CLASSIC)
-        # ====================================================================
-        # ML says LONG → We go LONG
-        # ML says SHORT → We go SHORT
-        # This is the CLASSIC strategy that earned $10-15/day
-        # ====================================================================
+        # Get OHLCV data for PA analysis
+        # PA needs historical candlestick data
+        df = market_data.get('ohlcv_df')
+        if df is None or len(df) < 100:
+            logger.warning(f"⚠️ Insufficient OHLCV data for {symbol} (need 100+ candles)")
+            return {
+                'action': 'hold',
+                'side': None,
+                'confidence': 0.0,
+                'reasoning': 'Insufficient OHLCV data for PA analysis',
+                'suggested_leverage': 20,
+                'stop_loss_percent': 4.0,
+                'models_used': ['PA-ONLY'],
+                'ensemble_method': 'pa_only',
+                'risk_reward_ratio': 0.0,
+                'price_action': None
+            }
 
-        # Choose ML direction with higher confidence
-        if ml_long_pred['confidence'] > ml_short_pred['confidence']:
-            ml_prediction = ml_long_pred
-            ml_side = 'LONG'
-            ml_action = 'buy'
-        else:
-            ml_prediction = ml_short_pred
-            ml_side = 'SHORT'
-            ml_action = 'sell'
+        # Analyze Support/Resistance
+        sr_analysis = pa_analyzer.analyze_support_resistance(df)
+        trend = pa_analyzer.detect_trend(df)
+        volume = pa_analyzer.analyze_volume(df)
 
         logger.info(
-            f"🤖 ML Predictor: {ml_side} @ {ml_prediction['confidence']:.1%} | "
-            f"Reasoning: {ml_prediction['reasoning']}"
+            f"📊 PA Analysis: {symbol} | "
+            f"Trend: {trend['direction']} ({trend['strength']}) | "
+            f"Volume: {volume['surge_ratio']:.1f}x | "
+            f"S/R: {len(sr_analysis.get('support', []))} supports, {len(sr_analysis.get('resistance', []))} resistances"
         )
 
-        # Return ML-only result (NORMAL - NOT INVERSED)
+        # Determine PA signal based on trend + support/resistance
+        pa_action = 'hold'
+        pa_side = None
+        pa_confidence = 0.0
+        pa_reasoning = ''
+
+        supports = [s['price'] for s in sr_analysis.get('support', [])]
+        resistances = [r['price'] for r in sr_analysis.get('resistance', [])]
+
+        if not supports or not resistances:
+            pa_reasoning = 'Insufficient S/R levels for PA analysis'
+        else:
+            nearest_support = min(supports, key=lambda x: abs(x - current_price))
+            nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
+
+            dist_to_support = abs(current_price - nearest_support) / current_price
+            dist_to_resistance = abs(current_price - nearest_resistance) / current_price
+
+            # LONG setup: Near support + uptrend
+            if dist_to_support <= 0.06 and trend['direction'] == 'UPTREND':
+                pa_action = 'buy'
+                pa_side = 'LONG'
+                pa_confidence = 0.60  # Base 60%
+
+                # Boost confidence for strong conditions
+                if trend['strength'] == 'STRONG':
+                    pa_confidence += 0.10
+                if volume['is_surge']:
+                    pa_confidence += 0.10
+                if dist_to_support <= 0.03:  # Very close to support
+                    pa_confidence += 0.05
+
+                pa_reasoning = f"LONG: Support bounce ({dist_to_support*100:.1f}% away) in {trend['direction']}"
+
+            # SHORT setup: Near resistance + downtrend
+            elif dist_to_resistance <= 0.06 and trend['direction'] == 'DOWNTREND':
+                pa_action = 'sell'
+                pa_side = 'SHORT'
+                pa_confidence = 0.60  # Base 60%
+
+                # Boost confidence for strong conditions
+                if trend['strength'] == 'STRONG':
+                    pa_confidence += 0.10
+                if volume['is_surge']:
+                    pa_confidence += 0.10
+                if dist_to_resistance <= 0.03:  # Very close to resistance
+                    pa_confidence += 0.05
+
+                pa_reasoning = f"SHORT: Resistance rejection ({dist_to_resistance*100:.1f}% away) in {trend['direction']}"
+
+            else:
+                pa_reasoning = (
+                    f"No clear setup: "
+                    f"Support {dist_to_support*100:.1f}% away, "
+                    f"Resistance {dist_to_resistance*100:.1f}% away, "
+                    f"Trend: {trend['direction']}"
+                )
+
+        logger.info(f"📊 PA Signal: {pa_action.upper()} @ {pa_confidence:.1%} | {pa_reasoning}")
+
+        # Return PA-only result
         return {
-            'action': ml_action,
-            'side': ml_side,
-            'confidence': ml_prediction['confidence'],
-            'reasoning': f"ML-ONLY: {ml_prediction['reasoning']}",
-            'suggested_leverage': 5,  # ✅ CLASSIC: 4-6x leverage (middle = 5x)
-            'stop_loss_percent': 15.0,  # ✅ CLASSIC: 15% SL (moderate risk)
-            'models_used': ['ML-Predictor-ONLY'],
-            'ensemble_method': 'ml_only',
-            'risk_reward_ratio': 0.0
+            'action': pa_action,
+            'side': pa_side,
+            'confidence': pa_confidence,
+            'reasoning': f"PA-ONLY: {pa_reasoning}",
+            'suggested_leverage': 20,  # User wants 20x
+            'stop_loss_percent': 4.5,  # 4-5% range
+            'models_used': ['PA-ONLY'],
+            'ensemble_method': 'pa_only',
+            'risk_reward_ratio': 0.0,
+            'price_action': {
+                'trend': trend,
+                'volume': volume,
+                'support_resistance': sr_analysis,
+                'nearest_support': nearest_support if supports else None,
+                'nearest_resistance': nearest_resistance if resistances else None,
+                'support_dist': dist_to_support if supports else 0,
+                'resistance_dist': dist_to_resistance if resistances else 0
+            }
         }
 
         # 🎯 AI+ML ENSEMBLE: Weighted combination (60% AI + 40% ML)
