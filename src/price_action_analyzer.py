@@ -1154,6 +1154,22 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
                 return result
 
+            # 🔥 NEW FILTERS: Candlestick patterns + order flow + structure
+            # Check 6: Candlestick pattern confirmation
+            if candle_patterns['signal'] in ['STRONG_BULLISH', 'BULLISH']:
+                result['reason'] = f'Bullish candle pattern conflicts with SHORT: {", ".join(candle_patterns["patterns"])}'
+                return result
+
+            # Check 7: Order flow must support SHORT (sellers in control)
+            if order_flow['bias'] in ['STRONG_BUYERS', 'BUYERS']:
+                result['reason'] = f'Order flow shows buyers in control ({order_flow["buy_pressure"]:.0%}) - conflicts with SHORT'
+                return result
+
+            # Check 8: Market structure should support SHORT (bearish BOS or CHoCH)
+            if market_structure['structure'] in ['BULLISH_BOS', 'BULLISH_CHOCH']:
+                result['reason'] = f'Bullish market structure ({market_structure["structure"]}) - conflicts with SHORT'
+                return result
+
             # ✅ ALL CHECKS PASSED - PERFECT SHORT SETUP!
             confidence_boost = 0
 
@@ -1167,12 +1183,38 @@ class PriceActionAnalyzer:
             if rr['max_rr'] >= 3.0:
                 confidence_boost += 5
 
+            # 🔥 NEW: Bonus for bearish candle patterns
+            if candle_patterns['signal'] == 'STRONG_BEARISH':
+                confidence_boost += 10
+                logger.info(f"   ⭐ STRONG bearish pattern: {', '.join(candle_patterns['patterns'])}")
+            elif candle_patterns['signal'] == 'BEARISH':
+                confidence_boost += 5
+                logger.info(f"   ✨ Bearish pattern: {', '.join(candle_patterns['patterns'])}")
+
+            # 🔥 NEW: Bonus for strong seller order flow
+            if order_flow['bias'] == 'STRONG_SELLERS':
+                confidence_boost += 10
+                logger.info(f"   💪 STRONG seller pressure: {order_flow['sell_pressure']:.0%}")
+            elif order_flow['bias'] == 'SELLERS':
+                confidence_boost += 5
+                logger.info(f"   👎 Seller dominance: {order_flow['sell_pressure']:.0%}")
+
+            # 🔥 NEW: Bonus for bearish structure break
+            if market_structure['structure'] == 'BEARISH_BOS':
+                confidence_boost += 10
+                logger.info(f"   📉 Bearish Break of Structure confirmed!")
+            elif market_structure['structure'] == 'BEARISH_CHOCH':
+                confidence_boost += 15  # CHoCH is stronger (reversal)
+                logger.info(f"   🔄 Bearish Change of Character - trend reversal!")
+
             result.update({
                 'should_enter': True,
                 'reason': (
                     f'✅ Perfect SHORT: Resistance rejection ({dist_to_resistance*100:.0f}% away) | '
                     f'{trend["direction"]} | R/R {rr["max_rr"]:.1f} | '
-                    f'Volume {volume["surge_ratio"]:.1f}x'
+                    f'Volume {volume["surge_ratio"]:.1f}x | '
+                    f'Patterns: {", ".join(candle_patterns["patterns"][:2]) if candle_patterns["patterns"] else "None"} | '
+                    f'Flow: {order_flow["bias"]}'
                 ),
                 'confidence_boost': confidence_boost,
                 'entry': current_price,
