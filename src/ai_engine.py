@@ -186,13 +186,41 @@ class AIConsensusEngine:
         # Get OHLCV data for PA analysis
         # PA needs historical candlestick data
         df = market_data.get('ohlcv_df')
-        if df is None or len(df) < 100:
-            logger.warning(f"⚠️ Insufficient OHLCV data for {symbol} (need 100+ candles)")
+
+        # 🔧 FIX: Fallback to creating DataFrame from ohlcv_15m if ohlcv_df is missing
+        if df is None:
+            ohlcv_15m = market_data.get('ohlcv_15m', [])
+            if len(ohlcv_15m) >= 50:
+                logger.debug(f"📊 {symbol} - Creating DataFrame from ohlcv_15m ({len(ohlcv_15m)} candles)")
+                df = pd.DataFrame(
+                    ohlcv_15m,
+                    columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                )
+            else:
+                logger.warning(f"⚠️ Insufficient OHLCV data for {symbol} (need 50+ candles, got {len(ohlcv_15m)})")
+                return {
+                    'action': 'hold',
+                    'side': None,
+                    'confidence': 0.0,
+                    'reasoning': 'Insufficient OHLCV data for PA analysis',
+                    'suggested_leverage': 20,
+                    'stop_loss_percent': 4.0,
+                    'models_used': ['PA-ONLY'],
+                    'ensemble_method': 'pa_only',
+                    'risk_reward_ratio': 0.0,
+                    'price_action': None
+                }
+
+        # Check if we have enough data for analysis
+        # 🔧 USER REQUEST: Lowered from 100 to 50 candles since indicators consume first 20-50
+        # We fetch 200 candles, indicators use ~50, leaving 150 usable candles
+        if len(df) < 50:
+            logger.warning(f"⚠️ Insufficient OHLCV data for {symbol} (need 50+ candles, got {len(df)})")
             return {
                 'action': 'hold',
                 'side': None,
                 'confidence': 0.0,
-                'reasoning': 'Insufficient OHLCV data for PA analysis',
+                'reasoning': f'Insufficient OHLCV data ({len(df)} candles, need 50+)',
                 'suggested_leverage': 20,
                 'stop_loss_percent': 4.0,
                 'models_used': ['PA-ONLY'],

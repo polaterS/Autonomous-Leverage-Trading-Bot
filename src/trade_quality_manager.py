@@ -203,7 +203,7 @@ class TradeQualityManager:
                 # ✅ FIXED: Use real exchange balance for exposure calculation
                 try:
                     from src.exchange_client import get_exchange_client
-                    exchange = get_exchange_client()  # Singleton, not async
+                    exchange = await get_exchange_client()  # 🔧 FIX: Await async function!
                     real_balance = await exchange.fetch_balance()  # This is async
                     current_capital = float(real_balance)
                 except Exception as balance_err:
