@@ -38,37 +38,50 @@ class RiskManager:
 
         logger.info(f"Validating trade: {symbol} {side} {leverage}x with {stop_loss_percent}% stop-loss")
 
-        # 🔥 CRITICAL FIX #1: MARKET DIRECTION FILTER
-        # Prevent opening trades against clear market direction
+        # 🔥 MARKET DIRECTION FILTER - DISABLED BY USER REQUEST
+        # USER: "Market breadth kısıtlamasını kaldır" (Remove market breadth restriction)
+        # REASON: PA-only mode should trade ANY opportunity regardless of overall market sentiment
+        # PA analysis is strong enough to identify good setups even when market breadth is low
+        #
+        # PREVIOUS BEHAVIOR:
+        # - Blocked LONG if market <3% bullish
+        # - Blocked SHORT if market <3% bearish
+        # - Example rejection: "Market not bullish enough for LONG (Bullish: 1%). Need ≥3% bullish."
+        #
+        # NEW BEHAVIOR:
+        # - Allow ALL PA opportunities regardless of market breadth
+        # - Let PA confidence and technical validation be the gatekeepers
+        # - Only 1/120 coins bullish? Still trade if PA finds a quality LONG setup!
+        #
         market_breadth = trade_params.get('market_breadth')
         if market_breadth:
             bullish_pct = market_breadth.get('bullish_percent', 0)
             bearish_pct = market_breadth.get('bearish_percent', 0)
             neutral_pct = market_breadth.get('neutral_percent', 0)
 
-            # Reject SHORT trades if market not sufficiently bearish
-            if side == 'SHORT':
-                # 🔥 USER REQUESTED: Reduced threshold to 3% (ultra permissive)
-                # Only blocks SHORT when market is EXTREMELY bullish (97%+ bullish)
-                if bearish_pct < 3:  # Market not bearish enough
-                    return {
-                        'approved': False,
-                        'reason': f'Market not bearish enough for SHORT (Bearish: {bearish_pct:.0f}%). Need ≥3% bearish.',
-                        'adjusted_params': None
-                    }
-                logger.info(f"✓ Market direction OK for SHORT: {bearish_pct:.0f}% bearish (≥3% threshold)")
+            # Log market sentiment but don't block trades
+            logger.info(
+                f"📊 Market breadth (informational only): "
+                f"{bullish_pct:.0f}% bullish, {bearish_pct:.0f}% bearish, {neutral_pct:.0f}% neutral | "
+                f"Direction filter DISABLED - trading all PA opportunities"
+            )
 
-            # Reject LONG trades if market not sufficiently bullish
-            elif side == 'LONG':
-                # 🔥 USER REQUESTED: Reduced threshold to 3% (ultra permissive)
-                # Only blocks LONG when market is EXTREMELY bearish (97%+ bearish)
-                if bullish_pct < 3:  # Market not bullish enough
-                    return {
-                        'approved': False,
-                        'reason': f'Market not bullish enough for LONG (Bullish: {bullish_pct:.0f}%). Need ≥3% bullish.',
-                        'adjusted_params': None
-                    }
-                logger.info(f"✓ Market direction OK for LONG: {bullish_pct:.0f}% bullish (≥3% threshold)")
+            # DISABLED: Market breadth validation
+            # if side == 'SHORT':
+            #     if bearish_pct < 3:
+            #         return {
+            #             'approved': False,
+            #             'reason': f'Market not bearish enough for SHORT (Bearish: {bearish_pct:.0f}%). Need ≥3% bearish.',
+            #             'adjusted_params': None
+            #         }
+            #
+            # elif side == 'LONG':
+            #     if bullish_pct < 3:
+            #         return {
+            #             'approved': False,
+            #             'reason': f'Market not bullish enough for LONG (Bullish: {bullish_pct:.0f}%). Need ≥3% bullish.',
+            #             'adjusted_params': None
+            #         }
 
         # 🎯 CRITICAL PRE-TRADE TECHNICAL VALIDATION
         # These checks prevent 30-50% of losing trades!
