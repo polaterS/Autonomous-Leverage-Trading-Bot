@@ -5,6 +5,8 @@ Handles all database operations with connection pooling.
 
 import asyncpg
 import asyncio
+import json
+import numpy as np
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
 from datetime import datetime, date
@@ -12,6 +14,30 @@ from src.config import get_settings
 from src.utils import setup_logging
 
 logger = setup_logging()
+
+
+def sanitize_for_json(obj: Any) -> Any:
+    """
+    Recursively sanitize objects for JSON serialization.
+    Converts NumPy types (bool_, int64, float64, etc.) to native Python types.
+
+    This prevents "Object of type bool_ is not JSON serializable" errors
+    when saving ML predictions and technical indicators to the database.
+    """
+    if isinstance(obj, dict):
+        return {key: sanitize_for_json(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 
 class DatabaseClient:
@@ -177,9 +203,9 @@ class DatabaseClient:
             # Multi-position support: Don't delete existing positions
             # Just add the new one
 
-            # Convert snapshot dict to JSON string for JSONB
-            import json
-            entry_snapshot_json = json.dumps(position_data.get('entry_snapshot')) if position_data.get('entry_snapshot') else None
+            # Convert snapshot dict to JSON string for JSONB (sanitize NumPy types first)
+            entry_snapshot = position_data.get('entry_snapshot')
+            entry_snapshot_json = json.dumps(sanitize_for_json(entry_snapshot)) if entry_snapshot else None
 
             row = await conn.fetchrow("""
                 INSERT INTO active_position (
@@ -242,11 +268,14 @@ class DatabaseClient:
     async def record_trade(self, trade_data: Dict[str, Any]) -> int:
         """Record completed trade in history with ML learning snapshots and TIER 1 & 2 metrics."""
         async with self.pool.acquire() as conn:
-            # Convert snapshot dicts to JSON strings for JSONB
-            import json
-            entry_snapshot_json = json.dumps(trade_data.get('entry_snapshot')) if trade_data.get('entry_snapshot') else None
-            exit_snapshot_json = json.dumps(trade_data.get('exit_snapshot')) if trade_data.get('exit_snapshot') else None
-            partial_exit_details_json = json.dumps(trade_data.get('partial_exit_details')) if trade_data.get('partial_exit_details') else None
+            # Convert snapshot dicts to JSON strings for JSONB (sanitize NumPy types first)
+            entry_snapshot = trade_data.get('entry_snapshot')
+            exit_snapshot = trade_data.get('exit_snapshot')
+            partial_exit_details = trade_data.get('partial_exit_details')
+
+            entry_snapshot_json = json.dumps(sanitize_for_json(entry_snapshot)) if entry_snapshot else None
+            exit_snapshot_json = json.dumps(sanitize_for_json(exit_snapshot)) if exit_snapshot else None
+            partial_exit_details_json = json.dumps(sanitize_for_json(partial_exit_details)) if partial_exit_details else None
 
             row = await conn.fetchrow("""
                 INSERT INTO trade_history (
@@ -470,7 +499,7 @@ class DatabaseClient:
                 INSERT INTO ai_analysis_cache (symbol, ai_model, timeframe, analysis_json, confidence, action, expires_at)
                 VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
             """,
-                symbol, ai_model, timeframe, json.dumps(analysis_json),
+                symbol, ai_model, timeframe, json.dumps(sanitize_for_json(analysis_json)),
                 analysis_json.get('confidence'), analysis_json.get('action'), expires_at
             )
 

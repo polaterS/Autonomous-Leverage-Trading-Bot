@@ -460,40 +460,6 @@ class PositionMonitor:
                 logger.error(f"❌ Partial exit check failed: {partial_error}", exc_info=True)
 
             # ====================================================================
-            # 🎯 TIER 1 CHECK #2: TRAILING STOP-LOSS
-            # ====================================================================
-            # Protects profits by locking in gains as position moves favorably
-            try:
-                trailing_stop = get_trailing_stop()
-                should_exit, new_stop, reason = await trailing_stop.update_trailing_stop(
-                    position, current_price, db
-                )
-
-                if should_exit:
-                    logger.info(f"🎯 Trailing stop TRIGGERED: {reason}")
-
-                    # 🎯 TIER 2: Store exit regime before closing
-                    await self._store_exit_regime(position, indicators, symbol)
-
-                    await notifier.send_alert(
-                        'success',
-                        f"🎯 TRAILING STOP EXIT\n"
-                        f"{symbol} {side}\n"
-                        f"{reason}\n"
-                        f"Profit locked: ${float(unrealized_pnl):+.2f}"
-                    )
-                    await executor.close_position(position, current_price, reason)
-                    return
-
-                if new_stop:
-                    logger.info(f"✅ Trailing stop moved to ${float(new_stop):.4f}")
-                    # Position already updated in database by trailing_stop module
-                    position['stop_loss_price'] = new_stop
-
-            except Exception as trailing_error:
-                logger.error(f"❌ Trailing stop check failed: {trailing_error}", exc_info=True)
-
-            # ====================================================================
             # 🎯 TIER 2 CHECK: MARKET REGIME DETECTION
             # ====================================================================
             # Detect market regime for adaptive exit decisions later
@@ -524,28 +490,6 @@ class PositionMonitor:
                 logger.warning(f"Market regime detection failed: {regime_error}")
                 regime = MarketRegime.WEAK_TREND
                 regime_details = {'description': 'Unknown regime'}
-
-            # 🎯 #9: DYNAMIC TRAILING STOP-LOSS (OLD IMPLEMENTATION - KEPT FOR COMPATIBILITY)
-            # Note: TIER 1 Trailing Stop above is the new implementation
-            # This is kept as backup/fallback
-            try:
-                # Check if trailing stop should be updated (old risk_manager method)
-                new_stop_price = await risk_manager.update_trailing_stop(
-                    position, current_price, atr_percent
-                )
-
-                if new_stop_price is not None and not new_stop:
-                    # Only use this if TIER 1 trailing stop didn't trigger
-                    async with db.pool.acquire() as conn:
-                        await conn.execute(
-                            "UPDATE active_position SET stop_loss_price = $1 WHERE id = $2",
-                            float(new_stop_price), position['id']
-                        )
-                    logger.debug(f"✅ Fallback trailing stop updated to ${float(new_stop_price):.4f}")
-                    position['stop_loss_price'] = new_stop_price
-
-            except Exception as trail_error:
-                logger.debug(f"Fallback trailing stop check: {trail_error}")
 
             # === CRITICAL CHECK 1: Emergency close conditions ===
             should_emergency_close, emergency_reason = await risk_manager.should_emergency_close(position, current_price)
