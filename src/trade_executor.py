@@ -173,29 +173,32 @@ class TradeExecutor:
             stop_loss_percent = Decimal(str(adaptive_sl_percent))
             logger.info(f"📊 Using adaptive SL: {adaptive_sl_percent:.1f}%")
 
-            # 🎯 TIME-BASED RISK: Adjust position size based on hour performance
-            time_multiplier = await adaptive_risk.get_time_based_risk_multiplier()
-
-            # DYNAMIC position size based on capital (USER REQUEST: $100 margin per position @ 25x leverage)
-            # 🔧 Auto-adjust to capital: position = (capital / 3 positions) × 25x leverage
+            # 🎯 FIXED POSITION SIZING: Equal margin allocation across positions
             #
-            # Example with $300 capital:
-            # - $300 ÷ 3 positions = $100 margin per position
-            # - $100 margin × 25x leverage = $2,500 position size
+            # HOW IT WORKS:
+            # - Divide capital equally among max positions
+            # - Each position uses SAME margin amount (consistent sizing)
+            # - Leverage is applied by Binance (NOT in our calculation)
             #
-            # Example with $105 capital (current):
-            # - $105 ÷ 3 positions = $35 margin per position
-            # - $35 margin × 25x leverage = $875 position size
+            # Example with $100 capital, 10 positions, 5x leverage:
+            # - $100 ÷ 10 positions = $10 margin per position
+            # - Binance applies 5x leverage automatically
+            # - Position value on exchange: $10 × 5 = $50
             #
-            # Target: ±$1 profit/loss with 25-30x leverage
+            # ⚠️ CRITICAL: Do NOT multiply by leverage here!
+            # The leverage multiplier is handled by Binance when the order is placed.
+            # We only specify the MARGIN we want to use.
+            #
             max_positions = self.settings.max_concurrent_positions  # Use config value
             margin_per_position = current_capital / Decimal(str(max_positions))
-            FIXED_POSITION_SIZE_USD = margin_per_position * Decimal(str(leverage)) * Decimal(str(time_multiplier))
+
+            # FIXED_POSITION_SIZE_USD = MARGIN only (leverage applied by exchange)
+            FIXED_POSITION_SIZE_USD = margin_per_position
 
             max_positions_allowed = max_positions
             logger.info(
                 f"💰 Capital: ${current_capital:.2f} → {max_positions} positions × ${margin_per_position:.2f} margin "
-                f"= ${FIXED_POSITION_SIZE_USD:.2f} position size (leverage: {leverage}x, time mult: {time_multiplier}x)"
+                f"= ${FIXED_POSITION_SIZE_USD:.2f} per position (leverage {leverage}x applied by exchange)"
             )
 
             quantity, position_value = calculate_position_size(
