@@ -1702,11 +1702,13 @@ WebSocket + Cache = ~85% daha az API çağrısı
 • ✅ Kazanan: {wins} ({win_rate:.1f}%)
 • ❌ Kaybeden: {losses} ({100-win_rate:.1f}%)
 
-<b>📋 Son 10 Trade:</b>
+<b>📋 Son 10 Trade</b> (yeniden eskiye):
 """
 
-            # Show last 10 trades
-            for trade in trades_data[:10]:
+            # 🔧 FIX: Show LAST 10 trades from NEWEST to OLDEST
+            # Binance API returns oldest→newest, so take last 10 and reverse
+            last_10_trades = trades_data[-10:] if len(trades_data) > 10 else trades_data
+            for trade in reversed(last_10_trades):
                 pnl_emoji = "✅" if trade['pnl'] > 0 else "❌"
                 message += f"{pnl_emoji} {trade['date']} - {trade['symbol']}: ${trade['pnl']:+.2f}\n"
 
