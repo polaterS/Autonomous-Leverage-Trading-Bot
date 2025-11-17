@@ -127,17 +127,17 @@ Sit back and monitor your portfolio! 💰
             f"⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>\n",
         ]
 
-        # 🎯 NEW: Add Price Action analysis from snapshot (AŞAMA 1)
+        # 🎯 ALWAYS SHOW: Price Action analysis (even when no signals found)
+        message_parts.append("\n📈 <b>PRICE ACTION ANALYSIS</b>")
+
         pa_data = position.get('price_action')
         if pa_data and isinstance(pa_data, dict):
             # PA data comes from snapshot_capture._analyze_price_action()
             nearest_support = pa_data.get('nearest_support')
             nearest_resistance = pa_data.get('nearest_resistance')
 
-            # Only show if we have real PA data (not fallback)
+            # Show if we have real PA data (not fallback)
             if nearest_support and nearest_resistance:
-                message_parts.append("\n📈 <b>PRICE ACTION ANALYSIS</b>")
-
                 # Support & Resistance levels
                 support_dist = pa_data.get('support_dist', 0) * 100
                 resistance_dist = pa_data.get('resistance_dist', 0) * 100
@@ -184,8 +184,18 @@ Sit back and monitor your portfolio! 💰
                     f"   {surge_emoji} Volume: <b>{float(volume_ratio):.1f}x avg</b>" +
                     (" (SURGE!)" if volume_surge else "")
                 )
+            else:
+                # No PA signals detected - show this to user so they know PA is running
+                message_parts.append(
+                    f"   ❌ <b>No signals detected</b> (PA scanner found no clear patterns)"
+                )
+        else:
+            # No PA data at all - show this to user
+            message_parts.append(
+                f"   ❌ <b>No PA data available</b> (PA analysis not run for this position)"
+            )
 
-                message_parts.append("")  # Empty line after PA section
+        message_parts.append("")  # Empty line after PA section
 
         # Add fees and AI info
         message_parts.extend([
