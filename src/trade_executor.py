@@ -173,29 +173,29 @@ class TradeExecutor:
             stop_loss_percent = Decimal(str(adaptive_sl_percent))
             logger.info(f"📊 Using adaptive SL: {adaptive_sl_percent:.1f}%")
 
-            # 🎯 DYNAMIC POSITION SIZING: Split capital equally across max positions
+            # 🎯 FIXED POSITION SIZING: Use FREE capital only!
             #
-            # USER REQUEST: "60 dolar bakiyem var 30 dolar bir pozisyona 30 dolar diğer pozisyona"
+            # USER RAGE: "hala 2. pozisyonu açarken kalan bakiyenin yarısı kadarıyla açıyor bak ! deli oluyorum düzelt bunu !"
             #
-            # HOW IT WORKS:
-            # 1. Calculate total margin per position: total_capital ÷ max_positions
-            # 2. Multiply margin by leverage to get POSITION VALUE
-            # 3. Each position gets equal share of TOTAL capital (not remaining)
+            # PROBLEM:
+            # - Total capital = $60
+            # - 1st position uses $30 margin (LOCKED)
+            # - But current_capital still shows $60 (unrealized P&L not changed)
+            # - So 2nd position calculates: $60 ÷ 2 = $30 BUT only $30 is FREE!
+            #
+            # SOLUTION:
+            # - Calculate FREE capital = Total capital - Used margin
+            # - When no positions: FREE = $60 → Use $30 each (60÷2)
+            # - When 1 position open with $30 margin: FREE = $30 → Use all $30!
             #
             # Example with $60 capital, 2 max positions, 20x leverage:
-            # - FIRST POSITION (0 active):
-            #   → $60 ÷ 2 max positions = $30 MARGIN per position
-            #   → $30 margin × 20x = $600 POSITION VALUE
+            # - FIRST POSITION (0 active, $60 free):
+            #   → $60 free ÷ 2 remaining slots = $30 MARGIN
+            #   → $30 margin × 20x = $600 POSITION VALUE ✅
             #
-            # - SECOND POSITION (1 active):
-            #   → $60 ÷ 2 max positions = $30 MARGIN per position (SAME!)
-            #   → $30 margin × 20x = $600 POSITION VALUE
-            #
-            # WHY NOT divide by remaining slots?
-            # - Because we want EQUAL allocation upfront
-            # - User says "$30 for one, $30 for other" = 50/50 split of TOTAL
-            # - If we divided by remaining slots: 2nd position would use ALL remaining capital
-            # - That's NOT what user wants!
+            # - SECOND POSITION (1 active using $30, $30 free):
+            #   → $30 free ÷ 1 remaining slot = $30 MARGIN
+            #   → $30 margin × 20x = $600 POSITION VALUE ✅
             #
             max_positions = self.settings.max_concurrent_positions  # Use config value
 
@@ -211,18 +211,39 @@ class TradeExecutor:
                     f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
                 )
 
-            # 🔧 CRITICAL: Divide TOTAL capital by MAX positions (not remaining slots!)
-            # This ensures equal allocation: $60 ÷ 2 = $30 per position (always!)
-            margin_per_position = current_capital / Decimal(str(max_positions))
+            # 🔥 CRITICAL FIX: Calculate used margin from active positions
+            used_margin = Decimal("0")
+            if active_positions:
+                for pos in active_positions:
+                    # Each position has locked margin = position_value / leverage
+                    pos_value = Decimal(str(pos.get('position_value_usd', 0)))
+                    pos_leverage = pos.get('leverage', 1)
+                    pos_margin = pos_value / Decimal(str(pos_leverage))
+                    used_margin += pos_margin
+                    logger.debug(f"   Position {pos['symbol']}: ${pos_value:.2f} / {pos_leverage}x = ${pos_margin:.2f} margin used")
+
+            # FREE capital = Total - Used margin
+            free_capital = current_capital - used_margin
+
+            logger.info(f"💰 Total: ${current_capital:.2f} | Used margin: ${used_margin:.2f} | FREE: ${free_capital:.2f}")
+
+            # 🔥 NEW LOGIC: Divide FREE capital by REMAINING slots!
+            # This ensures we use ALL available capital efficiently
+            if free_capital <= 0:
+                raise ValueError(
+                    f"No free capital available! Total: ${current_capital:.2f}, Used: ${used_margin:.2f}"
+                )
+
+            margin_per_position = free_capital / Decimal(str(remaining_slots))
 
             # FIXED_POSITION_SIZE_USD = MARGIN × LEVERAGE (actual position value)
             FIXED_POSITION_SIZE_USD = margin_per_position * Decimal(str(leverage))
 
             max_positions_allowed = max_positions
             logger.info(
-                f"💰 Capital: ${current_capital:.2f} → {num_active_positions}/{max_positions} positions open, "
-                f"{remaining_slots} slots remaining → ${margin_per_position:.2f} margin per position "
-                f"× {leverage}x leverage = ${FIXED_POSITION_SIZE_USD:.2f} position value for this trade"
+                f"💰 FREE capital: ${free_capital:.2f} (Total ${current_capital:.2f} - Used ${used_margin:.2f}) "
+                f"→ {num_active_positions}/{max_positions} positions, {remaining_slots} slots left "
+                f"→ ${margin_per_position:.2f} margin × {leverage}x = ${FIXED_POSITION_SIZE_USD:.2f} POSITION VALUE"
             )
 
             quantity, position_value = calculate_position_size(

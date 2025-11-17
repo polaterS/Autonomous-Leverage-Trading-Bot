@@ -141,6 +141,18 @@ class PositionMonitor:
                     logger.warning(f"👻 GHOST DETECTED: {symbol} in DB but NOT on Binance (manually closed?)")
                     logger.info("🔄 IMMEDIATE SYNC: Triggering position reconciliation...")
 
+                    # 📱 USER REQUEST: Send Telegram alert when manual close detected!
+                    # "ben https://www.binance.com/en/futures/ ben buradaki açık pozisyonlardan birinin
+                    # yükseldiğini gördüm ve pozisyonu kapatmak istedim binanceden kapatırsam da
+                    # direkt sync komutunu telegramda çalıştır lütfen !"
+                    await notifier.send_alert(
+                        'warning',
+                        f"👻 <b>MANUAL CLOSE DETECTED!</b>\n\n"
+                        f"Position <b>{symbol}</b> was closed manually on Binance.\n\n"
+                        f"🔄 Running automatic sync to update database...\n\n"
+                        f"<i>Tip: You can also manually run /sync anytime to force reconciliation.</i>"
+                    )
+
                     # Trigger immediate reconciliation
                     from src.position_reconciliation import get_reconciliation_system
                     reconciliation = get_reconciliation_system()
@@ -150,6 +162,15 @@ class PositionMonitor:
                         f"✅ IMMEDIATE SYNC complete: "
                         f"{sync_results.get('ghost_count', 0)} ghosts cleaned, "
                         f"{sync_results.get('orphaned_count', 0)} orphans imported"
+                    )
+
+                    # 📱 Send completion notification
+                    await notifier.send_alert(
+                        'success',
+                        f"✅ <b>SYNC COMPLETED!</b>\n\n"
+                        f"Position <b>{symbol}</b> removed from database.\n"
+                        f"All open orders cancelled.\n\n"
+                        f"Bot is now ready to scan for new opportunities!"
                     )
 
                     # Stop monitoring this position - it's been cleaned up
