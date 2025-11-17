@@ -1022,6 +1022,16 @@ class MarketScanner:
             except Exception as e:
                 logger.debug(f"{symbol} - Order book analysis failed: {e}")
 
+            # 🔧 FIX: Create pandas DataFrame for PA analysis (ai_engine.py expects this!)
+            # Convert 15m OHLCV to DataFrame for Price Action analysis
+            import pandas as pd
+            ohlcv_df = pd.DataFrame(
+                ohlcv_15m,
+                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+            )
+
+            logger.debug(f"📊 {symbol} - OHLCV data length: {len(ohlcv_df)} candles")
+
             return {
                 'symbol': symbol,
                 'current_price': current_price,
@@ -1033,9 +1043,10 @@ class MarketScanner:
                     '4h': ohlcv_4h[-20:]
                 },
                 # 🎯 FULL OHLCV DATA FOR PRICE ACTION ANALYSIS (need 50+ candles for S/R detection)
-                'ohlcv_15m': ohlcv_15m,    # Full 100 candles for PA
-                'ohlcv_1h': ohlcv_1h,      # Full 100 candles for PA
-                'ohlcv_4h': ohlcv_4h,      # Full 50 candles for PA
+                'ohlcv_15m': ohlcv_15m,    # Full 200 candles for PA
+                'ohlcv_1h': ohlcv_1h,      # Full 200 candles for PA
+                'ohlcv_4h': ohlcv_4h,      # Full 200 candles for PA
+                'ohlcv_df': ohlcv_df,      # 🔧 FIX: DataFrame for ai_engine.py PA analysis!
                 'indicators': {
                     '15m': indicators_15m,
                     '1h': indicators_1h,
