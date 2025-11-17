@@ -69,7 +69,7 @@ You will receive notifications for all trading activity.
 <b>Configuration:</b>
 💰 Initial Capital: ${self.settings.initial_capital}
 ⚡ Max Leverage: {self.settings.max_leverage}x
-🛑 Stop-Loss Range: {float(self.settings.min_stop_loss_percent)*100}% - {float(self.settings.max_stop_loss_percent)*100}%
+🛑 Stop-Loss Range: {float(self.settings.min_stop_loss_percent)}% - {float(self.settings.max_stop_loss_percent)}%
 💎 Min Profit: ${self.settings.min_profit_usd}
 🎯 Min AI Confidence: {float(self.settings.min_ai_confidence)*100}%
 

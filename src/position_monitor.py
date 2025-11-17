@@ -291,80 +291,61 @@ class PositionMonitor:
             # ====================================================================
 
             # ====================================================================
-            # 💰 PROFIT TARGET: $0.70-$1.00 (CLASSIC STRATEGY)
+            # 💰 PROFIT TARGET: DISABLED (EXCHANGE TAKE-PROFIT ORDERS HANDLE THIS)
             # ====================================================================
-            # USER REQUEST: Close position when profit reaches $0.70-$1.00
+            # REASON FOR DISABLING:
+            # - Exchange take-profit orders are already placed when position opens
+            # - Take-profit is set at 0.3% price move (adaptive based on leverage)
+            # - With 20x leverage: 0.3% price = $4.62 profit on $770 position
+            # - Checking profit target here adds unnecessary redundancy
+            # - Exchange orders execute faster and more reliably
             #
-            # Strategy:
-            # 1. Profit target: $0.70-$1.00 → Close ENTIRE position immediately
-            # 2. Loss limit: -$0.70 to -$1.00 → Close ENTIRE position
-            # 3. Position stays open if between -$0.70 and +$0.70
+            # OLD LOGIC (DISABLED):
+            # - Profit target: $0.85 (designed for low leverage)
+            # - With 20x leverage, $0.85 profit = 0.11% price move (too tight!)
+            # - Position would close in seconds, not allowing trend to develop
             #
-            # This is the CLASSIC strategy that earned $10-15/day
+            # NEW STRATEGY:
+            # - Exchange take-profit order handles profitable exits
+            # - Trailing stop can lock in profits as they grow
+            # - Monitor position but don't interfere with exchange orders
             # ====================================================================
 
-            # Profit target: $0.85 (middle of $0.70-$1.00 range)
-            profit_target = Decimal("0.85")
+            # DISABLED: Manual profit target check (exchange orders handle this)
+            # profit_target = self.settings.min_profit_usd
+            # if unrealized_pnl >= profit_target:
+            #     ... close position ...
 
-            # CHECK: PROFIT TARGET HIT (+$0.85)
-            if unrealized_pnl >= profit_target:
-                logger.info(
-                    f"🎯 PROFIT TARGET HIT! {symbol} {side} | "
-                    f"P&L: ${float(unrealized_pnl):+.2f} (target: +${float(profit_target):.2f}) | "
-                    f"Closing ENTIRE position"
-                )
-
-                await notifier.send_alert(
-                    'success',
-                    f"🎯 PROFIT TARGET REACHED!\n\n"
-                    f"💎 {symbol} {side} {position['leverage']}x\n\n"
-                    f"💰 Profit: ${float(unrealized_pnl):+.2f}\n"
-                    f"🎯 Target: +${float(profit_target):.2f}\n\n"
-                    f"✅ Full position closed\n"
-                    f"🚀 Classic strategy!"
-                )
-
-                await executor.close_position(
-                    position,
-                    current_price,
-                    f"Profit target hit: ${float(unrealized_pnl):+.2f}"
-                )
-                return
+            logger.debug(f"💡 Profit target check DISABLED - relying on exchange take-profit orders")
 
             # ====================================================================
-            # 🔴 LOSS LIMIT: -$0.85 (CLASSIC STRATEGY)
+            # 🔴 LOSS LIMIT: DISABLED (CONFLICTS WITH 20X LEVERAGE STOP-LOSS)
             # ====================================================================
-            # USER REQUEST: Close position when loss reaches -$0.70 to -$1.00
-            # Position can stay open indefinitely between -$0.70 and +$0.70
+            # REASON FOR DISABLING:
+            # - With 20x leverage, positions use $700+ position size with $35 margin
+            # - Small price moves (0.1%) = $1.40+ P&L changes
+            # - $0.85 loss limit closes positions in SECONDS (not allowing stop-loss to work)
+            # - Exchange stop-loss orders handle risk management properly
+            # - User wants stop-loss at 4-5% (translated to 0.8-1.0% price with 20x)
+            #
+            # OLD LOGIC (DISABLED):
+            # - Loss limit: -$0.85 → Close position
+            # - This was designed for LOW leverage (2-6x) with $40-80 positions
+            # - With 20x leverage, this interferes with proper stop-loss execution
+            #
+            # NEW STRATEGY:
+            # - Let exchange stop-loss orders handle position closure
+            # - Stop-loss is set at 4-5% of position value (0.8-1.0% price move with 20x)
+            # - Profit target: $1.20+ to cover commissions
+            # - No artificial loss limit that conflicts with stop-loss
             # ====================================================================
 
-            # Loss limit: -$0.85 (middle of -$0.70 to -$1.00 range)
-            loss_limit = Decimal("-0.85")
+            # DISABLED: Aggressive loss limit that conflicts with 20x leverage
+            # loss_limit = Decimal("-0.85")
+            # if unrealized_pnl <= loss_limit:
+            #     ... close position ...
 
-            # CHECK: LOSS LIMIT HIT (-$0.85)
-            if unrealized_pnl <= loss_limit:
-                logger.warning(
-                    f"🔴 LOSS LIMIT HIT! {symbol} {side} | "
-                    f"P&L: ${float(unrealized_pnl):+.2f} (limit: ${float(loss_limit):.2f}) | "
-                    f"Closing ENTIRE position"
-                )
-
-                await notifier.send_alert(
-                    'warning',
-                    f"🔴 LOSS LIMIT REACHED\n\n"
-                    f"💎 {symbol} {side} {position['leverage']}x\n\n"
-                    f"💰 Loss: ${float(unrealized_pnl):+.2f}\n"
-                    f"🔴 Limit: ${float(loss_limit):.2f}\n\n"
-                    f"✅ Position closed\n"
-                    f"🛡️ Classic strategy protection"
-                )
-
-                await executor.close_position(
-                    position,
-                    current_price,
-                    f"Loss limit hit: ${float(unrealized_pnl):+.2f}"
-                )
-                return
+            logger.debug(f"💡 Loss limit check DISABLED - relying on exchange stop-loss orders")
 
             # ====================================================================
             # TIME-BASED EXIT: DISABLED BY USER REQUEST
