@@ -58,8 +58,8 @@ class Settings(BaseSettings):
     enable_ml_exit: bool = Field(default=False)  # ML exit DISABLED - rely only on stop-loss/take-profit/trailing (USER REQUEST: positions closing too fast)
 
     # 🚀 PROFESSIONAL TRADING FEATURES (12 Improvements for 90-95% Win Rate!)
-    enable_time_filter: bool = Field(default=False)  # Time-based trading filter (avoid toxic hours)
-    enable_trailing_stop: bool = Field(default=False)  # Trailing stop-loss system
+    enable_time_filter: bool = Field(default=True)  # ✅ ENABLED: Time-based trading filter (avoid toxic hours)
+    enable_trailing_stop: bool = Field(default=True)  # ✅ ENABLED: Trailing stop-loss system
     enable_partial_exits: bool = Field(default=False)  # 3-tier partial exit system (DISABLED: creates orders below Binance $20 minimum)
     enable_market_regime: bool = Field(default=False)  # Market regime detection
     enable_multi_timeframe: bool = Field(default=False)  # Multi-timeframe confluence analysis

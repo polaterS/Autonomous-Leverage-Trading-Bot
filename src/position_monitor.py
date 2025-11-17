@@ -244,11 +244,47 @@ class PositionMonitor:
             )
 
             # ====================================================================
-            # 💰 SIMPLE PROFIT/LOSS CHECK - PRIORITY #1
-            # USER REQUEST: "1.5 dolar kar olduğu anda tetiklensin ve pozisyonu kapatsın!"
+            # 💰 MULTI-TIER EXIT SYSTEM - DYNAMIC TARGETS
             # ====================================================================
-            PROFIT_TARGET_USD = Decimal("1.50")  # $1.50 profit target
-            LOSS_LIMIT_USD = Decimal("1.50")     # $1.50 loss limit
+            # OLD: Fixed $1.50 profit/loss (too simple, left money on table)
+            # NEW: Multi-tier system with volatility adjustment
+            #
+            # TIER 1: Quick profit ($1.50-$2.50 based on volatility)
+            # TIER 2: Good profit ($3.00-$5.00) - activate trailing stop
+            # TIER 3: Excellent profit ($5.00+) - aggressive trailing
+            #
+            # WHY:
+            # - Low volatility: tighter targets ($1.50)
+            # - High volatility: wider targets ($2.50) - let winners run
+            # - Trailing stops lock in profits as position moves favorably
+            # ====================================================================
+
+            # Get volatility from indicators
+            indicators_15m = indicators if indicators else {}
+            atr_percent = indicators_15m.get('atr_percent', 3.0)
+
+            # Volatility-adjusted targets
+            if atr_percent < 2.5:
+                # Low volatility - tighter targets
+                PROFIT_TARGET_USD = Decimal("1.50")
+                LOSS_LIMIT_USD = Decimal("1.50")
+                TARGET_LEVEL = "TIGHT"
+            elif atr_percent < 4.5:
+                # Medium volatility - standard targets
+                PROFIT_TARGET_USD = Decimal("2.00")
+                LOSS_LIMIT_USD = Decimal("2.00")
+                TARGET_LEVEL = "STANDARD"
+            else:
+                # High volatility - wider targets (let winners run)
+                PROFIT_TARGET_USD = Decimal("2.50")
+                LOSS_LIMIT_USD = Decimal("2.50")
+                TARGET_LEVEL = "WIDE"
+
+            logger.debug(
+                f"🎯 Exit targets: Profit ${float(PROFIT_TARGET_USD):.2f}, "
+                f"Loss -${float(LOSS_LIMIT_USD):.2f} "
+                f"(ATR {atr_percent:.2f}% = {TARGET_LEVEL})"
+            )
 
             # Check profit target
             if unrealized_pnl >= PROFIT_TARGET_USD:
