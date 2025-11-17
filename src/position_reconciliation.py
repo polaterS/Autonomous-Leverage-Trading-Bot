@@ -139,14 +139,61 @@ class PositionReconciliationSystem:
                 logger.warning(f"👻 Found {len(ghost_positions)} ghost position(s)!")
 
                 for ghost in ghost_positions:
-                    # Ghost positions should be removed (Binance is source of truth)
+                    # 🔧 CRITICAL FIX: Cancel ALL open orders for ghost position BEFORE removing from DB
+                    # USER REQUEST: "bir pozisyon kapandıysa o pozisyona ait olan open orders kısmındaki değer de kapanmalı"
+                    # Problem: Ghost positions removed from DB, but stop-loss/take-profit orders remain active on Binance
+                    # Result: Old orders interfere with new positions for the same symbol!
+                    symbol = ghost['symbol']
+
+                    try:
+                        logger.info(f"🗑️ Cancelling open orders for ghost position {symbol}...")
+                        open_orders = await exchange.fetch_open_orders(symbol)
+
+                        if open_orders:
+                            logger.info(f"📋 Found {len(open_orders)} open orders for {symbol}:")
+                            for order in open_orders:
+                                order_id = order.get('id')
+                                order_type = order.get('type', 'unknown')
+                                order_side = order.get('side', 'unknown')
+                                logger.info(f"  - Order {order_id}: {order_type} {order_side}")
+
+                            # Cancel each order
+                            cancelled_count = 0
+                            for order in open_orders:
+                                try:
+                                    order_id = order.get('id')
+                                    await exchange.cancel_order(order_id, symbol)
+                                    cancelled_count += 1
+                                    logger.info(f"  ✅ Cancelled order {order_id}")
+                                except Exception as cancel_err:
+                                    logger.warning(f"  ⚠️ Could not cancel order {order_id}: {cancel_err}")
+
+                            logger.info(f"✅ Cancelled {cancelled_count}/{len(open_orders)} orders for ghost {symbol}")
+                            results['actions_taken'].append(
+                                f"🗑️ Cancelled {cancelled_count} open orders for ghost {symbol}"
+                            )
+                        else:
+                            logger.info(f"✅ No open orders for ghost {symbol} (clean slate!)")
+
+                    except Exception as orders_err:
+                        logger.error(f"❌ Could not fetch/cancel orders for ghost {symbol}: {orders_err}")
+                        results['actions_taken'].append(
+                            f"⚠️ Failed to cancel orders for ghost {symbol}: {orders_err}"
+                        )
+
+                    # NOW remove ghost position from database (after orders cleaned)
                     await db.remove_active_position(ghost['id'])
-                    logger.info(f"🗑️ Removed ghost position: {ghost['symbol']}")
+                    logger.info(f"🗑️ Removed ghost position: {symbol} from database")
                     results['actions_taken'].append(
-                        f"🗑️ Removed ghost {ghost['symbol']} from database"
+                        f"🗑️ Removed ghost {symbol} from database"
                     )
 
-                # Send alert
+                # Send alert with orders info
+                total_orders_cancelled = sum(
+                    1 for action in results['actions_taken']
+                    if 'Cancelled' in action and 'open orders' in action
+                )
+
                 await notifier.send_alert(
                     'info',
                     f"👻 <b>GHOST POSITIONS CLEANED</b>\n\n"
@@ -154,7 +201,8 @@ class PositionReconciliationSystem:
                     "\n".join([
                         f"• {p['symbol']} {p['side']}"
                         for p in ghost_positions
-                    ])
+                    ]) +
+                    (f"\n\n✅ Cancelled all open orders for these positions" if total_orders_cancelled > 0 else "")
                 )
 
             # 🔥 FIX 3: Check and add missing stop-loss orders
