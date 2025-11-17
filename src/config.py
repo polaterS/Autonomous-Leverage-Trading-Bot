@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
     min_leverage: int = Field(default=4, ge=1, le=50)  # Minimum leverage (4x) - CLASSIC STRATEGY
     max_leverage: int = Field(default=6, ge=1, le=50)  # Maximum leverage (6x) - CLASSIC STRATEGY
-    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔧 USER: 2 positions max (classic strategy)
+    max_concurrent_positions: int = Field(default=10, ge=1, le=30)  # 🔧 USER: 10 positions max (diversified strategy with Phase 1 features)
     position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position ($75-90 with $100 capital)
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.015"), gt=0, le=1)  # 1.5% min (ULTRA TIGHT for 25-30x leverage)
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with 25-30x leverage)
