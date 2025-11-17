@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-ML_ONLY_VERSION = "6.1-CLASSIC-FINE"  # CLASSIC FINE-TUNED: ±$0.70-$1.00 targets, 4-6x leverage, $75-90 positions
-logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (Normal ML, ±$0.85 targets, 4-6x leverage)")
+ML_ONLY_VERSION = "6.2-PA-INTEGRATED"  # CLASSIC + PA/ML: Real S/R, trend, volume data for better ML predictions
+logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (PA-enhanced ML, ±$0.85 targets, 4-6x leverage)")
 
 
 class AIConsensusEngine:

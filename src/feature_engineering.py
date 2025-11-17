@@ -526,19 +526,23 @@ class FeatureEngineering:
 
         Returns:
             List of 6 price action features
+
+        NOTE: After AŞAMA 1 integration (2025-11-17), PA data comes from
+        PriceActionAnalyzer via snapshot_capture._analyze_price_action()
         """
         try:
-            # Get price action analysis from snapshot (if available)
+            # Get price action analysis from snapshot
             pa_analysis = snapshot.get('price_action', {})
 
-            if pa_analysis:
-                # Extract from pre-computed analysis
-                support_dist = float(pa_analysis.get('nearest_support_dist', 0.05))
-                resistance_dist = float(pa_analysis.get('nearest_resistance_dist', 0.05))
+            # ✅ AŞAMA 1 INTEGRATED: PA analysis now comes from real PriceActionAnalyzer!
+            if pa_analysis and 'nearest_support' in pa_analysis:
+                # Extract from pre-computed real analysis (snapshot_capture._analyze_price_action)
+                support_dist = float(pa_analysis.get('support_dist', 0.02))
+                resistance_dist = float(pa_analysis.get('resistance_dist', 0.02))
                 sr_strength = float(pa_analysis.get('sr_strength_score', 0.5))
                 trend_quality = float(pa_analysis.get('trend_quality', 0.5))
                 volume_conf = float(pa_analysis.get('volume_confirmation', 1.0))
-                rr_ratio = float(pa_analysis.get('rr_ratio', 2.0))
+                rr_ratio = float(pa_analysis.get('pa_rr_ratio', 2.0))
 
             else:
                 # Fallback: estimate from basic indicators

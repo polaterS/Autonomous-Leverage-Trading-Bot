@@ -11,8 +11,20 @@ from decimal import Decimal
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import numpy as np
+import pandas as pd
+from src.price_action_analyzer import PriceActionAnalyzer
 
 logger = logging.getLogger(__name__)
+
+# 🎯 PRICE ACTION ANALYZER SINGLETON
+_pa_analyzer = None
+
+def get_pa_analyzer() -> PriceActionAnalyzer:
+    """Get or create PriceActionAnalyzer singleton instance."""
+    global _pa_analyzer
+    if _pa_analyzer is None:
+        _pa_analyzer = PriceActionAnalyzer()
+    return _pa_analyzer
 
 
 async def capture_market_snapshot(
@@ -21,7 +33,8 @@ async def capture_market_snapshot(
     current_price: Decimal,
     indicators: Dict[str, Any],
     side: Optional[str] = None,
-    snapshot_type: str = "entry"
+    snapshot_type: str = "entry",
+    ohlcv_data: Optional[List] = None
 ) -> Dict[str, Any]:
     """
     Capture comprehensive market snapshot for ML learning.
@@ -33,6 +46,7 @@ async def capture_market_snapshot(
         indicators: Technical indicators dict from market analysis
         side: Trade side ('LONG' or 'SHORT'), if applicable
         snapshot_type: 'entry' or 'exit'
+        ohlcv_data: Optional OHLCV data for PA analysis
 
     Returns:
         Complete market snapshot as JSONB-ready dict
@@ -135,12 +149,19 @@ async def capture_market_snapshot(
         # 🔥 LIQUIDATION DATA (DISABLED - not implemented)
         snapshot['liquidations'] = None
 
+        # 🎯 PRICE ACTION ANALYSIS (NEW - AŞAMA 1!)
+        snapshot['price_action'] = await _analyze_price_action(
+            exchange_client, symbol, current_price, ohlcv_data
+        )
+
         # 📊 MARKET REGIME
         snapshot['market_regime'] = _detect_market_regime(indicators, snapshot)
 
         logger.info(f"✅ Snapshot captured: RSI={snapshot['indicators']['rsi']:.1f}, "
                    f"Volume ratio={snapshot['volume']['volume_ratio']:.2f}x, "
-                   f"Trend={snapshot['trend']['overall_direction']}")
+                   f"Trend={snapshot['trend']['overall_direction']}, "
+                   f"PA S/R={snapshot['price_action'].get('nearest_support', 0):.2f}/"
+                   f"{snapshot['price_action'].get('nearest_resistance', 0):.2f}")
 
         return snapshot
 
@@ -440,3 +461,218 @@ async def _fetch_liquidation_clusters(exchange_client, symbol: str, current_pric
     except Exception as e:
         logger.debug(f"Liquidation data fetch failed: {e}")
         return None
+
+
+# ============================================================================
+# 🎯 PRICE ACTION ANALYSIS (AŞAMA 1 - PA + ML INTEGRATION)
+# ============================================================================
+
+async def _analyze_price_action(
+    exchange_client,
+    symbol: str,
+    current_price: Decimal,
+    ohlcv_data: Optional[List] = None
+) -> Dict[str, Any]:
+    """
+    🎯 PROFESSIONAL PRICE ACTION ANALYSIS FOR ML FEATURES
+
+    This is AŞAMA 1 from PA_ML_INTEGRATION_PLAN.md!
+
+    Integrates PriceActionAnalyzer to provide REAL support/resistance,
+    trend, and volume data to ML model instead of fallback estimates.
+
+    Args:
+        exchange_client: Exchange client for fetching OHLCV if needed
+        symbol: Trading symbol
+        current_price: Current market price
+        ohlcv_data: Optional pre-fetched OHLCV data (list of [timestamp, open, high, low, close, volume])
+
+    Returns:
+        Dict with PA analysis for ML features:
+        - nearest_support: float
+        - nearest_resistance: float
+        - support_dist: float (0-1, normalized)
+        - resistance_dist: float (0-1, normalized)
+        - rr_long: float (risk/reward for LONG)
+        - rr_short: float (risk/reward for SHORT)
+        - swing_highs_count: int
+        - swing_lows_count: int
+        - sr_strength_score: float (0-1)
+        - trend_quality: float (0-1)
+        - volume_confirmation: float (1.0-2.0)
+        - pa_rr_ratio: float
+
+    Expected Impact:
+    - ML confidence: +10-15% improvement
+    - Win rate: +3-5% improvement
+    - Features F41-F46 now use REAL data instead of hardcoded 0.5!
+    """
+    try:
+        # Fetch OHLCV data if not provided
+        if ohlcv_data is None or len(ohlcv_data) < 100:
+            try:
+                # Fetch 100 candles of 15m data (25 hours of history)
+                ohlcv_data = await exchange_client.fetch_ohlcv(
+                    symbol=symbol,
+                    timeframe='15m',
+                    limit=100
+                )
+            except Exception as e:
+                logger.warning(f"Failed to fetch OHLCV for PA analysis: {e}")
+                return _pa_analysis_fallback(current_price)
+
+        # Convert to DataFrame
+        if len(ohlcv_data) < 20:
+            logger.warning(f"Insufficient OHLCV data for PA analysis: {len(ohlcv_data)} candles")
+            return _pa_analysis_fallback(current_price)
+
+        df = pd.DataFrame(
+            ohlcv_data,
+            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+        )
+
+        # Get PA analyzer
+        pa_analyzer = get_pa_analyzer()
+
+        # Find swing points
+        swing_highs = pa_analyzer.find_swing_highs(df)
+        swing_lows = pa_analyzer.find_swing_lows(df)
+
+        if not swing_highs or not swing_lows:
+            logger.debug(f"No swing points found for {symbol}")
+            return _pa_analysis_fallback(current_price)
+
+        # Find nearest support and resistance
+        price_float = float(current_price)
+
+        # Support = swing lows below current price
+        supports_below = [low for low in swing_lows if low < price_float]
+        nearest_support = max(supports_below) if supports_below else price_float * 0.98
+
+        # Resistance = swing highs above current price
+        resistances_above = [high for high in swing_highs if high > price_float]
+        nearest_resistance = min(resistances_above) if resistances_above else price_float * 1.02
+
+        # Calculate distances (normalized)
+        support_dist = abs(price_float - nearest_support) / price_float if price_float > 0 else 0.02
+        resistance_dist = abs(nearest_resistance - price_float) / price_float if price_float > 0 else 0.02
+
+        # Risk/Reward ratios
+        risk_long = price_float - nearest_support
+        reward_long = nearest_resistance - price_float
+        rr_long = (reward_long / risk_long) if risk_long > 0 else 1.0
+
+        risk_short = nearest_resistance - price_float
+        reward_short = price_float - nearest_support
+        rr_short = (reward_short / risk_short) if risk_short > 0 else 1.0
+
+        # Calculate S/R strength (based on number of touches)
+        sr_analysis = pa_analyzer.analyze_support_resistance(df)
+        support_zones = sr_analysis.get('support', [])
+        resistance_zones = sr_analysis.get('resistance', [])
+
+        # Find strength of nearest levels
+        support_strength = 0.5
+        for zone in support_zones:
+            if abs(zone['price'] - nearest_support) / nearest_support < 0.01:  # Within 1%
+                support_strength = min(zone['touches'] / 5.0, 1.0)
+                break
+
+        resistance_strength = 0.5
+        for zone in resistance_zones:
+            if abs(zone['price'] - nearest_resistance) / nearest_resistance < 0.01:
+                resistance_strength = min(zone['touches'] / 5.0, 1.0)
+                break
+
+        sr_strength_score = (support_strength + resistance_strength) / 2
+
+        # Trend analysis
+        trend = pa_analyzer.detect_trend(df)
+        adx = trend.get('adx', 20) / 100.0  # Normalize to 0-1
+        trend_direction = trend.get('direction', 'SIDEWAYS')
+
+        # Trend quality = ADX + direction consistency
+        if trend_direction in ['UPTREND', 'DOWNTREND']:
+            trend_quality = (adx + 0.3) / 1.3  # Boost for clear trend
+        else:
+            trend_quality = adx * 0.5  # Penalize sideways
+
+        trend_quality = min(trend_quality, 1.0)
+
+        # Volume analysis
+        volume_data = pa_analyzer.analyze_volume(df)
+        volume_surge = volume_data.get('is_surge', False)
+        volume_surge_ratio = volume_data.get('surge_ratio', 1.0)
+
+        volume_confirmation = min(volume_surge_ratio, 2.0)  # Cap at 2.0x
+
+        # Calculate overall PA R/R ratio (average of LONG and SHORT)
+        pa_rr_ratio = (rr_long + rr_short) / 2
+
+        logger.info(
+            f"✅ PA Analysis complete for {symbol}: "
+            f"S={nearest_support:.2f} (dist={support_dist*100:.1f}%), "
+            f"R={nearest_resistance:.2f} (dist={resistance_dist*100:.1f}%), "
+            f"RR_L={rr_long:.1f}, RR_S={rr_short:.1f}, "
+            f"Trend={trend_direction} (ADX={trend['adx']:.0f}), "
+            f"Vol={volume_surge_ratio:.1f}x"
+        )
+
+        return {
+            # Core S/R levels
+            'nearest_support': nearest_support,
+            'nearest_resistance': nearest_resistance,
+            'support_dist': support_dist,
+            'resistance_dist': resistance_dist,
+
+            # Risk/Reward
+            'rr_long': rr_long,
+            'rr_short': rr_short,
+            'pa_rr_ratio': pa_rr_ratio,
+
+            # Swing point counts
+            'swing_highs_count': len(swing_highs),
+            'swing_lows_count': len(swing_lows),
+
+            # Quality scores (0-1)
+            'sr_strength_score': sr_strength_score,
+            'trend_quality': trend_quality,
+            'volume_confirmation': volume_confirmation,
+
+            # Raw trend data
+            'trend_direction': trend_direction,
+            'trend_adx': trend.get('adx', 20),
+            'volume_surge': volume_surge,
+            'volume_surge_ratio': volume_surge_ratio,
+        }
+
+    except Exception as e:
+        logger.error(f"PA analysis failed for {symbol}: {e}", exc_info=True)
+        return _pa_analysis_fallback(current_price)
+
+
+def _pa_analysis_fallback(current_price: Decimal) -> Dict[str, Any]:
+    """
+    Fallback PA analysis when real analysis fails.
+    Returns neutral/default values.
+    """
+    price_float = float(current_price)
+
+    return {
+        'nearest_support': price_float * 0.98,
+        'nearest_resistance': price_float * 1.02,
+        'support_dist': 0.02,
+        'resistance_dist': 0.02,
+        'rr_long': 1.0,
+        'rr_short': 1.0,
+        'pa_rr_ratio': 1.0,
+        'swing_highs_count': 2,
+        'swing_lows_count': 2,
+        'sr_strength_score': 0.5,
+        'trend_quality': 0.5,
+        'volume_confirmation': 1.0,
+        'trend_direction': 'SIDEWAYS',
+        'trend_adx': 20,
+        'volume_surge': False,
+        'volume_surge_ratio': 1.0,
+    }

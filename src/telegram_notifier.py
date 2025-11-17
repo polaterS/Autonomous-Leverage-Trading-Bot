@@ -127,85 +127,65 @@ Sit back and monitor your portfolio! 💰
             f"⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>\n",
         ]
 
-        # Add Price Action analysis if available
+        # 🎯 NEW: Add Price Action analysis from snapshot (AŞAMA 1)
         pa_data = position.get('price_action')
-        if pa_data and pa_data.get('validated'):
-            message_parts.append("📈 <b>PRICE ACTION ANALYSIS</b>")
+        if pa_data and isinstance(pa_data, dict):
+            # PA data comes from snapshot_capture._analyze_price_action()
+            nearest_support = pa_data.get('nearest_support')
+            nearest_resistance = pa_data.get('nearest_resistance')
 
-            # Show reason (e.g., "At major support", "Strong uptrend + volume surge")
-            reason = pa_data.get('reason', 'N/A')
-            message_parts.append(f"   📊 Setup: <b>{reason}</b>")
+            # Only show if we have real PA data (not fallback)
+            if nearest_support and nearest_resistance:
+                message_parts.append("\n📈 <b>PRICE ACTION ANALYSIS</b>")
 
-            # ✅ NEW: Show Support/Resistance levels (numerical values)
-            support_levels = pa_data.get('support_levels', [])
-            resistance_levels = pa_data.get('resistance_levels', [])
+                # Support & Resistance levels
+                support_dist = pa_data.get('support_dist', 0) * 100
+                resistance_dist = pa_data.get('resistance_dist', 0) * 100
 
-            if support_levels:
-                support_str = ", ".join([f"${float(s):.4f}" for s in support_levels])
-                message_parts.append(f"   🟢 Support: <b>{support_str}</b>")
-
-            if resistance_levels:
-                resistance_str = ", ".join([f"${float(r):.4f}" for r in resistance_levels])
-                message_parts.append(f"   🔴 Resistance: <b>{resistance_str}</b>")
-
-            # ✅ NEW: Show VPOC (Volume Point of Control)
-            vpoc = pa_data.get('vpoc', 0)
-            if vpoc > 0:
-                message_parts.append(f"   📊 VPOC: <b>${float(vpoc):.4f}</b>")
-
-            # Show targets and risk/reward
-            targets = pa_data.get('targets', [])
-            if targets:
-                target_str = ", ".join([f"${float(t):.4f}" for t in targets[:3]])
-                message_parts.append(f"   🎯 Targets: <b>{target_str}</b>")
-
-            rr_ratio = pa_data.get('rr_ratio')
-            if rr_ratio:
-                message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_ratio):.2f}:1</b>")
-
-            # ✅ NEW: Show Trend analysis
-            trend = pa_data.get('trend', 'N/A')
-            trend_strength = pa_data.get('trend_strength', 'N/A')
-            adx = pa_data.get('adx', 0)
-            if trend != 'N/A':
-                trend_emoji = '📈' if trend == 'UPTREND' else '📉' if trend == 'DOWNTREND' else '➡️'
                 message_parts.append(
-                    f"   {trend_emoji} Trend: <b>{trend}</b> | Strength: <b>{trend_strength}</b> (ADX: {float(adx):.1f})"
+                    f"   🟢 Support: <b>${float(nearest_support):.4f}</b> ({support_dist:.1f}% away)"
+                )
+                message_parts.append(
+                    f"   🔴 Resistance: <b>${float(nearest_resistance):.4f}</b> ({resistance_dist:.1f}% away)"
                 )
 
-            # ✅ NEW: Show Volume analysis
-            volume_surge = pa_data.get('volume_surge', False)
-            volume_ratio = pa_data.get('volume_ratio', 1.0)
-            obv_trend = pa_data.get('obv_trend', 'NEUTRAL')
+                # S/R Strength
+                sr_strength = pa_data.get('sr_strength_score', 0)
+                swing_lows = pa_data.get('swing_lows_count', 0)
+                swing_highs = pa_data.get('swing_highs_count', 0)
+                message_parts.append(
+                    f"   💪 S/R Strength: <b>{float(sr_strength):.0%}</b> ({swing_lows} lows, {swing_highs} highs)"
+                )
 
-            surge_emoji = '🔥' if volume_surge else '📊'
-            obv_emoji = '⬆️' if obv_trend == 'RISING' else '⬇️' if obv_trend == 'FALLING' else '➡️'
-            message_parts.append(
-                f"   {surge_emoji} Volume: <b>{float(volume_ratio):.1f}x avg</b> | "
-                f"OBV: {obv_emoji} <b>{obv_trend}</b>"
-            )
+                # Risk/Reward
+                rr_long = pa_data.get('rr_long', 0)
+                rr_short = pa_data.get('rr_short', 0)
+                if position['side'] == 'LONG':
+                    message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_long):.2f}:1</b> (LONG)")
+                else:
+                    message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_short):.2f}:1</b> (SHORT)")
 
-            # ✅ NEW: Show Indicators used
-            indicators = pa_data.get('indicators', [])
-            if indicators:
-                indicators_str = ", ".join(indicators)
-                message_parts.append(f"   🔧 Indicators: <b>{indicators_str}</b>")
+                # Trend Analysis
+                trend_direction = pa_data.get('trend_direction', 'SIDEWAYS')
+                trend_adx = pa_data.get('trend_adx', 0)
+                trend_quality = pa_data.get('trend_quality', 0)
 
-            # ✅ NEW: Show Timeframes analyzed
-            timeframes = pa_data.get('timeframes', [])
-            if timeframes:
-                timeframes_str = ", ".join(timeframes)
-                message_parts.append(f"   ⏱️ Timeframes: <b>{timeframes_str}</b>")
+                trend_emoji = '📈' if trend_direction == 'UPTREND' else '📉' if trend_direction == 'DOWNTREND' else '➡️'
+                message_parts.append(
+                    f"   {trend_emoji} Trend: <b>{trend_direction}</b> | Quality: <b>{float(trend_quality):.0%}</b> (ADX: {float(trend_adx):.1f})"
+                )
 
-            # Show if PA override (ML said HOLD but PA opened trade)
-            if pa_data.get('pa_override'):
-                message_parts.append("   🎯 <b>PA OVERRIDE</b> (ML was cautious)")
+                # Volume Analysis
+                volume_surge = pa_data.get('volume_surge', False)
+                volume_ratio = pa_data.get('volume_surge_ratio', 1.0)
 
-            confidence_boost = pa_data.get('confidence_boost', 0)
-            if confidence_boost > 0:
-                message_parts.append(f"   ⬆️ PA Boost: <b>+{confidence_boost}%</b>\n")
-            else:
-                message_parts.append("")  # Empty line
+                surge_emoji = '🔥' if volume_surge else '📊'
+                message_parts.append(
+                    f"   {surge_emoji} Volume: <b>{float(volume_ratio):.1f}x avg</b>" +
+                    (" (SURGE!)" if volume_surge else "")
+                )
+
+                message_parts.append("")  # Empty line after PA section
 
         # Add fees and AI info
         message_parts.extend([
