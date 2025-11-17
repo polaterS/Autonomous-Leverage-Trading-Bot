@@ -98,20 +98,25 @@ class AdaptiveRiskManager:
             Take-profit price or None if no TP recommended
         """
         try:
-            # 🎯 USER REQUESTED: $2.0 profit target
-            # Calculate price move needed for $2.0 profit
-            # Formula: $2.0 = position_value * price_move * leverage
-            target_profit_usd = Decimal("2.0")
+            # 🔧 USER REQUESTED: WIDER TAKE-PROFIT FOR BIGGER PROFITS!
+            # OLD: 0.3% price move = $2 profit (too tight, missing $27+ profits!)
+            # NEW: 2-3% price move = $30-50 profit (let winners run!)
+            #
+            # Example with $650 position at 20x leverage:
+            # - 2.0% price move = $650 * 0.02 * 20 = $26 profit
+            # - 2.5% price move = $650 * 0.025 * 20 = $32.50 profit
+            # - 3.0% price move = $650 * 0.03 * 20 = $39 profit
+
             leverage_decimal = Decimal(str(leverage))
 
-            # Calculate required price move percentage
-            # price_move = $2.0 / (position_value * leverage)
-            tp_percent = float((target_profit_usd / (position_value * leverage_decimal)) * 100)
+            # 🎯 TARGET: 2.5% price move (sweet spot for 20x leverage)
+            # This gives ~$30-40 profit on typical positions
+            tp_percent = 2.5
 
-            # Safety bounds: 0.3% to 1.5% (reasonable for 6x-10x leverage with $50-60 positions)
-            # With $57 position at 10x: $2.0 profit = 0.35% price move
-            # With $57 position at 6x: $2.0 profit = 0.58% price move
-            tp_percent = max(0.3, min(tp_percent, 1.5))
+            # Safety bounds: 2.0% to 3.5% (let profits run but not too greedy)
+            # Lower bound: 2.0% = minimum $26 profit on $650 position @ 20x
+            # Upper bound: 3.5% = maximum $45 profit (before trend reverses)
+            tp_percent = max(2.0, min(tp_percent, 3.5))
 
             # Calculate TP price
             if side == 'LONG':
@@ -119,9 +124,12 @@ class AdaptiveRiskManager:
             else:  # SHORT
                 tp_price = entry_price * (1 - Decimal(str(tp_percent / 100)))
 
+            # Calculate estimated profit for logging
+            estimated_profit = float(position_value * leverage_decimal * Decimal(str(tp_percent / 100)))
+
             logger.info(
                 f"🎯 ADAPTIVE TP: {symbol} {side} → {tp_percent:.2f}% "
-                f"(target: $2.0 profit with {leverage}x) → ${float(tp_price):.4f}"
+                f"(est. ${estimated_profit:.2f} profit with {leverage}x) → ${float(tp_price):.4f}"
             )
 
             return tp_price
