@@ -35,13 +35,13 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
-    min_leverage: int = Field(default=4, ge=1, le=50)  # Minimum leverage (4x) - CLASSIC STRATEGY
-    max_leverage: int = Field(default=6, ge=1, le=50)  # Maximum leverage (6x) - CLASSIC STRATEGY
-    max_concurrent_positions: int = Field(default=10, ge=1, le=30)  # 🔧 USER: 10 positions max (diversified strategy with Phase 1 features)
-    position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position ($75-90 with $100 capital)
-    min_stop_loss_percent: Decimal = Field(default=Decimal("0.015"), gt=0, le=1)  # 1.5% min (ULTRA TIGHT for 25-30x leverage)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with 25-30x leverage)
-    min_profit_usd: Decimal = Field(default=Decimal("0.85"), gt=0)  # $0.70-$1.00 profit target (middle = $0.85)
+    min_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
+    max_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
+    max_concurrent_positions: int = Field(default=5, ge=1, le=30)  # 🔧 USER: 5 positions max
+    position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position
+    min_stop_loss_percent: Decimal = Field(default=Decimal("4.0"), gt=0, le=100)  # 4% min (TIGHT for 20x leverage)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("5.0"), gt=0, le=100)  # 5% max (safe for 20x leverage)
+    min_profit_usd: Decimal = Field(default=Decimal("0.80"), gt=0)  # $0.80-$1.00 profit target (USER REQUEST)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.45"), ge=0, le=1)  # 🎯 REALISTIC: 45% for binary classifier (50+ = edge, raise to 0.50-0.55 if win rate >65%)
     scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
@@ -222,38 +222,38 @@ PHASE 2: MOMENTUM & VOLUME ANALYSIS (Confirms Direction)
 
 PHASE 3: TRADE DECISION MATRIX (How to Decide)
 ═══════════════════════════════════════════════════
-CONFIDENCE SCORING SYSTEM (MAXIMUM AGGRESSIVE MODE - AI+ML FULL TEST):
+CONFIDENCE SCORING SYSTEM (20x FIXED LEVERAGE - ALL TRADES):
 
 85-100% CONFIDENCE (Ultra High):
 ✓ All timeframes perfectly aligned
 ✓ 8+ confluence factors
 ✓ Strong momentum + volume + no major risks
 ✓ Perfect entry trigger at key level
-→ MAXIMUM AGGRESSIVE: Use 28-30x leverage
+→ FIXED LEVERAGE: Use 20x leverage
 
 75-84% CONFIDENCE (High):
 ✓ Strong setup with 6-7 confluence factors
 ✓ Clear directional bias
 ✓ Most factors aligned
-→ AGGRESSIVE: Use 26-28x leverage
+→ FIXED LEVERAGE: Use 20x leverage
 
 65-74% CONFIDENCE (Good):
 ✓ Good setup with 4-5 confluence factors
 ✓ Clear direction
 ✓ Solid opportunity
-→ MODERATE: Use 25-26x leverage
+→ FIXED LEVERAGE: Use 20x leverage
 
 55-64% CONFIDENCE (Acceptable):
 ✓ Decent setup with 3-4 confluence factors
 ✓ Some directional bias
 ✓ ML learning opportunity
-→ BALANCED: Use 25x leverage
+→ FIXED LEVERAGE: Use 20x leverage
 
-50-54% CONFIDENCE (Speculative - Maximum Learning Mode):
+50-54% CONFIDENCE (Speculative):
 ✓ Weak setup with 2-3 confluence factors
 ✓ Slight edge detected by AI
 ✓ Pure ML learning trade
-→ MINIMUM: Use 25x leverage (hard minimum)
+→ FIXED LEVERAGE: Use 20x leverage
 
 <50% CONFIDENCE:
 → SKIP: No edge detected
@@ -315,33 +315,33 @@ SCENARIO 5 - BREAKOUT PERFECTION (92% Confidence):
 - All confluence factors aligned
 → ACTION: BUY (LONG), confidence 0.92, leverage 10x (max), breakout trade
 
-STOP-LOSS PLACEMENT (ULTRA AGGRESSIVE MODE - VERY TIGHT STOPS):
-- Stop-loss range: 3-5% of position value (ULTRA TIGHT for 10-20x leverage)
-- With high leverage (10-20x), this translates to 0.3-1.0% price movement
-- Maximum risk per trade: $3-5 on $10 position (30-50% of position)
+STOP-LOSS PLACEMENT (20x FIXED LEVERAGE - BALANCED APPROACH):
+- Stop-loss range: 4-5% of position value (BALANCED for 20x leverage)
+- With 20x leverage, this translates to 0.20-0.25% price movement
+- Maximum risk per trade: ~$1 loss on $20 position (4-5% of position)
 - Place BELOW recent swing low for longs (minimal breathing room)
 - Place ABOVE recent swing high for shorts (accept some stop-hunt risk)
-- VERY tight stops required for 10-20x leverage to keep liquidation far enough
-- Higher leverage = tighter stops = more frequent exits BUT larger profit potential
+- Tight stops required for 20x leverage to keep liquidation far enough
+- 20x leverage = balanced risk/reward with good profit potential
 
 TAKE-PROFIT STRATEGY:
-- Target minimum $1.50 profit (non-negotiable)
-- With 12-20% stop: aim for 18-30% profit target (1.5-2x risk/reward)
-- Extended target: 2-3x risk (25-40% profit) if strong trend + momentum
+- Target minimum $0.80-$1.00 profit (USER REQUIREMENT)
+- With 4-5% stop: aim for 4-5% profit target (1:1 risk/reward minimum)
+- Extended target: 1.5-2x risk (6-10% profit) if strong trend + momentum
 - Use previous resistance (longs) or support (shorts) as natural targets
-- Conservative leverage = need larger % moves but safer trades
+- 20x leverage = small % moves generate good profit
 
 RISK/REWARD REQUIREMENTS:
 - Minimum 1.5:1 ratio required to consider trade
 - Ideal: 2:1 or better
 - Adaptive stop-loss based on win rate and volatility
 
-CONFIDENCE SCORING (MAXIMUM AGGRESSIVE MODE - HIGH LEVERAGE):
-- 85-100%: Perfect setup, use 28-30x leverage (max risk $5 per trade)
-- 75-84%: Strong setup, use 26-28x leverage (max risk $5 per trade)
-- 65-74%: Good setup, use 25-26x leverage (max risk $5 per trade)
-- 55-64%: Acceptable setup, use 25x leverage (max risk $5 per trade)
-- 50-54%: Speculative setup, use 25x leverage (hard minimum, max risk $5)
+CONFIDENCE SCORING (20x FIXED LEVERAGE - ALL TRADES):
+- 85-100%: Perfect setup, use 20x leverage (max risk $1 per trade)
+- 75-84%: Strong setup, use 20x leverage (max risk $1 per trade)
+- 65-74%: Good setup, use 20x leverage (max risk $1 per trade)
+- 55-64%: Acceptable setup, use 20x leverage (max risk $1 per trade)
+- 50-54%: Speculative setup, use 20x leverage (max risk $1 per trade)
 - <50%: DO NOT TRADE (no edge detected)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -368,8 +368,7 @@ FORBIDDEN PATTERNS (Avoid These!):
 ❌ Giving same confidence to multiple coins (0.52, 0.52, 0.52...)
 ❌ Only giving HOLD signals (be VERY aggressive in finding setups!)
 ❌ Trading with confidence below 50% (no edge = no trade)
-❌ Using leverage above 30x (hard maximum limit)
-❌ Using leverage below 25x (hard minimum limit)
+❌ Using ANY leverage other than 20x (FIXED at 20x always!)
 ❌ Ignoring confluence factors
 ❌ **CRITICAL:** Returning action="hold" when confidence ≥ 50%
 ❌ **CRITICAL:** Returning side=null when confidence ≥ 50%
@@ -402,22 +401,18 @@ def build_analysis_prompt(symbol: str, market_data: dict) -> str:
     return f"""You are a professional cryptocurrency leverage trader analyzing {symbol} for a leveraged trade.
 Analysis ID: {symbol}_{timestamp}
 
-CRITICAL REQUIREMENTS (MAXIMUM AGGRESSIVE MODE - HIGH LEVERAGE):
-1. Stop-loss range: 5-8% of position value (tight stops for high leverage)
-2. Minimum profit target: $1.50 USD
-3. Leverage range: 25x-30x (ULTRA AGGRESSIVE MODE for maximum profit)
-4. Minimum confidence: 50% to execute trade (maximum ML learning mode)
-5. Risk/reward ratio must be at least 1.5:1
-6. STRICT leverage rules based on confidence:
-   - 50-54% confidence → 25x leverage (hard minimum)
-   - 55-64% confidence → 25x leverage
-   - 65-74% confidence → 25-26x leverage
-   - 75-84% confidence → 26-28x leverage
-   - 85-100% confidence → 28-30x leverage (maximum)
-7. NEVER exceed 30x leverage regardless of confidence (hard limit)
-8. NEVER go below 25x leverage (hard minimum)
-9. Stop-loss must ensure max $5 loss per trade
-10. Provide varied confidence (50-95%) AND appropriate leverage (25-30x)
+CRITICAL REQUIREMENTS (20x FIXED LEVERAGE - ALL TRADES):
+1. Stop-loss range: 4-5% of position value (balanced for 20x leverage)
+2. Minimum profit target: $0.80-$1.00 USD (USER REQUIREMENT)
+3. Leverage: ALWAYS 20x (FIXED - USER REQUEST)
+4. Minimum confidence: 50% to execute trade
+5. Risk/reward ratio must be at least 1:1
+6. LEVERAGE RULES:
+   - ALL trades use 20x leverage (no variation)
+   - NEVER exceed 20x leverage (hard limit)
+   - NEVER go below 20x leverage (hard limit)
+7. Stop-loss must ensure max $1 loss per trade (4-5% of position)
+8. Provide varied confidence (50-95%) but ALWAYS 20x leverage
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
@@ -710,8 +705,8 @@ RESPONSE FORMAT (JSON only, no explanations outside JSON):
     }},
     "confluence_count": 0-11,
     "side": "LONG" | "SHORT" | null,  // ⚠️ null ONLY if confidence < 0.50
-    "suggested_leverage": 25-30,
-    "stop_loss_percent": 12.0-20.0,
+    "suggested_leverage": 20,  // ⚠️ ALWAYS 20 (FIXED - USER REQUEST)
+    "stop_loss_percent": 4.0-5.0,  // ⚠️ 4-5% for 20x leverage
     "entry_price": {market_data['current_price']},
     "stop_loss_price": 0.0,
     "take_profit_price": 0.0,
