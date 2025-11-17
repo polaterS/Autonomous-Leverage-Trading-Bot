@@ -116,6 +116,49 @@ class PositionMonitor:
             # 🔧 FIX: Define min_profit_usd for ML exit checks (was undefined, causing crashes)
             min_profit_usd = self.settings.min_profit_usd
 
+            # 🔥 CRITICAL: Check if position still exists on Binance FIRST
+            # USER REQUEST: "manuel olarak binance üzerinden manuel olarak close diyorum öyle kapatıyorum pozisyonu"
+            # "Ben öyle kapatsam bile hemen sync komutu tetiklenmesi lazım hemen çalışması lazım!"
+            #
+            # Problem: User closes position manually on Binance → Bot doesn't detect it until next periodic sync (5 min)
+            # Solution: Check EVERY position_monitor cycle (60s) if position still exists on Binance
+            # If position closed manually → Trigger immediate sync to clean ghost from database
+            try:
+                binance_positions = await exchange.exchange.fetch_positions([symbol])
+                position_exists_on_binance = False
+
+                for binance_pos in binance_positions:
+                    if binance_pos['symbol'] == symbol:
+                        contracts = float(binance_pos.get('contracts', 0))
+                        notional = abs(float(binance_pos.get('notional', 0)))
+                        # Position exists if contracts > 0 OR notional > $1
+                        if contracts > 0 or notional > 1.0:
+                            position_exists_on_binance = True
+                            break
+
+                if not position_exists_on_binance:
+                    # GHOST DETECTED! Position in database but NOT on Binance
+                    logger.warning(f"👻 GHOST DETECTED: {symbol} in DB but NOT on Binance (manually closed?)")
+                    logger.info("🔄 IMMEDIATE SYNC: Triggering position reconciliation...")
+
+                    # Trigger immediate reconciliation
+                    from src.position_reconciliation import get_reconciliation_system
+                    reconciliation = get_reconciliation_system()
+                    sync_results = await reconciliation.reconcile_positions(on_startup=False)
+
+                    logger.info(
+                        f"✅ IMMEDIATE SYNC complete: "
+                        f"{sync_results.get('ghost_count', 0)} ghosts cleaned, "
+                        f"{sync_results.get('orphaned_count', 0)} orphans imported"
+                    )
+
+                    # Stop monitoring this position - it's been cleaned up
+                    return
+
+            except Exception as ghost_check_error:
+                logger.warning(f"⚠️ Ghost detection check failed (non-critical): {ghost_check_error}")
+                # Continue with normal monitoring - sync will catch it eventually
+
             # Get current price using hybrid price manager (WebSocket + REST cache)
             from src.price_manager import get_price_manager
             price_manager = get_price_manager()
