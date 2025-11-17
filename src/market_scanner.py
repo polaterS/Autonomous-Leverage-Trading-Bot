@@ -1218,6 +1218,142 @@ class MarketScanner:
         # Cap at 100
         return min(score, 100)
 
+    def _check_entry_confluence(
+        self,
+        analysis: Dict[str, Any],
+        market_data: Dict[str, Any],
+        side: str
+    ) -> Dict[str, Any]:
+        """
+        🔥 TIER 3: Multi-factor confluence validation (60+ score required).
+
+        Checks 8 critical factors before allowing trade entry.
+        Prevents low-quality setups from being traded.
+
+        Args:
+            analysis: AI analysis dict
+            market_data: Market data dict with indicators
+            side: Trade direction ('LONG' or 'SHORT')
+
+        Returns:
+            Dict with approved (bool), score (int), reason (str), factors (list)
+        """
+        score = 0
+        factors = []
+
+        # Get indicators
+        indicators_15m = market_data.get('indicators', {}).get('15m', {})
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 1: PA Validation (30 points) - Most important
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        pa = analysis.get('price_action', {})
+        if pa.get('validated'):
+            score += 30
+            factors.append('PA validated')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 2: RSI Healthy Zone (15 points)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        rsi = indicators_15m.get('rsi', 50)
+        if side == 'LONG' and 40 <= rsi <= 70:
+            score += 15
+            factors.append(f'RSI {rsi:.0f} healthy for LONG')
+        elif side == 'SHORT' and 30 <= rsi <= 60:
+            score += 15
+            factors.append(f'RSI {rsi:.0f} healthy for SHORT')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 3: MACD Alignment (15 points)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        macd = indicators_15m.get('macd', 0)
+        macd_signal = indicators_15m.get('macd_signal', 0)
+        if (side == 'LONG' and macd > macd_signal) or \
+           (side == 'SHORT' and macd < macd_signal):
+            score += 15
+            factors.append('MACD aligned')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 4: Volume Confirmation (10 points)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if indicators_15m.get('volume_trend') == 'high':
+            score += 10
+            factors.append('High volume')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 5: Trend Alignment (20 points)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        trend = indicators_15m.get('trend', 'unknown')
+        if (side == 'LONG' and trend == 'uptrend') or \
+           (side == 'SHORT' and trend == 'downtrend'):
+            score += 20
+            factors.append(f'Trend: {trend}')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 6: No Divergence Conflict (10 points)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        divergence = market_data.get('divergence', {})
+        has_divergence = divergence.get('has_divergence', False)
+        div_type = divergence.get('type', '')
+
+        # No divergence at all = good
+        if not has_divergence:
+            score += 10
+            factors.append('No divergence conflict')
+        # Divergence that agrees with trade = bonus
+        elif (side == 'LONG' and 'bullish' in div_type.lower()) or \
+             (side == 'SHORT' and 'bearish' in div_type.lower()):
+            score += 10
+            factors.append(f'{div_type} divergence confirms')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 7: SuperTrend Alignment (10 points) - NEW TIER 1 indicator
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        supertrend_trend = indicators_15m.get('supertrend_trend', 'unknown')
+        if (side == 'LONG' and supertrend_trend == 'uptrend') or \
+           (side == 'SHORT' and supertrend_trend == 'downtrend'):
+            score += 10
+            factors.append(f'SuperTrend: {supertrend_trend}')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FACTOR 8: VWAP Bias (10 points) - NEW TIER 1 indicator
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        vwap_bias = indicators_15m.get('vwap_bias', 'neutral')
+        if (side == 'LONG' and 'bullish' in vwap_bias) or \
+           (side == 'SHORT' and 'bearish' in vwap_bias):
+            score += 10
+            factors.append(f'VWAP bias: {vwap_bias}')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FINAL VERDICT: Need 60+/120 to approve
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        approved = score >= 60
+
+        if not approved:
+            missing_factors = []
+            if score < 30:
+                missing_factors.append("PA not validated")
+            if 'RSI' not in str(factors):
+                missing_factors.append("RSI not in healthy zone")
+            if 'MACD' not in str(factors):
+                missing_factors.append("MACD not aligned")
+            if 'volume' not in str(factors).lower():
+                missing_factors.append("No volume confirmation")
+            if 'Trend' not in str(factors):
+                missing_factors.append("Trend not aligned")
+
+            reason = f"Only {len(factors)}/8 factors present. Missing: {', '.join(missing_factors[:3])}"
+        else:
+            reason = f"Strong confluence: {len(factors)}/8 factors present"
+
+        return {
+            'approved': approved,
+            'score': score,
+            'reason': reason,
+            'factors': factors,
+            'total_possible': 120
+        }
+
     async def send_opportunity_for_selection(self, opportunity: Dict[str, Any]) -> None:
         """
         Send the best opportunity to telegram bot with multi-leverage options.
@@ -1266,6 +1402,51 @@ class MarketScanner:
         market_data = opportunity['market_data']
 
         logger.info(f"📊 Preparing to execute trade: {symbol} {analysis['side']}")
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 🔥 TIER 3: CONFLUENCE SCORING VALIDATION (60+ Requirement)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        #
+        # Multi-factor confluence check - need 60+/100 score to enter trade
+        # Prevents low-quality setups from being traded
+        #
+        # FACTORS CHECKED:
+        # 1. PA validation (30 pts) - Price action setup quality
+        # 2. RSI healthy (15 pts) - Not overbought/oversold extreme
+        # 3. MACD alignment (15 pts) - Momentum agrees with direction
+        # 4. Volume confirmation (10 pts) - High volume supporting move
+        # 5. Trend alignment (20 pts) - Trend matches trade direction
+        # 6. No divergence conflict (10 pts) - No bearish/bullish divergence
+        # 7. SuperTrend alignment (10 pts) - NEW indicator confirms
+        # 8. VWAP bias (10 pts) - Institutional flow agrees
+        #
+        # TOTAL: 120 points possible, need 60+ to trade
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
+
+        if not confluence['approved']:
+            logger.warning(
+                f"❌ CONFLUENCE CHECK FAILED: {confluence['score']}/100 (need 60+)\n"
+                f"   Reason: {confluence['reason']}\n"
+                f"   Factors: {', '.join(confluence['factors'])}"
+            )
+            notifier = get_notifier()
+            await notifier.send_alert(
+                'info',
+                f"⏸️ Trade skipped - Low confluence:\n"
+                f"{symbol} {analysis['side']}\n\n"
+                f"Score: {confluence['score']}/100 (need 60+)\n"
+                f"Reason: {confluence['reason']}\n\n"
+                f"Factors present ({len(confluence['factors'])}):\n" +
+                '\n'.join([f"✓ {f}" for f in confluence['factors']])
+            )
+            return
+
+        logger.info(
+            f"✅ CONFLUENCE CHECK PASSED: {confluence['score']}/100\n"
+            f"   Factors ({len(confluence['factors'])}): {', '.join(confluence['factors'])}"
+        )
 
         # 🎯 NEW: Trade Quality Manager validation (prevents overtrading and repeated failures)
         from src.trade_quality_manager import get_trade_quality_manager
