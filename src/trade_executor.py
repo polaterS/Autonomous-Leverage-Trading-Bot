@@ -709,8 +709,9 @@ class TradeExecutor:
             # Problem: When position closes, old stop-loss/limit orders stay active
             # Result: Next position for same symbol gets instantly closed by old orders!
             # Solution: Fetch ALL open orders for symbol and cancel each one
+            # 🔧 USER REQUEST: "pozisyon kapansa bile bir şeyler açık kalıyor. tüm open orders'ı cancel yap!"
             try:
-                logger.info(f"🗑️ Fetching open orders for {symbol} to cancel...")
+                logger.info(f"🗑️ CANCELLING ALL OPEN ORDERS for {symbol} before closing position...")
                 open_orders = await exchange.fetch_open_orders(symbol)
 
                 if open_orders:
@@ -719,34 +720,57 @@ class TradeExecutor:
                         order_id = order.get('id')
                         order_type = order.get('type', 'unknown')
                         order_side = order.get('side', 'unknown')
-                        logger.info(f"  - Order {order_id}: {order_type} {order_side}")
+                        order_price = order.get('price', 'market')
+                        logger.info(f"  - Order {order_id}: {order_type} {order_side} @ {order_price}")
 
-                    # Cancel each order one by one
+                    # Cancel each order one by one with detailed logging
                     cancelled_count = 0
+                    failed_count = 0
                     for order in open_orders:
                         try:
                             order_id = order.get('id')
+                            order_type = order.get('type', 'unknown')
+                            logger.info(f"  🗑️ Cancelling {order_type} order {order_id}...")
                             await exchange.cancel_order(order_id, symbol)
                             cancelled_count += 1
-                            logger.info(f"  ✅ Cancelled order {order_id}")
+                            logger.info(f"  ✅ Successfully cancelled order {order_id}")
                         except Exception as cancel_err:
-                            logger.warning(f"  ⚠️ Could not cancel order {order_id}: {cancel_err}")
+                            failed_count += 1
+                            logger.error(f"  ❌ FAILED to cancel order {order_id}: {cancel_err}")
+                            # Continue trying to cancel other orders even if one fails
 
-                    logger.info(f"✅ Cancelled {cancelled_count}/{len(open_orders)} orders for {symbol}")
+                    if failed_count > 0:
+                        logger.warning(f"⚠️ Cancelled {cancelled_count}/{len(open_orders)} orders ({failed_count} failed)")
+                    else:
+                        logger.info(f"✅ Successfully cancelled ALL {cancelled_count} orders for {symbol}")
                 else:
-                    logger.info(f"✅ No open orders to cancel for {symbol} (clean slate!)")
+                    logger.info(f"✅ No open orders found for {symbol} (clean slate!)")
 
             except Exception as e:
-                logger.error(f"❌ Could not fetch/cancel open orders: {e}")
+                logger.error(f"❌ CRITICAL: Could not fetch/cancel open orders: {e}", exc_info=True)
 
-                # Fallback: Try to cancel known stop-loss order ID from position record
-                logger.info("⚠️ Using fallback: cancelling known stop-loss order from position record")
+                # Fallback: Try to cancel known order IDs from position record
+                logger.info("⚠️ Using fallback: cancelling known orders from position record...")
+
+                # Try to cancel stop-loss order
                 if position.get('stop_loss_order_id'):
                     try:
-                        await exchange.cancel_order(position['stop_loss_order_id'], symbol)
-                        logger.info("✅ Stop-loss order cancelled (fallback method)")
+                        sl_order_id = position['stop_loss_order_id']
+                        logger.info(f"  🗑️ Cancelling stop-loss order {sl_order_id}...")
+                        await exchange.cancel_order(sl_order_id, symbol)
+                        logger.info(f"  ✅ Stop-loss order cancelled (fallback method)")
                     except Exception as e2:
-                        logger.warning(f"❌ Fallback SL cancel failed: {e2}")
+                        logger.error(f"  ❌ Fallback SL cancel failed: {e2}")
+
+                # Try to cancel take-profit order if it exists
+                if position.get('take_profit_order_id'):
+                    try:
+                        tp_order_id = position['take_profit_order_id']
+                        logger.info(f"  🗑️ Cancelling take-profit order {tp_order_id}...")
+                        await exchange.cancel_order(tp_order_id, symbol)
+                        logger.info(f"  ✅ Take-profit order cancelled (fallback method)")
+                    except Exception as e3:
+                        logger.error(f"  ❌ Fallback TP cancel failed: {e3}")
 
             # 📊 EXECUTION QUALITY MONITORING: Track exit fill time and slippage
             exit_start_time = datetime.now()
