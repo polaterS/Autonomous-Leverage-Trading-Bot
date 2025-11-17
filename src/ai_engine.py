@@ -250,8 +250,18 @@ class AIConsensusEngine:
         supports = [s['price'] for s in sr_analysis.get('support', [])]
         resistances = [r['price'] for r in sr_analysis.get('resistance', [])]
 
+        # 🚫 CRITICAL FILTER #1: Check S/R strength
+        # USER ISSUE: PEOPLE had S/R Strength 0% → Lost -$32.45
+        support_count = len(supports)
+        resistance_count = len(resistances)
+        total_sr_levels = support_count + resistance_count
+
         if not supports or not resistances:
             pa_reasoning = 'Insufficient S/R levels for PA analysis'
+        elif total_sr_levels < 3:
+            # Need at least 3 S/R levels total for reliable analysis
+            pa_reasoning = f'Weak S/R: Only {total_sr_levels} levels (need 3+) - REJECTED'
+            logger.info(f"🚫 PA Filter: {pa_reasoning}")
         else:
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
             nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
@@ -263,8 +273,15 @@ class AIConsensusEngine:
             # OLD: 6% tolerance → Too many trades, 80% loss rate!
             # NEW: 3% tolerance → Only trade when VERY close to S/R
 
+            # 🚫 CRITICAL FILTER: Reject SIDEWAYS trends (no direction = high risk!)
+            # USER ISSUE: PEOPLE trade was SIDEWAYS with ADX 0.0 → Lost -$32.45
+            adx = trend.get('adx', 0)
+            if trend['direction'] == 'SIDEWAYS' or adx < 15:
+                pa_reasoning = f"REJECTED: Trend {trend['direction']} (ADX: {adx:.1f}) - No clear direction!"
+                logger.info(f"🚫 PA Filter: {pa_reasoning}")
+
             # LONG setup: Near support + uptrend
-            if dist_to_support <= 0.03 and trend['direction'] == 'UPTREND':
+            elif dist_to_support <= 0.03 and trend['direction'] == 'UPTREND':
                 pa_action = 'buy'
                 pa_side = 'LONG'
                 pa_confidence = 0.65  # Base 65% (higher than before)
@@ -277,7 +294,7 @@ class AIConsensusEngine:
                 if dist_to_support <= 0.015:  # Very close to support (1.5%)
                     pa_confidence += 0.05
 
-                pa_reasoning = f"LONG: Support bounce ({dist_to_support*100:.1f}% away) in {trend['direction']}"
+                pa_reasoning = f"LONG: Support bounce ({dist_to_support*100:.1f}% away) in {trend['direction']} (ADX: {adx:.1f})"
 
             # SHORT setup: Near resistance + downtrend
             elif dist_to_resistance <= 0.03 and trend['direction'] == 'DOWNTREND':
@@ -293,14 +310,14 @@ class AIConsensusEngine:
                 if dist_to_resistance <= 0.015:  # Very close to resistance (1.5%)
                     pa_confidence += 0.05
 
-                pa_reasoning = f"SHORT: Resistance rejection ({dist_to_resistance*100:.1f}% away) in {trend['direction']}"
+                pa_reasoning = f"SHORT: Resistance rejection ({dist_to_resistance*100:.1f}% away) in {trend['direction']} (ADX: {adx:.1f})"
 
             else:
                 pa_reasoning = (
                     f"No clear setup: "
                     f"Support {dist_to_support*100:.1f}% away, "
                     f"Resistance {dist_to_resistance*100:.1f}% away, "
-                    f"Trend: {trend['direction']}"
+                    f"Trend: {trend['direction']} (ADX: {adx:.1f})"
                 )
 
         logger.info(f"📊 PA Signal: {pa_action.upper()} @ {pa_confidence:.1%} | {pa_reasoning}")
