@@ -199,9 +199,9 @@ class ExchangeClient:
             ticker = await self.fetch_ticker(symbol)
             market_price = safe_decimal(ticker['last'])
 
-            # Simulate realistic slippage (0.03-0.08% depending on side)
+            # Simulate realistic Binance Futures slippage (0.01-0.02% - very tight)
             import random
-            slippage = Decimal(str(random.uniform(0.03, 0.08))) / 100
+            slippage = Decimal(str(random.uniform(0.01, 0.02))) / 100
 
             # Buying increases price slightly, selling decreases it
             if side == 'buy':
