@@ -113,6 +113,9 @@ class PositionMonitor:
             executor = get_trade_executor()
             notifier = get_notifier()
 
+            # 🔧 FIX: Define min_profit_usd for ML exit checks (was undefined, causing crashes)
+            min_profit_usd = self.settings.min_profit_usd
+
             # Get current price using hybrid price manager (WebSocket + REST cache)
             from src.price_manager import get_price_manager
             price_manager = get_price_manager()

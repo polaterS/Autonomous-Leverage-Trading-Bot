@@ -1660,7 +1660,8 @@ WebSocket + Cache = ~85% daha az API çağrısı
                 symbol = record.get('symbol', 'UNKNOWN')
                 pnl = float(record.get('income', 0))
                 timestamp = int(record.get('time', 0)) / 1000
-                date = datetime.fromtimestamp(timestamp).strftime('%m-%d %H:%M')
+                # 🔧 FIX: Convert to Turkey timezone (UTC+3)
+                date = datetime.fromtimestamp(timestamp, tz=TURKEY_TZ).strftime('%m-%d %H:%M')
 
                 total_realized += pnl
 
