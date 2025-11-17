@@ -73,12 +73,10 @@ class PriceActionAnalyzer:
         self.volume_surge_multiplier = 2.0  # 2x average = surge
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🔧 FIX #1: LOOSER PRICE TOLERANCES (2025-11-12)
-        # EMERGENCY FIX: 4% still too strict (34/35 coins failing!)
-        # NEW: 6% tolerance to support/resistance (more realistic)
-        # Impact: PA setups should increase from 1/35 → 15-25/35
-        self.support_resistance_tolerance = 0.06  # 6% tolerance (was 0.04)
-        self.room_to_opposite_level = 0.05  # 5% room required (was 0.04)
+        # 🎯 ENHANCED: More relaxed tolerances for crypto volatility
+        # Crypto moves 3-10% daily, so 6% tolerance is realistic
+        self.support_resistance_tolerance = 0.06  # 6% tolerance to S/R
+        self.room_to_opposite_level = 0.05  # 5% room required
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -88,12 +86,28 @@ class PriceActionAnalyzer:
         self.fib_retracement = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
         self.fib_extension = [1.272, 1.618, 2.0, 2.618]
 
+        # 🔥 NEW: Candlestick pattern thresholds
+        self.pin_bar_wick_ratio = 0.66  # Wick must be 66% of total range
+        self.pin_bar_body_ratio = 0.33  # Body must be <33% of total range
+        self.engulfing_body_ratio = 1.2  # Engulfing body 20%+ larger
+
+        # 🔥 NEW: Order flow parameters
+        self.order_flow_lookback = 10  # Candles for buy/sell pressure
+        self.strong_pressure_threshold = 0.65  # 65%+ = strong bias
+
+        # 🔥 NEW: Market structure parameters
+        self.structure_swing_window = 5  # Smaller window for structure breaks
+        self.choch_confirmation_candles = 2  # Candles to confirm CHoCH
+
         logger.info(
-            f"✅ PriceActionAnalyzer initialized:\n"
+            f"✅ PriceActionAnalyzer ENHANCED v2.0 initialized:\n"
             f"   - Swing detection: {self.swing_window} candles\n"
             f"   - Min R/R ratio: {self.min_rr_ratio}:1\n"
             f"   - Trend lookback: {self.trend_lookback} candles\n"
-            f"   - Volume surge threshold: {self.volume_surge_multiplier}x"
+            f"   - Volume surge threshold: {self.volume_surge_multiplier}x\n"
+            f"   - Candlestick patterns: Pin bars, Engulfing, Hammers\n"
+            f"   - Order flow analysis: Buy/Sell pressure tracking\n"
+            f"   - Market structure: BOS/CHoCH detection"
         )
 
     def find_swing_highs(self, df: pd.DataFrame, window: int = None) -> List[float]:
@@ -414,6 +428,316 @@ class PriceActionAnalyzer:
             logger.warning(f"ADX calculation failed: {e}")
             return 0.0
 
+    def detect_candlestick_patterns(self, df: pd.DataFrame) -> Dict:
+        """
+        🔥 NEW: Detect powerful candlestick patterns for entry/exit signals.
+
+        Patterns:
+        - Pin Bar (Rejection): Long wick + small body = reversal
+        - Engulfing: Previous candle fully engulfed = strong reversal
+        - Hammer/Shooting Star: Long lower/upper wick at support/resistance
+        - Doji: Indecision candle (open ≈ close)
+
+        Args:
+            df: OHLCV dataframe
+
+        Returns:
+            Dict with pattern detections and scores
+        """
+        try:
+            # Get last 3 candles for pattern detection
+            recent = df.tail(3)
+            if len(recent) < 2:
+                return {'patterns': [], 'score': 0, 'signal': 'NEUTRAL'}
+
+            current = recent.iloc[-1]
+            prev = recent.iloc[-2] if len(recent) >= 2 else current
+
+            patterns_found = []
+            total_score = 0
+
+            # Calculate candle metrics
+            body = abs(current['close'] - current['open'])
+            total_range = current['high'] - current['low']
+            upper_wick = current['high'] - max(current['open'], current['close'])
+            lower_wick = min(current['open'], current['close']) - current['low']
+
+            is_bullish = current['close'] > current['open']
+            is_bearish = current['close'] < current['open']
+
+            # Prevent division by zero
+            if total_range == 0:
+                return {'patterns': [], 'score': 0, 'signal': 'NEUTRAL'}
+
+            # 1. PIN BAR DETECTION (Reversal pattern)
+            # Bullish pin bar: Long lower wick (rejection of lows) + small body
+            # Bearish pin bar: Long upper wick (rejection of highs) + small body
+            if lower_wick / total_range >= self.pin_bar_wick_ratio and body / total_range <= self.pin_bar_body_ratio:
+                patterns_found.append('BULLISH_PIN_BAR')
+                total_score += 15  # Strong reversal signal
+                logger.debug(f"📌 Bullish Pin Bar detected: {lower_wick/total_range*100:.0f}% lower wick")
+
+            elif upper_wick / total_range >= self.pin_bar_wick_ratio and body / total_range <= self.pin_bar_body_ratio:
+                patterns_found.append('BEARISH_PIN_BAR')
+                total_score -= 15  # Strong bearish reversal
+                logger.debug(f"📌 Bearish Pin Bar detected: {upper_wick/total_range*100:.0f}% upper wick")
+
+            # 2. ENGULFING PATTERN (Strong reversal)
+            # Bullish engulfing: Current green candle fully engulfs previous red candle
+            # Bearish engulfing: Current red candle fully engulfs previous green candle
+            prev_body = abs(prev['close'] - prev['open'])
+            prev_is_bearish = prev['close'] < prev['open']
+            prev_is_bullish = prev['close'] > prev['open']
+
+            if is_bullish and prev_is_bearish and body >= prev_body * self.engulfing_body_ratio:
+                if current['close'] > prev['open'] and current['open'] < prev['close']:
+                    patterns_found.append('BULLISH_ENGULFING')
+                    total_score += 20  # Very strong bullish reversal
+                    logger.debug(f"🟢 Bullish Engulfing: {body/prev_body*100:.0f}% larger body")
+
+            elif is_bearish and prev_is_bullish and body >= prev_body * self.engulfing_body_ratio:
+                if current['close'] < prev['open'] and current['open'] > prev['close']:
+                    patterns_found.append('BEARISH_ENGULFING')
+                    total_score -= 20  # Very strong bearish reversal
+                    logger.debug(f"🔴 Bearish Engulfing: {body/prev_body*100:.0f}% larger body")
+
+            # 3. HAMMER / SHOOTING STAR (Context-dependent reversal)
+            # Hammer: Long lower wick in downtrend (bullish reversal)
+            # Shooting Star: Long upper wick in uptrend (bearish reversal)
+            if lower_wick >= 2 * body and upper_wick < body * 0.3:
+                patterns_found.append('HAMMER')
+                total_score += 10  # Bullish if at support
+                logger.debug(f"🔨 Hammer pattern: Lower wick {lower_wick/body:.1f}x body")
+
+            elif upper_wick >= 2 * body and lower_wick < body * 0.3:
+                patterns_found.append('SHOOTING_STAR')
+                total_score -= 10  # Bearish if at resistance
+                logger.debug(f"⭐ Shooting Star: Upper wick {upper_wick/body:.1f}x body")
+
+            # 4. DOJI (Indecision - potential reversal)
+            # Body < 10% of total range = indecision
+            if body / total_range < 0.1:
+                patterns_found.append('DOJI')
+                # Doji doesn't add score - context dependent
+                logger.debug(f"➖ Doji: Indecision candle ({body/total_range*100:.0f}% body)")
+
+            # 5. MARUBOZU (Strong continuation)
+            # Almost no wicks = strong directional move
+            total_wicks = upper_wick + lower_wick
+            if total_wicks / total_range < 0.1:
+                if is_bullish:
+                    patterns_found.append('BULLISH_MARUBOZU')
+                    total_score += 8  # Strong bullish continuation
+                    logger.debug(f"💪 Bullish Marubozu: Strong buying pressure")
+                else:
+                    patterns_found.append('BEARISH_MARUBOZU')
+                    total_score -= 8  # Strong bearish continuation
+                    logger.debug(f"💪 Bearish Marubozu: Strong selling pressure")
+
+            # Determine overall signal
+            if total_score >= 15:
+                signal = 'STRONG_BULLISH'
+            elif total_score >= 8:
+                signal = 'BULLISH'
+            elif total_score <= -15:
+                signal = 'STRONG_BEARISH'
+            elif total_score <= -8:
+                signal = 'BEARISH'
+            else:
+                signal = 'NEUTRAL'
+
+            return {
+                'patterns': patterns_found,
+                'score': total_score,
+                'signal': signal,
+                'body_percent': float(body / total_range) if total_range > 0 else 0,
+                'upper_wick_percent': float(upper_wick / total_range) if total_range > 0 else 0,
+                'lower_wick_percent': float(lower_wick / total_range) if total_range > 0 else 0
+            }
+
+        except Exception as e:
+            logger.error(f"Candlestick pattern detection failed: {e}")
+            return {'patterns': [], 'score': 0, 'signal': 'NEUTRAL'}
+
+    def analyze_order_flow(self, df: pd.DataFrame) -> Dict:
+        """
+        🔥 NEW: Analyze buying vs selling pressure from candle structure.
+
+        Order flow reveals who's in control:
+        - Green candles closing near high = buyers in control
+        - Red candles closing near low = sellers in control
+        - Closes mid-range = balanced/weak conviction
+
+        Args:
+            df: OHLCV dataframe
+
+        Returns:
+            Dict with buy/sell pressure, bias, strength
+        """
+        try:
+            recent = df.tail(self.order_flow_lookback)
+
+            buy_pressure = 0
+            sell_pressure = 0
+
+            for _, candle in recent.iterrows():
+                total_range = candle['high'] - candle['low']
+                if total_range == 0:
+                    continue
+
+                # Where did candle close relative to range?
+                # Close near high = buying pressure
+                # Close near low = selling pressure
+                close_position = (candle['close'] - candle['low']) / total_range
+
+                if close_position >= 0.7:  # Closed in upper 30%
+                    buy_pressure += 1
+                elif close_position <= 0.3:  # Closed in lower 30%
+                    sell_pressure += 1
+                # else: neutral (mid-range close)
+
+            total_candles = len(recent)
+            buy_ratio = buy_pressure / total_candles if total_candles > 0 else 0
+            sell_ratio = sell_pressure / total_candles if total_candles > 0 else 0
+
+            # Determine bias
+            if buy_ratio >= self.strong_pressure_threshold:
+                bias = 'STRONG_BUYERS'
+                strength = 'STRONG'
+            elif buy_ratio >= 0.55:
+                bias = 'BUYERS'
+                strength = 'MODERATE'
+            elif sell_ratio >= self.strong_pressure_threshold:
+                bias = 'STRONG_SELLERS'
+                strength = 'STRONG'
+            elif sell_ratio >= 0.55:
+                bias = 'SELLERS'
+                strength = 'MODERATE'
+            else:
+                bias = 'BALANCED'
+                strength = 'WEAK'
+
+            return {
+                'buy_pressure': float(buy_ratio),
+                'sell_pressure': float(sell_ratio),
+                'bias': bias,
+                'strength': strength,
+                'lookback_candles': total_candles
+            }
+
+        except Exception as e:
+            logger.error(f"Order flow analysis failed: {e}")
+            return {
+                'buy_pressure': 0.5,
+                'sell_pressure': 0.5,
+                'bias': 'BALANCED',
+                'strength': 'WEAK'
+            }
+
+    def detect_market_structure_break(self, df: pd.DataFrame) -> Dict:
+        """
+        🔥 NEW: Detect Break of Structure (BOS) and Change of Character (CHoCH).
+
+        Market Structure concepts:
+        - BOS (Break of Structure): Price breaks previous high/low in trend direction
+          → Trend continuation signal
+        - CHoCH (Change of Character): Price breaks counter-trend high/low
+          → Potential trend reversal
+
+        Args:
+            df: OHLCV dataframe
+
+        Returns:
+            Dict with structure break info
+        """
+        try:
+            # Find recent swing highs/lows with smaller window
+            swing_highs = self.find_swing_highs(df, window=self.structure_swing_window)
+            swing_lows = self.find_swing_lows(df, window=self.structure_swing_window)
+
+            if not swing_highs or not swing_lows:
+                return {
+                    'bos_detected': False,
+                    'choch_detected': False,
+                    'structure': 'UNDEFINED'
+                }
+
+            current_price = float(df['close'].iloc[-1])
+
+            # Get last 3 swing highs and lows
+            recent_highs = sorted(swing_highs[-3:]) if len(swing_highs) >= 3 else sorted(swing_highs)
+            recent_lows = sorted(swing_lows[-3:]) if len(swing_lows) >= 3 else sorted(swing_lows)
+
+            prev_high = recent_highs[-1] if recent_highs else current_price
+            prev_low = recent_lows[-1] if recent_lows else current_price
+
+            # BOS Detection (Trend continuation)
+            # Bullish BOS: Price breaks above previous swing high
+            # Bearish BOS: Price breaks below previous swing low
+            bullish_bos = current_price > prev_high * 1.002  # 0.2% buffer to confirm break
+            bearish_bos = current_price < prev_low * 0.998
+
+            # CHoCH Detection (Trend reversal)
+            # Needs confirmation: price must hold above/below for N candles
+            recent_candles = df.tail(self.choch_confirmation_candles)
+
+            # Bullish CHoCH: After downtrend, price breaks above previous lower high
+            # Bearish CHoCH: After uptrend, price breaks below previous higher low
+            if len(recent_highs) >= 2 and len(recent_lows) >= 2:
+                # Check if we had lower highs (downtrend) and now breaking up
+                if recent_highs[-1] < recent_highs[-2] and all(c['close'] > prev_high for _, c in recent_candles.iterrows()):
+                    choch_bullish = True
+                else:
+                    choch_bullish = False
+
+                # Check if we had higher lows (uptrend) and now breaking down
+                if recent_lows[-1] > recent_lows[-2] and all(c['close'] < prev_low for _, c in recent_candles.iterrows()):
+                    choch_bearish = True
+                else:
+                    choch_bearish = False
+            else:
+                choch_bullish = False
+                choch_bearish = False
+
+            # Determine overall structure
+            if bullish_bos and not choch_bearish:
+                structure = 'BULLISH_BOS'
+                bos = True
+                choch = False
+            elif bearish_bos and not choch_bullish:
+                structure = 'BEARISH_BOS'
+                bos = True
+                choch = False
+            elif choch_bullish:
+                structure = 'BULLISH_CHOCH'
+                bos = False
+                choch = True
+            elif choch_bearish:
+                structure = 'BEARISH_CHOCH'
+                bos = False
+                choch = True
+            else:
+                structure = 'RANGING'
+                bos = False
+                choch = False
+
+            return {
+                'bos_detected': bos,
+                'choch_detected': choch,
+                'structure': structure,
+                'prev_high': prev_high,
+                'prev_low': prev_low,
+                'current_price': current_price
+            }
+
+        except Exception as e:
+            logger.error(f"Market structure detection failed: {e}")
+            return {
+                'bos_detected': False,
+                'choch_detected': False,
+                'structure': 'UNDEFINED'
+            }
+
     def analyze_volume(self, df: pd.DataFrame) -> Dict:
         """
         Analyze volume for confirmation signals.
@@ -570,12 +894,26 @@ class PriceActionAnalyzer:
         Returns:
             Dict with should_enter, reason, entry details
         """
-        logger.info(f"🔍 Price Action Analysis: {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
+        logger.info(f"🔍 Price Action Analysis ENHANCED v2.0: {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
 
-        # Analyze market structure
+        # 🔥 ENHANCED: Comprehensive market analysis
         sr_analysis = self.analyze_support_resistance(df)
         trend = self.detect_trend(df)
         volume = self.analyze_volume(df)
+
+        # 🔥 NEW: Advanced PA analyses
+        candle_patterns = self.detect_candlestick_patterns(df)
+        order_flow = self.analyze_order_flow(df)
+        market_structure = self.detect_market_structure_break(df)
+
+        # Log enhanced analysis
+        logger.info(
+            f"   📊 Trend: {trend['direction']} ({trend['strength']}, ADX {trend.get('adx', 0):.1f})\n"
+            f"   📈 Volume: {volume['surge_ratio']:.1f}x avg ({'SURGE' if volume['is_surge'] else 'normal'})\n"
+            f"   🕯️ Candles: {', '.join(candle_patterns['patterns']) if candle_patterns['patterns'] else 'None'} (Score: {candle_patterns['score']})\n"
+            f"   💹 Order Flow: {order_flow['bias']} ({order_flow['buy_pressure']:.0%} buy / {order_flow['sell_pressure']:.0%} sell)\n"
+            f"   🏗️ Structure: {market_structure['structure']}"
+        )
 
         # Default: don't enter
         result = {
@@ -589,7 +927,10 @@ class PriceActionAnalyzer:
             'analysis': {
                 'trend': trend,
                 'volume': volume,
-                'support_resistance': sr_analysis
+                'support_resistance': sr_analysis,
+                'candle_patterns': candle_patterns,
+                'order_flow': order_flow,
+                'market_structure': market_structure
             }
         }
 
@@ -670,6 +1011,22 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
                 return result
 
+            # 🔥 NEW FILTERS: Candlestick patterns + order flow + structure
+            # Check 6: Candlestick pattern confirmation
+            if candle_patterns['signal'] in ['STRONG_BEARISH', 'BEARISH']:
+                result['reason'] = f'Bearish candle pattern conflicts with LONG: {", ".join(candle_patterns["patterns"])}'
+                return result
+
+            # Check 7: Order flow must support LONG (buyers in control)
+            if order_flow['bias'] in ['STRONG_SELLERS', 'SELLERS']:
+                result['reason'] = f'Order flow shows sellers in control ({order_flow["sell_pressure"]:.0%}) - conflicts with LONG'
+                return result
+
+            # Check 8: Market structure should support LONG (bullish BOS or CHoCH)
+            if market_structure['structure'] in ['BEARISH_BOS', 'BEARISH_CHOCH']:
+                result['reason'] = f'Bearish market structure ({market_structure["structure"]}) - conflicts with LONG'
+                return result
+
             # ✅ ALL CHECKS PASSED - PERFECT LONG SETUP!
             confidence_boost = 0
 
@@ -683,12 +1040,38 @@ class PriceActionAnalyzer:
             if rr['max_rr'] >= 3.0:
                 confidence_boost += 5
 
+            # 🔥 NEW: Bonus for bullish candle patterns
+            if candle_patterns['signal'] == 'STRONG_BULLISH':
+                confidence_boost += 10
+                logger.info(f"   ⭐ STRONG bullish pattern: {', '.join(candle_patterns['patterns'])}")
+            elif candle_patterns['signal'] == 'BULLISH':
+                confidence_boost += 5
+                logger.info(f"   ✨ Bullish pattern: {', '.join(candle_patterns['patterns'])}")
+
+            # 🔥 NEW: Bonus for strong buyer order flow
+            if order_flow['bias'] == 'STRONG_BUYERS':
+                confidence_boost += 10
+                logger.info(f"   💪 STRONG buyer pressure: {order_flow['buy_pressure']:.0%}")
+            elif order_flow['bias'] == 'BUYERS':
+                confidence_boost += 5
+                logger.info(f"   👍 Buyer dominance: {order_flow['buy_pressure']:.0%}")
+
+            # 🔥 NEW: Bonus for bullish structure break
+            if market_structure['structure'] == 'BULLISH_BOS':
+                confidence_boost += 10
+                logger.info(f"   📈 Bullish Break of Structure confirmed!")
+            elif market_structure['structure'] == 'BULLISH_CHOCH':
+                confidence_boost += 15  # CHoCH is stronger (reversal)
+                logger.info(f"   🔄 Bullish Change of Character - trend reversal!")
+
             result.update({
                 'should_enter': True,
                 'reason': (
                     f'✅ Perfect LONG: Support bounce ({dist_to_support*100:.0f}% away) | '
                     f'{trend["direction"]} | R/R {rr["max_rr"]:.1f} | '
-                    f'Volume {volume["surge_ratio"]:.1f}x'
+                    f'Volume {volume["surge_ratio"]:.1f}x | '
+                    f'Patterns: {", ".join(candle_patterns["patterns"][:2]) if candle_patterns["patterns"] else "None"} | '
+                    f'Flow: {order_flow["bias"]}'
                 ),
                 'confidence_boost': confidence_boost,
                 'entry': current_price,
