@@ -835,10 +835,12 @@ class MarketScanner:
             price_manager = get_price_manager()
 
             # OHLCV data (multiple timeframes) - ENHANCED with 5m + CACHING
-            ohlcv_5m = await price_manager.get_ohlcv(symbol, '5m', exchange, limit=100)
-            ohlcv_15m = await price_manager.get_ohlcv(symbol, '15m', exchange, limit=100)
-            ohlcv_1h = await price_manager.get_ohlcv(symbol, '1h', exchange, limit=100)
-            ohlcv_4h = await price_manager.get_ohlcv(symbol, '4h', exchange, limit=50)
+            # 🔧 USER REQUEST: Increased from 100 to 200 candles for better PA analysis
+            # Indicators consume first 20-50 candles, so fetching 200 ensures 150+ clean candles remain
+            ohlcv_5m = await price_manager.get_ohlcv(symbol, '5m', exchange, limit=200)
+            ohlcv_15m = await price_manager.get_ohlcv(symbol, '15m', exchange, limit=200)
+            ohlcv_1h = await price_manager.get_ohlcv(symbol, '1h', exchange, limit=200)
+            ohlcv_4h = await price_manager.get_ohlcv(symbol, '4h', exchange, limit=200)
 
             # Current ticker (with caching)
             ticker = await price_manager.get_ticker(symbol, exchange, use_cache=True)
@@ -976,7 +978,8 @@ class MarketScanner:
             if symbol != 'BTC/USDT:USDT':
                 try:
                     # Fetch BTC data for correlation
-                    btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=100)
+                    # 🔧 USER REQUEST: Increased to 200 candles for better PA analysis
+                    btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=200)
                     btc_correlation = calculate_btc_correlation(symbol, ohlcv_15m, btc_ohlcv)
                 except:
                     pass

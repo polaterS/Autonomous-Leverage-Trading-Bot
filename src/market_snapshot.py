@@ -102,7 +102,8 @@ class MarketSnapshotCapture:
         for tf_name, tf_interval in timeframes.items():
             try:
                 # Fetch OHLCV data
-                ohlcv = await self.exchange.fetch_ohlcv(symbol, tf_interval, limit=100)
+                # 🔧 USER REQUEST: Increased to 200 candles for better PA analysis
+                ohlcv = await self.exchange.fetch_ohlcv(symbol, tf_interval, limit=200)
 
                 if not ohlcv or len(ohlcv) < 50:
                     continue
@@ -242,7 +243,8 @@ class MarketSnapshotCapture:
         """Identify support and resistance levels."""
         try:
             # Fetch 4h data for level detection
-            ohlcv = await self.exchange.fetch_ohlcv(symbol, '4h', limit=100)
+            # 🔧 USER REQUEST: Increased to 200 candles for better PA analysis
+            ohlcv = await self.exchange.fetch_ohlcv(symbol, '4h', limit=200)
 
             if not ohlcv or len(ohlcv) < 20:
                 return {}
