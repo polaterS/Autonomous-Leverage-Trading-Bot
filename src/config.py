@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
-    initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
+    initial_capital: Decimal = Field(default=Decimal("77.00"), gt=0)  # Current balance in Binance
     min_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
     max_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
     max_concurrent_positions: int = Field(default=5, ge=1, le=30)  # 🔧 USER: 5 positions max
@@ -71,50 +71,141 @@ class Settings(BaseSettings):
     enable_whale_tracking: bool = Field(default=False)  # Whale activity tracking (PLACEHOLDER)
     enable_online_learning: bool = Field(default=False)  # Online learning (adaptive ML updates)
 
-    # Trading Symbols (high liquidity perpetual futures) - 35 coins
+    # Trading Symbols (high liquidity perpetual futures) - 120 coins (USER REQUEST: 100-150)
     trading_symbols: list[str] = Field(default=[
-        # Top 10 - Highest Market Cap
-        'BTC/USDT:USDT',    # Bitcoin - Largest market cap
-        'ETH/USDT:USDT',    # Ethereum - Smart contracts leader
-        'SOL/USDT:USDT',    # Solana - High performance blockchain
-        'BNB/USDT:USDT',    # Binance Coin - Exchange token
-        'XRP/USDT:USDT',    # Ripple - Cross-border payments
-        'DOGE/USDT:USDT',   # Dogecoin - Meme coin leader
-        'ADA/USDT:USDT',    # Cardano - Proof of stake platform
-        'AVAX/USDT:USDT',   # Avalanche - Fast blockchain
-        'TON/USDT:USDT',    # Toncoin - Telegram blockchain
-        'TRX/USDT:USDT',    # Tron - Content sharing platform
+        # Top 10 - Highest Market Cap (Ultra Liquid)
+        'BTC/USDT:USDT',    # Bitcoin
+        'ETH/USDT:USDT',    # Ethereum
+        'SOL/USDT:USDT',    # Solana
+        'BNB/USDT:USDT',    # Binance Coin
+        'XRP/USDT:USDT',    # Ripple
+        'DOGE/USDT:USDT',   # Dogecoin
+        'ADA/USDT:USDT',    # Cardano
+        'AVAX/USDT:USDT',   # Avalanche
+        'TON/USDT:USDT',    # Toncoin
+        'TRX/USDT:USDT',    # Tron
 
-        # DeFi & Infrastructure (11-20)
-        'LINK/USDT:USDT',   # Chainlink - Oracle network
-        'UNI/USDT:USDT',    # Uniswap - DEX leader
-        'AAVE/USDT:USDT',   # Aave - Lending protocol
-        'MKR/USDT:USDT',    # Maker - Decentralized stablecoin
-        'GRT/USDT:USDT',    # The Graph - Indexing protocol
-        'RUNE/USDT:USDT',   # THORChain - Cross-chain DEX
-        'INJ/USDT:USDT',    # Injective - DeFi derivatives
-        'ATOM/USDT:USDT',   # Cosmos - Internet of blockchains
-        'DOT/USDT:USDT',    # Polkadot - Interoperability
-        'FTM/USDT:USDT',    # Fantom - Fast smart contracts
+        # 11-30: Major Altcoins
+        'LINK/USDT:USDT',   # Chainlink
+        'UNI/USDT:USDT',    # Uniswap
+        'ATOM/USDT:USDT',   # Cosmos
+        'DOT/USDT:USDT',    # Polkadot
+        'LTC/USDT:USDT',    # Litecoin
+        'BCH/USDT:USDT',    # Bitcoin Cash
+        'NEAR/USDT:USDT',   # Near Protocol
+        'ICP/USDT:USDT',    # Internet Computer
+        'FIL/USDT:USDT',    # Filecoin
+        'APT/USDT:USDT',    # Aptos
+        'SUI/USDT:USDT',    # Sui
+        'ARB/USDT:USDT',    # Arbitrum
+        'OP/USDT:USDT',     # Optimism
+        'POL/USDT:USDT',    # Polygon
+        'INJ/USDT:USDT',    # Injective
+        'FTM/USDT:USDT',    # Fantom
+        'AAVE/USDT:USDT',   # Aave
+        'MKR/USDT:USDT',    # Maker
+        'GRT/USDT:USDT',    # The Graph
+        'RUNE/USDT:USDT',   # THORChain
 
-        # Layer 2 & Scaling (21-27)
-        'POL/USDT:USDT',    # Polygon - Ethereum scaling
-        'ARB/USDT:USDT',    # Arbitrum - Layer 2 scaling
-        'OP/USDT:USDT',     # Optimism - Layer 2 solution
-        'IMX/USDT:USDT',    # Immutable X - NFT Layer 2
-        'APT/USDT:USDT',    # Aptos - New Layer 1
-        'SUI/USDT:USDT',    # Sui - High-performance blockchain
-        'STX/USDT:USDT',    # Stacks - Bitcoin Layer 2
+        # 31-50: DeFi & Layer 2
+        'STX/USDT:USDT',    # Stacks
+        'IMX/USDT:USDT',    # Immutable X
+        'FET/USDT:USDT',    # Fetch.ai
+        'ALGO/USDT:USDT',   # Algorand
+        'VET/USDT:USDT',    # VeChain
+        'HBAR/USDT:USDT',   # Hedera
+        'ETC/USDT:USDT',    # Ethereum Classic
+        'XLM/USDT:USDT',    # Stellar
+        'SAND/USDT:USDT',   # Sandbox
+        'MANA/USDT:USDT',   # Decentraland
+        'AXS/USDT:USDT',    # Axie Infinity
+        'GALA/USDT:USDT',   # Gala
+        'ENJ/USDT:USDT',    # Enjin
+        'CHZ/USDT:USDT',    # Chiliz
+        'FLOW/USDT:USDT',   # Flow
+        'THETA/USDT:USDT',  # Theta
+        'EOS/USDT:USDT',    # EOS
+        'KLAY/USDT:USDT',   # Klaytn
+        'XTZ/USDT:USDT',    # Tezos
+        'ZEC/USDT:USDT',    # Zcash
 
-        # Emerging & AI Projects (28-35)
-        'FET/USDT:USDT',    # Fetch.ai - AI + Blockchain
-        'NEAR/USDT:USDT',   # Near Protocol - Scalable blockchain
-        'ICP/USDT:USDT',    # Internet Computer - Web3
-        'FIL/USDT:USDT',    # Filecoin - Decentralized storage
-        'ALGO/USDT:USDT',   # Algorand - Pure proof of stake
-        'VET/USDT:USDT',    # VeChain - Supply chain
-        'HBAR/USDT:USDT',   # Hedera - Enterprise blockchain
-        'LTC/USDT:USDT'     # Litecoin - Silver to Bitcoin's gold
+        # 51-70: Mid-Cap Gems
+        'DASH/USDT:USDT',   # Dash
+        'COMP/USDT:USDT',   # Compound
+        'SNX/USDT:USDT',    # Synthetix
+        'CRV/USDT:USDT',    # Curve
+        'SUSHI/USDT:USDT',  # SushiSwap
+        '1INCH/USDT:USDT',  # 1inch
+        'BAL/USDT:USDT',    # Balancer
+        'YFI/USDT:USDT',    # Yearn Finance
+        'ZRX/USDT:USDT',    # 0x
+        'LRC/USDT:USDT',    # Loopring
+        'RNDR/USDT:USDT',   # Render
+        'AR/USDT:USDT',     # Arweave
+        'ROSE/USDT:USDT',   # Oasis Network
+        'ONE/USDT:USDT',    # Harmony
+        'ZIL/USDT:USDT',    # Zilliqa
+        'CELO/USDT:USDT',   # Celo
+        'QTUM/USDT:USDT',   # Qtum
+        'WAVES/USDT:USDT',  # Waves
+        'ICX/USDT:USDT',    # ICON
+        'ONT/USDT:USDT',    # Ontology
+
+        # 71-90: High Volume Trading Pairs
+        'PEPE/USDT:USDT',   # Pepe (Meme)
+        'SHIB/USDT:USDT',   # Shiba Inu
+        'WIF/USDT:USDT',    # Dogwifhat
+        'FLOKI/USDT:USDT',  # Floki
+        'BONK/USDT:USDT',   # Bonk
+        'PEOPLE/USDT:USDT', # ConstitutionDAO
+        'LUNC/USDT:USDT',   # Terra Classic
+        'LUNA/USDT:USDT',   # Terra
+        'SEI/USDT:USDT',    # Sei
+        'TIA/USDT:USDT',    # Celestia
+        'ORDI/USDT:USDT',   # Ordinals
+        'BLUR/USDT:USDT',   # Blur
+        'WLD/USDT:USDT',    # Worldcoin
+        'MATIC/USDT:USDT',  # Matic (old POL)
+        'CRO/USDT:USDT',    # Cronos
+        'FTT/USDT:USDT',    # FTX Token
+        'GMT/USDT:USDT',    # STEPN
+        'APE/USDT:USDT',    # ApeCoin
+        'LDO/USDT:USDT',    # Lido DAO
+        'CFX/USDT:USDT',    # Conflux
+
+        # 91-110: Emerging & Volatile
+        'MASK/USDT:USDT',   # Mask Network
+        'MINA/USDT:USDT',   # Mina Protocol
+        'SKL/USDT:USDT',    # SKALE
+        'DYDX/USDT:USDT',   # dYdX
+        'GMX/USDT:USDT',    # GMX
+        'PERP/USDT:USDT',   # Perpetual Protocol
+        'STORJ/USDT:USDT',  # Storj
+        'AUDIO/USDT:USDT',  # Audius
+        'C98/USDT:USDT',    # Coin98
+        'ALICE/USDT:USDT',  # My Neighbor Alice
+        'TLM/USDT:USDT',    # Alien Worlds
+        'SLP/USDT:USDT',    # Smooth Love Potion
+        'DENT/USDT:USDT',   # Dent
+        'HOT/USDT:USDT',    # Holo
+        'COTI/USDT:USDT',   # COTI
+        'OCEAN/USDT:USDT',  # Ocean Protocol
+        'ANKR/USDT:USDT',   # Ankr
+        'BNT/USDT:USDT',    # Bancor
+        'REN/USDT:USDT',    # Ren
+        'BAND/USDT:USDT',   # Band Protocol
+
+        # 111-120: Additional High Liquidity
+        'XMR/USDT:USDT',    # Monero
+        'IOTA/USDT:USDT',   # IOTA
+        'NEO/USDT:USDT',    # Neo
+        'EGLD/USDT:USDT',   # MultiversX
+        'KSM/USDT:USDT',    # Kusama
+        'RETH/USDT:USDT',   # Rocket Pool ETH
+        'ETHW/USDT:USDT',   # EthereumPoW
+        'USTC/USDT:USDT',   # TerraClassicUSD
+        'JASMY/USDT:USDT',  # JasmyCoin
+        'UNFI/USDT:USDT'    # Unifi Protocol
     ])
 
     # AI Configuration
