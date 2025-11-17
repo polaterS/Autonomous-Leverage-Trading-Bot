@@ -337,7 +337,10 @@ class TradeExecutor:
 
             # CRITICAL: Check slippage
             slippage_percent = abs((actual_entry_price - entry_price) / entry_price) * 100
-            max_slippage = Decimal("0.5")  # 0.5% maximum acceptable slippage
+            # USER ISSUE: 0.762% slippage is NORMAL for crypto futures!
+            # OLD: 0.5% was too strict, closed good trades immediately
+            # NEW: 2.0% - realistic for crypto volatility (Binance shows up to 1% regularly)
+            max_slippage = Decimal("2.0")  # 2.0% maximum acceptable slippage
 
             # Log execution quality metrics
             logger.info(f"📊 Execution Quality: Fill time: {fill_time_ms}ms, Slippage: {float(slippage_percent):.3f}%")
