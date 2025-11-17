@@ -1018,6 +1018,19 @@ class TradeExecutor:
                 logger.error(f"❌ AUTO-SYNC failed: {sync_error}")
                 # Continue anyway - sync failure shouldn't block position close
 
+            # 🔧 USER REQUEST: "pozisyon kapanıyor fakat hemen scan komutu çalışmıyor!"
+            # Trigger immediate market scan after position close to find new opportunities
+            logger.info("🔍 TRIGGER SCAN: Position closed, triggering immediate market scan...")
+            try:
+                from src.trading_engine import get_trading_engine
+                engine = get_trading_engine()
+                # Reset last_scan_time to trigger immediate scan on next loop iteration
+                engine.last_scan_time = None
+                logger.info("✅ Market scan will trigger immediately on next iteration")
+            except Exception as scan_error:
+                logger.warning(f"⚠️ Could not trigger immediate scan: {scan_error}")
+                # Not critical - scan will happen on next interval anyway
+
             pnl_emoji = "🎉" if realized_pnl > 0 else "😔"
             logger.info(f"{pnl_emoji} Position closed: P&L ${realized_pnl:+.2f} ({pnl_percent:+.2f}%)")
 
