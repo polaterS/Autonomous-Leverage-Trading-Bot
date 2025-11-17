@@ -44,7 +44,7 @@ class PositionReconciliationSystem:
 
     def __init__(self):
         self.last_sync_time = None
-        self.sync_interval_seconds = 60  # 60 seconds (USER REQUEST: faster sync for manual closes)
+        self.sync_interval_seconds = 15  # 15 seconds (USER: "sync komutunu 15 saniyede bir otomatik çalışır hale getir")
         self.auto_import_enabled = True  # Auto-import orphaned positions
 
     async def reconcile_positions(self, on_startup: bool = False) -> Dict[str, Any]:

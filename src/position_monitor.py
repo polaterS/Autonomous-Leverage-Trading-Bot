@@ -244,7 +244,46 @@ class PositionMonitor:
             )
 
             # ====================================================================
-            # 📈 PHASE 1: TRAILING STOP CHECK
+            # 💰 SIMPLE PROFIT/LOSS CHECK - PRIORITY #1
+            # USER REQUEST: "1.5 dolar kar olduğu anda tetiklensin ve pozisyonu kapatsın!"
+            # ====================================================================
+            PROFIT_TARGET_USD = Decimal("1.50")  # $1.50 profit target
+            LOSS_LIMIT_USD = Decimal("1.50")     # $1.50 loss limit
+
+            # Check profit target
+            if unrealized_pnl >= PROFIT_TARGET_USD:
+                close_reason = f"✅ Profit target hit: ${float(unrealized_pnl):+.2f} (target: ${float(PROFIT_TARGET_USD):.2f})"
+                logger.info(f"💰 {close_reason}")
+                await notifier.send_alert(
+                    'success',
+                    f"💰 <b>PROFIT TARGET HIT!</b>\n\n"
+                    f"💎 {symbol} {side}\n"
+                    f"Entry: ${float(position['entry_price']):.4f}\n"
+                    f"Exit: ${float(current_price):.4f}\n"
+                    f"Profit: <b>${float(unrealized_pnl):+.2f}</b>\n\n"
+                    f"🎉 Target was ${float(PROFIT_TARGET_USD):.2f}"
+                )
+                await executor.close_position(position, current_price, close_reason)
+                return
+
+            # Check loss limit
+            if unrealized_pnl <= -LOSS_LIMIT_USD:
+                close_reason = f"❌ Loss limit hit: ${float(unrealized_pnl):+.2f} (limit: -${float(LOSS_LIMIT_USD):.2f})"
+                logger.warning(f"⚠️ {close_reason}")
+                await notifier.send_alert(
+                    'warning',
+                    f"⚠️ <b>LOSS LIMIT HIT!</b>\n\n"
+                    f"💎 {symbol} {side}\n"
+                    f"Entry: ${float(position['entry_price']):.4f}\n"
+                    f"Exit: ${float(current_price):.4f}\n"
+                    f"Loss: <b>${float(unrealized_pnl):+.2f}</b>\n\n"
+                    f"🛑 Limit was -${float(LOSS_LIMIT_USD):.2f}"
+                )
+                await executor.close_position(position, current_price, close_reason)
+                return
+
+            # ====================================================================
+            # 📈 PHASE 2: TRAILING STOP CHECK
             # ====================================================================
             if self.settings.enable_trailing_stop:
                 from src.trailing_stop import get_trailing_stop
@@ -540,17 +579,16 @@ class PositionMonitor:
                 regime_details = {'description': 'Unknown regime'}
 
             # === CRITICAL CHECK 1: Emergency close conditions ===
-            should_emergency_close, emergency_reason = await risk_manager.should_emergency_close(position, current_price)
-
-            if should_emergency_close:
-                logger.critical(f"🚨 EMERGENCY CLOSE: {emergency_reason}")
-
-                # 🎯 TIER 2: Store exit regime before closing
-                await self._store_exit_regime(position, indicators, symbol)
-
-                await notifier.send_alert('critical', f"Emergency closing position: {emergency_reason}")
-                await executor.close_position(position, current_price, emergency_reason)
-                return
+            # 🚫 DISABLED: We now use simple $1.50 profit/loss limits (see above)
+            # Emergency close was too aggressive and closed positions immediately
+            # should_emergency_close, emergency_reason = await risk_manager.should_emergency_close(position, current_price)
+            #
+            # if should_emergency_close:
+            #     logger.critical(f"🚨 EMERGENCY CLOSE: {emergency_reason}")
+            #     await self._store_exit_regime(position, indicators, symbol)
+            #     await notifier.send_alert('critical', f"Emergency closing position: {emergency_reason}")
+            #     await executor.close_position(position, current_price, emergency_reason)
+            #     return
 
             # ====================================================================
             # 🚫 LIQUIDATION CHECK: DISABLED (Causing premature exits)
@@ -723,14 +761,15 @@ class PositionMonitor:
                             )
 
                     # ADDITIONAL FALLBACK: Deep loss without ML signal (>$8)
-                    # Emergency exit before hitting -$10 stop-loss
-                    elif unrealized_pnl < Decimal("-8.0"):
-                        should_exit = True
-                        reason = f"Deep loss ${float(unrealized_pnl):.2f} - emergency exit"
-                        logger.warning(
-                            f"🚨 EMERGENCY EXIT: Loss approaching stop-loss threshold "
-                            f"(${float(unrealized_pnl):.2f}), exiting to prevent full -$10 loss"
-                        )
+                    # 🚫 DISABLED: We now use $1.50 loss limit (see above)
+                    # This -$8 check was never reached anyway since we exit at -$1.50
+                    # elif unrealized_pnl < Decimal("-8.0"):
+                    #     should_exit = True
+                    #     reason = f"Deep loss ${float(unrealized_pnl):.2f} - emergency exit"
+                    #     logger.warning(
+                    #         f"🚨 EMERGENCY EXIT: Loss approaching stop-loss threshold "
+                    #         f"(${float(unrealized_pnl):.2f}), exiting to prevent full -$10 loss"
+                    #     )
 
                     if should_exit:
                         logger.info(f"🧠 ML recommends exit: {reason}")
