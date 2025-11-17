@@ -149,6 +149,30 @@ class ExchangeClient:
             logger.error(f"Error fetching balance: {e}")
             raise
 
+    async def fetch_open_orders(self, symbol: str = None) -> List[Dict[str, Any]]:
+        """
+        Fetch all open orders for a symbol (or all symbols if None).
+
+        Args:
+            symbol: Trading symbol (e.g., 'BTC/USDT:USDT'). If None, fetches all open orders.
+
+        Returns:
+            List of open orders
+        """
+        if self.paper_trading:
+            logger.debug(f"[PAPER] Fetching open orders for {symbol or 'all symbols'}")
+            if symbol:
+                return [order for order in self.paper_orders.values() if order['symbol'] == symbol]
+            return list(self.paper_orders.values())
+
+        try:
+            open_orders = await self.exchange.fetch_open_orders(symbol)
+            logger.debug(f"Fetched {len(open_orders)} open order(s) for {symbol or 'all symbols'}")
+            return open_orders
+        except Exception as e:
+            logger.error(f"Error fetching open orders for {symbol}: {e}")
+            return []  # Return empty list on error (non-critical)
+
     async def set_leverage(self, symbol: str, leverage: int) -> None:
         """Set leverage for a symbol."""
         if self.paper_trading:

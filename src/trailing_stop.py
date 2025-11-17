@@ -148,7 +148,7 @@ class TrailingStop:
 
         logger.info(
             f"📈 Trailing stop update for {position_id}: "
-            f"${current_stop_loss:.4f if current_stop_loss else 0:.4f} → ${new_stop:.4f} "
+            f"${current_stop_loss:.4f if current_stop_loss else '0.0000'} → ${new_stop:.4f} "
             f"(Peak: ${float(position_data['peak_price']):.4f}, Trail: {self.trail_distance_pct*100:.1f}%)"
         )
 

@@ -188,7 +188,7 @@ class TradeExecutor:
             # - $35 margin × 25x leverage = $875 position size
             #
             # Target: ±$1 profit/loss with 25-30x leverage
-            max_positions = 3  # User configured
+            max_positions = self.settings.max_concurrent_positions  # Use config value
             margin_per_position = current_capital / Decimal(str(max_positions))
             FIXED_POSITION_SIZE_USD = margin_per_position * Decimal(str(leverage)) * Decimal(str(time_multiplier))
 
@@ -237,6 +237,27 @@ class TradeExecutor:
             profit_target_2 = profit_targets['profit_target_2']
             target_1_profit = profit_targets['target_1_profit_usd']
             target_2_profit = profit_targets['target_2_profit_usd']
+
+            # BINANCE MINIMUM ORDER SIZE CHECK ($20 minimum)
+            BINANCE_MIN_NOTIONAL = Decimal("20.0")
+            if position_value < BINANCE_MIN_NOTIONAL:
+                error_msg = (
+                    f"Position size ${position_value:.2f} is below Binance minimum ${BINANCE_MIN_NOTIONAL:.2f}. "
+                    f"Current capital: ${current_capital:.2f}. "
+                    f"Increase capital or reduce MAX_CONCURRENT_POSITIONS to at least 2 positions."
+                )
+                logger.error(f"❌ {error_msg}")
+                await notifier.send_alert(
+                    'error',
+                    f"❌ TRADE REJECTED\n\n"
+                    f"Position: {symbol} {side}\n"
+                    f"Size: ${position_value:.2f}\n\n"
+                    f"⚠️ Below Binance minimum ${BINANCE_MIN_NOTIONAL:.2f}\n\n"
+                    f"💡 Solution:\n"
+                    f"1. Increase capital (current: ${current_capital:.2f})\n"
+                    f"2. Or set MAX_CONCURRENT_POSITIONS=2 in Railway"
+                )
+                raise ValueError(error_msg)
 
             logger.info(f"Position details:")
             logger.info(f"  Quantity: {quantity:.6f}")
