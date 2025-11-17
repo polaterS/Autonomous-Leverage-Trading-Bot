@@ -576,30 +576,11 @@ class MarketScanner:
                 except Exception as e:
                     logger.error(f"❌ {symbol} - Price action pre-analysis EXCEPTION: {e}", exc_info=True)
 
-                # 🔥 TIER 3: MULTI-STRATEGY ANALYSIS (Regime-Based Strategy Selection)
+                # 🔥 TIER 3: STRATEGY DISABLED FOR PA-ONLY MODE
+                # USER REQUEST: "C: ML'Yİ KAPAT, SADECE PA KULLAN"
+                # Strategy fallback disabled - will use only PA-only consensus via get_consensus()
                 strategy_analysis = None
-                try:
-                    from src.strategy_manager import get_strategy_manager
-
-                    strategy_mgr = get_strategy_manager()
-                    strategy_analysis = await strategy_mgr.analyze(market_data)
-
-                    # 🔧 Fix: Case-insensitive comparison (strategy returns lowercase 'hold'/'buy'/'sell')
-                    if strategy_analysis and strategy_analysis.get('action', '').lower() != 'hold':
-                        logger.info(
-                            f"📊 {symbol} STRATEGY: {strategy_analysis['strategy']} | "
-                            f"{strategy_analysis['action'].upper()} @ {strategy_analysis['confidence']:.0%} | "
-                            f"Regime: {strategy_analysis['regime']}"
-                        )
-                    else:
-                        # Log when strategy returns HOLD (for debugging)
-                        logger.debug(
-                            f"📊 {symbol} STRATEGY: {strategy_analysis.get('strategy', 'unknown')} returned HOLD | "
-                            f"Regime: {strategy_analysis.get('regime', 'UNKNOWN')}"
-                        )
-                except Exception as e:
-                    # 🔧 CRITICAL: Changed to ERROR level so we can see it in Railway logs!
-                    logger.error(f"❌ {symbol} - Strategy analysis FAILED: {e}", exc_info=True)
+                logger.debug(f"📊 {symbol} - Strategy disabled (PA-ONLY mode)")
 
                 # Get AI analyses (🎯 #7: Pass market sentiment for ML enhancement)
                 ai_engine = get_ai_engine()

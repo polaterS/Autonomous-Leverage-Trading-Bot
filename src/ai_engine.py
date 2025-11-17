@@ -125,84 +125,20 @@ class AIConsensusEngine:
         market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
     ) -> List[Dict[str, Any]]:
         """
-        🧠 HYBRID MODE: DeepSeek AI analysis (cost-optimized).
+        ❌ DISABLED: PA-ONLY MODE - No AI/ML models used
 
-        Only called when position slots are available (smart scan logic).
-        Returns DeepSeek analysis for AI+ML consensus.
+        USER REQUEST: "C: ML'Yİ KAPAT, SADECE PA KULLAN"
+
+        This method previously called DeepSeek AI, but is now disabled.
+        Market scanner will use Strategy fallback, which then calls PA-only consensus.
+
+        Returns empty list to force Strategy-only mode.
         """
-        logger.info(f"🧠 AI+ML HYBRID: Requesting DeepSeek analysis for {symbol}...")
+        logger.debug(f"📊 PA-ONLY MODE: Skipping AI/ML analysis for {symbol} (disabled by user)")
 
-        # 🎯 AI MODE ENABLED: DeepSeek-V3 (cost optimized)
-        logger.info(f"🧠 DeepSeek AI analysis for {symbol}...")
-
-        # 🎯 SINGLE MODEL: DeepSeek only (cost-optimized)
-        deepseek_task = self._analyze_with_retry(
-            self._analyze_with_deepseek,
-            symbol,
-            market_data,
-            "DeepSeek-V3.2"
-        )
-
-        # Wait for DeepSeek to complete
-        deepseek_analysis = await deepseek_task
-
-        # Process valid analyses
-        valid_analyses = []
-
-        for analysis, model_name in [(deepseek_analysis, "DeepSeek-V3.2")]:
-            if analysis is not None and self._validate_ai_response(analysis):
-                # 🧠 ML ENHANCEMENT: Adjust confidence based on historical patterns + 🎯 #7: Market sentiment
-                try:
-                    from src.ml_pattern_learner import get_ml_learner
-                    ml_learner = await get_ml_learner()
-                    ml_result = await ml_learner.analyze_opportunity(
-                        symbol, analysis, market_data, market_sentiment  # 🎯 #7: Pass sentiment
-                    )
-
-                    # Update analysis with ML insights
-                    analysis['original_confidence'] = analysis['confidence']
-                    analysis['confidence'] = ml_result['adjusted_confidence']
-                    analysis['ml_adjustment'] = ml_result['ml_adjustment']
-                    analysis['ml_score'] = ml_result['ml_score']
-                    analysis['ml_reasoning'] = ml_result['reasoning']
-
-                    if ml_result.get('regime_warning'):
-                        analysis['regime_warning'] = ml_result['regime_warning']
-
-                    # 🔧 CRITICAL: Apply ML FIX action/side conversion
-                    if ml_result.get('action'):
-                        analysis['action'] = ml_result['action']
-                    if ml_result.get('side'):
-                        analysis['side'] = ml_result['side']
-
-                    logger.info(
-                        f"🧠 {model_name} ML Enhanced: {symbol} confidence "
-                        f"{analysis['original_confidence']:.1%} → {analysis['confidence']:.1%} "
-                        f"(Δ {ml_result['ml_adjustment']:+.1%})"
-                    )
-
-                    # 🎯 CENTRALIZED ML FIX: Use centralized apply_ml_fix() method
-                    # CONSOLIDATION: Replaced 200-line duplicate logic with single method call
-                    # This ensures consistent ML FIX behavior across the entire system
-                    analysis = ml_learner.apply_ml_fix(
-                        analysis=analysis,
-                        symbol=symbol,
-                        confidence=analysis['confidence'],
-                        market_data=market_data,
-                        threshold=0.50  # 50% threshold (more aggressive, more opportunities)
-                    )
-
-                except Exception as ml_error:
-                    logger.warning(f"ML enhancement failed for {model_name} on {symbol}: {ml_error}")
-
-                valid_analyses.append(analysis)
-            elif analysis is None:
-                logger.error(f"❌ {model_name} API failed for {symbol} (returned None)")
-            else:
-                logger.error(f"❌ {model_name} analysis INVALID for {symbol} (failed validation)")
-
-        logger.info(f"✅ Got {len(valid_analyses)}/1 AI analysis for {symbol}")
-        return valid_analyses
+        # Return empty list - this forces market_scanner.py to use Strategy-only mode
+        # which will then call get_consensus() for PA-only analysis
+        return []
 
     async def get_consensus(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
