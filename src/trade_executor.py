@@ -34,6 +34,14 @@ class TradeExecutor:
 
     def __init__(self):
         self.settings = get_settings()
+        self._scan_initial_capital = None  # Cache for scan cycle capital
+
+    def reset_scan_capital_cache(self):
+        """
+        Reset capital cache at end of scan cycle.
+        Should be called by trading_engine after all positions opened.
+        """
+        self._scan_initial_capital = None
 
     async def open_position(
         self,
