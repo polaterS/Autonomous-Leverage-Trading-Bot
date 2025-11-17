@@ -263,8 +263,8 @@ class AIConsensusEngine:
             'side': ml_side,
             'confidence': ml_prediction['confidence'],
             'reasoning': f"ML-ONLY: {ml_prediction['reasoning']}",
-            'suggested_leverage': 5,  # 🔧 USER: 25-30x leverage (minimum 25x)
-            'stop_loss_percent': 15.0,  # 🔧 WIDE SAFETY NET: 50% SL (emergency only, \u00b1$1 limits control exits)
+            'suggested_leverage': 5,  # ✅ CLASSIC: 4-6x leverage (middle = 5x)
+            'stop_loss_percent': 15.0,  # ✅ CLASSIC: 15% SL (moderate risk)
             'models_used': ['ML-Predictor-ONLY'],
             'ensemble_method': 'ml_only',
             'risk_reward_ratio': 0.0

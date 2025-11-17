@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with 25-30x leverage)
     min_profit_usd: Decimal = Field(default=Decimal("0.85"), gt=0)  # $0.70-$1.00 profit target (middle = $0.85)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.70"), ge=0, le=1)  # 🎯 HIGH QUALITY: 70% minimum - Only take high-confidence trades for consistent profit
+    min_ai_confidence: Decimal = Field(default=Decimal("0.35"), ge=0, le=1)  # ⚠️ TEMPORARY: 35% for data collection (ML not trained yet) - Raise to 0.70 after 50 trades!
     scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
     position_check_seconds: int = Field(default=10, ge=5)  # 🔥 ULTRA AGGRESSIVE: 10 seconds for real-time monitoring
 
