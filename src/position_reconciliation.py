@@ -240,14 +240,27 @@ class PositionReconciliationSystem:
             # Fetch all positions (ccxt format)
             positions = await exchange.exchange.fetch_positions()
 
+            # 🔧 DEBUG: Log what Binance is returning
+            logger.debug(f"📊 Binance returned {len(positions)} total positions")
+
             # Filter only open positions (contracts > 0)
             open_positions = []
 
             for pos in positions:
                 contracts = float(pos.get('contracts', 0))
-                if contracts > 0:
+                notional = float(pos.get('notional', 0))
+
+                # 🔧 FIX: Check BOTH contracts AND notional value
+                # Binance sometimes shows contracts=0 but notional>0 for active positions!
+                # This was causing real positions to be flagged as ghosts
+                is_position_open = contracts > 0 or abs(notional) > 1.0  # $1 threshold
+
+                # 🔧 DEBUG: Log position details for troubleshooting
+                symbol = pos.get('symbol', 'UNKNOWN')
+                logger.debug(f"  {symbol}: contracts={contracts}, notional={notional}, open={is_position_open}")
+
+                if is_position_open:
                     # Standardize format
-                    notional = float(pos.get('notional', 0))
                     entry_price = float(pos.get('entryPrice', 0))
 
                     # Determine side
