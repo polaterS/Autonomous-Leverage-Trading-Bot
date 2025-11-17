@@ -157,14 +157,28 @@ class TradeExecutor:
             notifier = get_notifier()
             adaptive_risk = get_adaptive_risk_manager()
 
-            # Get current capital (use real Binance balance, not config)
-            try:
-                real_balance = await exchange.fetch_balance()  # Already returns Decimal
-                logger.info(f"💰 Real Binance balance: ${real_balance:.2f} USDT")
-                current_capital = real_balance
-            except Exception as balance_error:
-                logger.warning(f"Could not fetch real balance, using DB capital: {balance_error}")
-                current_capital = await db.get_current_capital()
+            # 🔥 CRITICAL FIX: Use INITIAL capital for ALL positions in same scan cycle
+            # PROBLEM (from logs):
+            # - 1st position: balance $60.97 → uses $30.49 margin ✅
+            # - 2nd position: balance $30.08 → uses $15.04 margin ❌ WRONG!
+            # - Reason: 1st position locked $30, so Binance balance dropped!
+            #
+            # SOLUTION: Store initial balance at scan start, use for ALL positions
+            if not hasattr(self, '_scan_initial_capital') or self._scan_initial_capital is None:
+                # First position in scan - fetch and store
+                try:
+                    real_balance = await exchange.fetch_balance()
+                    logger.info(f"💰 INITIAL balance (scan start): ${real_balance:.2f} USDT")
+                    self._scan_initial_capital = real_balance
+                    current_capital = real_balance
+                except Exception as balance_error:
+                    logger.warning(f"Could not fetch balance: {balance_error}, using DB")
+                    current_capital = await db.get_current_capital()
+                    self._scan_initial_capital = current_capital
+            else:
+                # Subsequent positions - use STORED initial capital
+                current_capital = self._scan_initial_capital
+                logger.info(f"💰 Using INITIAL capital: ${current_capital:.2f} (stored from scan start, ignoring current balance change)")
 
             # 🎯 ADAPTIVE STOP-LOSS: Adjust based on recent performance
             adaptive_sl_percent = await adaptive_risk.get_adaptive_stop_loss_percent(
