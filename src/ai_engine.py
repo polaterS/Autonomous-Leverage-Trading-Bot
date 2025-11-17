@@ -166,8 +166,8 @@ class AIConsensusEngine:
         # Initialize PA analyzer
         pa_analyzer = PriceActionAnalyzer()
 
-        # Get current price
-        current_price = float(market_data.get('price', 0))
+        # Get current price (market_scanner uses 'current_price' key)
+        current_price = float(market_data.get('current_price', market_data.get('price', 0)))
         if current_price == 0:
             logger.error(f"❌ No price data for {symbol}")
             return {
