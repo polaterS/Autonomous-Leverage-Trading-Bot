@@ -173,26 +173,29 @@ class TradeExecutor:
             stop_loss_percent = Decimal(str(adaptive_sl_percent))
             logger.info(f"📊 Using adaptive SL: {adaptive_sl_percent:.1f}%")
 
-            # 🎯 DYNAMIC POSITION SIZING: Use remaining capital for each position
+            # 🎯 DYNAMIC POSITION SIZING: Split capital equally across max positions
             #
             # USER REQUEST: "60 dolar bakiyem var 30 dolar bir pozisyona 30 dolar diğer pozisyona"
             #
             # HOW IT WORKS:
-            # 1. Check how many positions are already open
-            # 2. Calculate remaining slots: max_positions - active_positions
-            # 3. Divide CURRENT capital by remaining slots (MARGIN per position)
-            # 4. Multiply margin by leverage to get POSITION VALUE
+            # 1. Calculate total margin per position: total_capital ÷ max_positions
+            # 2. Multiply margin by leverage to get POSITION VALUE
+            # 3. Each position gets equal share of TOTAL capital (not remaining)
             #
             # Example with $60 capital, 2 max positions, 20x leverage:
             # - FIRST POSITION (0 active):
-            #   → $60 ÷ 2 remaining slots = $30 MARGIN
+            #   → $60 ÷ 2 max positions = $30 MARGIN per position
             #   → $30 margin × 20x = $600 POSITION VALUE
             #
-            # - SECOND POSITION (1 active, used $30):
-            #   → $30 remaining ÷ 1 remaining slot = $30 MARGIN
+            # - SECOND POSITION (1 active):
+            #   → $60 ÷ 2 max positions = $30 MARGIN per position (SAME!)
             #   → $30 margin × 20x = $600 POSITION VALUE
             #
-            # Result: Each position uses half of the AVAILABLE capital!
+            # WHY NOT divide by remaining slots?
+            # - Because we want EQUAL allocation upfront
+            # - User says "$30 for one, $30 for other" = 50/50 split of TOTAL
+            # - If we divided by remaining slots: 2nd position would use ALL remaining capital
+            # - That's NOT what user wants!
             #
             max_positions = self.settings.max_concurrent_positions  # Use config value
 
@@ -208,8 +211,9 @@ class TradeExecutor:
                     f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
                 )
 
-            # Divide CURRENT capital by REMAINING slots (dynamic allocation)
-            margin_per_position = current_capital / Decimal(str(remaining_slots))
+            # 🔧 CRITICAL: Divide TOTAL capital by MAX positions (not remaining slots!)
+            # This ensures equal allocation: $60 ÷ 2 = $30 per position (always!)
+            margin_per_position = current_capital / Decimal(str(max_positions))
 
             # FIXED_POSITION_SIZE_USD = MARGIN × LEVERAGE (actual position value)
             FIXED_POSITION_SIZE_USD = margin_per_position * Decimal(str(leverage))
