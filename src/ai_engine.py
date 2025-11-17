@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-ML_ONLY_VERSION = "5.1-INVERSE-ML"  # NEW: ML signals INVERSED + fixed liquidation panic
-logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (ML INVERSED, 25-30x leverage, ±$1 targets)")
+ML_ONLY_VERSION = "6.0-CLASSIC"  # BACK TO CLASSIC: Normal ML (not inversed), 4-6x leverage, $75-90 positions
+logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (Normal ML, 4-6x leverage, $75-90 positions)")
 
 
 class AIConsensusEngine:
@@ -244,34 +244,29 @@ class AIConsensusEngine:
         # ML says SHORT → We go LONG
         # ====================================================================
 
-        # Choose ML direction with higher confidence (we'll inverse this!)
+        # Choose ML direction with higher confidence (NORMAL - no inversion)
         if ml_long_pred['confidence'] > ml_short_pred['confidence']:
             ml_prediction = ml_long_pred
-            ml_original_side = 'LONG'
-            ml_inverse_side = 'SHORT'  # DO OPPOSITE!
-            inverse_action = 'sell'
+            ml_side = 'LONG'
+            ml_action = 'buy'
         else:
             ml_prediction = ml_short_pred
-            ml_original_side = 'SHORT'
-            ml_inverse_side = 'LONG'  # DO OPPOSITE!
-            inverse_action = 'buy'
+            ml_side = 'SHORT'
+            ml_action = 'sell'
 
         logger.info(
-            f"🤖 ML Predictor ORIGINAL: {ml_original_side} @ {ml_prediction['confidence']:.1%}"
-        )
-        logger.info(
-            f"🔄 INVERSED TO: {ml_inverse_side} @ {ml_prediction['confidence']:.1%} | "
-            f"Reasoning: {ml_prediction['reasoning']} (INVERSED!)"
+            f"🤖 ML Predictor: {ml_side} @ {ml_prediction['confidence']:.1%} | "
+            f"Reasoning: {ml_prediction['reasoning']}"
         )
 
         # Return ML-only result with INVERSE side!
         return {
-            'action': inverse_action,  # Opposite action
-            'side': ml_inverse_side,  # Opposite side
+            'action': ml_action,
+            'side': ml_side,
             'confidence': ml_prediction['confidence'],
             'reasoning': f"ML-ONLY: {ml_prediction['reasoning']}",
-            'suggested_leverage': 25,  # 🔧 USER: 25-30x leverage (minimum 25x)
-            'stop_loss_percent': 50.0,  # 🔧 WIDE SAFETY NET: 50% SL (emergency only, \u00b1$1 limits control exits)
+            'suggested_leverage': 5,  # 🔧 USER: 25-30x leverage (minimum 25x)
+            'stop_loss_percent': 15.0,  # 🔧 WIDE SAFETY NET: 50% SL (emergency only, \u00b1$1 limits control exits)
             'models_used': ['ML-Predictor-ONLY'],
             'ensemble_method': 'ml_only',
             'risk_reward_ratio': 0.0

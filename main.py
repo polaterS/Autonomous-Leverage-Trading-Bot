@@ -2,7 +2,7 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🧠 VERSION: ML-ONLY-2.0 (Pure ML, AI Bypassed)
+🧠 VERSION: 6.0-CLASSIC (Back to Winning Strategy)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "ML-ONLY-2.0"
+BOT_VERSION = "6.0-CLASSIC"
 
 # Log deployment version from VERSION file
 try:

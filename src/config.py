@@ -35,10 +35,10 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)
-    min_leverage: int = Field(default=25, ge=1, le=50)  # Minimum leverage (25x) - USER REQUEST
-    max_leverage: int = Field(default=30, ge=1, le=50)  # Maximum leverage (30x) - USER REQUEST
-    max_concurrent_positions: int = Field(default=3, ge=1, le=30)  # 🔧 USER: 3 positions max (Railway env + code sync)
-    position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 10% per position ($10) - dynamic based on leverage
+    min_leverage: int = Field(default=4, ge=1, le=50)  # Minimum leverage (4x) - CLASSIC STRATEGY
+    max_leverage: int = Field(default=6, ge=1, le=50)  # Maximum leverage (6x) - CLASSIC STRATEGY
+    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔧 USER: 2 positions max (classic strategy)
+    position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position ($75-90 with $100 capital)
     min_stop_loss_percent: Decimal = Field(default=Decimal("0.015"), gt=0, le=1)  # 1.5% min (ULTRA TIGHT for 25-30x leverage)
     max_stop_loss_percent: Decimal = Field(default=Decimal("0.025"), gt=0, le=1)  # 2.5% max (keeps liquidation far with 25-30x leverage)
     min_profit_usd: Decimal = Field(default=Decimal("1.50"), gt=0)  # Minimum $1.50 profit target (close position)
