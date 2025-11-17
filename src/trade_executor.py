@@ -173,33 +173,52 @@ class TradeExecutor:
             stop_loss_percent = Decimal(str(adaptive_sl_percent))
             logger.info(f"📊 Using adaptive SL: {adaptive_sl_percent:.1f}%")
 
-            # 🎯 FIXED POSITION SIZING: Equal margin allocation across positions
+            # 🎯 DYNAMIC POSITION SIZING: Use remaining capital for each position
+            #
+            # USER REQUEST: "60 dolar bakiyem var 30 dolar bir pozisyona 30 dolar diğer pozisyona"
             #
             # HOW IT WORKS:
-            # 1. Divide capital equally among max positions (MARGIN per position)
-            # 2. Multiply margin by leverage to get POSITION VALUE
-            # 3. Calculate quantity from position value
+            # 1. Check how many positions are already open
+            # 2. Calculate remaining slots: max_positions - active_positions
+            # 3. Divide CURRENT capital by remaining slots (MARGIN per position)
+            # 4. Multiply margin by leverage to get POSITION VALUE
             #
-            # Example with $100 capital, 5 positions, 20x leverage:
-            # - $100 ÷ 5 positions = $20 MARGIN per position
-            # - $20 margin × 20x leverage = $400 POSITION VALUE
-            # - With BTC @ $50,000: quantity = $400 / $50,000 = 0.008 BTC
+            # Example with $60 capital, 2 max positions, 20x leverage:
+            # - FIRST POSITION (0 active):
+            #   → $60 ÷ 2 remaining slots = $30 MARGIN
+            #   → $30 margin × 20x = $600 POSITION VALUE
             #
-            # ⚠️ CRITICAL: We MUST multiply by leverage!
-            # When you place a market order on Binance, you specify QUANTITY (coins).
-            # Binance doesn't "auto-apply" leverage - YOU calculate the leveraged size.
-            # The quantity you send determines the position value.
+            # - SECOND POSITION (1 active, used $30):
+            #   → $30 remaining ÷ 1 remaining slot = $30 MARGIN
+            #   → $30 margin × 20x = $600 POSITION VALUE
+            #
+            # Result: Each position uses half of the AVAILABLE capital!
             #
             max_positions = self.settings.max_concurrent_positions  # Use config value
-            margin_per_position = current_capital / Decimal(str(max_positions))
+
+            # Get current number of active positions
+            active_positions = await db.get_active_positions()
+            num_active_positions = len(active_positions) if active_positions else 0
+
+            # Calculate remaining position slots
+            remaining_slots = max_positions - num_active_positions
+
+            if remaining_slots <= 0:
+                raise ValueError(
+                    f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
+                )
+
+            # Divide CURRENT capital by REMAINING slots (dynamic allocation)
+            margin_per_position = current_capital / Decimal(str(remaining_slots))
 
             # FIXED_POSITION_SIZE_USD = MARGIN × LEVERAGE (actual position value)
             FIXED_POSITION_SIZE_USD = margin_per_position * Decimal(str(leverage))
 
             max_positions_allowed = max_positions
             logger.info(
-                f"💰 Capital: ${current_capital:.2f} → {max_positions} positions × ${margin_per_position:.2f} margin "
-                f"× {leverage}x leverage = ${FIXED_POSITION_SIZE_USD:.2f} position value per trade"
+                f"💰 Capital: ${current_capital:.2f} → {num_active_positions}/{max_positions} positions open, "
+                f"{remaining_slots} slots remaining → ${margin_per_position:.2f} margin per position "
+                f"× {leverage}x leverage = ${FIXED_POSITION_SIZE_USD:.2f} position value for this trade"
             )
 
             quantity, position_value = calculate_position_size(
