@@ -75,6 +75,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("closeall", self.cmd_close_all_positions))
         self.application.add_handler(CommandHandler("ws", self.cmd_websocket_stats))
         self.application.add_handler(CommandHandler("sync", self.cmd_force_sync))
+        self.application.add_handler(CommandHandler("analyze", self.cmd_analyze_trades))
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -195,6 +196,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /closeall - Tüm açık pozisyonları kapat
 /ws - 🌐 WebSocket feed istatistikleri (API kullanımı)
 /sync - 🔄 Binance ↔ Database pozisyon senkronizasyonu (orphaned position fix)
+/analyze - 📊 Trade history analizi (PNL, win rate, rapid trades)
 
 <b>Nasıl Çalışır?</b>
 
@@ -1622,6 +1624,128 @@ WebSocket + Cache = ~85% daha az API çağrısı
             logger.error(f"Error in /sync command: {e}")
             await update.message.reply_text(
                 f"❌ <b>SYNC HATASI</b>\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_analyze_trades(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle /analyze command - Analyze trade history from Binance.
+
+        Shows realized PNL, rapid trades, win rate, and identifies issues.
+        """
+        try:
+            await update.message.reply_text("📊 <b>Trade history analiz ediliyor...</b>", parse_mode=ParseMode.HTML)
+
+            from src.exchange_client import get_exchange_client
+            exchange = await get_exchange_client()
+
+            # Fetch realized PNL from Binance
+            income_records = await exchange.exchange.fapiPrivateGetIncome({
+                'incomeType': 'REALIZED_PNL',
+                'limit': 50
+            })
+
+            if not income_records:
+                await update.message.reply_text("⚠️ Henüz kapalı trade bulunamadı.")
+                return
+
+            # Analyze trades
+            total_realized = 0
+            wins = 0
+            losses = 0
+            rapid_trades = []
+            trades_data = []
+
+            for i, record in enumerate(income_records):
+                symbol = record.get('symbol', 'UNKNOWN')
+                pnl = float(record.get('income', 0))
+                timestamp = int(record.get('time', 0)) / 1000
+                date = datetime.fromtimestamp(timestamp).strftime('%m-%d %H:%M')
+
+                total_realized += pnl
+
+                if pnl > 0:
+                    wins += 1
+                elif pnl < 0:
+                    losses += 1
+
+                trades_data.append({
+                    'date': date,
+                    'symbol': symbol,
+                    'pnl': pnl,
+                    'timestamp': timestamp
+                })
+
+                # Check for rapid trades (< 5 minutes apart)
+                if i < len(income_records) - 1:
+                    next_time = int(income_records[i+1].get('time', 0)) / 1000
+                    time_diff = timestamp - next_time
+
+                    if abs(time_diff) < 300:  # Less than 5 minutes
+                        rapid_trades.append({
+                            'symbol': symbol,
+                            'time_diff': abs(time_diff),
+                            'pnl': pnl
+                        })
+
+            # Build message
+            total_trades = wins + losses
+            win_rate = wins / total_trades * 100 if total_trades > 0 else 0
+
+            message = f"""
+📊 <b>TRADE HISTORY ANALİZİ</b>
+
+<b>💰 Genel Durum:</b>
+• Toplam Realized PNL: <b>${total_realized:+.2f}</b>
+• Toplam Trade: {total_trades}
+• ✅ Kazanan: {wins} ({win_rate:.1f}%)
+• ❌ Kaybeden: {losses} ({100-win_rate:.1f}%)
+
+<b>📋 Son 10 Trade:</b>
+"""
+
+            # Show last 10 trades
+            for trade in trades_data[:10]:
+                pnl_emoji = "✅" if trade['pnl'] > 0 else "❌"
+                message += f"{pnl_emoji} {trade['date']} - {trade['symbol']}: ${trade['pnl']:+.2f}\n"
+
+            # Analyze rapid trades
+            if rapid_trades:
+                rapid_loss = sum(rt['pnl'] for rt in rapid_trades)
+                message += f"""
+
+⚠️ <b>HIZLI KAPANAN TRADELER:</b>
+• {len(rapid_trades)} trade 5 dakikadan kısa sürdü!
+• Bu tradelerden toplam: <b>${rapid_loss:+.2f}</b>
+
+<b>🚨 SORUN TESPİTİ:</b>
+"""
+                if rapid_loss < -5:
+                    message += """
+Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
+
+<b>Olası Sebepler:</b>
+1. Entry fiyatı kötü (volatilite sırasında giriş)
+2. Stop-loss 20x leverage için çok dar
+3. Market hemen ters yönde hareket etti
+4. Slippage nedeniyle kötü fiyattan giriş
+
+<b>Çözüm Önerileri:</b>
+• PA analiz kalitesini kontrol et
+• Entry timing'i iyileştir
+• Stop-loss mesafesini gözden geçir
+"""
+                else:
+                    message += "Hızlı tradeler normal range'de, sorun yok.\n"
+
+            message += f"\n⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}"
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            logger.error(f"Error in /analyze command: {e}")
+            await update.message.reply_text(
+                f"❌ <b>ANALİZ HATASI</b>\n\n{str(e)}",
                 parse_mode=ParseMode.HTML
             )
 
