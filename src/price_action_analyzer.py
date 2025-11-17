@@ -608,6 +608,20 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
+            # 🚫 CRITICAL FILTER #1: Check total S/R count (need 3+ for reliability)
+            # USER ISSUE: ICP, BCH, BNB all had S/R Strength 0%
+            total_sr_levels = len(supports) + len(resistances)
+            if total_sr_levels < 3:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 3+)'
+                return result
+
+            # 🚫 CRITICAL FILTER #2: Check ADX for trend strength (need 15+ for clear trend)
+            # USER ISSUE: All 3 coins had ADX 0.0
+            adx = trend.get('adx', 0)
+            if adx < 15:
+                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need 15+)'
+                return result
+
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
             nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
 
@@ -693,6 +707,20 @@ class PriceActionAnalyzer:
 
             if not supports or not resistances:
                 result['reason'] = 'Insufficient S/R levels'
+                return result
+
+            # 🚫 CRITICAL FILTER #1: Check total S/R count (need 3+ for reliability)
+            # USER ISSUE: ICP, BCH, BNB all had S/R Strength 0%
+            total_sr_levels = len(supports) + len(resistances)
+            if total_sr_levels < 3:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 3+)'
+                return result
+
+            # 🚫 CRITICAL FILTER #2: Check ADX for trend strength (need 15+ for clear trend)
+            # USER ISSUE: All 3 coins had ADX 0.0
+            adx = trend.get('adx', 0)
+            if adx < 15:
+                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need 15+)'
                 return result
 
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
