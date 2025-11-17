@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\n🔧 CRITICAL FIX: Apply 20x leverage to position sizing\n\nPROBLEM: Bot configured for 20x leverage but NOT applying it!\n- User''s observation: \"40 dolardan normalde 800 dolarlık işlem açmış olması lazım değil mi?\"\n- Current behavior: $41 margin → $41 position (NO leverage applied!)\n- Expected: $41 margin × 20x = $820 position\n\nROOT CAUSE (trade_executor.py:196):\nBEFORE: FIXED_POSITION_SIZE_USD = margin_per_position\nAFTER:  FIXED_POSITION_SIZE_USD = margin_per_position × leverage\n\nCHANGES:\n1. trade_executor.py:196 - Multiply margin by leverage to get position value\n2. trade_executor.py:188-191 - Updated comments to explain correct leverage mechanics\n3. trade_executor.py:201-202 - Updated log message to show leverage multiplication\n4. utils.py:134-145 - Updated comments to clarify position_value includes leverage\n5. config.py:63 - Document why partial exits are disabled (Binance $20 minimum)\n\nEXPECTED RESULTS:\n✅ $82.77 capital ÷ 2 positions = $41.39 margin per position\n✅ $41.39 margin × 20x leverage = $827.80 POSITION VALUE\n✅ Position opens with $820 value (not $40!)\n✅ 1% price move with 20x = 20% gain/loss on margin (as expected!)\n✅ Stop-loss and profit targets work correctly with leveraged positions\n\nUSER REQUEST: \"tüm çözümleri yap\" (fix all solutions)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

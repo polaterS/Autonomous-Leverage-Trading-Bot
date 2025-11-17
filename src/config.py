@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # 🚀 PROFESSIONAL TRADING FEATURES (12 Improvements for 90-95% Win Rate!)
     enable_time_filter: bool = Field(default=False)  # Time-based trading filter (avoid toxic hours)
     enable_trailing_stop: bool = Field(default=False)  # Trailing stop-loss system
-    enable_partial_exits: bool = Field(default=False)  # 3-tier partial exit system
+    enable_partial_exits: bool = Field(default=False)  # 3-tier partial exit system (DISABLED: creates orders below Binance $20 minimum)
     enable_market_regime: bool = Field(default=False)  # Market regime detection
     enable_multi_timeframe: bool = Field(default=False)  # Multi-timeframe confluence analysis
     enable_dynamic_position_sizing: bool = Field(default=False)  # Kelly Criterion + quality-based sizing

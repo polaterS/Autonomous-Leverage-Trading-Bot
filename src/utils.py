@@ -130,21 +130,19 @@ def calculate_position_size(
         # PERCENTAGE SIZING: Calculate position value as % of capital
         position_value = capital * position_size_percent
 
-    # Calculate quantity
-    # 🔴 CRITICAL FIX: Don't multiply by leverage here!
-    # Leverage is already applied by Binance when opening the position.
-    # We only need: quantity = margin / price (NOT margin * leverage / price)
+    # Calculate quantity from position value
+    # 🔴 IMPORTANT: position_value should ALREADY include leverage!
+    # The caller (trade_executor.py) multiplies margin × leverage before passing it here.
     #
-    # Example:
-    # - Margin (our capital): $10
+    # Example with 20x leverage:
+    # - Margin: $41 (capital allocated for this position)
+    # - Leverage: 20x
+    # - Position value (passed in): $41 × 20 = $820
     # - Entry price: $0.52
-    # - Leverage: 10x
+    # - Quantity: $820 / $0.52 = 1,577 coins
+    # - This opens a $820 position using $41 margin
     #
-    # WRONG (old): quantity = ($10 × 10) / $0.52 = 192 ADA
-    #              → Binance sees: 192 × $0.52 × 10x = $998 position! ❌
-    #
-    # CORRECT: quantity = $10 / $0.52 = 19.2 ADA
-    #          → Binance sees: 19.2 × $0.52 × 10x = $100 position! ✅
+    # ⚠️ DON'T multiply by leverage here - it's already in position_value!
     quantity = position_value / entry_price
 
     return quantity, position_value

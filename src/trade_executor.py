@@ -176,29 +176,30 @@ class TradeExecutor:
             # 🎯 FIXED POSITION SIZING: Equal margin allocation across positions
             #
             # HOW IT WORKS:
-            # - Divide capital equally among max positions
-            # - Each position uses SAME margin amount (consistent sizing)
-            # - Leverage is applied by Binance (NOT in our calculation)
+            # 1. Divide capital equally among max positions (MARGIN per position)
+            # 2. Multiply margin by leverage to get POSITION VALUE
+            # 3. Calculate quantity from position value
             #
-            # Example with $100 capital, 10 positions, 5x leverage:
-            # - $100 ÷ 10 positions = $10 margin per position
-            # - Binance applies 5x leverage automatically
-            # - Position value on exchange: $10 × 5 = $50
+            # Example with $100 capital, 5 positions, 20x leverage:
+            # - $100 ÷ 5 positions = $20 MARGIN per position
+            # - $20 margin × 20x leverage = $400 POSITION VALUE
+            # - With BTC @ $50,000: quantity = $400 / $50,000 = 0.008 BTC
             #
-            # ⚠️ CRITICAL: Do NOT multiply by leverage here!
-            # The leverage multiplier is handled by Binance when the order is placed.
-            # We only specify the MARGIN we want to use.
+            # ⚠️ CRITICAL: We MUST multiply by leverage!
+            # When you place a market order on Binance, you specify QUANTITY (coins).
+            # Binance doesn't "auto-apply" leverage - YOU calculate the leveraged size.
+            # The quantity you send determines the position value.
             #
             max_positions = self.settings.max_concurrent_positions  # Use config value
             margin_per_position = current_capital / Decimal(str(max_positions))
 
-            # FIXED_POSITION_SIZE_USD = MARGIN only (leverage applied by exchange)
-            FIXED_POSITION_SIZE_USD = margin_per_position
+            # FIXED_POSITION_SIZE_USD = MARGIN × LEVERAGE (actual position value)
+            FIXED_POSITION_SIZE_USD = margin_per_position * Decimal(str(leverage))
 
             max_positions_allowed = max_positions
             logger.info(
                 f"💰 Capital: ${current_capital:.2f} → {max_positions} positions × ${margin_per_position:.2f} margin "
-                f"= ${FIXED_POSITION_SIZE_USD:.2f} per position (leverage {leverage}x applied by exchange)"
+                f"× {leverage}x leverage = ${FIXED_POSITION_SIZE_USD:.2f} position value per trade"
             )
 
             quantity, position_value = calculate_position_size(
