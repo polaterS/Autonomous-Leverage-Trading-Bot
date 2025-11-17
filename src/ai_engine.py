@@ -259,34 +259,38 @@ class AIConsensusEngine:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
+            # 🔧 FIX: STRICTER PA entry requirements (prevent too many bad trades)
+            # OLD: 6% tolerance → Too many trades, 80% loss rate!
+            # NEW: 3% tolerance → Only trade when VERY close to S/R
+
             # LONG setup: Near support + uptrend
-            if dist_to_support <= 0.06 and trend['direction'] == 'UPTREND':
+            if dist_to_support <= 0.03 and trend['direction'] == 'UPTREND':
                 pa_action = 'buy'
                 pa_side = 'LONG'
-                pa_confidence = 0.60  # Base 60%
+                pa_confidence = 0.65  # Base 65% (higher than before)
 
                 # Boost confidence for strong conditions
                 if trend['strength'] == 'STRONG':
                     pa_confidence += 0.10
                 if volume['is_surge']:
                     pa_confidence += 0.10
-                if dist_to_support <= 0.03:  # Very close to support
+                if dist_to_support <= 0.015:  # Very close to support (1.5%)
                     pa_confidence += 0.05
 
                 pa_reasoning = f"LONG: Support bounce ({dist_to_support*100:.1f}% away) in {trend['direction']}"
 
             # SHORT setup: Near resistance + downtrend
-            elif dist_to_resistance <= 0.06 and trend['direction'] == 'DOWNTREND':
+            elif dist_to_resistance <= 0.03 and trend['direction'] == 'DOWNTREND':
                 pa_action = 'sell'
                 pa_side = 'SHORT'
-                pa_confidence = 0.60  # Base 60%
+                pa_confidence = 0.65  # Base 65% (higher than before)
 
                 # Boost confidence for strong conditions
                 if trend['strength'] == 'STRONG':
                     pa_confidence += 0.10
                 if volume['is_surge']:
                     pa_confidence += 0.10
-                if dist_to_resistance <= 0.03:  # Very close to resistance
+                if dist_to_resistance <= 0.015:  # Very close to resistance (1.5%)
                     pa_confidence += 0.05
 
                 pa_reasoning = f"SHORT: Resistance rejection ({dist_to_resistance*100:.1f}% away) in {trend['direction']}"
@@ -308,7 +312,7 @@ class AIConsensusEngine:
             'confidence': pa_confidence,
             'reasoning': f"PA-ONLY: {pa_reasoning}",
             'suggested_leverage': 20,  # User wants 20x
-            'stop_loss_percent': 4.5,  # 4-5% range
+            'stop_loss_percent': 9.0,  # 🔧 FIX: 8-10% range (was 4-5%)
             'models_used': ['PA-ONLY'],
             'ensemble_method': 'pa_only',
             'risk_reward_ratio': 0.0,

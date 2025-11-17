@@ -334,6 +334,9 @@ class PriceActionAnalyzer:
                     ll_count += 1
 
             # Determine trend
+            # 🔧 FIX: More balanced trend detection (was too bearish)
+            # OLD: 60%/40% threshold → Everything was DOWNTREND
+            # NEW: 55%/45% threshold → More balanced UPTREND/DOWNTREND/SIDEWAYS
             total_checks = hh_count + lh_count
             if total_checks == 0:
                 direction = 'SIDEWAYS'
@@ -341,9 +344,9 @@ class PriceActionAnalyzer:
                 hh_ratio = hh_count / total_checks
                 hl_ratio = hl_count / total_checks if (hl_count + ll_count) > 0 else 0
 
-                if hh_ratio >= 0.6 and hl_ratio >= 0.6:
+                if hh_ratio >= 0.55 and hl_ratio >= 0.55:  # 🔧 Relaxed from 0.6
                     direction = 'UPTREND'
-                elif hh_ratio <= 0.4 and hl_ratio <= 0.4:
+                elif hh_ratio <= 0.45 and hl_ratio <= 0.45:  # 🔧 Relaxed from 0.4
                     direction = 'DOWNTREND'
                 else:
                     direction = 'SIDEWAYS'

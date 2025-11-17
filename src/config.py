@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     max_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
     max_concurrent_positions: int = Field(default=5, ge=1, le=30)  # 🔧 USER: 5 positions max
     position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position
-    min_stop_loss_percent: Decimal = Field(default=Decimal("4.0"), gt=0, le=100)  # 4% min (TIGHT for 20x leverage)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("5.0"), gt=0, le=100)  # 5% max (safe for 20x leverage)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("8.0"), gt=0, le=100)  # 🔧 FIX: 8% min (breathing room for 20x leverage)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("10.0"), gt=0, le=100)  # 🔧 FIX: 10% max (prevents rapid stop-loss hits)
     min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # $1.20-$1.50 profit target (covers commission+slippage for $1.00 net profit)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.55"), ge=0, le=1)  # 🎯 PA-ONLY: 55% min confidence (PA base is 60%, only trade strong setups)
