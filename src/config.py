@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     initial_capital: Decimal = Field(default=Decimal("77.00"), gt=0)  # Current balance in Binance
     min_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
     max_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
-    max_concurrent_positions: int = Field(default=5, ge=1, le=30)  # 🔧 USER: 5 positions max
+    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔧 USER: 2 positions max (bakiye/2 = her pozisyon için yarısı)
     position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position
     min_stop_loss_percent: Decimal = Field(default=Decimal("8.0"), gt=0, le=100)  # 🔧 FIX: 8% min (breathing room for 20x leverage)
     max_stop_loss_percent: Decimal = Field(default=Decimal("10.0"), gt=0, le=100)  # 🔧 FIX: 10% max (prevents rapid stop-loss hits)

@@ -999,6 +999,25 @@ class TradeExecutor:
             # Send updated portfolio
             await notifier.send_portfolio_update(new_capital, await db.get_daily_pnl())
 
+            # 🔧 USER REQUEST: "her pozisyon kapandığında sync komutu çalışsın!"
+            # Auto-sync positions after closing to ensure database is accurate
+            logger.info("🔄 AUTO-SYNC: Running position reconciliation after close...")
+            try:
+                from src.position_reconciliation import PositionReconciliation
+                reconciler = PositionReconciliation()
+                sync_result = await reconciler.sync_positions()
+
+                if sync_result.get('success'):
+                    added = sync_result.get('added', 0)
+                    removed = sync_result.get('removed', 0)
+                    updated = sync_result.get('updated', 0)
+                    logger.info(f"✅ AUTO-SYNC complete: +{added} -{removed} ~{updated}")
+                else:
+                    logger.warning(f"⚠️ AUTO-SYNC had issues: {sync_result.get('error', 'Unknown')}")
+            except Exception as sync_error:
+                logger.error(f"❌ AUTO-SYNC failed: {sync_error}")
+                # Continue anyway - sync failure shouldn't block position close
+
             pnl_emoji = "🎉" if realized_pnl > 0 else "😔"
             logger.info(f"{pnl_emoji} Position closed: P&L ${realized_pnl:+.2f} ({pnl_percent:+.2f}%)")
 
