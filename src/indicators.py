@@ -70,6 +70,44 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
         # Trend determination
         indicators['trend'] = determine_trend(df['close'])
 
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 🔥 TIER 1 CRITICAL INDICATORS - Professional Edge
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        # Stochastic RSI (more sensitive than RSI)
+        stoch_rsi = calculate_stochastic_rsi(df['close'])
+        indicators['stoch_rsi_k'] = stoch_rsi['k_line']
+        indicators['stoch_rsi_d'] = stoch_rsi['d_line']
+        indicators['stoch_rsi_signal'] = stoch_rsi['signal']
+        indicators['stoch_rsi_overbought'] = stoch_rsi['overbought']
+        indicators['stoch_rsi_oversold'] = stoch_rsi['oversold']
+
+        # SuperTrend (superior trend indicator)
+        supertrend = calculate_supertrend(df)
+        indicators['supertrend'] = supertrend['supertrend']
+        indicators['supertrend_direction'] = supertrend['direction']
+        indicators['supertrend_signal'] = supertrend['signal']
+        indicators['supertrend_trend'] = supertrend['trend']
+        indicators['price_above_supertrend'] = supertrend['price_above']
+
+        # VWAP (institutional pivot)
+        vwap = calculate_vwap(df)
+        indicators['vwap'] = vwap['vwap']
+        indicators['vwap_distance_pct'] = vwap['distance_pct']
+        indicators['vwap_bias'] = vwap['bias']
+        indicators['above_vwap'] = vwap['above_vwap']
+
+        # MFI (volume-weighted RSI)
+        mfi = calculate_mfi(df)
+        indicators['mfi'] = mfi['mfi']
+        indicators['mfi_signal'] = mfi['signal']
+        indicators['mfi_overbought'] = mfi['overbought']
+        indicators['mfi_oversold'] = mfi['oversold']
+
+        # ATR as percentage of price (for volatility-adjusted stops)
+        current_price = indicators['close']
+        indicators['atr_percent'] = (indicators['atr'] / current_price) * 100 if current_price > 0 else 0
+
         return indicators
 
     except Exception as e:
@@ -198,6 +236,314 @@ def determine_trend(prices: pd.Series) -> str:
 
     except:
         return 'unknown'
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 🔥 TIER 1 CRITICAL INDICATORS - Professional Trading Edge
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def calculate_stochastic_rsi(prices: pd.Series, period: int = 14, k: int = 3, d: int = 3) -> Dict[str, float]:
+    """
+    Calculate Stochastic RSI - More sensitive overbought/oversold indicator than regular RSI.
+
+    🎯 USAGE:
+    - StochRSI K crosses D from below + < 20 → STRONG BUY signal
+    - StochRSI K crosses D from above + > 80 → STRONG SELL signal
+    - More responsive than RSI for catching reversals
+
+    Args:
+        prices: Series of closing prices
+        period: RSI calculation period (default 14)
+        k: K line smoothing period (default 3)
+        d: D line smoothing period (default 3)
+
+    Returns:
+        Dict with k_line, d_line, crossover signal
+    """
+    try:
+        if len(prices) < period + k + d:
+            return {'k_line': 50.0, 'd_line': 50.0, 'signal': 'neutral'}
+
+        # Calculate RSI first
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / (loss + 1e-10)  # Avoid division by zero
+        rsi = 100 - (100 / (1 + rs))
+
+        # Calculate Stochastic of RSI
+        rsi_min = rsi.rolling(window=period).min()
+        rsi_max = rsi.rolling(window=period).max()
+        stoch_rsi = (rsi - rsi_min) / (rsi_max - rsi_min + 1e-10) * 100
+
+        # Smooth with K and D periods
+        k_line = stoch_rsi.rolling(window=k).mean()
+        d_line = k_line.rolling(window=d).mean()
+
+        # Detect crossover signals
+        k_val = float(k_line.iloc[-1])
+        d_val = float(d_line.iloc[-1])
+        k_prev = float(k_line.iloc[-2]) if len(k_line) > 1 else k_val
+        d_prev = float(d_line.iloc[-2]) if len(d_line) > 1 else d_val
+
+        signal = 'neutral'
+        if k_val > d_val and k_prev <= d_prev:
+            if k_val < 20:
+                signal = 'strong_buy'  # Oversold crossover
+            else:
+                signal = 'buy'  # Regular bullish crossover
+        elif k_val < d_val and k_prev >= d_prev:
+            if k_val > 80:
+                signal = 'strong_sell'  # Overbought crossover
+            else:
+                signal = 'sell'  # Regular bearish crossover
+
+        return {
+            'k_line': k_val,
+            'd_line': d_val,
+            'signal': signal,
+            'overbought': k_val > 80,
+            'oversold': k_val < 20
+        }
+
+    except Exception as e:
+        print(f"StochRSI calculation error: {e}")
+        return {'k_line': 50.0, 'd_line': 50.0, 'signal': 'neutral'}
+
+
+def calculate_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float = 3.0) -> Dict[str, Any]:
+    """
+    Calculate SuperTrend - Superior trend indicator for crypto markets.
+
+    🎯 USAGE:
+    - Price above SuperTrend = STRONG UPTREND → BUY bias
+    - Price below SuperTrend = STRONG DOWNTREND → SELL bias
+    - Trend change = Reversal signal (more reliable than MACD for crypto)
+
+    Args:
+        df: DataFrame with high, low, close columns
+        period: ATR calculation period (default 10)
+        multiplier: ATR multiplier for bands (default 3.0)
+
+    Returns:
+        Dict with supertrend value, direction, and signal
+    """
+    try:
+        if len(df) < period + 10:
+            return {
+                'supertrend': float(df['close'].iloc[-1]),
+                'direction': 0,
+                'signal': 'neutral',
+                'trend': 'unknown'
+            }
+
+        # Calculate ATR
+        high = df['high']
+        low = df['low']
+        close = df['close']
+
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.rolling(window=period).mean()
+
+        # Calculate basic bands
+        hl2 = (high + low) / 2
+        upper_band = hl2 + (multiplier * atr)
+        lower_band = hl2 - (multiplier * atr)
+
+        # Initialize SuperTrend series
+        supertrend = pd.Series(index=df.index, dtype=float)
+        direction = pd.Series(index=df.index, dtype=int)
+
+        # Calculate SuperTrend with proper logic
+        for i in range(period, len(df)):
+            if i == period:
+                # Initialize
+                supertrend.iloc[i] = lower_band.iloc[i]
+                direction.iloc[i] = 1
+            else:
+                prev_supertrend = supertrend.iloc[i-1]
+                prev_direction = direction.iloc[i-1]
+
+                if close.iloc[i] > prev_supertrend:
+                    # Uptrend
+                    supertrend.iloc[i] = max(lower_band.iloc[i], prev_supertrend)
+                    direction.iloc[i] = 1
+                elif close.iloc[i] < prev_supertrend:
+                    # Downtrend
+                    supertrend.iloc[i] = min(upper_band.iloc[i], prev_supertrend)
+                    direction.iloc[i] = -1
+                else:
+                    # Continue previous trend
+                    supertrend.iloc[i] = prev_supertrend
+                    direction.iloc[i] = prev_direction
+
+        # Get final values
+        final_st = float(supertrend.iloc[-1])
+        final_dir = int(direction.iloc[-1])
+        prev_dir = int(direction.iloc[-2]) if len(direction) > 1 else final_dir
+        current_price = float(close.iloc[-1])
+
+        # Detect trend change
+        signal = 'neutral'
+        if final_dir == 1 and prev_dir == -1:
+            signal = 'buy'  # Trend reversed to up
+        elif final_dir == -1 and prev_dir == 1:
+            signal = 'sell'  # Trend reversed to down
+
+        return {
+            'supertrend': final_st,
+            'direction': final_dir,
+            'signal': signal,
+            'trend': 'uptrend' if final_dir == 1 else 'downtrend',
+            'price_above': current_price > final_st
+        }
+
+    except Exception as e:
+        print(f"SuperTrend calculation error: {e}")
+        return {
+            'supertrend': float(df['close'].iloc[-1]),
+            'direction': 0,
+            'signal': 'neutral',
+            'trend': 'unknown'
+        }
+
+
+def calculate_vwap(df: pd.DataFrame) -> Dict[str, float]:
+    """
+    Calculate VWAP (Volume Weighted Average Price) - Institutional pivot level.
+
+    🎯 USAGE:
+    - Price > VWAP = Bullish bias (institutions buying)
+    - Price < VWAP = Bearish bias (institutions selling)
+    - VWAP acts as dynamic support/resistance
+    - Distance from VWAP indicates strength of move
+
+    Args:
+        df: DataFrame with high, low, close, volume columns
+
+    Returns:
+        Dict with VWAP value, distance, and bias
+    """
+    try:
+        if len(df) < 10:
+            return {
+                'vwap': float(df['close'].iloc[-1]),
+                'distance_pct': 0.0,
+                'bias': 'neutral'
+            }
+
+        # Typical price (HL2C) weighted by volume
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
+        vwap = (typical_price * df['volume']).cumsum() / df['volume'].cumsum()
+
+        vwap_val = float(vwap.iloc[-1])
+        current_price = float(df['close'].iloc[-1])
+        distance_pct = ((current_price - vwap_val) / vwap_val) * 100
+
+        # Determine bias
+        if distance_pct > 1.0:
+            bias = 'strong_bullish'
+        elif distance_pct > 0.3:
+            bias = 'bullish'
+        elif distance_pct < -1.0:
+            bias = 'strong_bearish'
+        elif distance_pct < -0.3:
+            bias = 'bearish'
+        else:
+            bias = 'neutral'
+
+        return {
+            'vwap': vwap_val,
+            'distance_pct': distance_pct,
+            'bias': bias,
+            'above_vwap': current_price > vwap_val
+        }
+
+    except Exception as e:
+        print(f"VWAP calculation error: {e}")
+        return {
+            'vwap': float(df['close'].iloc[-1]),
+            'distance_pct': 0.0,
+            'bias': 'neutral'
+        }
+
+
+def calculate_mfi(df: pd.DataFrame, period: int = 14) -> Dict[str, float]:
+    """
+    Calculate Money Flow Index (MFI) - Volume-weighted RSI.
+
+    🎯 USAGE:
+    - MFI > 80 = Overbought (high buying pressure, reversal risk)
+    - MFI < 20 = Oversold (high selling pressure, bounce opportunity)
+    - MFI divergence with price = Strong reversal signal
+    - More reliable than RSI because it includes volume
+
+    Args:
+        df: DataFrame with high, low, close, volume columns
+        period: Calculation period (default 14)
+
+    Returns:
+        Dict with MFI value and signal
+    """
+    try:
+        if len(df) < period + 10:
+            return {
+                'mfi': 50.0,
+                'signal': 'neutral',
+                'overbought': False,
+                'oversold': False
+            }
+
+        # Calculate typical price
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
+
+        # Calculate money flow
+        money_flow = typical_price * df['volume']
+
+        # Positive and negative money flow
+        price_diff = typical_price.diff()
+        positive_flow = money_flow.where(price_diff > 0, 0)
+        negative_flow = money_flow.where(price_diff < 0, 0)
+
+        # Calculate money flow ratio
+        positive_mf = positive_flow.rolling(window=period).sum()
+        negative_mf = negative_flow.rolling(window=period).sum()
+
+        mfr = positive_mf / (negative_mf + 1e-10)  # Avoid division by zero
+        mfi = 100 - (100 / (1 + mfr))
+
+        mfi_val = float(mfi.iloc[-1])
+
+        # Determine signal
+        if mfi_val > 80:
+            signal = 'overbought'
+        elif mfi_val < 20:
+            signal = 'oversold'
+        elif mfi_val > 70:
+            signal = 'weakening'  # Approaching overbought
+        elif mfi_val < 30:
+            signal = 'strengthening'  # Approaching oversold
+        else:
+            signal = 'neutral'
+
+        return {
+            'mfi': mfi_val,
+            'signal': signal,
+            'overbought': mfi_val > 80,
+            'oversold': mfi_val < 20
+        }
+
+    except Exception as e:
+        print(f"MFI calculation error: {e}")
+        return {
+            'mfi': 50.0,
+            'signal': 'neutral',
+            'overbought': False,
+            'oversold': False
+        }
 
 
 def detect_market_regime(ohlcv_data: List[List]) -> str:
