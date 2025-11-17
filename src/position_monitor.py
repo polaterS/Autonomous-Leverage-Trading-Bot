@@ -177,6 +177,111 @@ class PositionMonitor:
             )
 
             # ====================================================================
+            # 📈 PHASE 1: TRAILING STOP CHECK
+            # ====================================================================
+            if self.settings.enable_trailing_stop:
+                from src.trailing_stop import get_trailing_stop
+                trailing_stop = get_trailing_stop()
+
+                # Register position if not already registered
+                if position['id'] not in trailing_stop.position_peaks:
+                    trailing_stop.register_position(
+                        position['id'],
+                        float(position['entry_price']),
+                        side
+                    )
+
+                # Update trailing stop and check if hit
+                should_close, close_reason = trailing_stop.should_close_position(
+                    position['id'],
+                    float(current_price)
+                )
+
+                if should_close:
+                    logger.info(f"📈 {close_reason}")
+                    await notifier.send_alert(
+                        'info',
+                        f"📈 TRAILING STOP HIT\n\n"
+                        f"💎 {symbol} {side}\n"
+                        f"{close_reason}\n\n"
+                        f"✅ Position closed"
+                    )
+                    await executor.close_position(position, current_price, close_reason)
+                    trailing_stop.remove_position(position['id'])
+                    return
+
+                # Update stop-loss if trailing stop moved
+                current_stop = position.get('stop_loss_price')
+                new_stop = trailing_stop.update_and_check_stop(
+                    position['id'],
+                    float(current_price),
+                    float(current_stop) if current_stop else None
+                )
+
+                if new_stop and new_stop != current_stop:
+                    logger.info(f"📈 Trailing stop moved: ${current_stop:.4f} → ${new_stop:.4f}")
+                    # Update stop-loss in database
+                    await db.update_position_stop_loss(position['id'], Decimal(str(new_stop)))
+
+            # ====================================================================
+            # 💰 PHASE 1: PARTIAL EXITS CHECK
+            # ====================================================================
+            if self.settings.enable_partial_exits:
+                from src.partial_exits import get_partial_exits
+                partial_exits = get_partial_exits()
+
+                # Register position if not already registered
+                if position['id'] not in partial_exits.position_tiers:
+                    partial_exits.register_position(
+                        position['id'],
+                        float(position['entry_price']),
+                        side,
+                        float(position['quantity'])
+                    )
+
+                # Check if any tier should be executed
+                tier_execution = partial_exits.check_and_execute_tier(
+                    position['id'],
+                    float(current_price)
+                )
+
+                if tier_execution:
+                    # Execute partial exit
+                    logger.info(
+                        f"💰 {tier_execution['tier_name']} executing: "
+                        f"{tier_execution['exit_size']:.4f} units @ ${tier_execution['exit_price']:.4f}"
+                    )
+
+                    # Close partial position on exchange
+                    try:
+                        await executor.close_partial_position(
+                            position,
+                            tier_execution['exit_size'],
+                            current_price,
+                            f"{tier_execution['tier_name']} profit taking"
+                        )
+
+                        await notifier.send_alert(
+                            'success',
+                            f"💰 {tier_execution['tier_name']} EXECUTED!\n\n"
+                            f"💎 {symbol} {side}\n\n"
+                            f"Exit Size: {tier_execution['exit_size']:.4f} units\n"
+                            f"Exit Price: ${tier_execution['exit_price']:.4f}\n"
+                            f"Tier Profit: ${tier_execution['tier_profit']:.2f}\n\n"
+                            f"Remaining: {tier_execution['remaining_size']:.4f} units\n"
+                            f"Total Realized: ${tier_execution['total_realized_profit']:.2f}"
+                        )
+
+                        # Check if fully exited
+                        if partial_exits.is_fully_exited(position['id']):
+                            logger.info(f"✅ All tiers executed for {symbol}, position fully closed")
+                            partial_exits.remove_position(position['id'])
+                            return
+
+                    except Exception as e:
+                        logger.error(f"Failed to execute {tier_execution['tier_name']}: {e}")
+
+            # ====================================================================
             # 🛑 STOP-LOSS CHECK: DISABLED (±$1 limits control exits)
             # ====================================================================
             # USER REQUEST: Only close at ±$1, ignore stop-loss triggers

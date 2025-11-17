@@ -52,6 +52,27 @@ class AutonomousTradingEngine:
             config = await db.get_trading_config()
             logger.info(f"✅ Trading config loaded: ${config['current_capital']} capital")
 
+            # 🚀 PHASE 1: Professional Trading Features Initialization
+            if self.settings.enable_time_filter:
+                from src.time_filter import get_time_filter
+                time_filter = get_time_filter()
+                time_filter.log_current_status()
+                logger.info("✅ Time Filter enabled - Toxic hours will be avoided")
+
+            if self.settings.enable_trailing_stop:
+                from src.trailing_stop import get_trailing_stop
+                trailing_stop = get_trailing_stop(trail_distance_pct=2.0)
+                logger.info("✅ Trailing Stop enabled - 2% trail distance")
+
+            if self.settings.enable_partial_exits:
+                from src.partial_exits import get_partial_exits
+                partial_exits = get_partial_exits(
+                    tier1_profit=0.50, tier1_pct=50.0,
+                    tier2_profit=0.85, tier2_pct=30.0,
+                    tier3_profit=1.50, tier3_pct=20.0
+                )
+                logger.info("✅ Partial Exits enabled - 3-tier profit taking")
+
             # 🔄 CRITICAL: Position reconciliation at startup
             # Ensures Binance positions are synced with database
             logger.info("🔄 Running startup position reconciliation...")

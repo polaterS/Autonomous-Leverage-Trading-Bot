@@ -67,6 +67,20 @@ class MarketScanner:
         logger.info("🔍 Starting market scan (Ultra Professional Strategy)...")
         notifier = get_notifier()
 
+        # ⏰ PHASE 1: Time Filter Check
+        if self.settings.enable_time_filter:
+            from src.time_filter import get_time_filter
+            time_filter = get_time_filter()
+            can_trade, reason, category = time_filter.should_trade_now()
+
+            if not can_trade:
+                logger.warning(f"⏰ Trading blocked by Time Filter: {reason}")
+                await notifier.send_alert('warning', f'⏰ Trade blocked: {reason}')
+                return  # Skip scan entirely during toxic hours
+
+            if category == "PRIME":
+                logger.info(f"⏰ {reason}")
+
         # 📊 LOG consecutive losses for awareness (but don't pause trading)
         from src.database import get_db_client
         db = await get_db_client()

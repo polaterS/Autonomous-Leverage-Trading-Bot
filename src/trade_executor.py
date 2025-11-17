@@ -616,6 +616,42 @@ class TradeExecutor:
             await notifier.send_error_report('TradeExecutor', f"Failed to partial close: {e}")
             return False
 
+    async def close_partial_position(
+        self,
+        position: Dict[str, Any],
+        exit_size: float,
+        current_price: Decimal,
+        close_reason: str
+    ) -> bool:
+        """
+        Close a portion of position by absolute size (for partial exits).
+
+        This is a wrapper for close_position_partial that converts absolute size to percentage.
+
+        Args:
+            position: Active position data
+            exit_size: Absolute size to close (in contracts/units)
+            current_price: Current market price
+            close_reason: Reason for partial close
+
+        Returns:
+            True if closed successfully, False otherwise
+        """
+        full_quantity = Decimal(str(position['quantity']))
+        close_percent = float(Decimal(str(exit_size)) / full_quantity)
+
+        logger.info(
+            f"💰 Partial Exit: Closing {exit_size:.6f}/{float(full_quantity):.6f} "
+            f"({close_percent*100:.1f}%) - {close_reason}"
+        )
+
+        return await self.close_position_partial(
+            position,
+            current_price,
+            close_percent,
+            close_reason
+        )
+
     async def close_position(
         self,
         position: Dict[str, Any],
