@@ -80,8 +80,8 @@ class RiskManager:
         db = await get_db_client()
         config = await db.get_trading_config()
 
-        min_sl = float(config['min_stop_loss_percent']) * 100  # Convert to percentage
-        max_sl = float(config['max_stop_loss_percent']) * 100
+        min_sl = float(config['min_stop_loss_percent'])  # Already in percentage format (e.g., 4.0 = 4%)
+        max_sl = float(config['max_stop_loss_percent'])  # Already in percentage format (e.g., 5.0 = 5%)
 
         # 🔧 DISABLED: Stop-loss validation (user wants ±$1 limits only)
         # Stop-loss is set to 50% as emergency safety net

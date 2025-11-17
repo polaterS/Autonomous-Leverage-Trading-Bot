@@ -160,7 +160,7 @@ async def setup_database():
         print(f"  Initial Capital: ${config['initial_capital']}")
         print(f"  Max Leverage: {config['max_leverage']}x")
         print(f"  Position Size: {float(config['position_size_percent'])*100}%")
-        print(f"  Stop Loss Range: {float(config['min_stop_loss_percent'])*100}% - {float(config['max_stop_loss_percent'])*100}%")
+        print(f"  Stop Loss Range: {float(config['min_stop_loss_percent'])}% - {float(config['max_stop_loss_percent'])}%")
         print(f"  Min Profit: ${config['min_profit_usd']}")
         print(f"  Min AI Confidence: {float(config['min_ai_confidence'])*100}%")
         print(f"  Daily Loss Limit: {float(config['daily_loss_limit_percent'])*100}%")

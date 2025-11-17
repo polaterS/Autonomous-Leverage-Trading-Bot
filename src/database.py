@@ -138,7 +138,7 @@ class DatabaseClient:
         logger.info(
             f"✅ Config synced from environment: "
             f"leverage={settings.max_leverage}x, "
-            f"stop-loss={float(settings.min_stop_loss_percent)*100}-{float(settings.max_stop_loss_percent)*100}%"
+            f"stop-loss={float(settings.min_stop_loss_percent)}-{float(settings.max_stop_loss_percent)}%"
         )
 
     # Active Position Methods
