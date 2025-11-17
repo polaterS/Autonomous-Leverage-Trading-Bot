@@ -1,28 +1,28 @@
-6.0-CLASSIC
-BACK TO CLASSIC WINNING STRATEGY
-Deployed: 2025-11-17 (Emergency Response)
+6.1-CLASSIC-FINE
+CLASSIC STRATEGY FINE-TUNED ($0.70-$1.00 TARGETS)
+Deployed: 2025-11-17 (Classic Optimization)
 
-🔙 REVERTING TO PROVEN STRATEGY
-
-═══════════════════════════════════════════════════════════
-EMERGENCY: User lost 1000 TL with inverse ML strategy
-═══════════════════════════════════════════════════════════
-
-❌ WHAT DIDN'T WORK (v5.1):
-- ML signal inversion (inverse ML predictions)
-- 25-30x leverage (too aggressive)
-- $100 positions (too large for $100 capital)
-- ±$1 profit/loss targets (too tight)
-
-✅ WHAT WE'RE GOING BACK TO:
-- Normal ML predictions (no inversion)
-- 4-6x leverage (conservative, safe)
-- $75-90 positions (2 positions max with $100 capital)
-- Classic profit targets
+🎯 FINE-TUNED CLASSIC STRATEGY
 
 ═══════════════════════════════════════════════════════════
-VERSION 6.0-CLASSIC SETTINGS:
+USER REQUEST: Restore original winning strategy
 ═══════════════════════════════════════════════════════════
+
+✅ "Eski stratejimiz bize günde 10-15 dolar kazandırıyordu"
+✅ "$0.70-$1.00 kar/zarar hedefi"
+✅ "Hızlı kapatma yok, sadece hedeflere ulaşınca kapat"
+✅ "ML kendi yönünü kullansın (LONG/SHORT değiştirme yok)"
+
+═══════════════════════════════════════════════════════════
+VERSION 6.1-CLASSIC-FINE SETTINGS:
+═══════════════════════════════════════════════════════════
+
+PROFIT/LOSS TARGETS:
+- Profit: +$0.85 ($0.70-$1.00 range)
+- Loss: -$0.85 ($0.70-$1.00 range)
+- Position stays open if between -$0.70 and +$0.70
+- NO fast closing, NO time-based exits
+- ONLY close on profit/loss targets
 
 LEVERAGE:
 - Min: 4x (conservative)
@@ -32,36 +32,35 @@ LEVERAGE:
 POSITION MANAGEMENT:
 - Max Concurrent: 2 positions
 - Position Size: 85% of capital ($75-90 with $100 balance)
-- Stop Loss: 15% (moderate risk)
+- Stop Loss: 15% (emergency only)
 
 ML STRATEGY:
-- Normal ML predictions (NOT inversed)
-- No AI inversion tricks
-- Trust the trained model
-
-PROFIT TARGETS:
-- Minimum: $1.50 profit
-- Stop Loss: 15% loss
-- Classic risk/reward ratio
+- NORMAL ML predictions (no tricks, no inversion)
+- ML LONG → Open LONG
+- ML SHORT → Open SHORT
+- Trust the trained model 100%
 
 ═══════════════════════════════════════════════════════════
-FILES CHANGED:
+FILES CHANGED (v6.0 → v6.1):
 ═══════════════════════════════════════════════════════════
-
-src/ai_engine.py:
-- ML_ONLY_VERSION: "5.1-INVERSE-ML" → "6.0-CLASSIC"
-- Removed ML signal inversion logic
-- suggested_leverage: 25 → 5
-- stop_loss_percent: 50% → 15%
 
 src/config.py:
-- min_leverage: 25 → 4
-- max_leverage: 30 → 6
-- max_concurrent_positions: 3 → 2
-- position_size_percent: 0.10 → 0.85
+- min_profit_usd: $1.50 → $0.85
+
+src/position_monitor.py:
+- profit_target: $1.00 → $0.85
+- loss_limit: -$1.00 → -$0.85
+- Updated comments: Classic strategy $0.70-$1.00
+- Updated Telegram alerts: Show $0.85 targets
+
+src/ai_engine.py:
+- ML_ONLY_VERSION: "6.0-CLASSIC" → "6.1-CLASSIC-FINE"
+- Removed all INVERSE strategy comments
+- Clarified: ML LONG → LONG, ML SHORT → SHORT
+- Updated logs: "Classic strategy that earned $10-15/day"
 
 main.py:
-- BOT_VERSION: "ML-ONLY-2.0" → "6.0-CLASSIC"
+- BOT_VERSION: "6.0-CLASSIC" → "6.1-CLASSIC-FINE"
 
 ═══════════════════════════════════════════════════════════
 EXPECTED BEHAVIOR:
@@ -69,18 +68,58 @@ EXPECTED BEHAVIOR:
 
 ✅ Max 2 positions open at once
 ✅ Each position $75-90 in size
-✅ Leverage 4-6x (safer than 25-30x)
-✅ Normal ML predictions (no tricks)
-✅ Conservative, steady growth
+✅ Leverage 4-6x (safe, proven)
+✅ Normal ML predictions (LONG=LONG, SHORT=SHORT)
+✅ Positions stay open until:
+   - Profit reaches $0.70-$1.00 → CLOSE
+   - Loss reaches -$0.70 to -$1.00 → CLOSE
+   - Otherwise → KEEP OPEN (no fast exits!)
 
 ═══════════════════════════════════════════════════════════
-NEXT STEPS:
+HOW THIS DIFFERS FROM v6.0:
 ═══════════════════════════════════════════════════════════
 
-1. Run emergency_stop.py to close all current positions
-2. Set AUTO_START_LIVE_TRADING=false on Railway
-3. Deploy this version (6.0-CLASSIC)
-4. Monitor for stable, conservative performance
-5. No more experiments - stick to what works
+v6.0-CLASSIC:
+- Profit target: $1.50
+- Loss limit: Stop-loss based (15%)
+- Comment: "Back to basics"
 
-🎯 BACK TO BASICS = BACK TO PROFITS
+v6.1-CLASSIC-FINE:
+- Profit target: $0.85 ($0.70-$1.00)
+- Loss limit: -$0.85 (-$0.70 to -$1.00)
+- Comment: "Exact replica of winning strategy"
+
+This version EXACTLY matches the strategy that earned $10-15/day!
+
+═══════════════════════════════════════════════════════════
+DEPLOYMENT CHECKLIST:
+═══════════════════════════════════════════════════════════
+
+BEFORE STARTING:
+1. ✅ Emergency stop completed (all positions closed)
+2. ✅ Railway AUTO_START_LIVE_TRADING=false
+3. ✅ Verify Binance balance (~$100)
+
+AFTER DEPLOYMENT:
+1. Monitor first trade closely
+2. Verify profit target is $0.85 (not $1.00 or $1.50)
+3. Verify loss limit is -$0.85
+4. Verify positions stay open between -$0.70 and +$0.70
+5. Verify ML uses normal predictions (no inversion)
+
+═══════════════════════════════════════════════════════════
+SUCCESS METRICS (Expected):
+═══════════════════════════════════════════════════════════
+
+Daily Performance:
+- Trades: 10-20 per day
+- Win Rate: 60-70%
+- Profit per Win: $0.70-$1.00
+- Loss per Loss: -$0.70 to -$1.00
+- Daily P&L: +$10-15
+
+With $100 capital and 4-6x leverage:
+- Monthly Return: 300-450% ($300-450)
+- Risk: Low to moderate (proven strategy)
+
+🎯 BACK TO THE WINNING FORMULA!

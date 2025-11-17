@@ -186,27 +186,26 @@ class PositionMonitor:
             # ====================================================================
 
             # ====================================================================
-            # 💰 PROFIT TARGET: $1.00 (FIXED)
+            # 💰 PROFIT TARGET: $0.70-$1.00 (CLASSIC STRATEGY)
             # ====================================================================
-            # USER REQUEST: Close position when profit reaches $1.00
+            # USER REQUEST: Close position when profit reaches $0.70-$1.00
             #
             # Strategy:
-            # 1. Profit target: $1.00 → Close ENTIRE position immediately
-            # 2. Loss limit: Stop-loss only (1.5-2.5%)
-            # 3. Simple rule: $1 profit = close position
+            # 1. Profit target: $0.70-$1.00 → Close ENTIRE position immediately
+            # 2. Loss limit: -$0.70 to -$1.00 → Close ENTIRE position
+            # 3. Position stays open if between -$0.70 and +$0.70
             #
-            # REMOVED: $1.50-$2.50 range (too high for small capital)
-            # REMOVED: Loss limit -$1.50 to -$2.50 (rely on stop-loss instead)
+            # This is the CLASSIC strategy that earned $10-15/day
             # ====================================================================
 
-            # Profit target: $1.00 (user requested)
-            profit_target = Decimal("1.00")
+            # Profit target: $0.85 (middle of $0.70-$1.00 range)
+            profit_target = Decimal("0.85")
 
-            # CHECK: PROFIT TARGET HIT (+$1.00)
+            # CHECK: PROFIT TARGET HIT (+$0.85)
             if unrealized_pnl >= profit_target:
                 logger.info(
                     f"🎯 PROFIT TARGET HIT! {symbol} {side} | "
-                    f"P&L: ${float(unrealized_pnl):+.2f} (target: +$1.00) | "
+                    f"P&L: ${float(unrealized_pnl):+.2f} (target: +${float(profit_target):.2f}) | "
                     f"Closing ENTIRE position"
                 )
 
@@ -215,9 +214,9 @@ class PositionMonitor:
                     f"🎯 PROFIT TARGET REACHED!\n\n"
                     f"💎 {symbol} {side} {position['leverage']}x\n\n"
                     f"💰 Profit: ${float(unrealized_pnl):+.2f}\n"
-                    f"🎯 Target: +$1.00\n\n"
+                    f"🎯 Target: +${float(profit_target):.2f}\n\n"
                     f"✅ Full position closed\n"
-                    f"🚀 Target achieved!"
+                    f"🚀 Classic strategy!"
                 )
 
                 await executor.close_position(
@@ -228,20 +227,20 @@ class PositionMonitor:
                 return
 
             # ====================================================================
-            # 🔴 LOSS LIMIT: -$1.00 (IMMEDIATE EXIT)
+            # 🔴 LOSS LIMIT: -$0.85 (CLASSIC STRATEGY)
             # ====================================================================
-            # USER REQUEST: Close position when loss reaches -$1.00
-            # Position can stay open indefinitely between -$1 and +$1
+            # USER REQUEST: Close position when loss reaches -$0.70 to -$1.00
+            # Position can stay open indefinitely between -$0.70 and +$0.70
             # ====================================================================
 
-            # Loss limit: -$1.00 (user requested)
-            loss_limit = Decimal("-1.00")
+            # Loss limit: -$0.85 (middle of -$0.70 to -$1.00 range)
+            loss_limit = Decimal("-0.85")
 
-            # CHECK: LOSS LIMIT HIT (-$1.00)
+            # CHECK: LOSS LIMIT HIT (-$0.85)
             if unrealized_pnl <= loss_limit:
                 logger.warning(
                     f"🔴 LOSS LIMIT HIT! {symbol} {side} | "
-                    f"P&L: ${float(unrealized_pnl):+.2f} (limit: -$1.00) | "
+                    f"P&L: ${float(unrealized_pnl):+.2f} (limit: ${float(loss_limit):.2f}) | "
                     f"Closing ENTIRE position"
                 )
 
@@ -250,9 +249,9 @@ class PositionMonitor:
                     f"🔴 LOSS LIMIT REACHED\n\n"
                     f"💎 {symbol} {side} {position['leverage']}x\n\n"
                     f"💰 Loss: ${float(unrealized_pnl):+.2f}\n"
-                    f"🔴 Limit: -$1.00\n\n"
+                    f"🔴 Limit: ${float(loss_limit):.2f}\n\n"
                     f"✅ Position closed\n"
-                    f"🛡️ Capital protected"
+                    f"🛡️ Classic strategy protection"
                 )
 
                 await executor.close_position(

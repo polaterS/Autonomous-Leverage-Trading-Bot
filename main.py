@@ -2,7 +2,7 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🧠 VERSION: 6.0-CLASSIC (Back to Winning Strategy)
+🧠 VERSION: 6.1-CLASSIC-FINE (Fine-tuned Classic Strategy)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "6.0-CLASSIC"
+BOT_VERSION = "6.1-CLASSIC-FINE"
 
 # Log deployment version from VERSION file
 try:

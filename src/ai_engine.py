@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-ML_ONLY_VERSION = "6.0-CLASSIC"  # BACK TO CLASSIC: Normal ML (not inversed), 4-6x leverage, $75-90 positions
-logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (Normal ML, 4-6x leverage, $75-90 positions)")
+ML_ONLY_VERSION = "6.1-CLASSIC-FINE"  # CLASSIC FINE-TUNED: ±$0.70-$1.00 targets, 4-6x leverage, $75-90 positions
+logger.info(f"🤖 AI Engine initialized - Mode: {ML_ONLY_VERSION} (Normal ML, ±$0.85 targets, 4-6x leverage)")
 
 
 class AIConsensusEngine:
@@ -235,16 +235,14 @@ class AIConsensusEngine:
         ml_short_pred = await ml_predictor.predict(market_data, side='SHORT')
 
         # ====================================================================
-        # 🔄 INVERSE ML STRATEGY: Do THE OPPOSITE of what ML predicts!
+        # 🎯 NORMAL ML STRATEGY: Use ML predictions as-is (CLASSIC)
         # ====================================================================
-        # USER REQUEST: "ML hangi pozisyon için örneğin BNB USDT için 25x LONG öneriyor ya
-        #                sen onu SHORT yap tam tersini yap tam tersi ile işleme girsin"
-        #
-        # ML says LONG → We go SHORT
-        # ML says SHORT → We go LONG
+        # ML says LONG → We go LONG
+        # ML says SHORT → We go SHORT
+        # This is the CLASSIC strategy that earned $10-15/day
         # ====================================================================
 
-        # Choose ML direction with higher confidence (NORMAL - no inversion)
+        # Choose ML direction with higher confidence
         if ml_long_pred['confidence'] > ml_short_pred['confidence']:
             ml_prediction = ml_long_pred
             ml_side = 'LONG'
@@ -259,7 +257,7 @@ class AIConsensusEngine:
             f"Reasoning: {ml_prediction['reasoning']}"
         )
 
-        # Return ML-only result with INVERSE side!
+        # Return ML-only result (NORMAL - NOT INVERSED)
         return {
             'action': ml_action,
             'side': ml_side,
