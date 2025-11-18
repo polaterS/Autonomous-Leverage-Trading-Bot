@@ -124,7 +124,7 @@ class Settings(BaseSettings):
         'CHZ/USDT:USDT',    # Chiliz
         'FLOW/USDT:USDT',   # Flow
         'THETA/USDT:USDT',  # Theta
-        'EOS/USDT:USDT',    # EOS
+        # 'EOS/USDT:USDT',    # EOS - DELISTED from Binance
         'KLAY/USDT:USDT',   # Klaytn
         'XTZ/USDT:USDT',    # Tezos
         'ZEC/USDT:USDT',    # Zcash
@@ -140,7 +140,7 @@ class Settings(BaseSettings):
         'YFI/USDT:USDT',    # Yearn Finance
         'ZRX/USDT:USDT',    # 0x
         'LRC/USDT:USDT',    # Loopring
-        'RNDR/USDT:USDT',   # Render
+        # 'RNDR/USDT:USDT',   # Render - Symbol changed to RENDER/USDT
         'AR/USDT:USDT',     # Arweave
         'ROSE/USDT:USDT',   # Oasis Network
         'ONE/USDT:USDT',    # Harmony
@@ -158,15 +158,15 @@ class Settings(BaseSettings):
         'FLOKI/USDT:USDT',  # Floki
         'BONK/USDT:USDT',   # Bonk
         'PEOPLE/USDT:USDT', # ConstitutionDAO
-        'LUNC/USDT:USDT',   # Terra Classic
+        # 'LUNC/USDT:USDT',   # Terra Classic - DELISTED from Binance
         'LUNA/USDT:USDT',   # Terra
         'SEI/USDT:USDT',    # Sei
         'TIA/USDT:USDT',    # Celestia
         'ORDI/USDT:USDT',   # Ordinals
         'BLUR/USDT:USDT',   # Blur
         'WLD/USDT:USDT',    # Worldcoin
-        'MATIC/USDT:USDT',  # Matic (old POL)
-        'CRO/USDT:USDT',    # Cronos
+        # 'MATIC/USDT:USDT',  # Matic - Symbol changed to POL/USDT
+        # 'CRO/USDT:USDT',    # Cronos - DELISTED from Binance
         'FTT/USDT:USDT',    # FTX Token
         'GMT/USDT:USDT',    # STEPN
         'APE/USDT:USDT',    # ApeCoin
@@ -181,7 +181,7 @@ class Settings(BaseSettings):
         'GMX/USDT:USDT',    # GMX
         'PERP/USDT:USDT',   # Perpetual Protocol
         'STORJ/USDT:USDT',  # Storj
-        'AUDIO/USDT:USDT',  # Audius
+        # 'AUDIO/USDT:USDT',  # Audius - DELISTED from Binance
         'C98/USDT:USDT',    # Coin98
         'ALICE/USDT:USDT',  # My Neighbor Alice
         'TLM/USDT:USDT',    # Alien Worlds
@@ -201,7 +201,7 @@ class Settings(BaseSettings):
         'NEO/USDT:USDT',    # Neo
         'EGLD/USDT:USDT',   # MultiversX
         'KSM/USDT:USDT',    # Kusama
-        'RETH/USDT:USDT',   # Rocket Pool ETH
+        # 'RETH/USDT:USDT',   # Rocket Pool ETH - DELISTED from Binance
         'ETHW/USDT:USDT',   # EthereumPoW
         'USTC/USDT:USDT',   # TerraClassicUSD
         'JASMY/USDT:USDT',  # JasmyCoin

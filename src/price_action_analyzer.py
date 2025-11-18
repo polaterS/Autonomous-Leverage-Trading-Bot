@@ -988,6 +988,14 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need 10+)'
                 return result
 
+            # 🔧 BUG FIX: Ensure BOTH supports AND resistances exist (LONG needs both)
+            # Error: "cannot access local variable 'nearest_support' where it is not associated with a value"
+            # Cause: If supports=[] or resistances=[], min() crashes
+            # Fix: Check both lists have elements before using min()
+            if not supports or not resistances:
+                result['reason'] = f'Missing S/R for LONG: {len(supports)} supports, {len(resistances)} resistances (need 1+ each)'
+                return result
+
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
             nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
 
@@ -1132,6 +1140,14 @@ class PriceActionAnalyzer:
             adx = trend.get('adx', 20)  # Default to 20 if missing
             if adx < 10:
                 result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need 10+)'
+                return result
+
+            # 🔧 BUG FIX: Ensure BOTH supports AND resistances exist (SHORT needs both)
+            # Error: "cannot access local variable 'nearest_support' where it is not associated with a value"
+            # Cause: If supports=[] or resistances=[], min() crashes
+            # Fix: Check both lists have elements before using min()
+            if not supports or not resistances:
+                result['reason'] = f'Missing S/R for SHORT: {len(supports)} supports, {len(resistances)} resistances (need 1+ each)'
                 return result
 
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
