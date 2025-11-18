@@ -263,24 +263,21 @@ class TradeExecutor:
             stop_loss_percent = Decimal(str(adaptive_sl_percent))
             logger.info(f"📊 Using adaptive SL: {adaptive_sl_percent:.1f}%")
 
-            # 🎯 SIMPLE & RELIABLE: Equal allocation from START
+            # 🎯 USER REQUEST: "İlk pozisyon bakiyenin yarısı, 2. pozisyon KALAN bakiyenin tamamı!"
             #
-            # USER FINAL RAGE: "60 dolar bakiyem vardı 30 dolar birine kullandı 15 dolar diğerine bunu istemiyorum!"
+            # NEW ALLOCATION STRATEGY:
+            # - Position 1: 50% of INITIAL capital
+            # - Position 2: 100% of REMAINING capital (also 50% of initial)
             #
-            # WHY PREVIOUS LOGIC FAILED:
-            # - Used complex FREE capital calculation
-            # - Relied on current_capital which changes with unrealized P&L
-            # - Result: Inconsistent sizing (1st: $30, 2nd: $15) ❌
+            # Example with $60 initial capital, 2 max positions:
+            # - Position 1: $60 × 50% = $30 margin → $600 position (20x leverage) ✅
+            # - Position 2: REMAINING $30 × 100% = $30 margin → $600 position ✅
+            # - Total used: $60 (100% capital utilization!)
             #
-            # NEW SIMPLE LOGIC:
-            # - Get INITIAL capital from database (at position opening time)
-            # - Divide EQUALLY by max_positions
-            # - EVERY position gets same margin allocation (predictable!)
-            #
-            # Example with $60 capital, 2 max positions, 20x leverage:
-            # - Position 1: $60 ÷ 2 = $30 margin → $600 position ✅
-            # - Position 2: $60 ÷ 2 = $30 margin → $600 position ✅
-            # - Total used: $60 (perfect allocation!)
+            # BENEFITS:
+            # - Each position uses FULL 50% of initial capital (no partial usage)
+            # - Simple "half now, rest later" mental model
+            # - Perfect capital utilization
             #
             max_positions = self.settings.max_concurrent_positions
 
@@ -294,15 +291,26 @@ class TradeExecutor:
                     f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
                 )
 
-            # 🔥 SIMPLE FIX: Each position gets equal share of TOTAL capital
-            # No complex FREE capital calculation - just split evenly!
-            # current_capital is from get_capital() which returns total balance
-            margin_per_position = current_capital / Decimal(str(max_positions))
+            # 🔥 NEW LOGIC: First position = 50% initial, subsequent = divide remaining equally
+            if num_active_positions == 0:
+                # FIRST POSITION: Use 50% of initial capital
+                margin_per_position = current_capital * Decimal("0.50")
+                logger.info(
+                    f"💰 Capital allocation (1st position): ${current_capital:.2f} × 50% "
+                    f"= ${margin_per_position:.2f} margin"
+                )
+            else:
+                # SUBSEQUENT POSITIONS: Divide remaining capital equally among remaining slots
+                # Calculate how much was used already (50% for first position)
+                used_capital = current_capital * Decimal("0.50")
+                remaining_capital = current_capital - used_capital
 
-            logger.info(
-                f"💰 Capital allocation: ${current_capital:.2f} total ÷ {max_positions} positions "
-                f"= ${margin_per_position:.2f} margin per position (equal split)"
-            )
+                margin_per_position = remaining_capital / Decimal(str(remaining_slots))
+                logger.info(
+                    f"💰 Capital allocation (position {num_active_positions + 1}/{max_positions}): "
+                    f"${remaining_capital:.2f} remaining ÷ {remaining_slots} slots "
+                    f"= ${margin_per_position:.2f} margin"
+                )
 
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             # 🔥 TIER 2: VOLATILITY-ADJUSTED LEVERAGE (Adaptive Risk Management)
