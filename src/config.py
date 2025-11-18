@@ -35,13 +35,13 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("77.00"), gt=0)  # Current balance in Binance
-    min_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
-    max_leverage: int = Field(default=20, ge=1, le=50)  # Fixed leverage 20x (USER REQUEST)
+    min_leverage: int = Field(default=10, ge=1, le=50)  # 🎯 USER: 10x leverage (reduced risk)
+    max_leverage: int = Field(default=10, ge=1, le=50)  # 🎯 USER: 10x leverage (reduced risk)
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔧 USER: 2 positions max (bakiye/2 = her pozisyon için yarısı)
     position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position
-    min_stop_loss_percent: Decimal = Field(default=Decimal("8.0"), gt=0, le=100)  # 🔧 FIX: 8% min (breathing room for 20x leverage)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("10.0"), gt=0, le=100)  # 🔧 FIX: 10% max (prevents rapid stop-loss hits)
-    min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # $1.20-$1.50 profit target (covers commission+slippage for $1.00 net profit)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("17.0"), gt=0, le=100)  # 🎯 USER: $5 loss at 10x leverage (~17% of margin)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("34.0"), gt=0, le=100)  # 🎯 USER: $10 loss at 10x leverage (~34% of margin)
+    min_profit_usd: Decimal = Field(default=Decimal("2.50"), gt=0)  # 🎯 USER: $2.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.75"), ge=0, le=1)  # 🎯 PA-ONLY: 75% min confidence (reject weak setups like PEOPLE -$32 loss with 70% confidence)
     scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
