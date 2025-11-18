@@ -294,10 +294,10 @@ class TradeExecutor:
             # 🔥 NEW LOGIC: Single position = POSITION_SIZE_PERCENT, Multi-position = 50%/50% split
             if max_positions == 1:
                 # SINGLE POSITION MODE: Use POSITION_SIZE_PERCENT of capital (leaves room for fees)
-                position_size_decimal = self.settings.position_size_percent / Decimal("100")
+                position_size_decimal = self.settings.position_size_percent  # Already decimal (e.g., 0.85)
                 margin_per_position = current_capital * position_size_decimal
                 logger.info(
-                    f"💰 Capital allocation (SINGLE POSITION MODE): ${current_capital:.2f} × {self.settings.position_size_percent}% "
+                    f"💰 Capital allocation (SINGLE POSITION MODE): ${current_capital:.2f} × {position_size_decimal * 100:.0f}% "
                     f"= ${margin_per_position:.2f} margin"
                 )
             elif num_active_positions == 0:
