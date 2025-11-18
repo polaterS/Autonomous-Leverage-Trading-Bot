@@ -112,6 +112,39 @@ Sit back and monitor your portfolio! 💰
         # Net position value after entry fee
         net_position_value = position_value - entry_fee
 
+        # 🎯 CALCULATE VOLATILITY-BASED PROFIT TARGET
+        # Same logic as position_monitor.py lines 282-297
+
+        # Try to get ATR from entry snapshot (most accurate)
+        atr_percent = 3.0  # Default medium volatility
+        entry_snapshot = position.get('entry_snapshot', {})
+        if entry_snapshot and isinstance(entry_snapshot, dict):
+            indicators = entry_snapshot.get('indicators', {})
+            if indicators:
+                atr_percent = indicators.get('atr_percent', 3.0)
+
+        # Fallback: try from price_action data
+        if atr_percent == 3.0:  # Still default
+            pa_data = position.get('price_action', {})
+            if pa_data and isinstance(pa_data, dict):
+                # ADX is not ATR, but we can estimate: high ADX ≈ trending ≈ potentially higher volatility
+                # This is a rough approximation, real ATR is better
+                trend_adx = pa_data.get('trend_adx', 0)
+                if trend_adx > 0:
+                    # Very rough mapping: ADX 25+ = high trend = assume medium-high vol
+                    atr_percent = 2.5 if trend_adx < 15 else 3.5 if trend_adx < 25 else 4.5
+
+        # Apply same volatility thresholds as position_monitor.py
+        if atr_percent < 2.5:
+            PROFIT_TARGET_USD = Decimal("1.50")
+            TARGET_LEVEL = "TIGHT (Low Vol)"
+        elif atr_percent < 4.5:
+            PROFIT_TARGET_USD = Decimal("2.00")
+            TARGET_LEVEL = "STANDARD (Med Vol)"
+        else:
+            PROFIT_TARGET_USD = Decimal("2.50")
+            TARGET_LEVEL = "WIDE (High Vol)"
+
         # Build base message
         message_parts = [
             f"{emoji} <b>NEW POSITION OPENED</b>\n",
@@ -123,6 +156,7 @@ Sit back and monitor your portfolio! 💰
             f"🛑 Stop-Loss: <b>${float(stop_loss_price):.4f}</b>",
             f"   ├ Price Move: <b>{float(price_move_pct):.2f}%</b>",
             f"   └ Max Loss: <b>${float(usd_loss_at_sl):.2f}</b> (with {leverage}x leverage)\n",
+            f"🎯 Profit Target: <b>${float(PROFIT_TARGET_USD):.2f}</b> ({TARGET_LEVEL})",
             f"💎 Min Profit Target: <b>${float(position['min_profit_target_usd']):.2f}</b>",
             f"⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>\n",
         ]
