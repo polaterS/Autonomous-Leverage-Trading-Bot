@@ -302,6 +302,16 @@ class PositionMonitor:
                 f"(ATR {atr_percent:.2f}% = {TARGET_LEVEL})"
             )
 
+            # 🔥 INSTANT PROFIT CAPTURE: Check if we're close to target
+            profit_progress = (unrealized_pnl / PROFIT_TARGET_USD) * 100 if PROFIT_TARGET_USD > 0 else 0
+
+            if profit_progress >= 90:
+                # Within 90% of profit target - log warning for immediate attention!
+                logger.warning(
+                    f"🎯 NEAR TARGET! {symbol}: ${float(unrealized_pnl):+.2f} / ${float(PROFIT_TARGET_USD):.2f} "
+                    f"({float(profit_progress):.1f}%) - WATCHING CLOSELY!"
+                )
+
             # Check profit target
             if unrealized_pnl >= PROFIT_TARGET_USD:
                 close_reason = f"✅ Profit target hit: ${float(unrealized_pnl):+.2f} (target: ${float(PROFIT_TARGET_USD):.2f})"
