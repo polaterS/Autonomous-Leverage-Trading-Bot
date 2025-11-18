@@ -67,16 +67,17 @@ class PriceActionAnalyzer:
         # Trend parameters
         self.trend_lookback = 20  # Candles for trend detection
         self.adx_period = 14  # ADX calculation period
-        self.strong_trend_threshold = 25  # ADX > 25 = strong trend
+        self.strong_trend_threshold = 30  # 🔥 STRICT: ADX > 30 = strong trend
+        self.min_trend_threshold = 25  # 🔥 CRITICAL: Minimum ADX 25 for ANY trade
 
         # Volume parameters
-        self.volume_surge_multiplier = 2.0  # 2x average = surge
+        self.volume_surge_multiplier = 2.5  # 🔥 STRICT: 2.5x average = real surge
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🎯 ENHANCED: More relaxed tolerances for crypto volatility
-        # Crypto moves 3-10% daily, so 6% tolerance is realistic
-        self.support_resistance_tolerance = 0.06  # 6% tolerance to S/R
-        self.room_to_opposite_level = 0.05  # 5% room required
+        # 🎯 TIGHTENED: Stricter tolerances to prevent bad entries
+        # Only trade near STRONG S/R levels with clear room to target
+        self.support_resistance_tolerance = 0.025  # 🔥 2.5% max distance to S/R (was 6%)
+        self.room_to_opposite_level = 0.08  # 🔥 8% min room to target (was 5%)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -971,21 +972,20 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🔧 RELAXED FILTER #1: Check total S/R count (need 2+ for reliability)
-            # OLD: Required 3+ levels (too strict, rejected valid setups)
-            # NEW: 2+ levels sufficient (1 support + 1 resistance = valid setup)
+            # 🔥 STRICT FILTER #1: Check total S/R count (need 4+ for high reliability)
+            # USER ISSUE: 2 levels = too weak, leads to bad entries and immediate stop-loss hits
+            # FIX: Require 4+ levels for strong S/R confirmation
             total_sr_levels = len(supports) + len(resistances)
-            if total_sr_levels < 2:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+)'
+            if total_sr_levels < 4:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 4+ for quality)'
                 return result
 
-            # 🔧 RELAXED FILTER #2: Check ADX for trend strength (need 10+ for clear trend)
-            # OLD: Required ADX 15+ (too strict, blocked 90% of trades)
-            # NEW: ADX 10+ sufficient (allows medium-strength trends)
-            # NOTE: With ADX fix returning 20.0 on insufficient data, this is now reasonable
+            # 🔥 STRICT FILTER #2: Check ADX for trend strength (need 25+ for clear trend)
+            # USER ISSUE: ADX 10 = very weak trends, leads to choppy markets and losses
+            # FIX: Require minimum ADX 25 (industry standard for "trending market")
             adx = trend.get('adx', 20)  # Default to 20 if missing
-            if adx < 10:
-                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need 10+)'
+            if adx < self.min_trend_threshold:
+                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
                 return result
 
             # 🔧 BUG FIX: Ensure BOTH supports AND resistances exist (LONG needs both)
@@ -1022,14 +1022,16 @@ class PriceActionAnalyzer:
                 result['reason'] = f'{trend["direction"]} market - LONG requires clear UPTREND'
                 return result
 
-            # Additional: Even in UPTREND, trend must have some strength
-            if trend['strength'] == 'WEAK' and not volume['is_surge']:
-                result['reason'] = 'Weak uptrend without volume confirmation - no LONG'
+            # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
+            # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
+            # FIX: Require minimum MODERATE trend strength
+            if trend['strength'] == 'WEAK':
+                result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
                 return result
 
-            # Check 4: Volume confirmation
-            if not volume['is_surge'] and trend['strength'] == 'WEAK':
-                result['reason'] = 'No volume confirmation in weak trend'
+            # Check 4: Volume confirmation (required for MODERATE trends, optional for STRONG)
+            if trend['strength'] == 'MODERATE' and not volume['is_surge']:
+                result['reason'] = f'MODERATE trend requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
                 return result
 
             # Calculate R/R
@@ -1125,21 +1127,20 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🔧 RELAXED FILTER #1: Check total S/R count (need 2+ for reliability)
-            # OLD: Required 3+ levels (too strict, rejected valid setups)
-            # NEW: 2+ levels sufficient (1 support + 1 resistance = valid setup)
+            # 🔥 STRICT FILTER #1: Check total S/R count (need 4+ for high reliability)
+            # USER ISSUE: 2 levels = too weak, leads to bad entries and immediate stop-loss hits
+            # FIX: Require 4+ levels for strong S/R confirmation
             total_sr_levels = len(supports) + len(resistances)
-            if total_sr_levels < 2:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+)'
+            if total_sr_levels < 4:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 4+ for quality)'
                 return result
 
-            # 🔧 RELAXED FILTER #2: Check ADX for trend strength (need 10+ for clear trend)
-            # OLD: Required ADX 15+ (too strict, blocked 90% of trades)
-            # NEW: ADX 10+ sufficient (allows medium-strength trends)
-            # NOTE: With ADX fix returning 20.0 on insufficient data, this is now reasonable
+            # 🔥 STRICT FILTER #2: Check ADX for trend strength (need 25+ for clear trend)
+            # USER ISSUE: ADX 10 = very weak trends, leads to choppy markets and losses
+            # FIX: Require minimum ADX 25 (industry standard for "trending market")
             adx = trend.get('adx', 20)  # Default to 20 if missing
-            if adx < 10:
-                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need 10+)'
+            if adx < self.min_trend_threshold:
+                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
                 return result
 
             # 🔧 BUG FIX: Ensure BOTH supports AND resistances exist (SHORT needs both)
@@ -1176,14 +1177,16 @@ class PriceActionAnalyzer:
                 result['reason'] = f'{trend["direction"]} market - SHORT requires clear DOWNTREND'
                 return result
 
-            # Additional: Even in DOWNTREND, trend must have some strength
-            if trend['strength'] == 'WEAK' and not volume['is_surge']:
-                result['reason'] = 'Weak downtrend without volume confirmation - no SHORT'
+            # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
+            # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
+            # FIX: Require minimum MODERATE trend strength
+            if trend['strength'] == 'WEAK':
+                result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
                 return result
 
-            # Check 4: Volume confirmation
-            if not volume['is_surge'] and trend['strength'] == 'WEAK':
-                result['reason'] = 'No volume confirmation in weak trend'
+            # Check 4: Volume confirmation (required for MODERATE trends, optional for STRONG)
+            if trend['strength'] == 'MODERATE' and not volume['is_surge']:
+                result['reason'] = f'MODERATE trend requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
                 return result
 
             # Calculate R/R

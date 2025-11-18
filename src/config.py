@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
-    initial_capital: Decimal = Field(default=Decimal("77.00"), gt=0)  # Current balance in Binance
+    initial_capital: Decimal = Field(default=Decimal("2.29"), gt=0)  # 🔥 SYNCED: Current actual Binance balance
     min_leverage: int = Field(default=10, ge=1, le=50)  # 🎯 USER: 10x leverage (reduced risk)
     max_leverage: int = Field(default=10, ge=1, le=50)  # 🎯 USER: 10x leverage (reduced risk)
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔧 USER: 2 positions max (bakiye/2 = her pozisyon için yarısı)
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     max_stop_loss_percent: Decimal = Field(default=Decimal("34.0"), gt=0, le=100)  # 🎯 USER: $10 loss at 10x leverage (~34% of margin)
     min_profit_usd: Decimal = Field(default=Decimal("2.50"), gt=0)  # 🎯 USER: $2.50 profit target
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.75"), ge=0, le=1)  # 🎯 PA-ONLY: 75% min confidence (reject weak setups like PEOPLE -$32 loss with 70% confidence)
+    min_ai_confidence: Decimal = Field(default=Decimal("0.80"), ge=0, le=1)  # 🔥 STRICT: 80% min confidence (prevents low-quality entries and immediate SL hits)
     scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
     position_check_seconds: int = Field(default=3, ge=1)  # 🔥 INSTANT PROFIT CAPTURE: 3 seconds for real-time monitoring (prevent profit erosion!)
 
