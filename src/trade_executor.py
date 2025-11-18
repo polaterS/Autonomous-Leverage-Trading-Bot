@@ -64,9 +64,77 @@ class TradeExecutor:
         side = trade_params['side']
         leverage = trade_params['leverage']
         stop_loss_percent = Decimal(str(trade_params['stop_loss_percent']))
-        entry_price = Decimal(str(trade_params['current_price']))
 
         logger.info(f"Opening position: {symbol} {side} {leverage}x")
+
+        # ========================================================================
+        # 🔥 FRESH PRICE VALIDATION: Prevent stale price execution
+        # ========================================================================
+        # PROBLEM: Scan takes ~10-13 seconds (fetch data → AI analysis → confluence)
+        #          During this time, price can move significantly!
+        # SOLUTION: Re-fetch price IMMEDIATELY before entry, validate setup still valid
+        #
+        # SCENARIOS:
+        # - Low volatility (ATR <2%): 13s delay = ~0.02% move → OK ✅
+        # - High volatility (ATR >6%): 13s delay = ~2% move → INVALIDATE ❌
+        #
+        # THRESHOLDS:
+        # - <1.0% price change: Setup still valid, use fresh price ✅
+        # - >1.0% price change: Setup invalidated, SKIP trade ❌
+        #   (support/resistance levels no longer valid at new price!)
+        # ========================================================================
+        try:
+            exchange = await get_exchange_client()
+            fresh_ticker = await exchange.fetch_ticker(symbol)
+            fresh_price = Decimal(str(fresh_ticker['last']))
+            old_price = Decimal(str(trade_params['current_price']))
+
+            # Calculate price change during scan→execution delay
+            price_change_pct = abs((fresh_price - old_price) / old_price) * 100
+
+            # Threshold: 1.0% max acceptable price movement
+            PRICE_VALIDATION_THRESHOLD = Decimal("1.0")
+
+            if price_change_pct > PRICE_VALIDATION_THRESHOLD:
+                # Price moved too much → Setup invalidated!
+                logger.error(
+                    f"❌ FRESH PRICE VALIDATION FAILED: {symbol} {side}\n"
+                    f"   Scan price:    ${float(old_price):.4f}\n"
+                    f"   Current price: ${float(fresh_price):.4f}\n"
+                    f"   Price change:  {float(price_change_pct):+.2f}%\n"
+                    f"   Threshold:     {float(PRICE_VALIDATION_THRESHOLD):.1f}%\n"
+                    f"   ❌ Setup invalidated (S/R levels no longer valid) - SKIPPING trade"
+                )
+
+                # Send Telegram notification
+                notifier = get_notifier()
+                await notifier.send_alert(
+                    'warning',
+                    f"⚠️ <b>Trade Skipped - Price Moved!</b>\n\n"
+                    f"💎 {symbol} {side}\n"
+                    f"Scan price: ${float(old_price):.4f}\n"
+                    f"Current: ${float(fresh_price):.4f}\n"
+                    f"Change: <b>{float(price_change_pct):+.2f}%</b>\n\n"
+                    f"Setup invalidated during analysis.\n"
+                    f"Waiting for next opportunity..."
+                )
+
+                return False
+
+            # Price validation PASSED - use fresh price for entry
+            entry_price = fresh_price
+            trade_params['current_price'] = fresh_price  # Update for downstream use
+
+            logger.info(
+                f"✅ FRESH PRICE VALIDATED: ${float(fresh_price):.4f} "
+                f"(moved {float(price_change_pct):+.3f}% from scan - within {float(PRICE_VALIDATION_THRESHOLD):.1f}% threshold)"
+            )
+
+        except Exception as price_validation_error:
+            logger.error(f"❌ Fresh price validation failed: {price_validation_error}")
+            # Don't block trade on technical error, use original price
+            entry_price = Decimal(str(trade_params['current_price']))
+            logger.warning(f"⚠️ Using original scan price: ${float(entry_price):.4f}")
 
         # ========================================================================
         # 🎯 TECHNICAL VALIDATION: DISABLED BY USER REQUEST
