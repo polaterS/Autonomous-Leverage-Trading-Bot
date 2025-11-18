@@ -330,6 +330,7 @@ class AIConsensusEngine:
             'reasoning': f"PA-ONLY: {pa_reasoning}",
             'suggested_leverage': 20,  # User wants 20x
             'stop_loss_percent': 9.0,  # 🔧 FIX: 8-10% range (was 4-5%)
+            'model_name': 'PA-ONLY',  # 🔥 FIX: Add model_name field so market_scanner doesn't show "unknown"
             'models_used': ['PA-ONLY'],
             'ensemble_method': 'pa_only',
             'risk_reward_ratio': 0.0,
