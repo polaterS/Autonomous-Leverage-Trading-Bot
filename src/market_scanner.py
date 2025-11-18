@@ -1416,7 +1416,12 @@ class MarketScanner:
         # Multi-factor confluence check - need 60+/100 score to enter trade
         # Prevents low-quality setups from being traded
         #
-        # FACTORS CHECKED:
+        # 🎯 USER REQUEST: DISABLED FOR PA-ONLY MODE!
+        # - PA-ONLY already has strict filters (ADX ≥15, S/R ≥3 levels, trend, volume)
+        # - Confluence check is redundant and blocks good PA setups
+        # - ML trades still use confluence for quality control
+        #
+        # FACTORS CHECKED (ML trades only):
         # 1. PA validation (30 pts) - Price action setup quality
         # 2. RSI healthy (15 pts) - Not overbought/oversold extreme
         # 3. MACD alignment (15 pts) - Momentum agrees with direction
@@ -1429,30 +1434,41 @@ class MarketScanner:
         # TOTAL: 120 points possible, need 60+ to trade
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
+        # Check if this is a PA-ONLY trade
+        model_name = analysis.get('model_name', 'unknown')
 
-        if not confluence['approved']:
-            logger.warning(
-                f"❌ CONFLUENCE CHECK FAILED: {confluence['score']}/100 (need 60+)\n"
-                f"   Reason: {confluence['reason']}\n"
-                f"   Factors: {', '.join(confluence['factors'])}"
-            )
-            notifier = get_notifier()
-            await notifier.send_alert(
-                'info',
-                f"⏸️ Trade skipped - Low confluence:\n"
-                f"{symbol} {analysis['side']}\n\n"
-                f"Score: {confluence['score']}/100 (need 60+)\n"
-                f"Reason: {confluence['reason']}\n\n"
-                f"Factors present ({len(confluence['factors'])}):\n" +
-                '\n'.join([f"✓ {f}" for f in confluence['factors']])
-            )
-            return
+        if model_name != 'PA-ONLY':
+            # ML/AI trade - apply confluence check
+            confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
 
-        logger.info(
-            f"✅ CONFLUENCE CHECK PASSED: {confluence['score']}/100\n"
-            f"   Factors ({len(confluence['factors'])}): {', '.join(confluence['factors'])}"
-        )
+            if not confluence['approved']:
+                logger.warning(
+                    f"❌ CONFLUENCE CHECK FAILED: {confluence['score']}/100 (need 60+)\n"
+                    f"   Reason: {confluence['reason']}\n"
+                    f"   Factors: {', '.join(confluence['factors'])}"
+                )
+                notifier = get_notifier()
+                await notifier.send_alert(
+                    'info',
+                    f"⏸️ Trade skipped - Low confluence:\n"
+                    f"{symbol} {analysis['side']}\n\n"
+                    f"Score: {confluence['score']}/100 (need 60+)\n"
+                    f"Reason: {confluence['reason']}\n\n"
+                    f"Factors present ({len(confluence['factors'])}):\n" +
+                    '\n'.join([f"✓ {f}" for f in confluence['factors']])
+                )
+                return
+
+            logger.info(
+                f"✅ CONFLUENCE CHECK PASSED: {confluence['score']}/100\n"
+                f"   Factors ({len(confluence['factors'])}): {', '.join(confluence['factors'])}"
+            )
+        else:
+            # PA-ONLY trade - skip confluence check (PA has its own strict filters)
+            logger.info(
+                f"⏭️ CONFLUENCE CHECK SKIPPED for PA-ONLY trade\n"
+                f"   PA filters already applied: ADX ≥15, S/R ≥3 levels, trend direction, volume"
+            )
 
         # 🎯 NEW: Trade Quality Manager validation (prevents overtrading and repeated failures)
         from src.trade_quality_manager import get_trade_quality_manager
