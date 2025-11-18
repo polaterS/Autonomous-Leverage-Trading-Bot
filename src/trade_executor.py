@@ -291,12 +291,13 @@ class TradeExecutor:
                     f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
                 )
 
-            # 🔥 NEW LOGIC: Single position = 100%, Multi-position = 50%/50% split
+            # 🔥 NEW LOGIC: Single position = POSITION_SIZE_PERCENT, Multi-position = 50%/50% split
             if max_positions == 1:
-                # SINGLE POSITION MODE: Use 100% of capital (for small accounts)
-                margin_per_position = current_capital
+                # SINGLE POSITION MODE: Use POSITION_SIZE_PERCENT of capital (leaves room for fees)
+                position_size_decimal = self.settings.position_size_percent / Decimal("100")
+                margin_per_position = current_capital * position_size_decimal
                 logger.info(
-                    f"💰 Capital allocation (SINGLE POSITION MODE): ${current_capital:.2f} × 100% "
+                    f"💰 Capital allocation (SINGLE POSITION MODE): ${current_capital:.2f} × {self.settings.position_size_percent}% "
                     f"= ${margin_per_position:.2f} margin"
                 )
             elif num_active_positions == 0:
