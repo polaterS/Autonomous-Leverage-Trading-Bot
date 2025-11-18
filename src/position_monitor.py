@@ -116,6 +116,22 @@ class PositionMonitor:
             # 🔧 FIX: Define min_profit_usd for ML exit checks (was undefined, causing crashes)
             min_profit_usd = self.settings.min_profit_usd
 
+            # 🔥 CRITICAL FIX: Fetch indicators FIRST (before profit/loss checks)
+            # Problem: Profit target checks need 'indicators' but it was defined AFTER (line 523)
+            # Result: "cannot access local variable 'indicators'" → positions never closed at profit!
+            # Solution: Fetch indicators at START of function, with safe fallback
+            indicators = {}  # Safe default
+            atr_percent = 2.5  # Default to medium volatility
+            try:
+                ohlcv_15m = await exchange.fetch_ohlcv(symbol, '15m', limit=50)
+                from src.indicators import calculate_indicators
+                indicators = calculate_indicators(ohlcv_15m)
+                atr_percent = indicators.get('atr_percent', 2.5)
+                logger.debug(f"📊 Indicators fetched: ATR {atr_percent:.2f}%")
+            except Exception as indicators_error:
+                logger.warning(f"⚠️ Failed to fetch indicators (using defaults): {indicators_error}")
+                # Continue with defaults - don't crash position monitoring!
+
             # 🔥 CRITICAL: Check if position still exists on Binance FIRST
             # USER REQUEST: "manuel olarak binance üzerinden manuel olarak close diyorum öyle kapatıyorum pozisyonu"
             # "Ben öyle kapatsam bile hemen sync komutu tetiklenmesi lazım hemen çalışması lazım!"
@@ -517,15 +533,8 @@ class PositionMonitor:
             logger.debug(f"⏰ Time-based exit DISABLED - position will run until profit/loss targets hit")
             # Continue to other checks below (no time-based close)
 
-            # Get market indicators (needed for multiple checks below)
-            try:
-                ohlcv_15m = await exchange.fetch_ohlcv(symbol, '15m', limit=50)
-                indicators = calculate_indicators(ohlcv_15m)
-                atr_percent = indicators.get('atr_percent', 2.0)
-            except Exception as e:
-                logger.warning(f"Failed to fetch indicators: {e}")
-                indicators = {}
-                atr_percent = 2.0
+            # ✅ Indicators already fetched at function start (line 119-133)
+            # Removed duplicate fetch to avoid overwriting with different defaults
 
             # ====================================================================
             # 🎯 TIER 1 CHECK #1: PARTIAL EXIT SYSTEM (3-Tier Scalping)
