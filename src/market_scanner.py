@@ -385,28 +385,34 @@ class MarketScanner:
                         continue
 
                     # 🧠 ML FILTER: Check if this trade's patterns have proven successful
-                    reasoning = opp['analysis'].get('reasoning', '')
-                    patterns = ml_learner._extract_pattern_keywords(reasoning)
+                    # 🔥 DISABLED FOR PA-ONLY MODE: PA has its own strict filters (ADX, S/R, trend)
+                    # ML pattern filter is redundant and blocks good PA setups
+                    model_name = opp.get('model', 'unknown')
 
-                    # Calculate average pattern win rate
-                    if patterns:
-                        pattern_wrs = []
-                        for pattern in patterns:
-                            wins = ml_learner.winning_patterns.get(pattern, 0)
-                            losses = ml_learner.losing_patterns.get(pattern, 0)
-                            total = wins + losses
-                            if total >= 5:  # Only use patterns with 5+ occurrences
-                                wr = (wins / total) * 100
-                                pattern_wrs.append(wr)
+                    if model_name != 'PA-ONLY':
+                        # Only apply ML pattern filter to ML/AI-based trades
+                        reasoning = opp['analysis'].get('reasoning', '')
+                        patterns = ml_learner._extract_pattern_keywords(reasoning)
 
-                        if pattern_wrs:
-                            avg_pattern_wr = sum(pattern_wrs) / len(pattern_wrs)
-                            # Require 50%+ average pattern WR for trade approval (lowered for early ML learning phase)
-                            if avg_pattern_wr < 50.0:
-                                logger.info(
-                                    f"🚫 {opp['symbol']}: Pattern WR too low ({avg_pattern_wr:.0f}%) - skipping"
-                                )
-                                continue
+                        # Calculate average pattern win rate
+                        if patterns:
+                            pattern_wrs = []
+                            for pattern in patterns:
+                                wins = ml_learner.winning_patterns.get(pattern, 0)
+                                losses = ml_learner.losing_patterns.get(pattern, 0)
+                                total = wins + losses
+                                if total >= 5:  # Only use patterns with 5+ occurrences
+                                    wr = (wins / total) * 100
+                                    pattern_wrs.append(wr)
+
+                            if pattern_wrs:
+                                avg_pattern_wr = sum(pattern_wrs) / len(pattern_wrs)
+                                # Require 50%+ average pattern WR for trade approval (lowered for early ML learning phase)
+                                if avg_pattern_wr < 50.0:
+                                    logger.info(
+                                        f"🚫 {opp['symbol']}: Pattern WR too low ({avg_pattern_wr:.0f}%) - skipping"
+                                    )
+                                    continue
 
                     qualified_opportunities.append(opp)
 
