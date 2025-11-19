@@ -256,6 +256,13 @@ class AIConsensusEngine:
         resistance_count = len(resistances)
         total_sr_levels = support_count + resistance_count
 
+        # Initialize variables (needed for PA metrics calculation later)
+        nearest_support = None
+        nearest_resistance = None
+        dist_to_support = 0
+        dist_to_resistance = 0
+        adx = trend.get('adx', 0)
+
         if not supports or not resistances:
             pa_reasoning = 'Insufficient S/R levels for PA analysis'
         elif total_sr_levels < 3:
@@ -322,6 +329,35 @@ class AIConsensusEngine:
 
         logger.info(f"📊 PA Signal: {pa_action.upper()} @ {pa_confidence:.1%} | {pa_reasoning}")
 
+        # 🔧 FIX: Calculate missing PA metrics for telegram_notifier
+        # Calculate S/R strength score (0-1 based on number of levels)
+        # 6+ levels = 100% strength, scales linearly below that
+        sr_strength_score = min(total_sr_levels / 6.0, 1.0)
+
+        # Calculate swing lows/highs from sr_analysis
+        swing_lows_count = len(sr_analysis.get('support', []))
+        swing_highs_count = len(sr_analysis.get('resistance', []))
+
+        # Calculate Risk/Reward ratios for both directions
+        # R/R = (distance to target) / (distance to stop loss)
+        # Target = opposite S/R level, Stop = entry +/- 2% (conservative)
+        rr_long = 0.0
+        rr_short = 0.0
+        if supports and resistances and nearest_support is not None and nearest_resistance is not None:
+            # LONG: Entry at support, target at resistance, stop 2% below support
+            dist_to_resistance_abs = abs(nearest_resistance - current_price)
+            stop_loss_dist_long = current_price * 0.02  # 2% stop
+            rr_long = dist_to_resistance_abs / stop_loss_dist_long if stop_loss_dist_long > 0 else 0
+
+            # SHORT: Entry at resistance, target at support, stop 2% above resistance
+            dist_to_support_abs = abs(current_price - nearest_support)
+            stop_loss_dist_short = current_price * 0.02  # 2% stop
+            rr_short = dist_to_support_abs / stop_loss_dist_short if stop_loss_dist_short > 0 else 0
+
+        # Calculate trend quality (0-1 based on ADX strength)
+        # ADX < 20 = weak, 20-40 = moderate, 40+ = strong
+        trend_quality = min(adx / 50.0, 1.0) if adx > 0 else 0.0
+
         # Return PA-only result
         return {
             'action': pa_action,
@@ -335,13 +371,26 @@ class AIConsensusEngine:
             'ensemble_method': 'pa_only',
             'risk_reward_ratio': 0.0,
             'price_action': {
+                # Original fields
                 'trend': trend,
                 'volume': volume,
                 'support_resistance': sr_analysis,
                 'nearest_support': nearest_support if supports else None,
                 'nearest_resistance': nearest_resistance if resistances else None,
                 'support_dist': dist_to_support if supports else 0,
-                'resistance_dist': dist_to_resistance if resistances else 0
+                'resistance_dist': dist_to_resistance if resistances else 0,
+
+                # 🔥 NEW: Metrics for telegram_notifier (was missing - causing 0 values!)
+                'sr_strength_score': sr_strength_score,
+                'swing_lows_count': swing_lows_count,
+                'swing_highs_count': swing_highs_count,
+                'rr_long': rr_long,
+                'rr_short': rr_short,
+                'trend_direction': trend.get('direction', 'SIDEWAYS'),
+                'trend_adx': trend.get('adx', 0),
+                'trend_quality': trend_quality,
+                'volume_surge': volume.get('is_surge', False),
+                'volume_surge_ratio': volume.get('surge_ratio', 1.0)
             }
         }
 
