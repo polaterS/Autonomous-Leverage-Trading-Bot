@@ -112,36 +112,65 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
         # 🎯 TIER 2 CONSERVATIVE INDICATORS - New Professional Additions
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        # Ichimoku Cloud (Ultimate trend system)
-        ichimoku = calculate_ichimoku(ohlcv_data)
-        indicators['ichimoku_conversion'] = ichimoku['conversion_line']
-        indicators['ichimoku_base'] = ichimoku['base_line']
-        indicators['ichimoku_span_a'] = ichimoku['leading_span_a']
-        indicators['ichimoku_span_b'] = ichimoku['leading_span_b']
-        indicators['ichimoku_cloud_color'] = ichimoku['cloud_color']
-        indicators['ichimoku_price_vs_cloud'] = ichimoku['price_vs_cloud']
-        indicators['ichimoku_signal'] = ichimoku['signal']
-        indicators['ichimoku_trend_strength'] = ichimoku['trend_strength']
+        # Ichimoku Cloud (Ultimate trend system) - with fallback
+        try:
+            ichimoku = calculate_ichimoku(ohlcv_data)
+            indicators['ichimoku_conversion'] = ichimoku['conversion_line']
+            indicators['ichimoku_base'] = ichimoku['base_line']
+            indicators['ichimoku_span_a'] = ichimoku['leading_span_a']
+            indicators['ichimoku_span_b'] = ichimoku['leading_span_b']
+            indicators['ichimoku_cloud_color'] = ichimoku['cloud_color']
+            indicators['ichimoku_price_vs_cloud'] = ichimoku['price_vs_cloud']
+            indicators['ichimoku_signal'] = ichimoku['signal']
+            indicators['ichimoku_trend_strength'] = ichimoku['trend_strength']
+        except Exception as e:
+            # Fallback: Neutral Ichimoku if calculation fails
+            indicators['ichimoku_conversion'] = current_price
+            indicators['ichimoku_base'] = current_price
+            indicators['ichimoku_span_a'] = current_price
+            indicators['ichimoku_span_b'] = current_price
+            indicators['ichimoku_cloud_color'] = 'NEUTRAL'
+            indicators['ichimoku_price_vs_cloud'] = 'IN_CLOUD'
+            indicators['ichimoku_signal'] = 'NEUTRAL'
+            indicators['ichimoku_trend_strength'] = 0.0
 
-        # Stochastic RSI (Enhanced - more sensitive oversold/overbought)
-        stoch_rsi_new = calculate_stochastic_rsi(ohlcv_data)
-        indicators['stoch_rsi_value'] = stoch_rsi_new['stoch_rsi']
-        indicators['stoch_rsi_k_new'] = stoch_rsi_new['k']
-        indicators['stoch_rsi_d_new'] = stoch_rsi_new['d']
-        indicators['stoch_rsi_signal_new'] = stoch_rsi_new['signal']
-        indicators['stoch_rsi_zone'] = stoch_rsi_new['zone']
+        # Stochastic RSI (Enhanced - more sensitive oversold/overbought) - with fallback
+        try:
+            stoch_rsi_new = calculate_stochastic_rsi(ohlcv_data)
+            indicators['stoch_rsi_value'] = stoch_rsi_new['stoch_rsi']
+            indicators['stoch_rsi_k_new'] = stoch_rsi_new['k']
+            indicators['stoch_rsi_d_new'] = stoch_rsi_new['d']
+            indicators['stoch_rsi_signal_new'] = stoch_rsi_new['signal']
+            indicators['stoch_rsi_zone'] = stoch_rsi_new['zone']
+        except Exception as e:
+            # Fallback: Neutral StochRSI if calculation fails
+            indicators['stoch_rsi_value'] = 50.0
+            indicators['stoch_rsi_k_new'] = 50.0
+            indicators['stoch_rsi_d_new'] = 50.0
+            indicators['stoch_rsi_signal_new'] = 'NEUTRAL'
+            indicators['stoch_rsi_zone'] = 'NEUTRAL'
 
-        # Money Flow Index (Volume-weighted RSI - institutional activity)
-        mfi_new = calculate_mfi(ohlcv_data)
-        indicators['mfi_value'] = mfi_new['mfi']
-        indicators['mfi_signal_new'] = mfi_new['signal']
-        indicators['mfi_zone'] = mfi_new['zone']
-        indicators['mfi_buying_pressure'] = mfi_new['buying_pressure']
+        # Money Flow Index (Volume-weighted RSI - institutional activity) - with fallback
+        try:
+            mfi_new = calculate_mfi(ohlcv_data)
+            indicators['mfi_value'] = mfi_new['mfi']
+            indicators['mfi_signal_new'] = mfi_new['signal']
+            indicators['mfi_zone'] = mfi_new['zone']
+            indicators['mfi_buying_pressure'] = mfi_new['buying_pressure']
+        except Exception as e:
+            # Fallback: Neutral MFI if calculation fails
+            indicators['mfi_value'] = 50.0
+            indicators['mfi_signal_new'] = 'NEUTRAL'
+            indicators['mfi_zone'] = 'NEUTRAL'
+            indicators['mfi_buying_pressure'] = False
 
         return indicators
 
     except Exception as e:
-        print(f"Error calculating indicators: {e}")
+        # Log error with logger instead of print
+        import logging
+        logger = logging.getLogger('trading_bot')
+        logger.error(f"❌ Error calculating indicators: {e}", exc_info=True)
         return get_default_indicators()
 
 
