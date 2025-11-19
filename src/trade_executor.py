@@ -321,58 +321,21 @@ class TradeExecutor:
                 )
 
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            # 🔥 TIER 2: VOLATILITY-ADJUSTED LEVERAGE (Adaptive Risk Management)
+            # 🔥 DISABLED: VOLATILITY-ADJUSTED LEVERAGE (User wants FIXED leverage)
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             #
-            # OLD: Fixed 20x leverage for ALL market conditions (risky!)
-            # NEW: 5x-20x adaptive based on ATR volatility
+            # USER REQUEST: Strict 10x leverage with NO dynamic adjustment
             #
-            # WHY:
-            # - High volatility (ATR > 6%) + 20x leverage = liquidation risk
-            # - Low volatility (ATR < 2%) + 20x leverage = underutilized capital
+            # The adaptive leverage system (5x-20x based on ATR volatility) has been
+            # disabled per user request. Bot will now use fixed leverage from config.
             #
-            # VOLATILITY TIERS:
-            # - ATR < 2%:  20x leverage (low vol, max leverage safe)
-            # - ATR 2-3%:  15x leverage (medium-low vol)
-            # - ATR 3-4.5%: 12x leverage (medium vol)
-            # - ATR 4.5-6%: 8x leverage (medium-high vol)
-            # - ATR > 6%:   5x leverage (extreme vol, protect capital)
-            #
-            # EXPECTED RESULT:
-            # - -40% liquidation risk in high volatility
-            # - Better capital utilization in low volatility
-            # - Dynamic risk adjustment based on market conditions
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            # Get ATR volatility from market data
+            # Get ATR volatility for logging only (not for leverage adjustment)
             atr_percent = market_data.get('indicators', {}).get('15m', {}).get('atr_percent', 3.0)
 
-            # Calculate optimal leverage based on volatility
-            original_leverage = leverage
-            if atr_percent < 2.0:
-                leverage = 20  # Low volatility = max leverage
-                vol_level = "LOW"
-            elif atr_percent < 3.0:
-                leverage = 15  # Medium-low
-                vol_level = "MEDIUM-LOW"
-            elif atr_percent < 4.5:
-                leverage = 12  # Medium
-                vol_level = "MEDIUM"
-            elif atr_percent < 6.0:
-                leverage = 8   # Medium-high
-                vol_level = "MEDIUM-HIGH"
-            else:
-                leverage = 5   # Extreme volatility = protect capital
-                vol_level = "EXTREME"
-
-            if leverage != original_leverage:
-                logger.info(
-                    f"📊 VOLATILITY-ADJUSTED LEVERAGE: "
-                    f"{original_leverage}x → {leverage}x "
-                    f"(ATR {atr_percent:.2f}% = {vol_level} volatility)"
-                )
-            else:
-                logger.info(f"📊 Using {leverage}x leverage (ATR {atr_percent:.2f}% = {vol_level} volatility)")
+            # FIXED LEVERAGE: Use config setting without adjustment
+            logger.info(f"📊 Using FIXED {leverage}x leverage (ATR {atr_percent:.2f}% - no adjustment)")
 
             # FIXED_POSITION_SIZE_USD = MARGIN × LEVERAGE (actual position value)
             FIXED_POSITION_SIZE_USD = margin_per_position * Decimal(str(leverage))
