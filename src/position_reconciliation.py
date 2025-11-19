@@ -65,6 +65,21 @@ class PositionReconciliationSystem:
             exchange = await get_exchange_client()
             notifier = get_notifier()
 
+            # 🎯 PAPER TRADING FIX: Skip reconciliation in paper trading mode
+            # Paper positions only exist in DB, not on Binance, so reconciliation would delete them
+            if exchange.paper_trading:
+                logger.info("📝 Paper trading mode - Skipping Binance reconciliation")
+                return {
+                    'sync_time': datetime.now(),
+                    'binance_count': 0,
+                    'database_count': len(await db.get_active_positions()),
+                    'orphaned_count': 0,
+                    'ghost_count': 0,
+                    'matched_count': 0,
+                    'actions_taken': ['Skipped: Paper trading mode'],
+                    'skipped': True
+                }
+
             # Fetch positions from both sources
             binance_positions = await self._fetch_binance_positions(exchange)
             db_positions = await db.get_active_positions()
