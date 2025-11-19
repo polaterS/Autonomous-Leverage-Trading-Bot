@@ -263,21 +263,20 @@ class TradeExecutor:
             stop_loss_percent = Decimal(str(adaptive_sl_percent))
             logger.info(f"📊 Using adaptive SL: {adaptive_sl_percent:.1f}%")
 
-            # 🎯 USER REQUEST: "İlk pozisyon bakiyenin yarısı, 2. pozisyon KALAN bakiyenin tamamı!"
+            # 🔧 SIMPLIFIED POSITION SIZING: Use POSITION_SIZE_PERCENT consistently
             #
-            # NEW ALLOCATION STRATEGY:
-            # - Position 1: 50% of INITIAL capital
-            # - Position 2: 100% of REMAINING capital (also 50% of initial)
-            #
-            # Example with $60 initial capital, 2 max positions:
-            # - Position 1: $60 × 50% = $30 margin → $600 position (20x leverage) ✅
-            # - Position 2: REMAINING $30 × 100% = $30 margin → $600 position ✅
-            # - Total used: $60 (100% capital utilization!)
+            # STRATEGY: Each position uses POSITION_SIZE_PERCENT of total capital
+            # - Config: POSITION_SIZE_PERCENT = 0.10 (10%)
+            # - Capital: $1000
+            # - Per position: $1000 × 10% = $100 margin
+            # - With 5x leverage: $100 × 5 = $500 position value
+            # - Max loss per position (with 2% stop): $500 × 2% = $10
             #
             # BENEFITS:
-            # - Each position uses FULL 50% of initial capital (no partial usage)
-            # - Simple "half now, rest later" mental model
-            # - Perfect capital utilization
+            # - Simple and predictable: every position is same size
+            # - Conservative risk: max 10% capital per position
+            # - Scales with account size automatically
+            # - No complex multi-position logic
             #
             max_positions = self.settings.max_concurrent_positions
 
@@ -291,34 +290,14 @@ class TradeExecutor:
                     f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
                 )
 
-            # 🔥 NEW LOGIC: Single position = POSITION_SIZE_PERCENT, Multi-position = 50%/50% split
-            if max_positions == 1:
-                # SINGLE POSITION MODE: Use POSITION_SIZE_PERCENT of capital (leaves room for fees)
-                position_size_decimal = self.settings.position_size_percent  # Already decimal (e.g., 0.85)
-                margin_per_position = current_capital * position_size_decimal
-                logger.info(
-                    f"💰 Capital allocation (SINGLE POSITION MODE): ${current_capital:.2f} × {position_size_decimal * 100:.0f}% "
-                    f"= ${margin_per_position:.2f} margin"
-                )
-            elif num_active_positions == 0:
-                # FIRST POSITION (multi-position mode): Use 50% of initial capital
-                margin_per_position = current_capital * Decimal("0.50")
-                logger.info(
-                    f"💰 Capital allocation (1st position): ${current_capital:.2f} × 50% "
-                    f"= ${margin_per_position:.2f} margin"
-                )
-            else:
-                # SUBSEQUENT POSITIONS: Divide remaining capital equally among remaining slots
-                # Calculate how much was used already (50% for first position)
-                used_capital = current_capital * Decimal("0.50")
-                remaining_capital = current_capital - used_capital
+            # 🔥 SIMPLIFIED: Always use POSITION_SIZE_PERCENT (10% per position)
+            position_size_decimal = self.settings.position_size_percent  # e.g., 0.10 (10%)
+            margin_per_position = current_capital * position_size_decimal
 
-                margin_per_position = remaining_capital / Decimal(str(remaining_slots))
-                logger.info(
-                    f"💰 Capital allocation (position {num_active_positions + 1}/{max_positions}): "
-                    f"${remaining_capital:.2f} remaining ÷ {remaining_slots} slots "
-                    f"= ${margin_per_position:.2f} margin"
-                )
+            logger.info(
+                f"💰 Capital allocation (position {num_active_positions + 1}/{max_positions}): "
+                f"${current_capital:.2f} × {position_size_decimal * 100:.0f}% = ${margin_per_position:.2f} margin"
+            )
 
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             # 🔥 DISABLED: VOLATILITY-ADJUSTED LEVERAGE (User wants FIXED leverage)
