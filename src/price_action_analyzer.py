@@ -199,6 +199,12 @@ class PriceActionAnalyzer:
 
             # Find all levels within tolerance
             while j < len(sorted_levels):
+                # 🚨 CRITICAL FIX: Prevent division by zero
+                if sorted_levels[i] == 0:
+                    # Skip invalid price level
+                    j += 1
+                    continue
+
                 if abs(sorted_levels[j] - sorted_levels[i]) / sorted_levels[i] <= tolerance:
                     cluster_prices.append(sorted_levels[j])
                     j += 1
@@ -858,6 +864,21 @@ class PriceActionAnalyzer:
             # Cluster into zones
             resistance_zones = self.cluster_levels(swing_highs)
             support_zones = self.cluster_levels(swing_lows)
+
+            # 🚨 CRITICAL FIX: Fallback if no swing highs/lows found
+            # In flat/sideways markets, swing detection may fail
+            # Use recent high/low as basic S/R levels
+            if not support_zones or not resistance_zones:
+                recent_high = float(df['high'].tail(20).max())
+                recent_low = float(df['low'].tail(20).min())
+
+                if not resistance_zones:
+                    resistance_zones = [{'price': recent_high, 'touches': 1, 'strength': 'WEAK'}]
+                    logger.warning(f"No swing highs found - using recent high ${recent_high:.4f} as resistance")
+
+                if not support_zones:
+                    support_zones = [{'price': recent_low, 'touches': 1, 'strength': 'WEAK'}]
+                    logger.warning(f"No swing lows found - using recent low ${recent_low:.4f} as support")
 
             # Calculate VPOC
             vpoc = self.calculate_vpoc(df)
