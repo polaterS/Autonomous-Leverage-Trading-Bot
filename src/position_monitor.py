@@ -292,7 +292,20 @@ class PositionMonitor:
             # - Consistent with what Telegram shows user
             # - Positions close at achievable targets
             PROFIT_TARGET_USD = Decimal(str(position.get('min_profit_target_usd', self.settings.min_profit_usd)))
-            LOSS_LIMIT_USD = PROFIT_TARGET_USD  # Symmetric risk/reward
+
+            # 🔥 FIX: Loss limit based on position size (5%)
+            # PROBLEM: Was equal to profit target ($2.50) - TOO TIGHT!
+            # - Position size: $300
+            # - Loss limit: $2.50
+            # - Price moves 0.83% → position closed ✗
+            # - Position closed after 8 minutes ✗
+            #
+            # SOLUTION: Loss limit = 5% of position size
+            # - Position size: $300 → Loss limit: $15
+            # - Allows ~5% price movement before exit
+            # - More room for normal market volatility
+            position_value = Decimal(str(position['position_value_usd']))
+            LOSS_LIMIT_USD = position_value * Decimal("0.05")  # 5% of position size (~$15 for $300 position)
 
             # Get volatility for logging only
             indicators_15m = indicators if indicators else {}
