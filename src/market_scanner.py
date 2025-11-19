@@ -1331,7 +1331,76 @@ class MarketScanner:
             factors.append(f'VWAP bias: {vwap_bias}')
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # FINAL VERDICT: Need 60+/120 to approve
+        # 🎯 TIER 2 CONSERVATIVE: New Professional Indicators
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        # FACTOR 9: Ichimoku Cloud (15 points) - Ultimate trend system
+        ichimoku_signal = indicators_15m.get('ichimoku_signal', 'NEUTRAL')
+        ichimoku_price_vs_cloud = indicators_15m.get('ichimoku_price_vs_cloud', 'IN_CLOUD')
+        ichimoku_cloud_color = indicators_15m.get('ichimoku_cloud_color', 'neutral')
+
+        if side == 'LONG':
+            # Perfect Ichimoku LONG: Price above bullish cloud + buy signal
+            if ichimoku_price_vs_cloud == 'ABOVE_CLOUD' and ichimoku_cloud_color == 'BULLISH':
+                score += 15
+                factors.append('Ichimoku: STRONG BULLISH (above cloud)')
+            elif ichimoku_signal in ['BUY', 'STRONG_BUY']:
+                score += 10
+                factors.append(f'Ichimoku: {ichimoku_signal}')
+        elif side == 'SHORT':
+            # Perfect Ichimoku SHORT: Price below bearish cloud + sell signal
+            if ichimoku_price_vs_cloud == 'BELOW_CLOUD' and ichimoku_cloud_color == 'BEARISH':
+                score += 15
+                factors.append('Ichimoku: STRONG BEARISH (below cloud)')
+            elif ichimoku_signal in ['SELL', 'STRONG_SELL']:
+                score += 10
+                factors.append(f'Ichimoku: {ichimoku_signal}')
+
+        # FACTOR 10: Stochastic RSI (10 points) - Enhanced overbought/oversold
+        stoch_rsi_signal = indicators_15m.get('stoch_rsi_signal_new', 'NEUTRAL')
+        stoch_rsi_zone = indicators_15m.get('stoch_rsi_zone', 'NEUTRAL')
+
+        if side == 'LONG':
+            # Best: Oversold + bullish signal
+            if stoch_rsi_zone == 'OVERSOLD' and 'BUY' in stoch_rsi_signal:
+                score += 10
+                factors.append('StochRSI: OVERSOLD + BUY')
+            elif 'BUY' in stoch_rsi_signal:
+                score += 5
+                factors.append(f'StochRSI: {stoch_rsi_signal}')
+        elif side == 'SHORT':
+            # Best: Overbought + bearish signal
+            if stoch_rsi_zone == 'OVERBOUGHT' and 'SELL' in stoch_rsi_signal:
+                score += 10
+                factors.append('StochRSI: OVERBOUGHT + SELL')
+            elif 'SELL' in stoch_rsi_signal:
+                score += 5
+                factors.append(f'StochRSI: {stoch_rsi_signal}')
+
+        # FACTOR 11: Money Flow Index (10 points) - Volume-weighted confirmation
+        mfi_signal = indicators_15m.get('mfi_signal_new', 'NEUTRAL')
+        mfi_zone = indicators_15m.get('mfi_zone', 'NEUTRAL')
+        mfi_value = indicators_15m.get('mfi_value', 50.0)
+
+        if side == 'LONG':
+            # Strong oversold MFI = institutional accumulation
+            if mfi_zone == 'STRONG_OVERSOLD':
+                score += 10
+                factors.append(f'MFI: STRONG OVERSOLD ({mfi_value:.0f})')
+            elif mfi_zone == 'OVERSOLD' or 'BUY' in mfi_signal:
+                score += 5
+                factors.append(f'MFI: {mfi_zone or mfi_signal}')
+        elif side == 'SHORT':
+            # Strong overbought MFI = institutional distribution
+            if mfi_zone == 'STRONG_OVERBOUGHT':
+                score += 10
+                factors.append(f'MFI: STRONG OVERBOUGHT ({mfi_value:.0f})')
+            elif mfi_zone == 'OVERBOUGHT' or 'SELL' in mfi_signal:
+                score += 5
+                factors.append(f'MFI: {mfi_zone or mfi_signal}')
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # FINAL VERDICT: Need 60+/155 to approve (11 factors total)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         approved = score >= 60
 
@@ -1348,16 +1417,16 @@ class MarketScanner:
             if 'Trend' not in str(factors):
                 missing_factors.append("Trend not aligned")
 
-            reason = f"Only {len(factors)}/8 factors present. Missing: {', '.join(missing_factors[:3])}"
+            reason = f"Only {len(factors)}/11 factors present. Missing: {', '.join(missing_factors[:3])}"
         else:
-            reason = f"Strong confluence: {len(factors)}/8 factors present"
+            reason = f"Strong confluence: {len(factors)}/11 factors present"
 
         return {
             'approved': approved,
             'score': score,
             'reason': reason,
             'factors': factors,
-            'total_possible': 120
+            'total_possible': 155  # 🎯 TIER 2: Increased from 120 (8 factors → 11 factors)
         }
 
     async def send_opportunity_for_selection(self, opportunity: Dict[str, Any]) -> None:
