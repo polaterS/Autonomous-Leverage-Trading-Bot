@@ -188,10 +188,57 @@ class RiskManager:
             # Non-critical: allow trade if correlation check fails
             logger.warning(f"Correlation check failed (allowing trade): {e}")
 
-        # RULE 5: Daily loss limit check - DISABLED
-        # User wants per-trade $10 loss limit (handled in stop-loss), not daily limit
-        # Daily loss limit is now disabled to allow multiple trades per day
-        # Each trade has its own $10 max loss via stop-loss calculation
+        # 🔥 RULE 5: Daily loss limit check - ENABLED
+        # USER ISSUE: Bot lost $381 in one day without stopping!
+        # - Config has daily_loss_limit_percent = 0.10 (10% = $100 for $1000)
+        # - But this check was DISABLED
+        # - Result: Bot kept trading after massive losses
+        #
+        # FIX: Enable daily loss limit to prevent catastrophic losses
+        # - Capital: $1000 → Daily limit: $100 (10%)
+        # - If daily loss exceeds $100, STOP trading
+        #
+        # This is DIFFERENT from max drawdown (20%):
+        # - Max drawdown: Total capital drop from session start
+        # - Daily loss limit: Loss in last 24 hours
+        from src.database import get_db_client
+        db = await get_db_client()
+
+        # Get today's performance
+        daily_perf = await db.get_daily_performance(date.today())
+
+        if daily_perf:
+            daily_pnl = Decimal(str(daily_perf.get('daily_pnl_usd', 0)))
+            daily_loss_limit = current_capital * self.settings.daily_loss_limit_percent
+
+            # Check if daily loss exceeds limit (only check losses, not profits)
+            if daily_pnl < 0 and abs(daily_pnl) >= daily_loss_limit:
+                logger.critical(
+                    f"🚨 DAILY LOSS LIMIT HIT: ${float(abs(daily_pnl)):.2f} "
+                    f"(Limit: ${float(daily_loss_limit):.2f})"
+                )
+
+                # Auto-disable trading
+                await db.set_trading_enabled(False)
+
+                # Send critical alert
+                from src.telegram_notifier import get_notifier
+                notifier = get_notifier()
+                await notifier.send_alert(
+                    'critical',
+                    f"🚨 DAILY LOSS LIMIT PROTECTION\n\n"
+                    f"Daily Loss: ${float(abs(daily_pnl)):.2f}\n"
+                    f"Limit: ${float(daily_loss_limit):.2f} ({float(self.settings.daily_loss_limit_percent)*100:.0f}%)\n"
+                    f"Capital: ${float(current_capital):.2f}\n\n"
+                    f"🛑 Trading STOPPED for today\n"
+                    f"Bot will resume tomorrow or use /startbot to override"
+                )
+
+                return {
+                    'approved': False,
+                    'reason': f'Daily loss limit hit (${float(abs(daily_pnl)):.2f})',
+                    'adjusted_params': None
+                }
 
         # RULE 6: Consecutive losses check - DISABLED BY USER REQUEST
         # REASON: User wants bot to keep trading regardless of loss streak

@@ -1036,14 +1036,33 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
                 return result
 
-            # 🎯 BALANCED: Check 4 - Volume confirmation (required for MODERATE, optional for STRONG)
-            # STRONG trends have momentum, MODERATE trends need volume confirmation
+            # 🎯 CRITICAL FIX: Volume confirmation for ALL trends (even STRONG)
+            # USER ISSUE: TIA opened with 0.6x volume (BELOW average) and failed
+            # - STRONG trend (ADX 52.9) bypassed volume check
+            # - But 0.6x volume = weak momentum = trade failed!
+            #
+            # NEW LOGIC:
+            # - MODERATE trends: Need volume surge (≥1.5x) for confirmation
+            # - STRONG trends: Need minimum volume (≥0.8x average) to avoid dead trades
+            #
+            # RATIONALE: Even STRONG trends need buyers/sellers to sustain momentum
+            # If volume is BELOW average (0.6x), there's no participation → reject!
+
             if trend['strength'] == 'MODERATE':
+                # MODERATE: Strict volume surge requirement
                 if not volume['is_surge']:
                     result['reason'] = f'MODERATE {trend["direction"]} requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
                     return result
                 logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
-            # STRONG trends don't need volume surge (momentum already strong)
+
+            elif trend['strength'] == 'STRONG':
+                # STRONG: More flexible, but still need MINIMUM volume
+                # Reject if volume is BELOW 0.8x average (like TIA's 0.6x)
+                min_volume_ratio = 0.8  # At least 80% of average volume
+                if volume['surge_ratio'] < min_volume_ratio:
+                    result['reason'] = f'STRONG {trend["direction"]} needs minimum volume (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
+                    return result
+                logger.info(f"   ✅ STRONG trend with acceptable volume ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
 
             # Calculate R/R
             stop_loss = nearest_support * (1 - self.sl_buffer)
@@ -1200,14 +1219,33 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
                 return result
 
-            # 🎯 BALANCED: Check 4 - Volume confirmation (required for MODERATE, optional for STRONG)
-            # STRONG trends have momentum, MODERATE trends need volume confirmation
+            # 🎯 CRITICAL FIX: Volume confirmation for ALL trends (even STRONG)
+            # USER ISSUE: TIA opened with 0.6x volume (BELOW average) and failed
+            # - STRONG trend (ADX 52.9) bypassed volume check
+            # - But 0.6x volume = weak momentum = trade failed!
+            #
+            # NEW LOGIC:
+            # - MODERATE trends: Need volume surge (≥1.5x) for confirmation
+            # - STRONG trends: Need minimum volume (≥0.8x average) to avoid dead trades
+            #
+            # RATIONALE: Even STRONG trends need buyers/sellers to sustain momentum
+            # If volume is BELOW average (0.6x), there's no participation → reject!
+
             if trend['strength'] == 'MODERATE':
+                # MODERATE: Strict volume surge requirement
                 if not volume['is_surge']:
                     result['reason'] = f'MODERATE {trend["direction"]} requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
                     return result
                 logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
-            # STRONG trends don't need volume surge (momentum already strong)
+
+            elif trend['strength'] == 'STRONG':
+                # STRONG: More flexible, but still need MINIMUM volume
+                # Reject if volume is BELOW 0.8x average (like TIA's 0.6x)
+                min_volume_ratio = 0.8  # At least 80% of average volume
+                if volume['surge_ratio'] < min_volume_ratio:
+                    result['reason'] = f'STRONG {trend["direction"]} needs minimum volume (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
+                    return result
+                logger.info(f"   ✅ STRONG trend with acceptable volume ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
 
             # Calculate R/R
             stop_loss = nearest_resistance * (1 + self.sl_buffer)
