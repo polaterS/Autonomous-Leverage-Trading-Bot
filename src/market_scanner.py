@@ -661,95 +661,92 @@ class MarketScanner:
                 if not individual_analyses:
                     logger.debug(f"{symbol} - All AI models failed, trying ML-ONLY mode...")
 
-                    # Get ML-only consensus (includes ML fallback logic)
-                    ml_consensus = await ai_engine.get_consensus(symbol, market_data)
+                    # 🔥 CRITICAL FIX: Don't re-run PA analysis! Use pre-analysis results
+                    # PROBLEM: get_consensus() re-runs PA analysis → inconsistent results
+                    # - TIA: Pre-analysis rejected (bearish candles) ❌
+                    # - But get_consensus() accepted → 105% confidence ✓ BUG!
+                    # SOLUTION: Reuse pa_result from pre-analysis (lines 557-586)
 
-                    # If ML-only mode generated a trade signal, use it
-                    if ml_consensus and ml_consensus.get('action') != 'hold':
-                        logger.debug(
-                            f"ML-ONLY SUCCESS: {symbol} {ml_consensus['action'].upper()} "
-                            f"@ {ml_consensus['confidence']:.0%} confidence"
-                        )
-                        # Convert consensus to individual analysis format for consistency
-                        individual_analyses = [ml_consensus]
-                    else:
-                        # 🎯 NEW: Even if ML says HOLD, check if PA found perfect setup
-                        if pa_result:
-                            # ML said HOLD, but PA found opportunity - create synthetic analysis
-                            best_pa = None
-                            suggested_side = None
+                    # Check if PA found perfect setup (from pre-analysis)
+                    if pa_result:
+                        # ML said HOLD, but PA found opportunity - create synthetic analysis
+                        best_pa = None
+                        suggested_side = None
 
-                            if pa_result.get('long') and pa_result['long']['confidence_boost'] >= 15:
-                                best_pa = pa_result['long']
-                                suggested_side = 'buy'
-                            elif pa_result.get('short') and pa_result['short']['confidence_boost'] >= 15:
-                                best_pa = pa_result['short']
-                                suggested_side = 'sell'
+                        # 🔥 STRICTER FILTER: Require should_enter=True (not just confidence_boost)
+                        # OLD: if confidence_boost >= 15 → could be False with 0% boost!
+                        # NEW: if should_enter=True AND confidence_boost >= 15
+                        if pa_result.get('long') and pa_result['long']['should_enter'] and pa_result['long']['confidence_boost'] >= 15:
+                            best_pa = pa_result['long']
+                            suggested_side = 'buy'
+                        elif pa_result.get('short') and pa_result['short']['should_enter'] and pa_result['short']['confidence_boost'] >= 15:
+                            best_pa = pa_result['short']
+                            suggested_side = 'sell'
 
-                            if best_pa and suggested_side:
-                                # PA setup is STRONG (≥15% boost) - override ML HOLD
-                                synthetic_confidence = (50 + best_pa['confidence_boost']) / 100
+                        if best_pa and suggested_side:
+                            # PA setup is STRONG (≥15% boost) - override ML HOLD
+                            synthetic_confidence = (50 + best_pa['confidence_boost']) / 100
 
-                                # Calculate leverage and stop-loss based on confidence (same logic as AI engine)
-                                if synthetic_confidence >= 0.85:  # 85%+ = Ultra high confidence
-                                    suggested_leverage = 10  # Max 10x
-                                    stop_loss_percent = 20.0  # Widest stop
-                                elif synthetic_confidence >= 0.75:  # 75-84% = High confidence
-                                    suggested_leverage = 7
-                                    stop_loss_percent = 16.0
-                                elif synthetic_confidence >= 0.70:  # 70-74% = Acceptable
-                                    suggested_leverage = 5
-                                    stop_loss_percent = 14.0
-                                else:  # <70% (typical for PA override: 65-70%)
-                                    suggested_leverage = 3
-                                    stop_loss_percent = 12.0
+                            # Calculate leverage and stop-loss based on confidence (same logic as AI engine)
+                            if synthetic_confidence >= 0.85:  # 85%+ = Ultra high confidence
+                                suggested_leverage = 10  # Max 10x
+                                stop_loss_percent = 20.0  # Widest stop
+                            elif synthetic_confidence >= 0.75:  # 75-84% = High confidence
+                                suggested_leverage = 7
+                                stop_loss_percent = 16.0
+                            elif synthetic_confidence >= 0.70:  # 70-74% = Acceptable
+                                suggested_leverage = 5
+                                stop_loss_percent = 14.0
+                            else:  # <70% (typical for PA override: 65-70%)
+                                suggested_leverage = 3
+                                stop_loss_percent = 12.0
 
-                                logger.info(
-                                    f"🎯 {symbol} PA OVERRIDE: ML said HOLD but PA found {suggested_side.upper()} setup! "
-                                    f"Confidence: 50% + PA {best_pa['confidence_boost']}% = {synthetic_confidence*100:.0f}% | "
-                                    f"Leverage: {suggested_leverage}x, Stop-Loss: {stop_loss_percent}%"
-                                )
+                            logger.info(
+                                f"🎯 {symbol} PA OVERRIDE: ML said HOLD but PA found {suggested_side.upper()} setup! "
+                                f"Confidence: 50% + PA {best_pa['confidence_boost']}% = {synthetic_confidence*100:.0f}% | "
+                                f"Leverage: {suggested_leverage}x, Stop-Loss: {stop_loss_percent}%"
+                            )
 
-                                # Extract detailed PA analysis data
-                                pa_analysis = best_pa.get('analysis', {})
-                                sr_data = pa_analysis.get('support_resistance', {})
-                                trend_data = pa_analysis.get('trend', {})
-                                volume_data = pa_analysis.get('volume', {})
+                            # Extract detailed PA analysis data
+                            pa_analysis = best_pa.get('analysis', {})
+                            sr_data = pa_analysis.get('support_resistance', {})
+                            trend_data = pa_analysis.get('trend', {})
+                            volume_data = pa_analysis.get('volume', {})
 
-                                individual_analyses = [{
-                                    'action': suggested_side,
-                                    'side': 'LONG' if suggested_side == 'buy' else 'SHORT',
-                                    'confidence': synthetic_confidence,
-                                    'suggested_leverage': suggested_leverage,
-                                    'stop_loss_percent': stop_loss_percent,
-                                    'model_name': 'PA-Override',
-                                    'models_used': ['PriceAction'],
-                                    'reasoning': best_pa['reason'],
-                                    'price_action': {
-                                        'validated': True,
-                                        'reason': best_pa['reason'],
-                                        'stop_loss': best_pa['stop_loss'],
-                                        'targets': best_pa['targets'],
-                                        'rr_ratio': best_pa['rr_ratio'],
-                                        'confidence_boost': best_pa['confidence_boost'],
-                                        'pa_override': True,
-                                        # ✅ NEW: Full PA analysis details for Telegram
-                                        'support_levels': [s['price'] for s in sr_data.get('support', [])[:3]],  # Top 3 support
-                                        'resistance_levels': [r['price'] for r in sr_data.get('resistance', [])[:3]],  # Top 3 resistance
-                                        'trend': trend_data.get('direction', 'N/A'),
-                                        'trend_strength': trend_data.get('strength', 'N/A'),
-                                        'adx': trend_data.get('adx', 0),
-                                        'volume_surge': volume_data.get('is_surge', False),
-                                        'volume_ratio': volume_data.get('surge_ratio', 1.0),
-                                        'obv_trend': volume_data.get('obv_trend', 'NEUTRAL'),
-                                        'vpoc': sr_data.get('vpoc', 0),
-                                        'indicators': ['Support/Resistance', 'Trend (ADX)', 'Volume (OBV)', 'Fibonacci'],
-                                        'timeframes': ['15m'],  # Primary timeframe used
-                                    }
-                                }]
+                            individual_analyses = [{
+                                'action': suggested_side,
+                                'side': 'LONG' if suggested_side == 'buy' else 'SHORT',
+                                'confidence': synthetic_confidence,
+                                'suggested_leverage': suggested_leverage,
+                                'stop_loss_percent': stop_loss_percent,
+                                'model_name': 'PA-Override',
+                                'models_used': ['PriceAction'],
+                                'reasoning': best_pa['reason'],
+                                'price_action': {
+                                    'validated': True,
+                                    'reason': best_pa['reason'],
+                                    'stop_loss': best_pa['stop_loss'],
+                                    'targets': best_pa['targets'],
+                                    'rr_ratio': best_pa['rr_ratio'],
+                                    'confidence_boost': best_pa['confidence_boost'],
+                                    'pa_override': True,
+                                    # ✅ NEW: Full PA analysis details for Telegram
+                                    'support_levels': [s['price'] for s in sr_data.get('support', [])[:3]],  # Top 3 support
+                                    'resistance_levels': [r['price'] for r in sr_data.get('resistance', [])[:3]],  # Top 3 resistance
+                                    'trend': trend_data.get('direction', 'N/A'),
+                                    'trend_strength': trend_data.get('strength', 'N/A'),
+                                    'adx': trend_data.get('adx', 0),
+                                    'volume_surge': volume_data.get('is_surge', False),
+                                    'volume_ratio': volume_data.get('surge_ratio', 1.0),
+                                    'obv_trend': volume_data.get('obv_trend', 'NEUTRAL'),
+                                    'vpoc': sr_data.get('vpoc', 0),
+                                    'indicators': ['Support/Resistance', 'Trend (ADX)', 'Volume (OBV)', 'Fibonacci'],
+                                    'timeframes': ['15m'],  # Primary timeframe used
+                                }
+                            }]
 
-                        if not individual_analyses:
-                            logger.debug(f"🧠 ML-ONLY: {symbol} - No high-confidence prediction (holding)")
+                    if not individual_analyses:
+                        logger.debug(f"🧠 ML-ONLY: {symbol} - No high-confidence prediction (holding)")
 
                 # 🎯 PRICE ACTION CONFIDENCE BOOST: If ML predicted trade, boost with PA
                 if individual_analyses and pa_result:
