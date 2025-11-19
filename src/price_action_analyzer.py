@@ -68,16 +68,16 @@ class PriceActionAnalyzer:
         self.trend_lookback = 20  # Candles for trend detection
         self.adx_period = 14  # ADX calculation period
         self.strong_trend_threshold = 30  # 🔥 STRICT: ADX > 30 = strong trend
-        self.min_trend_threshold = 25  # 🔥 CRITICAL: Minimum ADX 25 for ANY trade
+        self.min_trend_threshold = 20  # 🎯 CONSERVATIVE: Minimum ADX 20 (industry standard, more opportunities)
 
         # Volume parameters
-        self.volume_surge_multiplier = 2.5  # 🔥 STRICT: 2.5x average = real surge
+        self.volume_surge_multiplier = 2.0  # 🎯 CONSERVATIVE: 2.0x average = realistic surge
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🎯 TIGHTENED: Stricter tolerances to prevent bad entries
-        # Only trade near STRONG S/R levels with clear room to target
-        self.support_resistance_tolerance = 0.025  # 🔥 2.5% max distance to S/R (was 6%)
-        self.room_to_opposite_level = 0.08  # 🔥 8% min room to target (was 5%)
+        # 🎯 CONSERVATIVE: Balanced tolerances for quality entries
+        # Trade near GOOD S/R levels with reasonable room to target
+        self.support_resistance_tolerance = 0.025  # 🔥 2.5% max distance to S/R (balanced)
+        self.room_to_opposite_level = 0.05  # 🎯 CONSERVATIVE: 5% min room to target (realistic)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -972,17 +972,15 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🔥 STRICT FILTER #1: Check total S/R count (need 4+ for high reliability)
-            # USER ISSUE: 2 levels = too weak, leads to bad entries and immediate stop-loss hits
-            # FIX: Require 4+ levels for strong S/R confirmation
+            # 🎯 CONSERVATIVE FILTER #1: Check total S/R count (need 3+ for good reliability)
+            # Balanced approach: 3+ levels provides good confidence without being too strict
             total_sr_levels = len(supports) + len(resistances)
-            if total_sr_levels < 4:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 4+ for quality)'
+            if total_sr_levels < 3:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 3+ for quality)'
                 return result
 
-            # 🔥 STRICT FILTER #2: Check ADX for trend strength (need 25+ for clear trend)
-            # USER ISSUE: ADX 10 = very weak trends, leads to choppy markets and losses
-            # FIX: Require minimum ADX 25 (industry standard for "trending market")
+            # 🎯 CONSERVATIVE FILTER #2: Check ADX for trend strength (need 20+ for trending market)
+            # Industry standard: ADX 20+ = trending market (balanced approach)
             adx = trend.get('adx', 20)  # Default to 20 if missing
             if adx < self.min_trend_threshold:
                 result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
@@ -1016,11 +1014,20 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
-            # 🔥 CRITICAL FIX: Check 3 - Trend should be UPTREND (strict!)
-            # SIDEWAYS market + resistance rejection can fake-out LONG setups
-            if trend['direction'] != 'UPTREND':
-                result['reason'] = f'{trend["direction"]} market - LONG requires clear UPTREND'
+            # 🎯 CONSERVATIVE: Check 3 - Allow UPTREND or SIDEWAYS (balanced approach)
+            # DOWNTREND is blocked, but SIDEWAYS scalping allowed with stricter conditions
+            if trend['direction'] == 'DOWNTREND':
+                result['reason'] = f'DOWNTREND market - cannot LONG in downtrend'
                 return result
+            elif trend['direction'] == 'SIDEWAYS':
+                # Allow SIDEWAYS but require tighter S/R bounce + volume confirmation
+                if dist_to_support > 0.015:  # Must be VERY close to support (1.5%)
+                    result['reason'] = f'SIDEWAYS market - need tighter support bounce (<1.5%, got {dist_to_support*100:.1f}%)'
+                    return result
+                if not volume['is_surge']:
+                    result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
+                    return result
+                logger.info(f"   ✅ SIDEWAYS SCALP: Tight support bounce + volume surge (conservative setup)")
 
             # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
             # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
@@ -1127,17 +1134,15 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🔥 STRICT FILTER #1: Check total S/R count (need 4+ for high reliability)
-            # USER ISSUE: 2 levels = too weak, leads to bad entries and immediate stop-loss hits
-            # FIX: Require 4+ levels for strong S/R confirmation
+            # 🎯 CONSERVATIVE FILTER #1: Check total S/R count (need 3+ for good reliability)
+            # Balanced approach: 3+ levels provides good confidence without being too strict
             total_sr_levels = len(supports) + len(resistances)
-            if total_sr_levels < 4:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 4+ for quality)'
+            if total_sr_levels < 3:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 3+ for quality)'
                 return result
 
-            # 🔥 STRICT FILTER #2: Check ADX for trend strength (need 25+ for clear trend)
-            # USER ISSUE: ADX 10 = very weak trends, leads to choppy markets and losses
-            # FIX: Require minimum ADX 25 (industry standard for "trending market")
+            # 🎯 CONSERVATIVE FILTER #2: Check ADX for trend strength (need 20+ for trending market)
+            # Industry standard: ADX 20+ = trending market (balanced approach)
             adx = trend.get('adx', 20)  # Default to 20 if missing
             if adx < self.min_trend_threshold:
                 result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
@@ -1171,11 +1176,20 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
-            # 🔥 CRITICAL FIX: Check 3 - Trend should be DOWNTREND (strict!)
-            # SIDEWAYS market + support bounce can fake-out SHORT setups
-            if trend['direction'] != 'DOWNTREND':
-                result['reason'] = f'{trend["direction"]} market - SHORT requires clear DOWNTREND'
+            # 🎯 CONSERVATIVE: Check 3 - Allow DOWNTREND or SIDEWAYS (balanced approach)
+            # UPTREND is blocked, but SIDEWAYS scalping allowed with stricter conditions
+            if trend['direction'] == 'UPTREND':
+                result['reason'] = f'UPTREND market - cannot SHORT in uptrend'
                 return result
+            elif trend['direction'] == 'SIDEWAYS':
+                # Allow SIDEWAYS but require tighter S/R rejection + volume confirmation
+                if dist_to_resistance > 0.015:  # Must be VERY close to resistance (1.5%)
+                    result['reason'] = f'SIDEWAYS market - need tighter resistance rejection (<1.5%, got {dist_to_resistance*100:.1f}%)'
+                    return result
+                if not volume['is_surge']:
+                    result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
+                    return result
+                logger.info(f"   ✅ SIDEWAYS SCALP: Tight resistance rejection + volume surge (conservative setup)")
 
             # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
             # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
