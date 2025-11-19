@@ -9,6 +9,7 @@ from telegram.error import TelegramError
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import html
 from src.config import get_settings
 from src.utils import setup_logging, format_duration
 
@@ -499,7 +500,13 @@ Sit back and monitor your portfolio! 💰
         }
         emoji = emoji_map.get(alert_type, 'ℹ️')
 
-        message = f"{emoji} <b>{alert_type.upper()}</b>\n\n{message_text}\n\n⏰ {get_turkey_time().strftime('%H:%M:%S')}"
+        # 🔥 FIX: Escape HTML entities in message_text to prevent parsing errors
+        # PROBLEM: If message_text contains < or >, Telegram tries to parse as HTML tag
+        # EXAMPLE: "BTC/USDT<something>" → "unsupported start tag" error
+        # SOLUTION: Escape HTML entities before constructing message
+        escaped_text = html.escape(message_text)
+
+        message = f"{emoji} <b>{alert_type.upper()}</b>\n\n{escaped_text}\n\n⏰ {get_turkey_time().strftime('%H:%M:%S')}"
         await self.send_message(message)
 
     async def send_daily_summary(self, summary_data: Dict[str, Any]) -> None:
