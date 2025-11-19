@@ -74,10 +74,10 @@ class PriceActionAnalyzer:
         self.volume_surge_multiplier = 2.0  # 🎯 CONSERVATIVE: 2.0x average = realistic surge
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🎯 CONSERVATIVE: Balanced tolerances for quality entries
-        # Trade near GOOD S/R levels with reasonable room to target
-        self.support_resistance_tolerance = 0.025  # 🔥 2.5% max distance to S/R (balanced)
-        self.room_to_opposite_level = 0.05  # 🎯 CONSERVATIVE: 5% min room to target (realistic)
+        # 🎯 BALANCED: Realistic tolerances for both LONG and SHORT entries
+        # Trade near S/R levels with room to target - same for LONG/SHORT
+        self.support_resistance_tolerance = 0.04  # 🔥 4% max distance to S/R (realistic for both directions)
+        self.room_to_opposite_level = 0.04  # 🎯 BALANCED: 4% min room to target (realistic for both directions)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -101,14 +101,16 @@ class PriceActionAnalyzer:
         self.choch_confirmation_candles = 2  # Candles to confirm CHoCH
 
         logger.info(
-            f"✅ PriceActionAnalyzer ENHANCED v2.0 initialized:\n"
+            f"✅ PriceActionAnalyzer BALANCED v3.0 initialized:\n"
             f"   - Swing detection: {self.swing_window} candles\n"
             f"   - Min R/R ratio: {self.min_rr_ratio}:1\n"
             f"   - Trend lookback: {self.trend_lookback} candles\n"
-            f"   - Volume surge threshold: {self.volume_surge_multiplier}x\n"
+            f"   - S/R tolerance: {self.support_resistance_tolerance*100:.0f}% (LONG & SHORT)\n"
+            f"   - Volume surge threshold: {self.volume_surge_multiplier}x (MODERATE trends)\n"
             f"   - Candlestick patterns: Pin bars, Engulfing, Hammers\n"
             f"   - Order flow analysis: Buy/Sell pressure tracking\n"
-            f"   - Market structure: BOS/CHoCH detection"
+            f"   - Market structure: BOS/CHoCH detection\n"
+            f"   - 🎯 BALANCED: Equal opportunity for LONG & SHORT trades"
         )
 
     def find_swing_highs(self, df: pd.DataFrame, window: int = None) -> List[float]:
@@ -917,7 +919,7 @@ class PriceActionAnalyzer:
         Returns:
             Dict with should_enter, reason, entry details
         """
-        logger.info(f"🔍 Price Action Analysis ENHANCED v2.0: {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
+        logger.info(f"🔍 Price Action Analysis BALANCED v3.0: {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
 
         # 🔥 ENHANCED: Comprehensive market analysis
         sr_analysis = self.analyze_support_resistance(df)
@@ -1000,34 +1002,32 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # 🔧 FIX #1: Check 1 - Price should be near support (within 6%)
-            # EMERGENCY: 4% still failing (34/35 coins!) → 6% more realistic
-            # NEW: 0.06 (6%) allows more valid setups
+            # 🎯 BALANCED: Check 1 - Price should be near support (within 4%)
+            # Same tolerance as SHORT for fairness
             if dist_to_support > self.support_resistance_tolerance:
                 result['reason'] = f'Price too far from support ({dist_to_support*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # 🔧 FIX #1: Check 2 - Should have room to resistance (>5%)
-            # EMERGENCY: 4% too strict → 5% more realistic
-            # NEW: 0.05 (5%) allows more valid setups
+            # 🎯 BALANCED: Check 2 - Should have room to resistance (>4%)
+            # Same tolerance as SHORT for fairness
             if dist_to_resistance < self.room_to_opposite_level:
                 result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
-            # 🎯 CONSERVATIVE: Check 3 - Allow UPTREND or SIDEWAYS (balanced approach)
-            # DOWNTREND is blocked, but SIDEWAYS scalping allowed with stricter conditions
+            # 🎯 BALANCED: Check 3 - Allow UPTREND or SIDEWAYS (same as SHORT)
+            # DOWNTREND is blocked, but SIDEWAYS scalping allowed with balanced conditions
             if trend['direction'] == 'DOWNTREND':
                 result['reason'] = f'DOWNTREND market - cannot LONG in downtrend'
                 return result
             elif trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS but require tighter S/R bounce + volume confirmation
-                if dist_to_support > 0.015:  # Must be VERY close to support (1.5%)
-                    result['reason'] = f'SIDEWAYS market - need tighter support bounce (<1.5%, got {dist_to_support*100:.1f}%)'
+                # Allow SIDEWAYS with balanced conditions (2.5% tolerance, same as SHORT)
+                if dist_to_support > 0.025:  # Same tolerance as SHORT sideways
+                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<2.5%, got {dist_to_support*100:.1f}%)'
                     return result
                 if not volume['is_surge']:
                     result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
                     return result
-                logger.info(f"   ✅ SIDEWAYS SCALP: Tight support bounce + volume surge (conservative setup)")
+                logger.info(f"   ✅ SIDEWAYS SCALP LONG: Support bounce + volume surge (balanced setup)")
 
             # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
             # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
@@ -1036,10 +1036,14 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
                 return result
 
-            # Check 4: Volume confirmation (required for MODERATE trends, optional for STRONG)
-            if trend['strength'] == 'MODERATE' and not volume['is_surge']:
-                result['reason'] = f'MODERATE trend requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
-                return result
+            # 🎯 BALANCED: Check 4 - Volume confirmation (required for MODERATE, optional for STRONG)
+            # STRONG trends have momentum, MODERATE trends need volume confirmation
+            if trend['strength'] == 'MODERATE':
+                if not volume['is_surge']:
+                    result['reason'] = f'MODERATE {trend["direction"]} requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
+                    return result
+                logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
+            # STRONG trends don't need volume surge (momentum already strong)
 
             # Calculate R/R
             stop_loss = nearest_support * (1 - self.sl_buffer)
@@ -1162,34 +1166,32 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # 🔧 FIX #1: Check 1 - Price should be near resistance (within 6%)
-            # EMERGENCY: 4% still failing (34/35 coins!) → 6% more realistic
-            # NEW: 0.06 (6%) allows more valid setups
+            # 🎯 BALANCED: Check 1 - Price should be near resistance (within 4%)
+            # Same tolerance as LONG for fairness
             if dist_to_resistance > self.support_resistance_tolerance:
                 result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # 🔧 FIX #1: Check 2 - Should have room to support (>5%)
-            # EMERGENCY: 4% too strict → 5% more realistic
-            # NEW: 0.05 (5%) allows more valid setups
+            # 🎯 BALANCED: Check 2 - Should have room to support (>4%)
+            # Same tolerance as LONG for fairness
             if dist_to_support < self.room_to_opposite_level:
                 result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
                 return result
 
-            # 🎯 CONSERVATIVE: Check 3 - Allow DOWNTREND or SIDEWAYS (balanced approach)
-            # UPTREND is blocked, but SIDEWAYS scalping allowed with stricter conditions
+            # 🎯 BALANCED: Check 3 - Allow DOWNTREND or SIDEWAYS (same as LONG)
+            # UPTREND is blocked, but SIDEWAYS scalping allowed with same conditions as LONG
             if trend['direction'] == 'UPTREND':
                 result['reason'] = f'UPTREND market - cannot SHORT in uptrend'
                 return result
             elif trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS but require tighter S/R rejection + volume confirmation
-                if dist_to_resistance > 0.015:  # Must be VERY close to resistance (1.5%)
-                    result['reason'] = f'SIDEWAYS market - need tighter resistance rejection (<1.5%, got {dist_to_resistance*100:.1f}%)'
+                # Allow SIDEWAYS with same conditions as LONG (2.5% tolerance)
+                if dist_to_resistance > 0.025:  # Same as LONG sideways tolerance
+                    result['reason'] = f'SIDEWAYS market - need closer resistance rejection (<2.5%, got {dist_to_resistance*100:.1f}%)'
                     return result
                 if not volume['is_surge']:
                     result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
                     return result
-                logger.info(f"   ✅ SIDEWAYS SCALP: Tight resistance rejection + volume surge (conservative setup)")
+                logger.info(f"   ✅ SIDEWAYS SCALP SHORT: Resistance rejection + volume surge (balanced setup)")
 
             # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
             # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
@@ -1198,10 +1200,14 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
                 return result
 
-            # Check 4: Volume confirmation (required for MODERATE trends, optional for STRONG)
-            if trend['strength'] == 'MODERATE' and not volume['is_surge']:
-                result['reason'] = f'MODERATE trend requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
-                return result
+            # 🎯 BALANCED: Check 4 - Volume confirmation (required for MODERATE, optional for STRONG)
+            # STRONG trends have momentum, MODERATE trends need volume confirmation
+            if trend['strength'] == 'MODERATE':
+                if not volume['is_surge']:
+                    result['reason'] = f'MODERATE {trend["direction"]} requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
+                    return result
+                logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
+            # STRONG trends don't need volume surge (momentum already strong)
 
             # Calculate R/R
             stop_loss = nearest_resistance * (1 + self.sl_buffer)
