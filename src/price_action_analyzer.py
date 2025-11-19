@@ -997,6 +997,13 @@ class PriceActionAnalyzer:
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
             nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
 
+            # 🚨 CRITICAL FIX: Check price POSITION relative to support/resistance
+            # LONG should only trigger when price is ABOVE support (bounce expected)
+            # If price is BELOW support, that's a support BREAK = BEARISH!
+            if current_price < nearest_support:
+                result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
+                return result
+
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
@@ -1177,6 +1184,13 @@ class PriceActionAnalyzer:
 
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
             nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
+
+            # 🚨 CRITICAL FIX: Check price POSITION relative to support/resistance
+            # SHORT should only trigger when price is BELOW resistance (rejection expected)
+            # If price is ABOVE resistance, that's a resistance BREAK = BULLISH!
+            if current_price > nearest_resistance:
+                result['reason'] = f'Price above resistance (${current_price:.4f} > ${nearest_resistance:.4f}) - resistance broken (bullish)'
+                return result
 
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
