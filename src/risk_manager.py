@@ -201,7 +201,7 @@ class RiskManager:
         # This is DIFFERENT from max drawdown (20%):
         # - Max drawdown: Total capital drop from session start
         # - Daily loss limit: Loss in last 24 hours
-        from src.database import get_db_client
+        # ✅ FIX: Removed duplicate import - using module-level import from line 10
         db = await get_db_client()
 
         # Get today's performance
