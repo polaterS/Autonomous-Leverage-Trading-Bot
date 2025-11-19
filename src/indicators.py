@@ -74,13 +74,13 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
         # 🔥 TIER 1 CRITICAL INDICATORS - Professional Edge
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        # Stochastic RSI (more sensitive than RSI)
-        stoch_rsi = calculate_stochastic_rsi(df['close'])
-        indicators['stoch_rsi_k'] = stoch_rsi['k_line']
-        indicators['stoch_rsi_d'] = stoch_rsi['d_line']
-        indicators['stoch_rsi_signal'] = stoch_rsi['signal']
-        indicators['stoch_rsi_overbought'] = stoch_rsi['overbought']
-        indicators['stoch_rsi_oversold'] = stoch_rsi['oversold']
+        # Stochastic RSI - REMOVED (replaced by TIER 2 enhanced version below)
+        # stoch_rsi = calculate_stochastic_rsi(df['close'])
+        # indicators['stoch_rsi_k'] = stoch_rsi['k_line']
+        # indicators['stoch_rsi_d'] = stoch_rsi['d_line']
+        # indicators['stoch_rsi_signal'] = stoch_rsi['signal']
+        # indicators['stoch_rsi_overbought'] = stoch_rsi['overbought']
+        # indicators['stoch_rsi_oversold'] = stoch_rsi['oversold']
 
         # SuperTrend (superior trend indicator)
         supertrend = calculate_supertrend(df)
@@ -97,12 +97,12 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
         indicators['vwap_bias'] = vwap['bias']
         indicators['above_vwap'] = vwap['above_vwap']
 
-        # MFI (volume-weighted RSI)
-        mfi = calculate_mfi(df)
-        indicators['mfi'] = mfi['mfi']
-        indicators['mfi_signal'] = mfi['signal']
-        indicators['mfi_overbought'] = mfi['overbought']
-        indicators['mfi_oversold'] = mfi['oversold']
+        # MFI - REMOVED (replaced by TIER 2 enhanced version below)
+        # mfi = calculate_mfi(df)
+        # indicators['mfi'] = mfi['mfi']
+        # indicators['mfi_signal'] = mfi['signal']
+        # indicators['mfi_overbought'] = mfi['overbought']
+        # indicators['mfi_oversold'] = mfi['oversold']
 
         # ATR as percentage of price (for volatility-adjusted stops)
         current_price = indicators['close']
