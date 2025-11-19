@@ -692,15 +692,15 @@ RESPONSE FORMAT (JSON only):
                 reasoning = "No clear directional signal"
 
             # CONSERVATIVE MODE: Adaptive leverage based on confidence
-            # Max 10x leverage, wider stops for safety
+            # 🎯 USER UPDATE: Max 5x leverage, ultra conservative
             if confidence >= 0.85:
-                leverage = 10  # Ultra high confidence (max)
-                stop_loss = 20.0
+                leverage = 5  # Ultra high confidence (max)
+                stop_loss = 18.0
             elif confidence >= 0.75:
-                leverage = 7  # High confidence
+                leverage = 4  # High confidence
                 stop_loss = 16.0
             elif confidence >= 0.70:
-                leverage = 5  # Acceptable confidence
+                leverage = 4  # Acceptable confidence
                 stop_loss = 14.0
             else:
                 leverage = 3  # Low confidence (minimum)

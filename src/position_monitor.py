@@ -287,20 +287,21 @@ class PositionMonitor:
             atr_percent = indicators_15m.get('atr_percent', 3.0)
 
             # Volatility-adjusted targets
+            # 🎯 USER UPDATE: Increased targets for better risk/reward with smaller positions
             if atr_percent < 2.5:
                 # Low volatility - tighter targets
-                PROFIT_TARGET_USD = Decimal("1.50")
-                LOSS_LIMIT_USD = Decimal("1.50")
+                PROFIT_TARGET_USD = Decimal("10.00")
+                LOSS_LIMIT_USD = Decimal("10.00")
                 TARGET_LEVEL = "TIGHT"
             elif atr_percent < 4.5:
                 # Medium volatility - standard targets
-                PROFIT_TARGET_USD = Decimal("2.00")
-                LOSS_LIMIT_USD = Decimal("2.00")
+                PROFIT_TARGET_USD = Decimal("12.50")
+                LOSS_LIMIT_USD = Decimal("12.50")
                 TARGET_LEVEL = "STANDARD"
             else:
                 # High volatility - wider targets (let winners run)
-                PROFIT_TARGET_USD = Decimal("2.50")
-                LOSS_LIMIT_USD = Decimal("2.50")
+                PROFIT_TARGET_USD = Decimal("15.00")
+                LOSS_LIMIT_USD = Decimal("15.00")
                 TARGET_LEVEL = "WIDE"
 
             logger.debug(

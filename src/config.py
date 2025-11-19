@@ -35,13 +35,13 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("2.29"), gt=0)  # 🔥 SYNCED: Current actual Binance balance
-    min_leverage: int = Field(default=5, ge=1, le=50)  # 🎯 CONSERVATIVE: 5x min leverage (safer entries)
-    max_leverage: int = Field(default=7, ge=1, le=50)  # 🎯 CONSERVATIVE: 7x max leverage (dynamic 5x-7x based on confidence)
+    min_leverage: int = Field(default=3, ge=1, le=50)  # 🎯 USER UPDATE: 3x min leverage (ultra-safe with smaller positions)
+    max_leverage: int = Field(default=5, ge=1, le=50)  # 🎯 USER UPDATE: 5x max leverage (dynamic 3x-5x based on confidence)
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔧 USER: 2 positions max (bakiye/2 = her pozisyon için yarısı)
-    position_size_percent: Decimal = Field(default=Decimal("0.85"), gt=0, le=1)  # 85% per position
-    min_stop_loss_percent: Decimal = Field(default=Decimal("12.0"), gt=0, le=100)  # 🎯 CONSERVATIVE: ~$0.70-0.98 loss at 5x-7x (ATR-based)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("18.0"), gt=0, le=100)  # 🎯 CONSERVATIVE: ~$1.05-1.47 loss at 5x-7x (ATR-based)
-    min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # 🎯 CONSERVATIVE: $1.20 profit target (realistic with 5x-7x leverage)
+    position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 🎯 USER UPDATE: 10% per position (~$100 with $1000 capital, smaller safer positions)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("12.0"), gt=0, le=100)  # 🎯 USER UPDATE: ~$0.70-0.98 loss at 3x-5x (ATR-based, ultra-safe)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("18.0"), gt=0, le=100)  # 🎯 USER UPDATE: ~$1.05-1.47 loss at 3x-5x (ATR-based, ultra-safe)
+    min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # 🎯 USER UPDATE: $1.20 profit target (realistic with 3x-5x leverage)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.75"), ge=0, le=1)  # 🎯 CONSERVATIVE: 75% min confidence (balanced - more opportunities)
     scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
@@ -313,38 +313,38 @@ PHASE 2: MOMENTUM & VOLUME ANALYSIS (Confirms Direction)
 
 PHASE 3: TRADE DECISION MATRIX (How to Decide)
 ═══════════════════════════════════════════════════
-CONFIDENCE SCORING SYSTEM (5x-7x DYNAMIC LEVERAGE - CONSERVATIVE):
+CONFIDENCE SCORING SYSTEM (3x-5x DYNAMIC LEVERAGE - ULTRA CONSERVATIVE):
 
 85-100% CONFIDENCE (Ultra High):
 ✓ All timeframes perfectly aligned
 ✓ 8+ confluence factors
 ✓ Strong momentum + volume + no major risks
 ✓ Perfect entry trigger at key level
-→ DYNAMIC LEVERAGE: Use 7x leverage (maximum)
+→ DYNAMIC LEVERAGE: Use 5x leverage (maximum)
 
 75-84% CONFIDENCE (High):
 ✓ Strong setup with 6-7 confluence factors
 ✓ Clear directional bias
 ✓ Most factors aligned
-→ DYNAMIC LEVERAGE: Use 6x leverage
+→ DYNAMIC LEVERAGE: Use 4x leverage
 
 65-74% CONFIDENCE (Good):
 ✓ Good setup with 4-5 confluence factors
 ✓ Clear direction
 ✓ Solid opportunity
-→ DYNAMIC LEVERAGE: Use 5x leverage
+→ DYNAMIC LEVERAGE: Use 4x leverage
 
 55-64% CONFIDENCE (Acceptable):
 ✓ Decent setup with 3-4 confluence factors
 ✓ Some directional bias
 ✓ ML learning opportunity
-→ DYNAMIC LEVERAGE: Use 5x leverage (minimum)
+→ DYNAMIC LEVERAGE: Use 3x leverage (minimum)
 
 50-54% CONFIDENCE (Speculative):
 ✓ Weak setup with 2-3 confluence factors
 ✓ Slight edge detected by AI
 ✓ Pure ML learning trade
-→ DYNAMIC LEVERAGE: Use 5x leverage (minimum)
+→ DYNAMIC LEVERAGE: Use 3x leverage (minimum)
 
 <50% CONFIDENCE:
 → SKIP: No edge detected
@@ -368,14 +368,14 @@ SCENARIO 1 - PERFECT SETUP (92% Confidence):
 - 1h: Pullback to EMA 12, holding support
 - 15m: RSI 55→62, MACD crossing up, volume increasing
 - Price: Just bounced off 1h support
-→ ACTION: BUY (LONG), confidence 0.92, leverage 9x, stop 16%
+→ ACTION: BUY (LONG), confidence 0.92, leverage 5x, stop 16%
 
 SCENARIO 2 - STRONG MOMENTUM (83% Confidence):
 - 4h: Downtrend, lower highs/lows
 - 1h: Resistance rejection, RSI 60→55
 - 15m: MACD turning down, volume on red candles
 - Funding: +0.08% (overleveraged longs)
-→ ACTION: SELL (SHORT), confidence 0.83, leverage 7x, stop 15%
+→ ACTION: SELL (SHORT), confidence 0.83, leverage 5x, stop 15%
 
 SCENARIO 3 - GOOD SCALP (72% Confidence):
 - 4h: Sideways consolidation
@@ -404,16 +404,16 @@ SCENARIO 5 - BREAKOUT PERFECTION (92% Confidence):
 - 15m: Price testing resistance 5th time, volume spiking
 - RSI: 68 (strong but not extreme)
 - All confluence factors aligned
-→ ACTION: BUY (LONG), confidence 0.92, leverage 10x (max), breakout trade
+→ ACTION: BUY (LONG), confidence 0.92, leverage 5x (max), breakout trade
 
-STOP-LOSS PLACEMENT (5x-7x DYNAMIC LEVERAGE - CONSERVATIVE APPROACH):
-- Stop-loss range: 12-18% of position value (ATR-based for 5x-7x leverage)
-- With 5x-7x leverage, this translates to 1.7-2.6% price movement
-- Maximum risk per trade: ~$0.70-1.47 loss on $5.85-8.19 position (12-18% of position)
+STOP-LOSS PLACEMENT (3x-5x DYNAMIC LEVERAGE - ULTRA CONSERVATIVE APPROACH):
+- Stop-loss range: 12-18% of position value (ATR-based for 3x-5x leverage)
+- With 3x-5x leverage, this translates to 2.4-6% price movement
+- Maximum risk per trade: ~$0.70-1.47 loss on smaller positions (12-18% of position)
 - Place BELOW recent swing low for longs (ATR-based buffer)
 - Place ABOVE recent swing high for shorts (ATR-based buffer)
 - Dynamic stops adapt to volatility (tight in low vol, wider in high vol)
-- 5x-7x leverage = conservative risk/reward with sustainable growth
+- 3x-5x leverage = ultra conservative risk/reward with sustainable growth
 
 TAKE-PROFIT STRATEGY:
 - Target minimum $1.20-$1.50 GROSS profit (covers commission+slippage for $1.00 NET profit)
@@ -423,19 +423,19 @@ TAKE-PROFIT STRATEGY:
 - With 4-5% stop: aim for 5-7% profit target (1.2:1 risk/reward minimum)
 - Extended target: 1.5-2x risk (8-12% profit) if strong trend + momentum
 - Use previous resistance (longs) or support (shorts) as natural targets
-- 20x leverage = small % moves generate good profit
+- 3x-5x leverage = conservative approach with steady profits
 
 RISK/REWARD REQUIREMENTS:
 - Minimum 1.5:1 ratio required to consider trade
 - Ideal: 2:1 or better
 - Adaptive stop-loss based on win rate and volatility
 
-CONFIDENCE SCORING (5x-7x DYNAMIC LEVERAGE - CONSERVATIVE):
-- 85-100%: Perfect setup, use 7x leverage (max risk ~$1.47 per trade)
-- 75-84%: Strong setup, use 6x leverage (max risk ~$1.26 per trade)
-- 65-74%: Good setup, use 5x leverage (max risk ~$1.05 per trade)
-- 55-64%: Acceptable setup, use 5x leverage (max risk ~$1.05 per trade)
-- 50-54%: Speculative setup, use 5x leverage (max risk ~$1.05 per trade)
+CONFIDENCE SCORING (3x-5x DYNAMIC LEVERAGE - ULTRA CONSERVATIVE):
+- 85-100%: Perfect setup, use 5x leverage (max risk ~$1.47 per trade)
+- 75-84%: Strong setup, use 4x leverage (max risk ~$1.26 per trade)
+- 65-74%: Good setup, use 4x leverage (max risk ~$1.05 per trade)
+- 55-64%: Acceptable setup, use 3x leverage (max risk ~$1.05 per trade)
+- 50-54%: Speculative setup, use 3x leverage (max risk ~$1.05 per trade)
 - <50%: DO NOT TRADE (no edge detected)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -495,21 +495,21 @@ def build_analysis_prompt(symbol: str, market_data: dict) -> str:
     return f"""You are a professional cryptocurrency leverage trader analyzing {symbol} for a leveraged trade.
 Analysis ID: {symbol}_{timestamp}
 
-CRITICAL REQUIREMENTS (5x-7x DYNAMIC LEVERAGE - CONSERVATIVE):
-1. Stop-loss range: 12-18% of position value (ATR-based for 5x-7x leverage)
+CRITICAL REQUIREMENTS (3x-5x DYNAMIC LEVERAGE - ULTRA CONSERVATIVE):
+1. Stop-loss range: 12-18% of position value (ATR-based for 3x-5x leverage)
 2. Minimum profit target: $1.20-$1.50 USD GROSS (covers commission+slippage for $1.00 NET profit)
-3. Leverage: DYNAMIC 5x-7x based on confidence (CONSERVATIVE APPROACH)
+3. Leverage: DYNAMIC 3x-5x based on confidence (ULTRA CONSERVATIVE APPROACH)
 4. Minimum confidence: 50% to execute trade
 5. Risk/reward ratio must be at least 1.2:1 (accounting for commission+slippage)
 6. LEVERAGE RULES:
-   - 85-100% confidence: 7x leverage (maximum)
-   - 75-84% confidence: 6x leverage
-   - 50-74% confidence: 5x leverage (minimum)
-   - NEVER exceed 7x leverage (hard limit)
-   - NEVER go below 5x leverage (hard limit)
+   - 85-100% confidence: 5x leverage (maximum)
+   - 75-84% confidence: 4x leverage
+   - 50-74% confidence: 3x leverage (minimum)
+   - NEVER exceed 5x leverage (hard limit)
+   - NEVER go below 3x leverage (hard limit)
 7. Stop-loss must ensure max ~$0.70-1.47 loss per trade (12-18% of position, ATR-based)
 8. Commission awareness: Add ~$0.10-$0.30 to profit target to cover fees
-9. Provide varied confidence (50-95%) with dynamic leverage (5x-7x)
+9. Provide varied confidence (50-95%) with dynamic leverage (3x-5x)
 
 CURRENT MARKET DATA:
 Price: ${market_data['current_price']:.4f}
