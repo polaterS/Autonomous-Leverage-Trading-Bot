@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     max_stop_loss_percent: Decimal = Field(default=Decimal("18.0"), gt=0, le=100)  # 🎯 USER UPDATE: ~$1.05-1.47 loss at 3x-5x (ATR-based, ultra-safe)
     min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # 🎯 USER UPDATE: $1.20 profit target (realistic with 3x-5x leverage)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.75"), ge=0, le=1)  # 🎯 CONSERVATIVE: 75% min confidence (balanced - more opportunities)
+    min_ai_confidence: Decimal = Field(default=Decimal("0.65"), ge=0, le=1)  # 🎯 USER UPDATE: 65% min confidence (capture more PA opportunities like TIA/MINA)
     scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
     position_check_seconds: int = Field(default=3, ge=1)  # 🔥 INSTANT PROFIT CAPTURE: 3 seconds for real-time monitoring (prevent profit erosion!)
 
