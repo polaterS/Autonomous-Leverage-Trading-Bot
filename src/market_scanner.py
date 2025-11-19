@@ -1510,9 +1510,16 @@ class MarketScanner:
         model_name = analysis.get('model_name', 'unknown')
         confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
 
-        # PA-ONLY gets lower threshold (40 vs 60) since PA has strict internal filters
-        # 🎯 LOWERED from 50 to 40 for PA-ONLY (TIER 2 indicators very strict, best trades had 45/100)
-        min_confluence_score = 40 if model_name == 'PA-ONLY' else 60
+        # 🎯 RELAXED: Different thresholds for different signal types
+        # PA-ONLY: 40 (strictest PA filters + confluence)
+        # PA-Override: 50 (PA validated but no ML pattern - relaxed for more opportunities)
+        # Others (ML): 60 (standard threshold)
+        if model_name == 'PA-ONLY':
+            min_confluence_score = 40
+        elif model_name == 'PA-Override':
+            min_confluence_score = 50  # 🎯 RELAXED: Catch TIA-like opportunities
+        else:
+            min_confluence_score = 60
 
         if not confluence['approved'] or confluence['score'] < min_confluence_score:
             logger.warning(
