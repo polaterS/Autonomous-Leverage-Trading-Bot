@@ -125,6 +125,9 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
             indicators['ichimoku_trend_strength'] = ichimoku['trend_strength']
         except Exception as e:
             # Fallback: Neutral Ichimoku if calculation fails
+            import logging
+            logger = logging.getLogger('trading_bot')
+            logger.warning(f"⚠️ Ichimoku calculation failed, using NEUTRAL fallback: {e}")
             indicators['ichimoku_conversion'] = current_price
             indicators['ichimoku_base'] = current_price
             indicators['ichimoku_span_a'] = current_price
@@ -144,6 +147,9 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
             indicators['stoch_rsi_zone'] = stoch_rsi_new['zone']
         except Exception as e:
             # Fallback: Neutral StochRSI if calculation fails
+            import logging
+            logger = logging.getLogger('trading_bot')
+            logger.warning(f"⚠️ StochRSI calculation failed, using NEUTRAL fallback: {e}")
             indicators['stoch_rsi_value'] = 50.0
             indicators['stoch_rsi_k_new'] = 50.0
             indicators['stoch_rsi_d_new'] = 50.0
@@ -159,6 +165,9 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
             indicators['mfi_buying_pressure'] = mfi_new['buying_pressure']
         except Exception as e:
             # Fallback: Neutral MFI if calculation fails
+            import logging
+            logger = logging.getLogger('trading_bot')
+            logger.warning(f"⚠️ MFI calculation failed, using NEUTRAL fallback: {e}")
             indicators['mfi_value'] = 50.0
             indicators['mfi_signal_new'] = 'NEUTRAL'
             indicators['mfi_zone'] = 'NEUTRAL'
