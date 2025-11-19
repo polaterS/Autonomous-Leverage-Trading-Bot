@@ -175,10 +175,39 @@ Sit back and monitor your portfolio! 💰
                     support_levels = pa_data.get('support_levels', [])
                     resistance_levels = pa_data.get('resistance_levels', [])
 
+                    # 🎯 ENHANCED: Show multiple S/R levels (2-4) for better context
+                    # USER REQUEST: Show nearby candles' support/resistance levels
+                    # - Traders need to see multiple levels for better decision making
+                    # - Shows confluences and zones, not just single price
                     if support_levels:
-                        message_parts.append(f"   🟢 Key Support: <b>${float(support_levels[0]):.4f}</b>")
+                        # Get current price for distance calculation
+                        current_price = Decimal(str(position['entry_price']))
+
+                        # Show up to 3 nearest support levels
+                        num_supports = min(3, len(support_levels))
+                        if num_supports == 1:
+                            message_parts.append(f"   🟢 Support: <b>${float(support_levels[0]):.4f}</b>")
+                        else:
+                            support_lines = []
+                            for i, level in enumerate(support_levels[:num_supports]):
+                                dist_pct = abs((current_price - Decimal(str(level))) / current_price * 100)
+                                support_lines.append(f"${float(level):.4f} ({float(dist_pct):.1f}%)")
+                            message_parts.append(f"   🟢 Supports: <b>{' → '.join(support_lines)}</b>")
+
                     if resistance_levels:
-                        message_parts.append(f"   🔴 Key Resistance: <b>${float(resistance_levels[0]):.4f}</b>")
+                        # Get current price for distance calculation
+                        current_price = Decimal(str(position['entry_price']))
+
+                        # Show up to 3 nearest resistance levels
+                        num_resistances = min(3, len(resistance_levels))
+                        if num_resistances == 1:
+                            message_parts.append(f"   🔴 Resistance: <b>${float(resistance_levels[0]):.4f}</b>")
+                        else:
+                            resistance_lines = []
+                            for i, level in enumerate(resistance_levels[:num_resistances]):
+                                dist_pct = abs((Decimal(str(level)) - current_price) / current_price * 100)
+                                resistance_lines.append(f"${float(level):.4f} ({float(dist_pct):.1f}%)")
+                            message_parts.append(f"   🔴 Resistances: <b>{' → '.join(resistance_lines)}</b>")
 
                     # Risk/Reward from PA analyzer
                     rr_ratio = pa_data.get('rr_ratio', 0)
