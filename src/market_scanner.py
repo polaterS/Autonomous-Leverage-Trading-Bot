@@ -389,7 +389,9 @@ class MarketScanner:
                     # ML pattern filter is redundant and blocks good PA setups
                     model_name = opp.get('model', 'unknown')
 
-                    if model_name != 'PA-ONLY':
+                    # 🔥 FIX: Bypass ML filter for both PA-ONLY and PA-Override
+                    # PA-Override = ML said HOLD but PA found setup (still PA-driven!)
+                    if not model_name.startswith('PA-'):
                         # Only apply ML pattern filter to ML/AI-based trades
                         reasoning = opp['analysis'].get('reasoning', '')
                         patterns = ml_learner._extract_pattern_keywords(reasoning)
