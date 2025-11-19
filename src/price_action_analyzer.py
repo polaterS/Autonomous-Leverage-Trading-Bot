@@ -68,16 +68,16 @@ class PriceActionAnalyzer:
         self.trend_lookback = 20  # Candles for trend detection
         self.adx_period = 14  # ADX calculation period
         self.strong_trend_threshold = 30  # 🔥 STRICT: ADX > 30 = strong trend
-        self.min_trend_threshold = 20  # 🎯 CONSERVATIVE: Minimum ADX 20 (industry standard, more opportunities)
+        self.min_trend_threshold = 15  # 🎯 RELAXED: Minimum ADX 15 (find more opportunities, allow ranging)
 
         # Volume parameters
         self.volume_surge_multiplier = 2.0  # 🎯 CONSERVATIVE: 2.0x average = realistic surge
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🎯 BALANCED: Realistic tolerances for both LONG and SHORT entries
+        # 🎯 RELAXED: More flexible tolerances for more opportunities
         # Trade near S/R levels with room to target - same for LONG/SHORT
-        self.support_resistance_tolerance = 0.04  # 🔥 4% max distance to S/R (realistic for both directions)
-        self.room_to_opposite_level = 0.04  # 🎯 BALANCED: 4% min room to target (realistic for both directions)
+        self.support_resistance_tolerance = 0.05  # 🎯 RELAXED: 5% max distance to S/R (find more setups)
+        self.room_to_opposite_level = 0.035  # 🎯 RELAXED: 3.5% min room to target (closer targets ok)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -94,23 +94,21 @@ class PriceActionAnalyzer:
 
         # 🔥 NEW: Order flow parameters
         self.order_flow_lookback = 10  # Candles for buy/sell pressure
-        self.strong_pressure_threshold = 0.65  # 65%+ = strong bias
+        self.strong_pressure_threshold = 0.70  # 🎯 RELAXED: 70%+ = strong bias (less strict conflicts)
 
         # 🔥 NEW: Market structure parameters
         self.structure_swing_window = 5  # Smaller window for structure breaks
         self.choch_confirmation_candles = 2  # Candles to confirm CHoCH
 
         logger.info(
-            f"✅ PriceActionAnalyzer BALANCED v3.0 initialized:\n"
-            f"   - Swing detection: {self.swing_window} candles\n"
-            f"   - Min R/R ratio: {self.min_rr_ratio}:1\n"
-            f"   - Trend lookback: {self.trend_lookback} candles\n"
-            f"   - S/R tolerance: {self.support_resistance_tolerance*100:.0f}% (LONG & SHORT)\n"
-            f"   - Volume surge threshold: {self.volume_surge_multiplier}x (MODERATE trends)\n"
-            f"   - Candlestick patterns: Pin bars, Engulfing, Hammers\n"
-            f"   - Order flow analysis: Buy/Sell pressure tracking\n"
-            f"   - Market structure: BOS/CHoCH detection\n"
-            f"   - 🎯 BALANCED: Equal opportunity for LONG & SHORT trades"
+            f"✅ PriceActionAnalyzer RELAXED v3.1 initialized:\n"
+            f"   - Min ADX threshold: {self.min_trend_threshold} (relaxed from 20)\n"
+            f"   - S/R tolerance: {self.support_resistance_tolerance*100:.1f}% (relaxed from 4%)\n"
+            f"   - Room to target: {self.room_to_opposite_level*100:.1f}% (relaxed from 4%)\n"
+            f"   - Min R/R ratio: {self.min_rr_ratio}:1 (KEPT for safety)\n"
+            f"   - Volume protection: ENABLED (prevent TIA-type failures)\n"
+            f"   - Advanced filters: DISABLED (find more opportunities)\n"
+            f"   - 🎯 RELAXED: More opportunities, controlled risk"
         )
 
     def find_swing_highs(self, df: pd.DataFrame, window: int = None) -> List[float]:
@@ -974,11 +972,11 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🎯 CONSERVATIVE FILTER #1: Check total S/R count (need 3+ for good reliability)
-            # Balanced approach: 3+ levels provides good confidence without being too strict
+            # 🎯 RELAXED FILTER #1: Check total S/R count (need 2+ for basic reliability)
+            # Relaxed approach: 2+ levels is acceptable (find more opportunities)
             total_sr_levels = len(supports) + len(resistances)
-            if total_sr_levels < 3:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 3+ for quality)'
+            if total_sr_levels < 2:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+ minimum)'
                 return result
 
             # 🎯 CONSERVATIVE FILTER #2: Check ADX for trend strength (need 20+ for trending market)
@@ -1029,12 +1027,18 @@ class PriceActionAnalyzer:
                     return result
                 logger.info(f"   ✅ SIDEWAYS SCALP LONG: Support bounce + volume surge (balanced setup)")
 
-            # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
-            # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
-            # FIX: Require minimum MODERATE trend strength
+            # 🎯 RELAXED: Allow WEAK trends with extra confirmation
+            # WEAK trends allowed if: volume surge + good R/R (calculated later)
+            # This prevents immediate rejection but adds safety checks
+            weak_trend_allowed = False
             if trend['strength'] == 'WEAK':
-                result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
-                return result
+                # WEAK trend must have volume surge for confirmation
+                if volume['is_surge']:
+                    weak_trend_allowed = True
+                    logger.info(f"   ⚠️ WEAK {trend['direction']} (ADX {adx:.1f}) allowed - volume surge confirmed")
+                else:
+                    result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) needs volume surge for confirmation'
+                    return result
 
             # 🎯 CRITICAL FIX: Volume confirmation for ALL trends (even STRONG)
             # USER ISSUE: TIA opened with 0.6x volume (BELOW average) and failed
@@ -1076,21 +1080,13 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
                 return result
 
-            # 🔥 NEW FILTERS: Candlestick patterns + order flow + structure
-            # Check 6: Candlestick pattern confirmation
-            if candle_patterns['signal'] in ['STRONG_BEARISH', 'BEARISH']:
-                result['reason'] = f'Bearish candle pattern conflicts with LONG: {", ".join(candle_patterns["patterns"])}'
-                return result
+            # 🎯 RELAXED: Advanced filters DISABLED for more opportunities
+            # These filters were too strict and filtered out many valid setups
+            # Keeping only critical filters: Volume + R/R ratio
 
-            # Check 7: Order flow must support LONG (buyers in control)
-            if order_flow['bias'] in ['STRONG_SELLERS', 'SELLERS']:
-                result['reason'] = f'Order flow shows sellers in control ({order_flow["sell_pressure"]:.0%}) - conflicts with LONG'
-                return result
-
-            # Check 8: Market structure should support LONG (bullish BOS or CHoCH)
-            if market_structure['structure'] in ['BEARISH_BOS', 'BEARISH_CHOCH']:
-                result['reason'] = f'Bearish market structure ({market_structure["structure"]}) - conflicts with LONG'
-                return result
+            # DISABLED: Candlestick pattern filter (too strict)
+            # DISABLED: Order flow filter (too strict)
+            # DISABLED: Market structure filter (too strict)
 
             # ✅ ALL CHECKS PASSED - PERFECT LONG SETUP!
             confidence_boost = 0
@@ -1157,11 +1153,11 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🎯 CONSERVATIVE FILTER #1: Check total S/R count (need 3+ for good reliability)
-            # Balanced approach: 3+ levels provides good confidence without being too strict
+            # 🎯 RELAXED FILTER #1: Check total S/R count (need 2+ for basic reliability)
+            # Relaxed approach: 2+ levels is acceptable (find more opportunities)
             total_sr_levels = len(supports) + len(resistances)
-            if total_sr_levels < 3:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 3+ for quality)'
+            if total_sr_levels < 2:
+                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+ minimum)'
                 return result
 
             # 🎯 CONSERVATIVE FILTER #2: Check ADX for trend strength (need 20+ for trending market)
@@ -1212,12 +1208,18 @@ class PriceActionAnalyzer:
                     return result
                 logger.info(f"   ✅ SIDEWAYS SCALP SHORT: Resistance rejection + volume surge (balanced setup)")
 
-            # 🔥 CRITICAL: REJECT WEAK TRENDS ENTIRELY (no exceptions!)
-            # USER ISSUE: "WEAK" trends lead to choppy price action and stop-loss hits
-            # FIX: Require minimum MODERATE trend strength
+            # 🎯 RELAXED: Allow WEAK trends with extra confirmation
+            # WEAK trends allowed if: volume surge + good R/R (calculated later)
+            # This prevents immediate rejection but adds safety checks
+            weak_trend_allowed = False
             if trend['strength'] == 'WEAK':
-                result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) - need MODERATE or STRONG trend'
-                return result
+                # WEAK trend must have volume surge for confirmation
+                if volume['is_surge']:
+                    weak_trend_allowed = True
+                    logger.info(f"   ⚠️ WEAK {trend['direction']} (ADX {adx:.1f}) allowed - volume surge confirmed")
+                else:
+                    result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) needs volume surge for confirmation'
+                    return result
 
             # 🎯 CRITICAL FIX: Volume confirmation for ALL trends (even STRONG)
             # USER ISSUE: TIA opened with 0.6x volume (BELOW average) and failed
