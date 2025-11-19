@@ -282,30 +282,25 @@ class PositionMonitor:
             # - Trailing stops lock in profits as position moves favorably
             # ====================================================================
 
-            # Get volatility from indicators
+            # 🔥 CRITICAL FIX: Use database profit target (user's configured value)
+            # PROBLEM: Volatility-based targets ($10-15) were TOO HIGH
+            # - Position hits $6.46 profit ✓
+            # - But target is $10+ ✗
+            # - Position never closes! ✗
+            #
+            # SOLUTION: Use min_profit_target_usd from database (user's config)
+            # - Consistent with what Telegram shows user
+            # - Positions close at achievable targets
+            PROFIT_TARGET_USD = Decimal(str(position.get('min_profit_target_usd', self.settings.min_profit_usd)))
+            LOSS_LIMIT_USD = PROFIT_TARGET_USD  # Symmetric risk/reward
+
+            # Get volatility for logging only
             indicators_15m = indicators if indicators else {}
             atr_percent = indicators_15m.get('atr_percent', 3.0)
+            TARGET_LEVEL = "LOW VOL" if atr_percent < 2.5 else "MED VOL" if atr_percent < 4.5 else "HIGH VOL"
 
-            # Volatility-adjusted targets
-            # 🎯 USER UPDATE: Increased targets for better risk/reward with smaller positions
-            if atr_percent < 2.5:
-                # Low volatility - tighter targets
-                PROFIT_TARGET_USD = Decimal("10.00")
-                LOSS_LIMIT_USD = Decimal("10.00")
-                TARGET_LEVEL = "TIGHT"
-            elif atr_percent < 4.5:
-                # Medium volatility - standard targets
-                PROFIT_TARGET_USD = Decimal("12.50")
-                LOSS_LIMIT_USD = Decimal("12.50")
-                TARGET_LEVEL = "STANDARD"
-            else:
-                # High volatility - wider targets (let winners run)
-                PROFIT_TARGET_USD = Decimal("15.00")
-                LOSS_LIMIT_USD = Decimal("15.00")
-                TARGET_LEVEL = "WIDE"
-
-            logger.debug(
-                f"🎯 Exit targets: Profit ${float(PROFIT_TARGET_USD):.2f}, "
+            logger.info(
+                f"🎯 Exit targets (from DB): Profit +${float(PROFIT_TARGET_USD):.2f}, "
                 f"Loss -${float(LOSS_LIMIT_USD):.2f} "
                 f"(ATR {atr_percent:.2f}% = {TARGET_LEVEL})"
             )

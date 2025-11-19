@@ -3,7 +3,11 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cat:*)",
+      "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\Desktop\\Github\\Autonomous-Leverage-Trading-Bot\\src\\indicators.py\")",
+      "Bash(python:*)",
+      "Bash(pip install:*)"
     ],
     "deny": [],
     "ask": []

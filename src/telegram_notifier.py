@@ -166,58 +166,104 @@ Sit back and monitor your portfolio! 💰
 
         pa_data = position.get('price_action')
         if pa_data and isinstance(pa_data, dict):
-            # PA data comes from snapshot_capture._analyze_price_action()
-            nearest_support = pa_data.get('nearest_support')
-            nearest_resistance = pa_data.get('nearest_resistance')
+            # 🔥 FIX: Support BOTH PA data formats:
+            # 1. OLD: snapshot_capture format (nearest_support, nearest_resistance)
+            # 2. NEW: price_action_analyzer format (support_levels, resistance_levels, validated, reason)
 
-            # Show if we have real PA data (not fallback)
-            if nearest_support and nearest_resistance:
-                # Support & Resistance levels
-                support_dist = pa_data.get('support_dist', 0) * 100
-                resistance_dist = pa_data.get('resistance_dist', 0) * 100
+            # Check which format we have
+            has_old_format = pa_data.get('nearest_support') and pa_data.get('nearest_resistance')
+            has_new_format = pa_data.get('validated') and pa_data.get('reason')
 
-                message_parts.append(
-                    f"   🟢 Support: <b>${float(nearest_support):.4f}</b> ({support_dist:.1f}% away)"
-                )
-                message_parts.append(
-                    f"   🔴 Resistance: <b>${float(nearest_resistance):.4f}</b> ({resistance_dist:.1f}% away)"
-                )
+            # Show if we have real PA data (either format)
+            if has_old_format or has_new_format:
+                # ━━━ NEW FORMAT (price_action_analyzer.py) ━━━
+                if has_new_format:
+                    # Show PA validation reason
+                    message_parts.append(f"   ✅ <b>{pa_data.get('reason', 'PA setup confirmed')}</b>")
 
-                # S/R Strength
-                sr_strength = pa_data.get('sr_strength_score', 0)
-                swing_lows = pa_data.get('swing_lows_count', 0)
-                swing_highs = pa_data.get('swing_highs_count', 0)
-                message_parts.append(
-                    f"   💪 S/R Strength: <b>{float(sr_strength):.0%}</b> ({swing_lows} lows, {swing_highs} highs)"
-                )
+                    # Support & Resistance
+                    support_levels = pa_data.get('support_levels', [])
+                    resistance_levels = pa_data.get('resistance_levels', [])
 
-                # Risk/Reward
-                rr_long = pa_data.get('rr_long', 0)
-                rr_short = pa_data.get('rr_short', 0)
-                if position['side'] == 'LONG':
-                    message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_long):.2f}:1</b> (LONG)")
+                    if support_levels:
+                        message_parts.append(f"   🟢 Key Support: <b>${float(support_levels[0]):.4f}</b>")
+                    if resistance_levels:
+                        message_parts.append(f"   🔴 Key Resistance: <b>${float(resistance_levels[0]):.4f}</b>")
+
+                    # Risk/Reward from PA analyzer
+                    rr_ratio = pa_data.get('rr_ratio', 0)
+                    if rr_ratio > 0:
+                        message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_ratio):.2f}:1</b>")
+
+                    # Trend from PA analyzer
+                    trend = pa_data.get('trend', 'N/A')
+                    trend_strength = pa_data.get('trend_strength', 'N/A')
+                    adx = pa_data.get('adx', 0)
+
+                    trend_emoji = '📈' if 'UP' in str(trend).upper() else '📉' if 'DOWN' in str(trend).upper() else '➡️'
+                    message_parts.append(
+                        f"   {trend_emoji} Trend: <b>{trend}</b> ({trend_strength}, ADX: {float(adx):.1f})"
+                    )
+
+                    # Volume from PA analyzer
+                    volume_surge = pa_data.get('volume_surge', False)
+                    volume_ratio = pa_data.get('volume_ratio', 1.0)
+
+                    surge_emoji = '🔥' if volume_surge else '📊'
+                    message_parts.append(
+                        f"   {surge_emoji} Volume: <b>{float(volume_ratio):.1f}x avg</b>" +
+                        (" (SURGE!)" if volume_surge else "")
+                    )
+
+                # ━━━ OLD FORMAT (snapshot_capture) ━━━
                 else:
-                    message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_short):.2f}:1</b> (SHORT)")
+                    nearest_support = pa_data.get('nearest_support')
+                    nearest_resistance = pa_data.get('nearest_resistance')
+                    support_dist = pa_data.get('support_dist', 0) * 100
+                    resistance_dist = pa_data.get('resistance_dist', 0) * 100
 
-                # Trend Analysis
-                trend_direction = pa_data.get('trend_direction', 'SIDEWAYS')
-                trend_adx = pa_data.get('trend_adx', 0)
-                trend_quality = pa_data.get('trend_quality', 0)
+                    message_parts.append(
+                        f"   🟢 Support: <b>${float(nearest_support):.4f}</b> ({support_dist:.1f}% away)"
+                    )
+                    message_parts.append(
+                        f"   🔴 Resistance: <b>${float(nearest_resistance):.4f}</b> ({resistance_dist:.1f}% away)"
+                    )
 
-                trend_emoji = '📈' if trend_direction == 'UPTREND' else '📉' if trend_direction == 'DOWNTREND' else '➡️'
-                message_parts.append(
-                    f"   {trend_emoji} Trend: <b>{trend_direction}</b> | Quality: <b>{float(trend_quality):.0%}</b> (ADX: {float(trend_adx):.1f})"
-                )
+                    # S/R Strength
+                    sr_strength = pa_data.get('sr_strength_score', 0)
+                    swing_lows = pa_data.get('swing_lows_count', 0)
+                    swing_highs = pa_data.get('swing_highs_count', 0)
+                    message_parts.append(
+                        f"   💪 S/R Strength: <b>{float(sr_strength):.0%}</b> ({swing_lows} lows, {swing_highs} highs)"
+                    )
 
-                # Volume Analysis
-                volume_surge = pa_data.get('volume_surge', False)
-                volume_ratio = pa_data.get('volume_surge_ratio', 1.0)
+                    # Risk/Reward
+                    rr_long = pa_data.get('rr_long', 0)
+                    rr_short = pa_data.get('rr_short', 0)
+                    if position['side'] == 'LONG':
+                        message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_long):.2f}:1</b> (LONG)")
+                    else:
+                        message_parts.append(f"   ⚖️ Risk/Reward: <b>{float(rr_short):.2f}:1</b> (SHORT)")
 
-                surge_emoji = '🔥' if volume_surge else '📊'
-                message_parts.append(
-                    f"   {surge_emoji} Volume: <b>{float(volume_ratio):.1f}x avg</b>" +
-                    (" (SURGE!)" if volume_surge else "")
-                )
+                    # Trend Analysis
+                    trend_direction = pa_data.get('trend_direction', 'SIDEWAYS')
+                    trend_adx = pa_data.get('trend_adx', 0)
+                    trend_quality = pa_data.get('trend_quality', 0)
+
+                    trend_emoji = '📈' if trend_direction == 'UPTREND' else '📉' if trend_direction == 'DOWNTREND' else '➡️'
+                    message_parts.append(
+                        f"   {trend_emoji} Trend: <b>{trend_direction}</b> | Quality: <b>{float(trend_quality):.0%}</b> (ADX: {float(trend_adx):.1f})"
+                    )
+
+                    # Volume Analysis
+                    volume_surge = pa_data.get('volume_surge', False)
+                    volume_ratio = pa_data.get('volume_surge_ratio', 1.0)
+
+                    surge_emoji = '🔥' if volume_surge else '📊'
+                    message_parts.append(
+                        f"   {surge_emoji} Volume: <b>{float(volume_ratio):.1f}x avg</b>" +
+                        (" (SURGE!)" if volume_surge else "")
+                    )
             else:
                 # No PA signals detected - show this to user so they know PA is running
                 message_parts.append(
