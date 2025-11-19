@@ -229,105 +229,90 @@ class AIConsensusEngine:
                 'price_action': None
             }
 
-        # Analyze Support/Resistance
-        sr_analysis = pa_analyzer.analyze_support_resistance(df)
-        trend = pa_analyzer.detect_trend(df)
-        volume = pa_analyzer.analyze_volume(df)
+        # 🔥 USE ADVANCED PA ANALYZER instead of basic logic!
+        # price_action_analyzer.should_enter_trade() includes:
+        # - S/R analysis
+        # - Trend analysis
+        # - Volume analysis
+        # - Candle patterns
+        # - Order flow analysis
+        # - Market structure
+        # - RISK/REWARD filtering (minimum 2:1 ratio)
+        # - Stop-loss optimization
+        #
+        # OLD: Basic PA logic here (only S/R + trend + volume)
+        # NEW: Advanced PA analyzer with full confluence system
 
-        logger.info(
-            f"📊 PA Analysis: {symbol} | "
-            f"Trend: {trend['direction']} ({trend['strength']}) | "
-            f"Volume: {volume['surge_ratio']:.1f}x | "
-            f"S/R: {len(sr_analysis.get('support', []))} supports, {len(sr_analysis.get('resistance', []))} resistances"
+        # Call should_enter_trade() for professional PA analysis
+        pa_result = pa_analyzer.should_enter_trade(
+            symbol=symbol,
+            df=df,
+            ml_signal='BUY',  # Check both LONG and SHORT
+            ml_confidence=0.75,  # Base confidence
+            current_price=current_price
         )
 
-        # Determine PA signal based on trend + support/resistance
-        pa_action = 'hold'
-        pa_side = None
-        pa_confidence = 0.0
-        pa_reasoning = ''
+        # Check LONG first
+        if pa_result['should_enter']:
+            pa_action = 'buy'
+            pa_side = 'LONG'
+            pa_confidence = min(0.75 + (pa_result['confidence_boost'] / 100), 0.95)
+            pa_reasoning = pa_result['reason']
+            logger.info(f"✅ LONG setup found: {pa_reasoning}")
+        else:
+            # Check SHORT
+            pa_result_short = pa_analyzer.should_enter_trade(
+                symbol=symbol,
+                df=df,
+                ml_signal='SELL',  # Check SHORT
+                ml_confidence=0.75,
+                current_price=current_price
+            )
+
+            if pa_result_short['should_enter']:
+                pa_action = 'sell'
+                pa_side = 'SHORT'
+                pa_confidence = min(0.75 + (pa_result_short['confidence_boost'] / 100), 0.95)
+                pa_reasoning = pa_result_short['reason']
+                logger.info(f"✅ SHORT setup found: {pa_reasoning}")
+                pa_result = pa_result_short  # Use SHORT result
+            else:
+                # No setup found for either direction
+                pa_action = 'hold'
+                pa_side = None
+                pa_confidence = 0.0
+                pa_reasoning = pa_result.get('reason', 'No valid PA setup found')
+                logger.info(f"🚫 No PA setup: {pa_reasoning}")
+
+        # Get PA analysis data for metrics
+        sr_analysis = pa_result['analysis']['support_resistance']
+        trend = pa_result['analysis']['trend']
+        volume = pa_result['analysis']['volume']
 
         supports = [s['price'] for s in sr_analysis.get('support', [])]
         resistances = [r['price'] for r in sr_analysis.get('resistance', [])]
 
-        # 🚫 CRITICAL FILTER #1: Check S/R strength
-        # USER ISSUE: PEOPLE had S/R Strength 0% → Lost -$32.45
         support_count = len(supports)
         resistance_count = len(resistances)
         total_sr_levels = support_count + resistance_count
 
-        # Initialize variables (needed for PA metrics calculation later)
-        nearest_support = None
-        nearest_resistance = None
-        dist_to_support = 0
-        dist_to_resistance = 0
+        # Get nearest S/R levels
+        nearest_support = min(supports, key=lambda x: abs(x - current_price)) if supports else None
+        nearest_resistance = min(resistances, key=lambda x: abs(x - current_price)) if resistances else None
+
+        dist_to_support = abs(current_price - nearest_support) / current_price if nearest_support else 0
+        dist_to_resistance = abs(current_price - nearest_resistance) / current_price if nearest_resistance else 0
+
         adx = trend.get('adx', 0)
 
-        if not supports or not resistances:
-            pa_reasoning = 'Insufficient S/R levels for PA analysis'
-        elif total_sr_levels < 3:
-            # Need at least 3 S/R levels total for reliable analysis
-            pa_reasoning = f'Weak S/R: Only {total_sr_levels} levels (need 3+) - REJECTED'
-            logger.info(f"🚫 PA Filter: {pa_reasoning}")
-        else:
-            nearest_support = min(supports, key=lambda x: abs(x - current_price))
-            nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
-
-            dist_to_support = abs(current_price - nearest_support) / current_price
-            dist_to_resistance = abs(current_price - nearest_resistance) / current_price
-
-            # 🔧 FIX: STRICTER PA entry requirements (prevent too many bad trades)
-            # OLD: 6% tolerance → Too many trades, 80% loss rate!
-            # NEW: 3% tolerance → Only trade when VERY close to S/R
-
-            # 🚫 CRITICAL FILTER: Reject SIDEWAYS trends (no direction = high risk!)
-            # USER ISSUE: PEOPLE trade was SIDEWAYS with ADX 0.0 → Lost -$32.45
-            adx = trend.get('adx', 0)
-            if trend['direction'] == 'SIDEWAYS' or adx < 15:
-                pa_reasoning = f"REJECTED: Trend {trend['direction']} (ADX: {adx:.1f}) - No clear direction!"
-                logger.info(f"🚫 PA Filter: {pa_reasoning}")
-
-            # LONG setup: Near support + uptrend
-            elif dist_to_support <= 0.03 and trend['direction'] == 'UPTREND':
-                pa_action = 'buy'
-                pa_side = 'LONG'
-                pa_confidence = 0.65  # Base 65% (higher than before)
-
-                # Boost confidence for strong conditions
-                if trend['strength'] == 'STRONG':
-                    pa_confidence += 0.10
-                if volume['is_surge']:
-                    pa_confidence += 0.10
-                if dist_to_support <= 0.015:  # Very close to support (1.5%)
-                    pa_confidence += 0.05
-
-                pa_reasoning = f"LONG: Support bounce ({dist_to_support*100:.1f}% away) in {trend['direction']} (ADX: {adx:.1f})"
-
-            # SHORT setup: Near resistance + downtrend
-            elif dist_to_resistance <= 0.03 and trend['direction'] == 'DOWNTREND':
-                pa_action = 'sell'
-                pa_side = 'SHORT'
-                pa_confidence = 0.65  # Base 65% (higher than before)
-
-                # Boost confidence for strong conditions
-                if trend['strength'] == 'STRONG':
-                    pa_confidence += 0.10
-                if volume['is_surge']:
-                    pa_confidence += 0.10
-                if dist_to_resistance <= 0.015:  # Very close to resistance (1.5%)
-                    pa_confidence += 0.05
-
-                pa_reasoning = f"SHORT: Resistance rejection ({dist_to_resistance*100:.1f}% away) in {trend['direction']} (ADX: {adx:.1f})"
-
-            else:
-                pa_reasoning = (
-                    f"No clear setup: "
-                    f"Support {dist_to_support*100:.1f}% away, "
-                    f"Resistance {dist_to_resistance*100:.1f}% away, "
-                    f"Trend: {trend['direction']} (ADX: {adx:.1f})"
-                )
-
-        logger.info(f"📊 PA Signal: {pa_action.upper()} @ {pa_confidence:.1%} | {pa_reasoning}")
+        logger.info(
+            f"📊 PA Analysis: {symbol} | "
+            f"Action: {pa_action.upper()} @ {pa_confidence:.1%} | "
+            f"Trend: {trend['direction']} ({trend['strength']}, ADX {adx:.1f}) | "
+            f"Volume: {volume['surge_ratio']:.1f}x | "
+            f"S/R: {support_count} supports, {resistance_count} resistances | "
+            f"R/R: {pa_result.get('rr_ratio', 0):.2f}:1"
+        )
 
         # 🔧 FIX: Calculate missing PA metrics for telegram_notifier
         # Calculate S/R strength score (0-1 based on number of levels)
