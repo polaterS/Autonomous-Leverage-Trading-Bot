@@ -1400,9 +1400,10 @@ class MarketScanner:
                 factors.append(f'MFI: {mfi_zone or mfi_signal}')
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # FINAL VERDICT: Need 60+/155 to approve (11 factors total)
+        # FINAL VERDICT: Need 40+/155 to approve (11 factors total)
+        # 🎯 LOWERED from 60 to 40 for PA-ONLY mode (TIER 2 indicators are very strict)
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        approved = score >= 60
+        approved = score >= 40
 
         if not approved:
             missing_factors = []
@@ -1510,8 +1511,9 @@ class MarketScanner:
         model_name = analysis.get('model_name', 'unknown')
         confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
 
-        # PA-ONLY gets slightly lower threshold (50 vs 60) since PA has strict internal filters
-        min_confluence_score = 50 if model_name == 'PA-ONLY' else 60
+        # PA-ONLY gets lower threshold (40 vs 60) since PA has strict internal filters
+        # 🎯 LOWERED from 50 to 40 for PA-ONLY (TIER 2 indicators very strict, best trades had 45/100)
+        min_confluence_score = 40 if model_name == 'PA-ONLY' else 60
 
         if not confluence['approved'] or confluence['score'] < min_confluence_score:
             logger.warning(
