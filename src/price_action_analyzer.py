@@ -74,10 +74,10 @@ class PriceActionAnalyzer:
         self.volume_surge_multiplier = 2.0  # 🎯 CONSERVATIVE: 2.0x average = realistic surge
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🎯 RELAXED: More flexible tolerances for more opportunities
+        # 🎯 ULTRA RELAXED: More flexible tolerances for more opportunities
         # Trade near S/R levels with room to target - same for LONG/SHORT
         self.support_resistance_tolerance = 0.05  # 🎯 RELAXED: 5% max distance to S/R (find more setups)
-        self.room_to_opposite_level = 0.035  # 🎯 RELAXED: 3.5% min room to target (closer targets ok)
+        self.room_to_opposite_level = 0.02  # 🎯 ULTRA RELAXED: 2% min room to target (from 3.5%, more opportunities)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -1034,10 +1034,10 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Price too far from support ({dist_to_support*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # 🎯 BALANCED: Check 2 - Should have room to resistance (>4%)
+            # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>2%)
             # Same tolerance as SHORT for fairness
             if dist_to_resistance < self.room_to_opposite_level:
-                result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
+                result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.1f}%)'
                 return result
 
             # 🎯 BALANCED: Check 3 - Allow UPTREND or SIDEWAYS (same as SHORT)
@@ -1222,10 +1222,10 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # 🎯 BALANCED: Check 2 - Should have room to support (>4%)
+            # 🎯 ULTRA RELAXED: Check 2 - Should have room to support (>2%)
             # Same tolerance as LONG for fairness
             if dist_to_support < self.room_to_opposite_level:
-                result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.0f}%)'
+                result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.1f}%)'
                 return result
 
             # 🎯 BALANCED: Check 3 - Allow DOWNTREND or SIDEWAYS (same as LONG)
