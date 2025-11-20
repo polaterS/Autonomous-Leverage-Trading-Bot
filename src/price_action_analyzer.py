@@ -914,7 +914,9 @@ class PriceActionAnalyzer:
         df: pd.DataFrame,
         ml_signal: str,
         ml_confidence: float,
-        current_price: float
+        current_price: float,
+        exchange=None,  # 🔧 FIX #3: Optional exchange for BTC correlation check
+        btc_ohlcv: Optional[List] = None  # 🔧 FIX #3: Optional BTC data for correlation
     ) -> Dict:
         """
         🎯 MASTER DECISION ENGINE
@@ -983,6 +985,30 @@ class PriceActionAnalyzer:
             result['reason'] = 'ML signal is HOLD'
             return result
 
+        # 🔧 FIX #3: BTC Correlation Check (prevent counter-trend entries)
+        # PROBLEM: 3 SHORTs opened in 6 minutes (all failed because BTC reversed up)
+        # SOLUTION: Check BTC momentum - if BTC bullish, skip altcoin SHORT
+        if btc_ohlcv and len(btc_ohlcv) >= 3 and symbol != 'BTC/USDT:USDT':
+            # Calculate BTC trend from last 3 candles (15m timeframe)
+            btc_open = btc_ohlcv[-3][1]  # Open of 3rd last candle
+            btc_close = btc_ohlcv[-1][4]  # Close of last candle
+            btc_trend_direction = 'UP' if btc_close > btc_open else 'DOWN'
+            btc_momentum_pct = abs(btc_close - btc_open) / btc_open * 100
+
+            # LONG check: If BTC bearish with momentum, skip altcoin LONG
+            if ml_signal == 'BUY' and btc_trend_direction == 'DOWN' and btc_momentum_pct > 0.5:
+                result['reason'] = f'BTC bearish momentum ({btc_momentum_pct:.1f}%) conflicts with LONG - wait for BTC recovery'
+                logger.info(f"   ⚠️ BTC trend filter: Skipping LONG (BTC down {btc_momentum_pct:.1f}%)")
+                return result
+
+            # SHORT check: If BTC bullish with momentum, skip altcoin SHORT
+            if ml_signal == 'SELL' and btc_trend_direction == 'UP' and btc_momentum_pct > 0.5:
+                result['reason'] = f'BTC bullish momentum ({btc_momentum_pct:.1f}%) conflicts with SHORT - wait for BTC correction'
+                logger.info(f"   ⚠️ BTC trend filter: Skipping SHORT (BTC up {btc_momentum_pct:.1f}%)")
+                return result
+
+            logger.info(f"   ✅ BTC correlation check passed: BTC {btc_trend_direction} {btc_momentum_pct:.1f}%, aligns with {ml_signal}")
+
         # === LONG ENTRY LOGIC ===
         if ml_signal == 'BUY':
             # Find nearest support and resistance
@@ -1028,10 +1054,14 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # 🎯 BALANCED: Check 1 - Price should be near support (within 4%)
-            # Same tolerance as SHORT for fairness
-            if dist_to_support > self.support_resistance_tolerance:
-                result['reason'] = f'Price too far from support ({dist_to_support*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
+            # 🎯 STRICT FIX: Check 1 - Price should be 0.5-2% ABOVE support (confirmed bounce)
+            # PROBLEM: ZIL opened at 0% away = no buffer for stop-loss
+            # SOLUTION: Wait for support bounce (price moved up from support)
+            if dist_to_support < 0.005:  # Too close (<0.5%)
+                result['reason'] = f'Too close to support ({dist_to_support*100:.1f}% away) - wait for bounce confirmation (need 0.5-2% above support)'
+                return result
+            if dist_to_support > 0.02:  # Too far (>2%)
+                result['reason'] = f'Missed support bounce ({dist_to_support*100:.1f}% away) - price too far from support (max 2%)'
                 return result
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>1.5%)
@@ -1088,13 +1118,15 @@ class PriceActionAnalyzer:
                 logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
 
             elif trend['strength'] == 'STRONG':
-                # STRONG: More flexible, but still need MINIMUM volume
-                # Reject if volume is BELOW 0.8x average (like TIA's 0.6x)
-                min_volume_ratio = 0.8  # At least 80% of average volume
+                # 🔧 FIX: STRONG trends need MOMENTUM confirmation
+                # PROBLEM: ZIL opened with 1.0x volume (no surge) and failed
+                # OLD: Allowed 0.8x+ volume for STRONG (too relaxed!)
+                # NEW: Require 1.2x+ volume for ALL trends (even STRONG needs momentum)
+                min_volume_ratio = 1.2  # At least 1.2x average volume for momentum
                 if volume['surge_ratio'] < min_volume_ratio:
-                    result['reason'] = f'STRONG {trend["direction"]} needs minimum volume (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
+                    result['reason'] = f'STRONG {trend["direction"]} needs momentum confirmation (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
                     return result
-                logger.info(f"   ✅ STRONG trend with acceptable volume ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
+                logger.info(f"   ✅ STRONG trend with momentum ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
 
             # Calculate R/R
             stop_loss = nearest_support * (1 - self.sl_buffer)
@@ -1216,10 +1248,11 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # 🎯 BALANCED: Check 1 - Price should be near resistance (within 4%)
-            # Same tolerance as LONG for fairness
-            if dist_to_resistance > self.support_resistance_tolerance:
-                result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
+            # 🎯 STRICT FIX: Check 1 - Price should be AT resistance (max 0.5% away for rejection)
+            # PROBLEM: SOL/BNB/STORJ opened 1.5-2% BELOW resistance = anticipation short (no rejection!)
+            # SOLUTION: Wait for resistance touch/rejection (price must be very close to resistance)
+            if dist_to_resistance > 0.005:  # Too far (>0.5%)
+                result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away) - wait for resistance touch/rejection (need <0.5% away)'
                 return result
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to support (>1.5%)
@@ -1276,13 +1309,15 @@ class PriceActionAnalyzer:
                 logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
 
             elif trend['strength'] == 'STRONG':
-                # STRONG: More flexible, but still need MINIMUM volume
-                # Reject if volume is BELOW 0.8x average (like TIA's 0.6x)
-                min_volume_ratio = 0.8  # At least 80% of average volume
+                # 🔧 FIX: STRONG trends need MOMENTUM confirmation
+                # PROBLEM: ZIL opened with 1.0x volume (no surge) and failed
+                # OLD: Allowed 0.8x+ volume for STRONG (too relaxed!)
+                # NEW: Require 1.2x+ volume for ALL trends (even STRONG needs momentum)
+                min_volume_ratio = 1.2  # At least 1.2x average volume for momentum
                 if volume['surge_ratio'] < min_volume_ratio:
-                    result['reason'] = f'STRONG {trend["direction"]} needs minimum volume (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
+                    result['reason'] = f'STRONG {trend["direction"]} needs momentum confirmation (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
                     return result
-                logger.info(f"   ✅ STRONG trend with acceptable volume ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
+                logger.info(f"   ✅ STRONG trend with momentum ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
 
             # Calculate R/R
             stop_loss = nearest_resistance * (1 + self.sl_buffer)

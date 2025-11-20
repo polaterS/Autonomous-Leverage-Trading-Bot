@@ -50,6 +50,7 @@ class MarketScanner:
     def __init__(self):
         self.settings = get_settings()
         self.symbols = self.settings.trading_symbols
+        self.last_position_time = 0  # 🔧 FIX #4: Track last position opening time (Unix timestamp)
 
     async def scan_and_execute(self) -> None:
         """
@@ -574,6 +575,15 @@ class MarketScanner:
                         )
                         current_price = market_data.get('current_price', df['close'].iloc[-1])
 
+                        # 🔧 FIX #3: Fetch BTC data for correlation check (altcoins only)
+                        btc_ohlcv = None
+                        if symbol != 'BTC/USDT:USDT':
+                            try:
+                                btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=20)
+                                logger.debug(f"   ✅ BTC data fetched for correlation ({len(btc_ohlcv)} candles)")
+                            except Exception as e:
+                                logger.warning(f"   ⚠️ Could not fetch BTC data: {e}")
+
                         # Analyze price action for BOTH buy and sell opportunities
                         # (we don't know ML signal yet, so check both directions)
                         pa_long = pa_analyzer.should_enter_trade(
@@ -581,7 +591,8 @@ class MarketScanner:
                             df=df,
                             ml_signal='BUY',
                             ml_confidence=50.0,  # Neutral starting point
-                            current_price=current_price
+                            current_price=current_price,
+                            btc_ohlcv=btc_ohlcv  # 🔧 FIX #3: Pass BTC data for correlation
                         )
 
                         pa_short = pa_analyzer.should_enter_trade(
@@ -589,7 +600,8 @@ class MarketScanner:
                             df=df,
                             ml_signal='SELL',
                             ml_confidence=50.0,  # Neutral starting point
-                            current_price=current_price
+                            current_price=current_price,
+                            btc_ohlcv=btc_ohlcv  # 🔧 FIX #3: Pass BTC data for correlation
                         )
 
                         # Store best PA setup for later use
@@ -1608,6 +1620,28 @@ class MarketScanner:
             'market_breadth': opportunity.get('market_breadth')  # For market direction filter
         }
 
+        # 🔧 FIX #4: Position spacing check (prevent same-minute entries)
+        # PROBLEM: 3 SHORTs opened in 6 minutes (SOL, BNB at 13:14, STORJ at 13:20)
+        # SOLUTION: Minimum 5-minute gap between position openings
+        import time
+        current_time = time.time()
+        time_since_last_position = current_time - self.last_position_time
+        min_spacing_seconds = 300  # 5 minutes
+
+        if self.last_position_time > 0 and time_since_last_position < min_spacing_seconds:
+            wait_time = min_spacing_seconds - time_since_last_position
+            logger.warning(
+                f"⏰ POSITION SPACING: Waiting {wait_time:.0f}s before next entry "
+                f"(last position: {time_since_last_position:.0f}s ago, need {min_spacing_seconds}s gap)"
+            )
+            await notifier.send_alert(
+                'info',
+                f"⏰ Position spacing active:\n{symbol} {analysis['side']}\n\n"
+                f"Waiting {wait_time:.0f}s before next entry\n"
+                f"(Prevents correlation risk from same-minute entries)"
+            )
+            return
+
         validation = await risk_manager.validate_trade(trade_params)
 
         if not validation['approved']:
@@ -1631,6 +1665,8 @@ class MarketScanner:
         success = await executor.open_position(trade_params, analysis, market_data)
 
         if success:
+            # 🔧 FIX #4: Update last position time for spacing check
+            self.last_position_time = current_time
             logger.info(f"✅ Trade executed successfully: {symbol} {analysis['side']}")
         else:
             logger.error(f"❌ Trade execution failed: {symbol}")
