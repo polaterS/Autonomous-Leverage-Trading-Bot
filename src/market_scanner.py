@@ -522,7 +522,7 @@ class MarketScanner:
                     from src.database import get_db_client
                     from datetime import datetime, timezone
 
-                    db = get_db_client()
+                    db = await get_db_client()
                     last_closed = await db.get_last_closed_time(symbol)
                     if last_closed:
                         minutes_since_close = (datetime.now(timezone.utc) - last_closed).total_seconds() / 60
