@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     max_leverage: int = Field(default=5, ge=1, le=50)  # 🎯 USER UPDATE: 5x max leverage (dynamic 3x-5x based on confidence)
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔧 USER: 2 positions max (bakiye/2 = her pozisyon için yarısı)
     position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 🎯 USER UPDATE: 10% per position (~$100 with $1000 capital, smaller safer positions)
-    min_stop_loss_percent: Decimal = Field(default=Decimal("12.0"), gt=0, le=100)  # 🎯 USER UPDATE: ~$0.70-0.98 loss at 3x-5x (ATR-based, ultra-safe)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("18.0"), gt=0, le=100)  # 🎯 USER UPDATE: ~$1.05-1.47 loss at 3x-5x (ATR-based, ultra-safe)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("8.0"), gt=0, le=100)  # 🎯 LIVE TRADING: 8% min = $4.80 loss @ $60 position (2.4% of $200 capital) - Professional 2-3% risk
+    max_stop_loss_percent: Decimal = Field(default=Decimal("12.0"), gt=0, le=100)  # 🎯 LIVE TRADING: 12% max = $7.20 loss @ $60 position (3.6% of $200 capital) - Conservative risk management
     min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # 🎯 USER UPDATE: $1.20 profit target (realistic with 3x-5x leverage)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.65"), ge=0, le=1)  # 🎯 USER UPDATE: 65% min confidence (capture more PA opportunities like TIA/MINA)
