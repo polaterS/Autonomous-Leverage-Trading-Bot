@@ -77,7 +77,7 @@ class PriceActionAnalyzer:
         # 🎯 ULTRA RELAXED: More flexible tolerances for more opportunities
         # Trade near S/R levels with room to target - same for LONG/SHORT
         self.support_resistance_tolerance = 0.05  # 🎯 RELAXED: 5% max distance to S/R (find more setups)
-        self.room_to_opposite_level = 0.02  # 🎯 ULTRA RELAXED: 2% min room to target (from 3.5%, more opportunities)
+        self.room_to_opposite_level = 0.015  # 🎯 ULTRA RELAXED: 1.5% min room to target (from 2%, capture 1.6-1.9% setups)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -1034,7 +1034,7 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Price too far from support ({dist_to_support*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>2%)
+            # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>1.5%)
             # Same tolerance as SHORT for fairness
             if dist_to_resistance < self.room_to_opposite_level:
                 result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.1f}%)'
@@ -1222,7 +1222,7 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away, need <{self.support_resistance_tolerance*100:.0f}%)'
                 return result
 
-            # 🎯 ULTRA RELAXED: Check 2 - Should have room to support (>2%)
+            # 🎯 ULTRA RELAXED: Check 2 - Should have room to support (>1.5%)
             # Same tolerance as LONG for fairness
             if dist_to_support < self.room_to_opposite_level:
                 result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.1f}%)'
