@@ -580,6 +580,12 @@ class MarketScanner:
                             f"SHORT={'✅' if pa_short['should_enter'] else '❌'} (+{pa_short['confidence_boost']}%)"
                         )
 
+                        # 🔍 DEBUG: Log rejection reasons to understand why 0 opportunities found
+                        if not pa_long['should_enter']:
+                            logger.info(f"   LONG rejected: {pa_long.get('reason', 'No reason provided')}")
+                        if not pa_short['should_enter']:
+                            logger.info(f"   SHORT rejected: {pa_short.get('reason', 'No reason provided')}")
+
                         if pa_long['should_enter'] or pa_short['should_enter']:
                             pa_result = {
                                 'long': pa_long if pa_long['should_enter'] else None,
