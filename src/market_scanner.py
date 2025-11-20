@@ -873,12 +873,12 @@ class MarketScanner:
             price_manager = get_price_manager()
 
             # OHLCV data (multiple timeframes) - ENHANCED with 5m + CACHING
-            # 🔧 USER REQUEST: Increased from 100 to 200 candles for better PA analysis
-            # Indicators consume first 20-50 candles, so fetching 200 ensures 150+ clean candles remain
-            ohlcv_5m = await price_manager.get_ohlcv(symbol, '5m', exchange, limit=200)
-            ohlcv_15m = await price_manager.get_ohlcv(symbol, '15m', exchange, limit=200)
-            ohlcv_1h = await price_manager.get_ohlcv(symbol, '1h', exchange, limit=200)
-            ohlcv_4h = await price_manager.get_ohlcv(symbol, '4h', exchange, limit=200)
+            # 🔧 API RATE LIMIT FIX: Reduced from 200 to 100 candles (still enough for PA + indicators)
+            # Indicators consume first 20-50 candles, so fetching 100 ensures 50+ clean candles remain
+            ohlcv_5m = await price_manager.get_ohlcv(symbol, '5m', exchange, limit=100)
+            ohlcv_15m = await price_manager.get_ohlcv(symbol, '15m', exchange, limit=100)
+            ohlcv_1h = await price_manager.get_ohlcv(symbol, '1h', exchange, limit=100)
+            ohlcv_4h = await price_manager.get_ohlcv(symbol, '4h', exchange, limit=100)
 
             # Current ticker (with caching)
             ticker = await price_manager.get_ticker(symbol, exchange, use_cache=True)
@@ -1016,8 +1016,8 @@ class MarketScanner:
             if symbol != 'BTC/USDT:USDT':
                 try:
                     # Fetch BTC data for correlation
-                    # 🔧 USER REQUEST: Increased to 200 candles for better PA analysis
-                    btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=200)
+                    # 🔧 API RATE LIMIT FIX: Reduced to 100 candles (sufficient for correlation)
+                    btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=100)
                     btc_correlation = calculate_btc_correlation(symbol, ohlcv_15m, btc_ohlcv)
                 except:
                     pass
@@ -1081,9 +1081,9 @@ class MarketScanner:
                     '4h': ohlcv_4h[-20:]
                 },
                 # 🎯 FULL OHLCV DATA FOR PRICE ACTION ANALYSIS (need 50+ candles for S/R detection)
-                'ohlcv_15m': ohlcv_15m,    # Full 200 candles for PA
-                'ohlcv_1h': ohlcv_1h,      # Full 200 candles for PA
-                'ohlcv_4h': ohlcv_4h,      # Full 200 candles for PA
+                'ohlcv_15m': ohlcv_15m,    # Full 100 candles for PA (API optimized)
+                'ohlcv_1h': ohlcv_1h,      # Full 100 candles for PA (API optimized)
+                'ohlcv_4h': ohlcv_4h,      # Full 100 candles for PA (API optimized)
                 'ohlcv_df': ohlcv_df,      # 🔧 FIX: DataFrame for ai_engine.py PA analysis!
                 'indicators': {
                     '15m': indicators_15m,

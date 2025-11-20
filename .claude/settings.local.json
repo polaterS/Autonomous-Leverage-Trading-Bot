@@ -7,7 +7,8 @@
       "Bash(cat:*)",
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\Desktop\\Github\\Autonomous-Leverage-Trading-Bot\\src\\indicators.py\")",
       "Bash(python:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []
