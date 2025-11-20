@@ -579,6 +579,8 @@ class MarketScanner:
                         btc_ohlcv = None
                         if symbol != 'BTC/USDT:USDT':
                             try:
+                                from src.exchange_client import get_exchange_client
+                                exchange = await get_exchange_client()
                                 btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=20)
                                 logger.debug(f"   ✅ BTC data fetched for correlation ({len(btc_ohlcv)} candles)")
                             except Exception as e:
