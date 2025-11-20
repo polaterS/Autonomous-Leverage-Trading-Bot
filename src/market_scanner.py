@@ -103,13 +103,24 @@ class MarketScanner:
         bearish_count = 0
         neutral_count = 0
 
+        # 🔧 FIX #3 OPTIMIZATION: Fetch BTC data ONCE for all symbols (API rate limit optimization)
+        # This prevents 108 separate BTC API calls (one per symbol)
+        btc_ohlcv = None
+        try:
+            from src.exchange_client import get_exchange_client
+            exchange = await get_exchange_client()
+            btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=20)
+            logger.info(f"✅ BTC data fetched for correlation (will be reused for all {total_symbols} symbols)")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fetch BTC data: {e} - correlation check disabled for this scan")
+
         # 🚀 PARALLEL SCANNING: Analyze all symbols concurrently with rate limiting
         semaphore = asyncio.Semaphore(10)  # Max 10 concurrent scans
 
         # 🎯 #7: Pass placeholder sentiment (will be calculated after first pass)
         # Note: First scan uses NEUTRAL, then we'll calculate actual sentiment
         scan_tasks = [
-            self._scan_symbol_parallel(symbol, semaphore, "NEUTRAL")
+            self._scan_symbol_parallel(symbol, semaphore, "NEUTRAL", btc_ohlcv)  # Pass shared BTC data
             for symbol in self.symbols
         ]
 
@@ -501,7 +512,8 @@ class MarketScanner:
         self,
         symbol: str,
         semaphore: asyncio.Semaphore,
-        market_sentiment: str = "NEUTRAL"  # 🎯 #7: Market sentiment parameter
+        market_sentiment: str = "NEUTRAL",  # 🎯 #7: Market sentiment parameter
+        btc_ohlcv: Optional[List] = None  # 🔧 FIX #3: Shared BTC data for correlation (API optimization)
     ):
         """
         Scan a single symbol in parallel with rate limiting.
@@ -575,16 +587,10 @@ class MarketScanner:
                         )
                         current_price = market_data.get('current_price', df['close'].iloc[-1])
 
-                        # 🔧 FIX #3: Fetch BTC data for correlation check (altcoins only)
-                        btc_ohlcv = None
-                        if symbol != 'BTC/USDT:USDT':
-                            try:
-                                from src.exchange_client import get_exchange_client
-                                exchange = await get_exchange_client()
-                                btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=20)
-                                logger.info(f"   ✅ BTC data fetched for correlation ({len(btc_ohlcv)} candles)")
-                            except Exception as e:
-                                logger.warning(f"   ⚠️ Could not fetch BTC data: {e}")
+                        # 🔧 FIX #3: Use shared BTC data for correlation check (passed from parent)
+                        # This prevents 108 separate API calls - BTC data is fetched once per scan cycle
+                        # For BTC itself, btc_ohlcv will be None (no self-correlation)
+                        btc_data_for_check = btc_ohlcv if symbol != 'BTC/USDT:USDT' else None
 
                         # Analyze price action for BOTH buy and sell opportunities
                         # (we don't know ML signal yet, so check both directions)
@@ -594,7 +600,7 @@ class MarketScanner:
                             ml_signal='BUY',
                             ml_confidence=50.0,  # Neutral starting point
                             current_price=current_price,
-                            btc_ohlcv=btc_ohlcv  # 🔧 FIX #3: Pass BTC data for correlation
+                            btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
                         )
 
                         pa_short = pa_analyzer.should_enter_trade(
@@ -603,7 +609,7 @@ class MarketScanner:
                             ml_signal='SELL',
                             ml_confidence=50.0,  # Neutral starting point
                             current_price=current_price,
-                            btc_ohlcv=btc_ohlcv  # 🔧 FIX #3: Pass BTC data for correlation
+                            btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
                         )
 
                         # Store best PA setup for later use
