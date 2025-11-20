@@ -338,6 +338,24 @@ class DatabaseClient:
             """, limit)
             return [dict(row) for row in rows]
 
+    async def get_last_closed_time(self, symbol: str) -> Optional[datetime]:
+        """
+        Get the most recent exit time for a given symbol.
+        Used for cooldown period enforcement (prevent re-trading same symbol too soon).
+
+        Returns:
+            datetime: Most recent exit_time for this symbol, or None if never traded
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT exit_time
+                FROM trade_history
+                WHERE symbol = $1
+                ORDER BY exit_time DESC
+                LIMIT 1
+            """, symbol)
+            return row['exit_time'] if row else None
+
     async def get_trade_history(self, limit: int = 500) -> List[Dict[str, Any]]:
         """
         Get trade history for ML learning.

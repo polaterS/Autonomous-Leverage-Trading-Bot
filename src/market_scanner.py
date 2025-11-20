@@ -517,6 +517,19 @@ class MarketScanner:
             try:
                 logger.debug(f"Scanning {symbol}...")
 
+                # 🚫 COOLDOWN CHECK: Prevent re-trading same symbol too soon (prevents doubling down)
+                if self.settings.position_cooldown_minutes > 0:
+                    last_closed = await self.db.get_last_closed_time(symbol)
+                    if last_closed:
+                        from datetime import datetime, timezone
+                        minutes_since_close = (datetime.now(timezone.utc) - last_closed).total_seconds() / 60
+                        if minutes_since_close < self.settings.position_cooldown_minutes:
+                            logger.info(
+                                f"⏰ {symbol} - Cooldown active "
+                                f"({minutes_since_close:.1f}m / {self.settings.position_cooldown_minutes}m) - Skipping"
+                            )
+                            return None  # Skip this symbol
+
                 # Get market data
                 market_data = await self.gather_market_data(symbol)
 

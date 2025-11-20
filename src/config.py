@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
     max_consecutive_losses: int = Field(default=5, ge=1)  # Log warning after 5 losses (but continue trading for ML learning)
+    position_cooldown_minutes: int = Field(default=30, ge=0)  # 🚫 COOLDOWN: Wait X minutes before re-trading same symbol (prevents doubling down, 0=disabled)
 
     # Feature Flags
     use_paper_trading: bool = Field(default=True)
