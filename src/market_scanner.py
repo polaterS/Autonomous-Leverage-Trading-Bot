@@ -519,9 +519,12 @@ class MarketScanner:
 
                 # 🚫 COOLDOWN CHECK: Prevent re-trading same symbol too soon (prevents doubling down)
                 if self.settings.position_cooldown_minutes > 0:
-                    last_closed = await self.db.get_last_closed_time(symbol)
+                    from src.database import get_db_client
+                    from datetime import datetime, timezone
+
+                    db = get_db_client()
+                    last_closed = await db.get_last_closed_time(symbol)
                     if last_closed:
-                        from datetime import datetime, timezone
                         minutes_since_close = (datetime.now(timezone.utc) - last_closed).total_seconds() / 60
                         if minutes_since_close < self.settings.position_cooldown_minutes:
                             logger.info(
