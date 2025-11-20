@@ -353,14 +353,23 @@ class AutonomousTradingEngine:
 
     async def check_trading_enabled(self) -> bool:
         """
-        Check circuit breakers and trading status.
+        Check circuit breakers, trading status, and user commands.
 
         Returns:
             True if trading is allowed, False otherwise
         """
         risk_manager = get_risk_manager()
-        notifier = get_notifier()
+        db = await get_db_client()
 
+        # PRIORITY 1: Check if user manually disabled trading via /stopbot
+        config = await db.get_trading_config()
+        is_trading_enabled = config.get('is_trading_enabled', True)
+
+        if not is_trading_enabled:
+            logger.warning("🛑 Trading DISABLED by user via /stopbot command")
+            return False
+
+        # PRIORITY 2: Check circuit breakers and daily limits
         limits_check = await risk_manager.check_daily_limits()
 
         if not limits_check['can_trade']:

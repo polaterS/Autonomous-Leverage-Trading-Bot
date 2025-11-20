@@ -1234,21 +1234,53 @@ Coin seçin:
             )
 
     async def cmd_start_bot(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /startbot command."""
-        self.bot_running = True
-        await update.message.reply_text(
-            "✅ Bot başlatıldı! Market tarama devam ediyor...",
-            parse_mode=ParseMode.HTML
-        )
+        """Handle /startbot command - Enable trading via database."""
+        try:
+            # Set trading enabled in database (persistent across restarts)
+            await self.db.set_trading_enabled(True)
+            self.bot_running = True
+
+            await update.message.reply_text(
+                "✅ <b>Bot başlatıldı!</b>\n\n"
+                "🔓 Trading ENABLED\n"
+                "🔍 Market tarama aktif\n"
+                "💰 Yeni pozisyonlar açılabilir\n\n"
+                "⏸️ Durdurmak için: /stopbot",
+                parse_mode=ParseMode.HTML
+            )
+            logger.info("✅ Trading enabled via /startbot command")
+        except Exception as e:
+            logger.error(f"Error enabling trading: {e}")
+            await update.message.reply_text(
+                f"❌ Hata: Bot başlatılamadı\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
 
     async def cmd_stop_bot(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /stopbot command."""
-        self.bot_running = False
-        await update.message.reply_text(
-            "⏸️ Bot durduruldu. Yeni pozisyon açılmayacak.\n\n"
-            "Mevcut pozisyon varsa takip edilmeye devam edilecek.",
-            parse_mode=ParseMode.HTML
-        )
+        """Handle /stopbot command - Disable trading via database (EMERGENCY STOP)."""
+        try:
+            # Set trading disabled in database (persistent across restarts)
+            await self.db.set_trading_enabled(False)
+            self.bot_running = False
+
+            await update.message.reply_text(
+                "🛑 <b>BOT DURDURULDU!</b>\n\n"
+                "🔒 Trading DISABLED\n"
+                "❌ Yeni pozisyon açılmayacak\n"
+                "📊 Mevcut pozisyonlar takip ediliyor\n\n"
+                "⚠️ <b>AKSİYON GEREKLİ:</b>\n"
+                "1. Mevcut pozisyonları kontrol et: /positions\n"
+                "2. Gerekirse manuel kapat: /closeall\n"
+                "3. Tekrar başlatmak için: /startbot",
+                parse_mode=ParseMode.HTML
+            )
+            logger.warning("🛑 Trading DISABLED via /stopbot command (EMERGENCY STOP)")
+        except Exception as e:
+            logger.error(f"Error disabling trading: {e}")
+            await update.message.reply_text(
+                f"❌ Hata: Bot durdurulamadı\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
 
     async def cmd_reset_circuit_breaker(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /reset command - Reset circuit breaker by adding fake winning trade."""
