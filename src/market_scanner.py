@@ -582,7 +582,7 @@ class MarketScanner:
                                 from src.exchange_client import get_exchange_client
                                 exchange = await get_exchange_client()
                                 btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=20)
-                                logger.debug(f"   ✅ BTC data fetched for correlation ({len(btc_ohlcv)} candles)")
+                                logger.info(f"   ✅ BTC data fetched for correlation ({len(btc_ohlcv)} candles)")
                             except Exception as e:
                                 logger.warning(f"   ⚠️ Could not fetch BTC data: {e}")
 
