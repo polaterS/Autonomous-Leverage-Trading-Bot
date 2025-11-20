@@ -525,6 +525,10 @@ class MarketScanner:
                     db = await get_db_client()
                     last_closed = await db.get_last_closed_time(symbol)
                     if last_closed:
+                        # Make last_closed timezone-aware if it's naive (DB stores in UTC)
+                        if last_closed.tzinfo is None:
+                            last_closed = last_closed.replace(tzinfo=timezone.utc)
+
                         minutes_since_close = (datetime.now(timezone.utc) - last_closed).total_seconds() / 60
                         if minutes_since_close < self.settings.position_cooldown_minutes:
                             logger.info(
