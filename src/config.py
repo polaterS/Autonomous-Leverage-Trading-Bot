@@ -153,14 +153,14 @@ class Settings(BaseSettings):
         'ONT/USDT:USDT',    # Ontology
 
         # 71-90: High Volume Trading Pairs
-        'PEPE/USDT:USDT',   # Pepe (Meme)
-        'SHIB/USDT:USDT',   # Shiba Inu
+        # 'PEPE/USDT:USDT',   # Pepe (Meme) - NO FUTURES on Binance
+        # 'SHIB/USDT:USDT',   # Shiba Inu - NO FUTURES on Binance
         'WIF/USDT:USDT',    # Dogwifhat
-        'FLOKI/USDT:USDT',  # Floki
-        'BONK/USDT:USDT',   # Bonk
+        # 'FLOKI/USDT:USDT',  # Floki - NO FUTURES on Binance
+        # 'BONK/USDT:USDT',   # Bonk - NO FUTURES on Binance
         'PEOPLE/USDT:USDT', # ConstitutionDAO
         # 'LUNC/USDT:USDT',   # Terra Classic - DELISTED from Binance
-        'LUNA/USDT:USDT',   # Terra
+        # 'LUNA/USDT:USDT',   # Terra - NO FUTURES on Binance (LUNC available but delisted)
         'SEI/USDT:USDT',    # Sei
         'TIA/USDT:USDT',    # Celestia
         'ORDI/USDT:USDT',   # Ordinals

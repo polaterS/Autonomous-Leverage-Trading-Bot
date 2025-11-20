@@ -281,6 +281,15 @@ class OrderBookAnalyzer:
         try:
             # Calculate average order size
             all_orders = [(price, qty) for price, qty in bids + asks]
+
+            # 🔧 FIX: Prevent division by zero if no orders
+            if len(all_orders) == 0:
+                return {
+                    'high_liquidity': [],
+                    'low_liquidity': [],
+                    'avg_volume_usd': 0.0
+                }
+
             avg_volume = sum(Decimal(str(p)) * Decimal(str(q)) for p, q in all_orders) / len(all_orders)
 
             # Identify high liquidity zones (above average)
@@ -298,7 +307,12 @@ class OrderBookAnalyzer:
 
             # Check for gaps in bid side
             for i in range(len(bids) - 1):
-                price_diff_pct = abs((Decimal(str(bids[i][0])) - Decimal(str(bids[i+1][0]))) / Decimal(str(bids[i][0]))) * 100
+                # 🔧 FIX: Prevent division by zero if price is zero
+                bid_price = Decimal(str(bids[i][0]))
+                if bid_price == 0:
+                    continue
+
+                price_diff_pct = abs((bid_price - Decimal(str(bids[i+1][0]))) / bid_price) * 100
 
                 if price_diff_pct > Decimal("0.1"):  # Gap > 0.1%
                     low_liquidity.append({
@@ -309,7 +323,12 @@ class OrderBookAnalyzer:
 
             # Check for gaps in ask side
             for i in range(len(asks) - 1):
-                price_diff_pct = abs((Decimal(str(asks[i+1][0])) - Decimal(str(asks[i][0]))) / Decimal(str(asks[i][0]))) * 100
+                # 🔧 FIX: Prevent division by zero if price is zero
+                ask_price = Decimal(str(asks[i][0]))
+                if ask_price == 0:
+                    continue
+
+                price_diff_pct = abs((Decimal(str(asks[i+1][0])) - ask_price) / ask_price) * 100
 
                 if price_diff_pct > Decimal("0.1"):
                     low_liquidity.append({
