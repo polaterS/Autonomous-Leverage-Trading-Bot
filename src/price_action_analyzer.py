@@ -985,30 +985,36 @@ class PriceActionAnalyzer:
             result['reason'] = 'ML signal is HOLD'
             return result
 
-        # 🔧 FIX #3: BTC Correlation Check (prevent counter-trend entries)
-        # PROBLEM: 3 SHORTs opened in 6 minutes (all failed because BTC reversed up)
-        # SOLUTION: Check BTC momentum - if BTC bullish, skip altcoin SHORT
-        # ⚠️ TEMPORARILY DISABLED: Testing without BTC correlation filter to find more opportunities
-        # if btc_ohlcv and len(btc_ohlcv) >= 3 and symbol != 'BTC/USDT:USDT':
-        #     # Calculate BTC trend from last 3 candles (15m timeframe)
-        #     btc_open = btc_ohlcv[-3][1]  # Open of 3rd last candle
-        #     btc_close = btc_ohlcv[-1][4]  # Close of last candle
-        #     btc_trend_direction = 'UP' if btc_close > btc_open else 'DOWN'
-        #     btc_momentum_pct = abs(btc_close - btc_open) / btc_open * 100
+        # ✅ OPTION F (2025-11-21 15:00): BTC Correlation Check RESTORED
+        # CHANGE: Re-enabled after analyzing commit 370a574 (2025-11-20 12:40)
+        # DISCOVERY: Yesterday's 33W/2L (94% win rate) likely had this filter ENABLED
+        # RATIONALE: BTC drives altcoin market - correlation protection critical
+        #   - BTC bearish + LONG altcoin = Counter-trend = High risk
+        #   - BTC bullish + SHORT altcoin = Counter-trend = High risk
+        # PROTECTION: Prevents counter-trend entries when BTC momentum conflicts
+        #   - Threshold: 0.5% momentum (sensitive to BTC moves)
+        # IMPACT: Blocks counter-trend trades, aligns with BTC direction
+        # PART OF: OPTION F - Full restore to yesterday's 94% win rate settings
+        if btc_ohlcv and len(btc_ohlcv) >= 3 and symbol != 'BTC/USDT:USDT':
+            # Calculate BTC trend from last 3 candles (15m timeframe)
+            btc_open = btc_ohlcv[-3][1]  # Open of 3rd last candle
+            btc_close = btc_ohlcv[-1][4]  # Close of last candle
+            btc_trend_direction = 'UP' if btc_close > btc_open else 'DOWN'
+            btc_momentum_pct = abs(btc_close - btc_open) / btc_open * 100
 
-        #     # LONG check: If BTC bearish with momentum, skip altcoin LONG
-        #     if ml_signal == 'BUY' and btc_trend_direction == 'DOWN' and btc_momentum_pct > 0.5:
-        #         result['reason'] = f'BTC bearish momentum ({btc_momentum_pct:.1f}%) conflicts with LONG - wait for BTC recovery'
-        #         logger.info(f"   ⚠️ BTC trend filter: Skipping LONG (BTC down {btc_momentum_pct:.1f}%)")
-        #         return result
+            # LONG check: If BTC bearish with momentum, skip altcoin LONG
+            if ml_signal == 'BUY' and btc_trend_direction == 'DOWN' and btc_momentum_pct > 0.5:
+                result['reason'] = f'BTC bearish momentum ({btc_momentum_pct:.1f}%) conflicts with LONG - wait for BTC recovery'
+                logger.info(f"   ⚠️ BTC trend filter: Skipping LONG (BTC down {btc_momentum_pct:.1f}%)")
+                return result
 
-        #     # SHORT check: If BTC bullish with momentum, skip altcoin SHORT
-        #     if ml_signal == 'SELL' and btc_trend_direction == 'UP' and btc_momentum_pct > 0.5:
-        #         result['reason'] = f'BTC bullish momentum ({btc_momentum_pct:.1f}%) conflicts with SHORT - wait for BTC correction'
-        #         logger.info(f"   ⚠️ BTC trend filter: Skipping SHORT (BTC up {btc_momentum_pct:.1f}%)")
-        #         return result
+            # SHORT check: If BTC bullish with momentum, skip altcoin SHORT
+            if ml_signal == 'SELL' and btc_trend_direction == 'UP' and btc_momentum_pct > 0.5:
+                result['reason'] = f'BTC bullish momentum ({btc_momentum_pct:.1f}%) conflicts with SHORT - wait for BTC correction'
+                logger.info(f"   ⚠️ BTC trend filter: Skipping SHORT (BTC up {btc_momentum_pct:.1f}%)")
+                return result
 
-        #     logger.info(f"   ✅ BTC correlation check passed: BTC {btc_trend_direction} {btc_momentum_pct:.1f}%, aligns with {ml_signal}")
+            logger.info(f"   ✅ BTC correlation check passed: BTC {btc_trend_direction} {btc_momentum_pct:.1f}%, aligns with {ml_signal}")
 
         # === LONG ENTRY LOGIC ===
         if ml_signal == 'BUY':
@@ -1045,17 +1051,18 @@ class PriceActionAnalyzer:
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
             nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
 
-            # 🚨 DISABLED (2025-11-21): Support break check temporarily disabled
-            # REASON: Yesterday's paper trading achieved 33W/2L (94.3% win rate)
-            #         Today's live trading with this check active = 0 trades (2+ hours)
-            # THEORY: This check may have been different/disabled during yesterday's test
-            # GOAL: Restore trading activity and match yesterday's performance
-            # ⚠️ RISK: Allows LONG entries below support (counter-trend, "catching falling knife")
-            # 🔄 REVERT IF: Win rate drops below 70% OR 3+ consecutive losses within 24-48 hours
-            #
-            # if current_price < nearest_support:
-            #     result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
-            #     return result
+            # ✅ OPTION F (2025-11-21 15:00): Support break check RESTORED
+            # CHANGE: Re-enabled after analyzing commit 370a574 (2025-11-20 12:40)
+            # DISCOVERY: Yesterday's 33W/2L (94% win rate) had this check ENABLED
+            # EVIDENCE: Commit 370a574 shows this check was ACTIVE in winning configuration
+            # QUALITY CONTROL: Price must be ABOVE support for LONG entry
+            #   - Below support = Support broken = BEARISH signal = NO LONG
+            #   - Above support = Support holding = Bounce expected = LONG OK
+            # IMPACT: Higher quality entries, prevents counter-trend "catching falling knife"
+            # PART OF: OPTION F - Full restore to yesterday's 94% win rate settings
+            if current_price < nearest_support:
+                result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
+                return result
 
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
@@ -1106,9 +1113,15 @@ class PriceActionAnalyzer:
                 return result
 
             if trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS with moderate 5% tolerance (OPTION D2, matches main LONG check)
-                if dist_to_support > 0.05:  # OPTION D2: 5% (was 1%, originally 2.5%)
-                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<5%, got {dist_to_support*100:.1f}%)'
+                # ✅ OPTION F: SIDEWAYS tolerance restored to 2.5% (yesterday's winning setting)
+                # CHANGE (2025-11-21 15:00): Reduced from 5% back to 2.5%
+                # DISCOVERY: Commit 370a574 (33W/2L, 94% win rate) used 2.5% for SIDEWAYS
+                # RATIONALE: Stricter tolerance = Higher quality SIDEWAYS scalps
+                #   - 5% was too loose (OPTION D2 experiment)
+                #   - 2.5% matches yesterday's winning configuration
+                # IMPACT: Fewer but much higher quality SIDEWAYS entries
+                if dist_to_support > 0.025:  # OPTION F: 2.5% (yesterday's winning setting)
+                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<2.5%, got {dist_to_support*100:.1f}%)'
                     return result
                 if not volume['is_surge']:
                     result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
