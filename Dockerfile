@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (cache bust: v1.3-NUCLEAR-CACHE-CLEAR-ATTEMPT11)
+# Copy application code (cache bust: v4.0-SR-ENHANCEMENTS-FORCE-REBUILD)
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
