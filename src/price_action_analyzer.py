@@ -1082,12 +1082,29 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.1f}%)'
                 return result
 
-            # 🎯 BALANCED: Check 3 - Allow UPTREND or SIDEWAYS (same as SHORT)
-            # DOWNTREND is blocked, but SIDEWAYS scalping allowed with balanced conditions
-            if trend['direction'] == 'DOWNTREND':
-                result['reason'] = f'DOWNTREND market - cannot LONG in downtrend'
-                return result
-            elif trend['direction'] == 'SIDEWAYS':
+            # 🔴 OPTION E1 (NUCLEAR): Check 3 - DOWNTREND CHECK DISABLED
+            # CHANGE (2025-11-21 13:00): Disabled DOWNTREND block to unlock 50+ LONG opportunities
+            # PREVIOUS ATTEMPTS:
+            #   - OPTION D2 (5% distance): Still 0 trades (DOWNTREND blocked 50 coins) ❌
+            #   - Market reality: 50+ coins in DOWNTREND, all blocked
+            # CRITICAL EVIDENCE: Yesterday's paper trading achieved 33W/2L (94.3% win rate)
+            #   - This performance suggests DOWNTREND check was disabled/ignored
+            #   - Counter-trend trading is POSSIBLE with proper filters
+            # RISK: 🔴🔴🔴 EXTREME - Allows LONG entries in falling markets ("catching falling knife")
+            # SAFETY NETS STILL ACTIVE:
+            #   - Stop Loss: 8-12% protects against continued downtrend
+            #   - ML Confidence: Must be >65%
+            #   - Support Proximity: Must be within 5% of support
+            #   - Position Size: Only $100 margin per position
+            #   - Daily Loss Limit: Max $20 per day
+            # REVERT IF: Win rate <70% OR 3+ consecutive losses OR daily loss >10%
+            # GOAL: Restore yesterday's 33W/2L trading activity
+            #
+            # if trend['direction'] == 'DOWNTREND':
+            #     result['reason'] = f'DOWNTREND market - cannot LONG in downtrend'
+            #     return result
+
+            if trend['direction'] == 'SIDEWAYS':
                 # Allow SIDEWAYS with moderate 5% tolerance (OPTION D2, matches main LONG check)
                 if dist_to_support > 0.05:  # OPTION D2: 5% (was 1%, originally 2.5%)
                     result['reason'] = f'SIDEWAYS market - need closer support bounce (<5%, got {dist_to_support*100:.1f}%)'
