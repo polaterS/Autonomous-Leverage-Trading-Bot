@@ -1,5 +1,5 @@
 """
-🎯 Professional Price Action Analyzer
+🎯 Professional Price Action Analyzer v4.0-SR-ENHANCEMENTS
 Combines classical technical analysis with modern volume analysis for smart entry/exit decisions.
 
 PHILOSOPHY:
