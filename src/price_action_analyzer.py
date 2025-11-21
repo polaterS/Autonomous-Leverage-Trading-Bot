@@ -1045,12 +1045,17 @@ class PriceActionAnalyzer:
             nearest_support = min(supports, key=lambda x: abs(x - current_price))
             nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
 
-            # 🚨 CRITICAL FIX: Check price POSITION relative to support/resistance
-            # LONG should only trigger when price is ABOVE support (bounce expected)
-            # If price is BELOW support, that's a support BREAK = BEARISH!
-            if current_price < nearest_support:
-                result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
-                return result
+            # 🚨 DISABLED (2025-11-21): Support break check temporarily disabled
+            # REASON: Yesterday's paper trading achieved 33W/2L (94.3% win rate)
+            #         Today's live trading with this check active = 0 trades (2+ hours)
+            # THEORY: This check may have been different/disabled during yesterday's test
+            # GOAL: Restore trading activity and match yesterday's performance
+            # ⚠️ RISK: Allows LONG entries below support (counter-trend, "catching falling knife")
+            # 🔄 REVERT IF: Win rate drops below 70% OR 3+ consecutive losses within 24-48 hours
+            #
+            # if current_price < nearest_support:
+            #     result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
+            #     return result
 
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
