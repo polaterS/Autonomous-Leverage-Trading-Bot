@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (cache bust: v4.0-SR-ENHANCEMENTS-FORCE-REBUILD)
+# Copy application code (cache bust: v4.0-NUCLEAR-PYCACHE-DISABLE-20251121)
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
@@ -32,6 +32,7 @@ RUN mkdir -p /app/logs /app/data
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPYCACHEPREFIX=/dev/null
 
 # Expose health check port
 EXPOSE 8000
