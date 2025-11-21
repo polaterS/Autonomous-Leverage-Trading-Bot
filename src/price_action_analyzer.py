@@ -1055,14 +1055,15 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # 🎯 STRICT FIX: Check 1 - Price should be 0.5-2% ABOVE support (confirmed bounce)
-            # PROBLEM: ZIL opened at 0% away = no buffer for stop-loss
-            # SOLUTION: Wait for support bounce (price moved up from support)
-            if dist_to_support < 0.005:  # Too close (<0.5%)
-                result['reason'] = f'Too close to support ({dist_to_support*100:.1f}% away) - wait for bounce confirmation (need 0.5-2% above support)'
-                return result
-            if dist_to_support > 0.02:  # Too far (>2%)
-                result['reason'] = f'Missed support bounce ({dist_to_support*100:.1f}% away) - price too far from support (max 2%)'
+            # 🎯 CONSERVATIVE ADJUSTMENT: Check 1 - Price should be 0-1% ABOVE support (early bounce entry)
+            # CHANGE (2025-11-21): Relaxed from 0.5-2% to 0-1% for more opportunities in sideways markets
+            # RATIONALE: Allow entries at support level with tighter 1% maximum for quality
+            # - Still requires price ABOVE support (line 1051 check prevents support breaks)
+            # - 0% minimum = allows entry right at support bounce
+            # - 1% maximum = tighter range for better entry quality (was 2%)
+            # GOAL: Find 2-5 quality trades/day while maintaining 75-80% win rate
+            if dist_to_support > 0.01:  # Too far (>1%)
+                result['reason'] = f'Missed support bounce ({dist_to_support*100:.1f}% away) - price too far from support (max 1%)'
                 return result
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>1.5%)
@@ -1077,9 +1078,9 @@ class PriceActionAnalyzer:
                 result['reason'] = f'DOWNTREND market - cannot LONG in downtrend'
                 return result
             elif trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS with balanced conditions (2.5% tolerance, same as SHORT)
-                if dist_to_support > 0.025:  # Same tolerance as SHORT sideways
-                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<2.5%, got {dist_to_support*100:.1f}%)'
+                # Allow SIDEWAYS with conservative 1% tolerance (adjusted 2025-11-21)
+                if dist_to_support > 0.01:  # Conservative adjustment: 1% (was 2.5%)
+                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<1%, got {dist_to_support*100:.1f}%)'
                     return result
                 if not volume['is_surge']:
                     result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
@@ -1268,9 +1269,9 @@ class PriceActionAnalyzer:
                 result['reason'] = f'UPTREND market - cannot SHORT in uptrend'
                 return result
             elif trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS with same conditions as LONG (2.5% tolerance)
-                if dist_to_resistance > 0.025:  # Same as LONG sideways tolerance
-                    result['reason'] = f'SIDEWAYS market - need closer resistance rejection (<2.5%, got {dist_to_resistance*100:.1f}%)'
+                # Allow SIDEWAYS with conservative 1% tolerance (adjusted 2025-11-21, matches LONG)
+                if dist_to_resistance > 0.01:  # Conservative adjustment: 1% (was 2.5%)
+                    result['reason'] = f'SIDEWAYS market - need closer resistance rejection (<1%, got {dist_to_resistance*100:.1f}%)'
                     return result
                 if not volume['is_surge']:
                     result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
