@@ -2,7 +2,7 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🧠 VERSION: 6.2-PA-INTEGRATED (Classic + Price Action ML Integration)
+🧠 VERSION: 6.4-SR-ENHANCEMENTS-V4 (Multi-Timeframe S/R + Adaptive + Psychological Levels)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "6.2-PA-INTEGRATED"
+BOT_VERSION = "6.4-SR-ENHANCEMENTS-V4"
 
 # Log deployment version from VERSION file
 try:
