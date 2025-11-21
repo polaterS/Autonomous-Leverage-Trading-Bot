@@ -1545,26 +1545,28 @@ class PriceActionAnalyzer:
         #   - Threshold: 0.5% momentum (sensitive to BTC moves)
         # IMPACT: Blocks counter-trend trades, aligns with BTC direction
         # PART OF: OPTION F - Full restore to yesterday's 94% win rate settings
-        if btc_ohlcv and len(btc_ohlcv) >= 3 and symbol != 'BTC/USDT:USDT':
-            # Calculate BTC trend from last 3 candles (15m timeframe)
-            btc_open = btc_ohlcv[-3][1]  # Open of 3rd last candle
-            btc_close = btc_ohlcv[-1][4]  # Close of last candle
-            btc_trend_direction = 'UP' if btc_close > btc_open else 'DOWN'
-            btc_momentum_pct = abs(btc_close - btc_open) / btc_open * 100
-
-            # LONG check: If BTC bearish with momentum, skip altcoin LONG
-            if ml_signal == 'BUY' and btc_trend_direction == 'DOWN' and btc_momentum_pct > 0.5:
-                result['reason'] = f'BTC bearish momentum ({btc_momentum_pct:.1f}%) conflicts with LONG - wait for BTC recovery'
-                logger.info(f"   ⚠️ BTC trend filter: Skipping LONG (BTC down {btc_momentum_pct:.1f}%)")
-                return result
-
-            # SHORT check: If BTC bullish with momentum, skip altcoin SHORT
-            if ml_signal == 'SELL' and btc_trend_direction == 'UP' and btc_momentum_pct > 0.5:
-                result['reason'] = f'BTC bullish momentum ({btc_momentum_pct:.1f}%) conflicts with SHORT - wait for BTC correction'
-                logger.info(f"   ⚠️ BTC trend filter: Skipping SHORT (BTC up {btc_momentum_pct:.1f}%)")
-                return result
-
-            logger.info(f"   ✅ BTC correlation check passed: BTC {btc_trend_direction} {btc_momentum_pct:.1f}%, aligns with {ml_signal}")
+        # ⚠️ BTC CORRELATION FILTER DISABLED (see BTC_CORRELATION_DISABLED.md)
+        # Reason: Filter too strict (blocks all LONGs when BTC -0.5%), bot finds 0 opportunities
+        # if btc_ohlcv and len(btc_ohlcv) >= 3 and symbol != 'BTC/USDT:USDT':
+        #     # Calculate BTC trend from last 3 candles (15m timeframe)
+        #     btc_open = btc_ohlcv[-3][1]  # Open of 3rd last candle
+        #     btc_close = btc_ohlcv[-1][4]  # Close of last candle
+        #     btc_trend_direction = 'UP' if btc_close > btc_open else 'DOWN'
+        #     btc_momentum_pct = abs(btc_close - btc_open) / btc_open * 100
+        #
+        #     # LONG check: If BTC bearish with momentum, skip altcoin LONG
+        #     if ml_signal == 'BUY' and btc_trend_direction == 'DOWN' and btc_momentum_pct > 0.5:
+        #         result['reason'] = f'BTC bearish momentum ({btc_momentum_pct:.1f}%) conflicts with LONG - wait for BTC recovery'
+        #         logger.info(f"   ⚠️ BTC trend filter: Skipping LONG (BTC down {btc_momentum_pct:.1f}%)")
+        #         return result
+        #
+        #     # SHORT check: If BTC bullish with momentum, skip altcoin SHORT
+        #     if ml_signal == 'SELL' and btc_trend_direction == 'UP' and btc_momentum_pct > 0.5:
+        #         result['reason'] = f'BTC bullish momentum ({btc_momentum_pct:.1f}%) conflicts with SHORT - wait for BTC correction'
+        #         logger.info(f"   ⚠️ BTC trend filter: Skipping SHORT (BTC up {btc_momentum_pct:.1f}%)")
+        #         return result
+        #
+        #     logger.info(f"   ✅ BTC correlation check passed: BTC {btc_trend_direction} {btc_momentum_pct:.1f}%, aligns with {ml_signal}")
 
         # === LONG ENTRY LOGIC ===
         if ml_signal == 'BUY':
