@@ -566,11 +566,17 @@ class MarketScanner:
 
                 try:
                     from src.price_action_analyzer import get_price_action_analyzer
+                    from src.exchange_client import get_exchange_client
                     import pandas as pd
 
                     logger.info(f"✅ {symbol} - PA analyzer imported successfully")
 
                     pa_analyzer = get_price_action_analyzer()
+
+                    # 🔥 CRITICAL FIX: Get exchange for multi-timeframe S/R analysis
+                    # v4.0 S/R enhancements need exchange to fetch 4h and 1h data
+                    # Without exchange, only 15m data is used (insufficient for quality S/R)
+                    exchange = await get_exchange_client()
 
                     # Get FULL OHLCV data for price action (need 50+ candles for S/R detection)
                     # Use ohlcv_15m key (contains full 100 candles, not the nested 'ohlcv' dict which only has 20)
@@ -594,12 +600,14 @@ class MarketScanner:
 
                         # Analyze price action for BOTH buy and sell opportunities
                         # (we don't know ML signal yet, so check both directions)
+                        # 🔥 CRITICAL: Pass exchange for multi-timeframe S/R (v4.0 feature)
                         pa_long = pa_analyzer.should_enter_trade(
                             symbol=symbol,
                             df=df,
                             ml_signal='BUY',
                             ml_confidence=50.0,  # Neutral starting point
                             current_price=current_price,
+                            exchange=exchange,  # 🔥 v4.0: Enable multi-timeframe S/R
                             btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
                         )
 
@@ -609,6 +617,7 @@ class MarketScanner:
                             ml_signal='SELL',
                             ml_confidence=50.0,  # Neutral starting point
                             current_price=current_price,
+                            exchange=exchange,  # 🔥 v4.0: Enable multi-timeframe S/R
                             btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
                         )
 
