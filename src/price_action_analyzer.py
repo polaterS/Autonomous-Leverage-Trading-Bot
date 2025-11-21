@@ -1250,11 +1250,16 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # 🎯 STRICT FIX: Check 1 - Price should be AT resistance (max 0.5% away for rejection)
-            # PROBLEM: SOL/BNB/STORJ opened 1.5-2% BELOW resistance = anticipation short (no rejection!)
-            # SOLUTION: Wait for resistance touch/rejection (price must be very close to resistance)
-            if dist_to_resistance > 0.005:  # Too far (>0.5%)
-                result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away) - wait for resistance touch/rejection (need <0.5% away)'
+            # 🎯 MODERATE RISK ADJUSTMENT: Check 1 - Price should be within 2% of resistance (early entry allowed)
+            # CHANGE (2025-11-21 OPTION B): Relaxed from 0.5% to 2% for more SHORT opportunities
+            # RATIONALE: Allow earlier SHORT entries before exact resistance touch
+            # - 0.5% was TOO strict = all resistances 5-18% away = 0 trades
+            # - 2% allows anticipation entries while resistance approaches
+            # - Risk: Early entry before rejection confirmation
+            # GOAL: Find 5-10 SHORT trades/day, accept 70-75% win rate (was 80%)
+            # ⚠️ REVERT IF: Win rate drops below 70% or 3+ consecutive losses
+            if dist_to_resistance > 0.02:  # Too far (>2%, was 0.5%)
+                result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away) - wait for resistance approach (need <2% away)'
                 return result
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to support (>1.5%)
@@ -1269,9 +1274,9 @@ class PriceActionAnalyzer:
                 result['reason'] = f'UPTREND market - cannot SHORT in uptrend'
                 return result
             elif trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS with conservative 1% tolerance (adjusted 2025-11-21, matches LONG)
-                if dist_to_resistance > 0.01:  # Conservative adjustment: 1% (was 2.5%)
-                    result['reason'] = f'SIDEWAYS market - need closer resistance rejection (<1%, got {dist_to_resistance*100:.1f}%)'
+                # Allow SIDEWAYS with moderate 2% tolerance (OPTION B adjustment, matches main SHORT check)
+                if dist_to_resistance > 0.02:  # Moderate risk: 2% (was 1%, OPTION B)
+                    result['reason'] = f'SIDEWAYS market - need closer resistance rejection (<2%, got {dist_to_resistance*100:.1f}%)'
                     return result
                 if not volume['is_surge']:
                     result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
