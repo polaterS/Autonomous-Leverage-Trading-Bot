@@ -1060,15 +1060,20 @@ class PriceActionAnalyzer:
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
 
-            # 🎯 CONSERVATIVE ADJUSTMENT: Check 1 - Price should be 0-1% ABOVE support (early bounce entry)
-            # CHANGE (2025-11-21): Relaxed from 0.5-2% to 0-1% for more opportunities in sideways markets
-            # RATIONALE: Allow entries at support level with tighter 1% maximum for quality
-            # - Still requires price ABOVE support (line 1051 check prevents support breaks)
-            # - 0% minimum = allows entry right at support bounce
-            # - 1% maximum = tighter range for better entry quality (was 2%)
-            # GOAL: Find 2-5 quality trades/day while maintaining 75-80% win rate
-            if dist_to_support > 0.01:  # Too far (>1%)
-                result['reason'] = f'Missed support bounce ({dist_to_support*100:.1f}% away) - price too far from support (max 1%)'
+            # 🔴 OPTION D2 (ULTRA AGGRESSIVE): Check 1 - Price within 5% of support (moderate risk)
+            # CHANGE (2025-11-21 12:50): Increased from 1% to 5% to unlock 30-50 LONG opportunities
+            # PREVIOUS ATTEMPTS:
+            #   - OPTION A (1%): 0 trades, too strict ❌
+            #   - OPTION C (support break disabled): Still 0 trades (1% limit blocked) ❌
+            # RATIONALE: Market reality shows coins 3-8% away from support
+            #   - Yesterday's 33W/2L (94.3% win rate) suggests 5% tolerance worked
+            #   - Current logs: CHZ 1.5% away = closest, still rejected by 1% limit
+            #   - 5% allows entries within reasonable support zone
+            # RISK: Medium - wider entry zone, may catch some late bounces
+            # REVERT IF: Win rate <70% OR 3+ consecutive losses
+            # GOAL: Restore trading activity, match yesterday's 33W/2L performance
+            if dist_to_support > 0.05:  # Too far (>5%, was 1%)
+                result['reason'] = f'Missed support bounce ({dist_to_support*100:.1f}% away) - price too far from support (max 5%)'
                 return result
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>1.5%)
@@ -1083,9 +1088,9 @@ class PriceActionAnalyzer:
                 result['reason'] = f'DOWNTREND market - cannot LONG in downtrend'
                 return result
             elif trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS with conservative 1% tolerance (adjusted 2025-11-21)
-                if dist_to_support > 0.01:  # Conservative adjustment: 1% (was 2.5%)
-                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<1%, got {dist_to_support*100:.1f}%)'
+                # Allow SIDEWAYS with moderate 5% tolerance (OPTION D2, matches main LONG check)
+                if dist_to_support > 0.05:  # OPTION D2: 5% (was 1%, originally 2.5%)
+                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<5%, got {dist_to_support*100:.1f}%)'
                     return result
                 if not volume['is_surge']:
                     result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
