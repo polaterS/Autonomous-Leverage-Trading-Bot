@@ -601,7 +601,8 @@ class MarketScanner:
                         # Analyze price action for BOTH buy and sell opportunities
                         # (we don't know ML signal yet, so check both directions)
                         # 🔥 CRITICAL: Pass exchange for multi-timeframe S/R (v4.0 feature)
-                        pa_long = pa_analyzer.should_enter_trade(
+                        # 🔥 CRITICAL FIX: await async should_enter_trade()
+                        pa_long = await pa_analyzer.should_enter_trade(
                             symbol=symbol,
                             df=df,
                             ml_signal='BUY',
@@ -611,7 +612,7 @@ class MarketScanner:
                             btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
                         )
 
-                        pa_short = pa_analyzer.should_enter_trade(
+                        pa_short = await pa_analyzer.should_enter_trade(
                             symbol=symbol,
                             df=df,
                             ml_signal='SELL',

@@ -1250,7 +1250,7 @@ class PriceActionAnalyzer:
                 'adaptive_window': 14
             }
 
-    def analyze_multi_timeframe_sr(
+    async def analyze_multi_timeframe_sr(
         self,
         symbol: str,
         current_price: float,
@@ -1296,7 +1296,8 @@ class PriceActionAnalyzer:
                 try:
                     logger.info(f"   📊 Fetching 4h S/R levels...")
                     # Fetch 100 candles × 4h = 400 hours = ~17 days of data
-                    ohlcv_4h = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=100)
+                    # 🔥 CRITICAL FIX: await async fetch_ohlcv()
+                    ohlcv_4h = await exchange.fetch_ohlcv(symbol, timeframe='4h', limit=100)
 
                     if ohlcv_4h and len(ohlcv_4h) >= 20:
                         # Convert to DataFrame
@@ -1333,7 +1334,8 @@ class PriceActionAnalyzer:
                 try:
                     logger.info(f"   📊 Fetching 1h S/R levels...")
                     # Fetch 100 candles × 1h = 100 hours = ~4 days of data
-                    ohlcv_1h = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
+                    # 🔥 CRITICAL FIX: await async fetch_ohlcv()
+                    ohlcv_1h = await exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
 
                     if ohlcv_1h and len(ohlcv_1h) >= 20:
                         # Convert to DataFrame
@@ -1450,7 +1452,7 @@ class PriceActionAnalyzer:
                 'timeframes_used': []
             }
 
-    def should_enter_trade(
+    async def should_enter_trade(
         self,
         symbol: str,
         df: pd.DataFrame,
@@ -1488,7 +1490,8 @@ class PriceActionAnalyzer:
         _v4_sr_enhancements_active = True
 
         # 🎯 NEW v4.0: Multi-timeframe S/R analysis with adaptive window & psychological levels
-        sr_analysis = self.analyze_multi_timeframe_sr(
+        # 🔥 CRITICAL FIX: await async analyze_multi_timeframe_sr()
+        sr_analysis = await self.analyze_multi_timeframe_sr(
             symbol=symbol,
             current_price=current_price,
             exchange=exchange,
