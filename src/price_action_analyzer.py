@@ -111,6 +111,91 @@ class PriceActionAnalyzer:
             f"   - 🎯 RELAXED: More opportunities, controlled risk"
         )
 
+    def calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
+        """
+        Calculate Average True Range (ATR) for volatility measurement.
+
+        ATR measures market volatility:
+        - High ATR = High volatility (use smaller swing window)
+        - Low ATR = Low volatility (use larger swing window)
+
+        Args:
+            df: OHLCV dataframe
+            period: ATR period (default 14)
+
+        Returns:
+            ATR value
+        """
+        try:
+            high = df['high'].values
+            low = df['low'].values
+            close = df['close'].values
+
+            # Calculate True Range
+            tr_list = []
+            for i in range(1, len(df)):
+                tr = max(
+                    high[i] - low[i],  # Current high-low
+                    abs(high[i] - close[i-1]),  # Current high - previous close
+                    abs(low[i] - close[i-1])  # Current low - previous close
+                )
+                tr_list.append(tr)
+
+            # Average True Range
+            if len(tr_list) >= period:
+                atr = np.mean(tr_list[-period:])
+                return float(atr)
+            else:
+                return float(np.mean(tr_list)) if tr_list else 0.0
+
+        except Exception as e:
+            logger.warning(f"ATR calculation failed: {e}")
+            return 0.0
+
+    def get_adaptive_swing_window(self, df: pd.DataFrame) -> int:
+        """
+        🎯 ADAPTIVE SWING WINDOW (Volatility-Based)
+
+        Dynamically adjust swing window based on market volatility:
+        - High volatility (>5% ATR) → Smaller window (7 candles) = Catch recent, fast swings
+        - Medium volatility (2-5% ATR) → Default window (14 candles) = Balanced
+        - Low volatility (<2% ATR) → Larger window (21 candles) = Find major swings
+
+        Why adaptive?
+        - Fixed 14 candles misses opportunities in volatile markets
+        - In high volatility, swings happen faster (need smaller window)
+        - In low volatility, need larger window to find meaningful swings
+
+        Args:
+            df: OHLCV dataframe
+
+        Returns:
+            Adaptive swing window size
+        """
+        try:
+            atr = self.calculate_atr(df)
+            avg_price = df['close'].tail(20).mean()
+
+            # ATR as percentage of price (volatility %)
+            volatility_pct = (atr / avg_price) if avg_price > 0 else 0
+
+            # Adaptive window selection
+            if volatility_pct > 0.05:  # High volatility (>5%)
+                window = 7
+                logger.info(f"   🔥 HIGH volatility ({volatility_pct*100:.1f}%) → Using SMALL swing window ({window} candles)")
+            elif volatility_pct > 0.02:  # Medium volatility (2-5%)
+                window = 14
+                logger.info(f"   📊 MEDIUM volatility ({volatility_pct*100:.1f}%) → Using DEFAULT swing window ({window} candles)")
+            else:  # Low volatility (<2%)
+                window = 21
+                logger.info(f"   😴 LOW volatility ({volatility_pct*100:.1f}%) → Using LARGE swing window ({window} candles)")
+
+            return window
+
+        except Exception as e:
+            logger.warning(f"Adaptive swing window calculation failed: {e}, using default 14")
+            return 14  # Fallback to default
+
     def find_swing_highs(self, df: pd.DataFrame, window: int = None) -> List[float]:
         """
         Find swing high points (local maxima).
@@ -313,6 +398,107 @@ class PriceActionAnalyzer:
                 fib_levels[f'ext_{level}'] = swing_low - (diff * (level - 1))
 
         return fib_levels
+
+    def get_psychological_levels(
+        self,
+        current_price: float,
+        max_distance_pct: float = 0.15
+    ) -> List[Dict]:
+        """
+        🎯 PSYCHOLOGICAL LEVELS (Round Numbers)
+
+        Identify psychological support/resistance levels (round numbers).
+
+        Why round numbers matter:
+        - Traders place orders at round numbers ($100, $50, $10, $1.00)
+        - High liquidity at these levels = strong S/R
+        - Common stop-loss/take-profit zones
+        - Institutional round number bias
+
+        Examples:
+        - BTC: $100k, $90k, $50k, $40k (major rounds)
+        - ETH: $5000, $4000, $3000, $2500, $2000 (major rounds)
+        - Altcoins <$10: $5, $2, $1, $0.50 (major rounds)
+        - Altcoins >$100: $500, $400, $300, $200, $150, $100 (major rounds)
+
+        Args:
+            current_price: Current market price
+            max_distance_pct: Maximum distance to include (default 15%)
+
+        Returns:
+            List of psychological level dicts with price, type, strength
+        """
+        try:
+            psychological_levels = []
+
+            # Determine appropriate round intervals based on price
+            if current_price >= 1000:
+                # Major rounds for expensive assets (BTC, etc.)
+                intervals = [10000, 5000, 1000, 500, 100]
+            elif current_price >= 100:
+                # Mid-tier assets
+                intervals = [500, 100, 50, 25, 10]
+            elif current_price >= 10:
+                # Altcoins $10-100
+                intervals = [50, 25, 10, 5, 2, 1]
+            elif current_price >= 1:
+                # Altcoins $1-10
+                intervals = [5, 2, 1, 0.5, 0.25, 0.1]
+            else:
+                # Low-priced altcoins <$1
+                intervals = [0.50, 0.25, 0.10, 0.05, 0.01, 0.005, 0.001]
+
+            # Find nearby round numbers
+            for interval in intervals:
+                # Calculate nearest round below and above current price
+                rounds_below = (int(current_price / interval)) * interval
+                rounds_above = rounds_below + interval
+
+                # Check both levels
+                for round_price in [rounds_below, rounds_above]:
+                    if round_price <= 0:
+                        continue
+
+                    # Distance from current price
+                    distance_pct = abs(round_price - current_price) / current_price
+
+                    # Only include if within max distance
+                    if distance_pct <= max_distance_pct:
+                        # Strength based on interval size (larger interval = stronger level)
+                        if interval == intervals[0]:
+                            strength = 'VERY_STRONG'
+                        elif interval == intervals[1] if len(intervals) > 1 else intervals[0]:
+                            strength = 'STRONG'
+                        else:
+                            strength = 'MODERATE'
+
+                        # Determine if support or resistance
+                        level_type = 'support' if round_price < current_price else 'resistance'
+
+                        # Add to list (avoid duplicates)
+                        if not any(l['price'] == round_price for l in psychological_levels):
+                            psychological_levels.append({
+                                'price': round_price,
+                                'type': level_type,
+                                'strength': strength,
+                                'touches': 1,  # Psychological level always has 1 "implied" touch
+                                'source': 'psychological'
+                            })
+
+            # Sort by distance from current price (closest first)
+            psychological_levels.sort(key=lambda x: abs(x['price'] - current_price))
+
+            if psychological_levels:
+                logger.info(f"   🎯 Found {len(psychological_levels)} psychological levels within {max_distance_pct*100:.0f}%:")
+                for level in psychological_levels[:3]:  # Log top 3
+                    dist_pct = abs(level['price'] - current_price) / current_price * 100
+                    logger.info(f"      ${level['price']:.4f} ({level['type']}, {dist_pct:.1f}% away, {level['strength']})")
+
+            return psychological_levels
+
+        except Exception as e:
+            logger.warning(f"Psychological levels calculation failed: {e}")
+            return []
 
     def detect_trend(self, df: pd.DataFrame) -> Dict:
         """
@@ -849,17 +1035,143 @@ class PriceActionAnalyzer:
             'is_good_trade': max_rr >= self.min_rr_ratio
         }
 
-    def analyze_support_resistance(self, df: pd.DataFrame) -> Dict:
+    def select_best_sr_level(
+        self,
+        levels: List[Dict],
+        current_price: float,
+        level_type: str = 'support',
+        max_distance_pct: float = 0.05
+    ) -> Optional[Dict]:
         """
-        Complete support/resistance analysis.
+        🎯 STRENGTH-WEIGHTED S/R SELECTION
+
+        Select the BEST support/resistance level, not just the nearest.
+
+        OLD APPROACH (Nearest Only):
+        - Select level closest to current price
+        - Problem: Nearby WEAK level chosen over distant STRONG level
+        - Example: 1% away with 1 touch beats 4% away with 5 touches ❌
+
+        NEW APPROACH (Strength-Weighted):
+        - Score = touches × (1 - distance)
+        - Balances proximity AND strength
+        - Example: 1% away, 1 touch = score 0.99
+                  4% away, 5 touches = score 4.80 ✅ WINNER!
+
+        Why this matters:
+        - STRONG levels (5+ touches) = More reliable
+        - WEAK levels (1-2 touches) = Easily broken
+        - Better to enter near STRONG level slightly further away
+        - Than near WEAK level that might break
+
+        Args:
+            levels: List of S/R level dicts (price, touches, strength)
+            current_price: Current market price
+            level_type: 'support' or 'resistance'
+            max_distance_pct: Maximum acceptable distance (default 5%)
+
+        Returns:
+            Best S/R level dict, or None if no valid levels
+        """
+        try:
+            if not levels:
+                return None
+
+            candidates = []
+
+            for level in levels:
+                level_price = level['price']
+                touches = level.get('touches', 1)
+
+                # Calculate distance percentage
+                distance_pct = abs(current_price - level_price) / current_price
+
+                # Only consider levels within max distance
+                if distance_pct > max_distance_pct:
+                    continue
+
+                # Position check: support must be below, resistance must be above
+                if level_type == 'support' and level_price > current_price:
+                    continue
+                if level_type == 'resistance' and level_price < current_price:
+                    continue
+
+                # Calculate weighted score
+                # Formula: touches × (1 - distance)
+                # - More touches = higher base score
+                # - Closer distance = multiplier closer to 1.0
+                # - Result: Strong nearby levels score highest
+                score = touches * (1 - distance_pct)
+
+                # Bonus for VERY_STRONG levels
+                if level.get('strength') == 'VERY_STRONG':
+                    score *= 1.2  # 20% bonus
+                elif level.get('strength') == 'STRONG':
+                    score *= 1.1  # 10% bonus
+
+                # Bonus for psychological levels
+                if level.get('source') == 'psychological':
+                    score *= 1.15  # 15% bonus for round numbers
+
+                candidates.append({
+                    'level': level,
+                    'score': score,
+                    'distance_pct': distance_pct
+                })
+
+            if not candidates:
+                logger.info(f"   ⚠️ No valid {level_type} levels within {max_distance_pct*100:.0f}%")
+                return None
+
+            # Select highest scoring level
+            best = max(candidates, key=lambda x: x['score'])
+
+            logger.info(
+                f"   ✅ Best {level_type}: ${best['level']['price']:.4f} "
+                f"({best['distance_pct']*100:.1f}% away, "
+                f"{best['level'].get('touches', 1)} touches, "
+                f"score {best['score']:.2f}, "
+                f"{best['level'].get('strength', 'MODERATE')})"
+            )
+
+            return best['level']
+
+        except Exception as e:
+            logger.warning(f"S/R level selection failed: {e}")
+            # Fallback to nearest level (old behavior)
+            if levels:
+                return min(levels, key=lambda x: abs(x['price'] - current_price))
+            return None
+
+    def analyze_support_resistance(
+        self,
+        df: pd.DataFrame,
+        current_price: Optional[float] = None,
+        include_psychological: bool = True
+    ) -> Dict:
+        """
+        🎯 ENHANCED Support/Resistance Analysis
+
+        NEW FEATURES:
+        1. Adaptive swing window (volatility-based)
+        2. Psychological levels (round numbers)
+        3. Combined S/R from multiple sources
+
+        Args:
+            df: OHLCV dataframe
+            current_price: Current market price (optional, for psychological levels)
+            include_psychological: Include psychological levels (default True)
 
         Returns:
             Dict with support zones, resistance zones, VPOC, Fibonacci levels
         """
         try:
-            # Find swing points
-            swing_highs = self.find_swing_highs(df)
-            swing_lows = self.find_swing_lows(df)
+            # 🎯 NEW: Adaptive swing window based on volatility
+            adaptive_window = self.get_adaptive_swing_window(df)
+
+            # Find swing points with adaptive window
+            swing_highs = self.find_swing_highs(df, window=adaptive_window)
+            swing_lows = self.find_swing_lows(df, window=adaptive_window)
 
             # Cluster into zones
             resistance_zones = self.cluster_levels(swing_highs)
@@ -873,12 +1185,33 @@ class PriceActionAnalyzer:
                 recent_low = float(df['low'].tail(20).min())
 
                 if not resistance_zones:
-                    resistance_zones = [{'price': recent_high, 'touches': 1, 'strength': 'WEAK'}]
+                    resistance_zones = [{'price': recent_high, 'touches': 1, 'strength': 'WEAK', 'source': 'recent_high'}]
                     logger.warning(f"No swing highs found - using recent high ${recent_high:.4f} as resistance")
 
                 if not support_zones:
-                    support_zones = [{'price': recent_low, 'touches': 1, 'strength': 'WEAK'}]
+                    support_zones = [{'price': recent_low, 'touches': 1, 'strength': 'WEAK', 'source': 'recent_low'}]
                     logger.warning(f"No swing lows found - using recent low ${recent_low:.4f} as support")
+
+            # Add source tag to swing-based levels
+            for zone in support_zones:
+                if 'source' not in zone:
+                    zone['source'] = 'swing'
+            for zone in resistance_zones:
+                if 'source' not in zone:
+                    zone['source'] = 'swing'
+
+            # 🎯 NEW: Add psychological levels (round numbers)
+            if include_psychological and current_price:
+                psych_levels = self.get_psychological_levels(current_price)
+
+                # Separate into support and resistance
+                for psych in psych_levels:
+                    if psych['type'] == 'support':
+                        support_zones.append(psych)
+                    else:  # resistance
+                        resistance_zones.append(psych)
+
+                logger.info(f"   ✅ Added {len(psych_levels)} psychological levels to S/R analysis")
 
             # Calculate VPOC
             vpoc = self.calculate_vpoc(df)
@@ -892,11 +1225,19 @@ class PriceActionAnalyzer:
             else:
                 fib_levels = {}
 
+            # Log summary
+            logger.info(
+                f"   📊 S/R Analysis complete: "
+                f"{len(support_zones)} supports, {len(resistance_zones)} resistances "
+                f"(adaptive window: {adaptive_window} candles)"
+            )
+
             return {
                 'support': support_zones,
                 'resistance': resistance_zones,
                 'vpoc': vpoc,
-                'fibonacci': fib_levels
+                'fibonacci': fib_levels,
+                'adaptive_window': adaptive_window
             }
 
         except Exception as e:
@@ -905,7 +1246,208 @@ class PriceActionAnalyzer:
                 'support': [],
                 'resistance': [],
                 'vpoc': 0,
-                'fibonacci': {}
+                'fibonacci': {},
+                'adaptive_window': 14
+            }
+
+    def analyze_multi_timeframe_sr(
+        self,
+        symbol: str,
+        current_price: float,
+        exchange=None,
+        df_15m: Optional[pd.DataFrame] = None
+    ) -> Dict:
+        """
+        🎯 MULTI-TIMEFRAME S/R ANALYSIS
+
+        Combine S/R levels from multiple timeframes for comprehensive view.
+
+        TIMEFRAME HIERARCHY:
+        - 4h: Major S/R levels (institutional, swing trading)
+        - 1h: Intermediate S/R levels (day trading)
+        - 15m: Minor S/R levels (scalping, provided as param)
+
+        Why multi-timeframe:
+        - 15m only shows minor swings (last 3-6 hours)
+        - 4h shows major levels (last 2-3 days)
+        - Major levels = stronger, more reliable
+        - Trading at major S/R = higher probability
+
+        Priority:
+        1. 4h levels (highest priority, strongest)
+        2. 1h levels (medium priority, intermediate)
+        3. 15m levels (lowest priority, scalping)
+
+        Args:
+            symbol: Trading symbol
+            current_price: Current market price
+            exchange: Exchange object (for fetching data)
+            df_15m: 15m dataframe (already available, optional)
+
+        Returns:
+            Dict with combined S/R levels from all timeframes
+        """
+        try:
+            all_support = []
+            all_resistance = []
+
+            # Priority 1: 4h timeframe (MAJOR levels)
+            if exchange:
+                try:
+                    logger.info(f"   📊 Fetching 4h S/R levels...")
+                    # Fetch 100 candles × 4h = 400 hours = ~17 days of data
+                    ohlcv_4h = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=100)
+
+                    if ohlcv_4h and len(ohlcv_4h) >= 20:
+                        # Convert to DataFrame
+                        df_4h = pd.DataFrame(
+                            ohlcv_4h,
+                            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                        )
+
+                        # Analyze 4h S/R
+                        sr_4h = self.analyze_support_resistance(
+                            df_4h,
+                            current_price=current_price,
+                            include_psychological=True
+                        )
+
+                        # Tag with timeframe and priority
+                        for level in sr_4h['support']:
+                            level['timeframe'] = '4h'
+                            level['priority'] = 10  # Highest
+                            all_support.append(level)
+
+                        for level in sr_4h['resistance']:
+                            level['timeframe'] = '4h'
+                            level['priority'] = 10
+                            all_resistance.append(level)
+
+                        logger.info(f"   ✅ 4h S/R: {len(sr_4h['support'])} supports, {len(sr_4h['resistance'])} resistances")
+
+                except Exception as e:
+                    logger.warning(f"Failed to fetch 4h data: {e}")
+
+            # Priority 2: 1h timeframe (INTERMEDIATE levels)
+            if exchange:
+                try:
+                    logger.info(f"   📊 Fetching 1h S/R levels...")
+                    # Fetch 100 candles × 1h = 100 hours = ~4 days of data
+                    ohlcv_1h = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
+
+                    if ohlcv_1h and len(ohlcv_1h) >= 20:
+                        # Convert to DataFrame
+                        df_1h = pd.DataFrame(
+                            ohlcv_1h,
+                            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                        )
+
+                        # Analyze 1h S/R
+                        sr_1h = self.analyze_support_resistance(
+                            df_1h,
+                            current_price=current_price,
+                            include_psychological=False  # Already added from 4h
+                        )
+
+                        # Tag with timeframe and priority
+                        for level in sr_1h['support']:
+                            level['timeframe'] = '1h'
+                            level['priority'] = 5  # Medium
+                            all_support.append(level)
+
+                        for level in sr_1h['resistance']:
+                            level['timeframe'] = '1h'
+                            level['priority'] = 5
+                            all_resistance.append(level)
+
+                        logger.info(f"   ✅ 1h S/R: {len(sr_1h['support'])} supports, {len(sr_1h['resistance'])} resistances")
+
+                except Exception as e:
+                    logger.warning(f"Failed to fetch 1h data: {e}")
+
+            # Priority 3: 15m timeframe (MINOR levels - scalping)
+            if df_15m is not None and len(df_15m) >= 20:
+                logger.info(f"   📊 Analyzing 15m S/R levels...")
+                sr_15m = self.analyze_support_resistance(
+                    df_15m,
+                    current_price=current_price,
+                    include_psychological=False  # Already added from 4h
+                )
+
+                # Tag with timeframe and priority
+                for level in sr_15m['support']:
+                    level['timeframe'] = '15m'
+                    level['priority'] = 1  # Lowest
+                    all_support.append(level)
+
+                for level in sr_15m['resistance']:
+                    level['timeframe'] = '15m'
+                    level['priority'] = 1
+                    all_resistance.append(level)
+
+                logger.info(f"   ✅ 15m S/R: {len(sr_15m['support'])} supports, {len(sr_15m['resistance'])} resistances")
+
+            # Remove duplicate levels (merge if within 0.5%)
+            def merge_duplicate_levels(levels):
+                """Merge levels within 0.5% of each other, keeping highest priority"""
+                if not levels:
+                    return []
+
+                # Sort by price
+                sorted_levels = sorted(levels, key=lambda x: x['price'])
+                merged = []
+
+                i = 0
+                while i < len(sorted_levels):
+                    current = sorted_levels[i]
+                    duplicates = [current]
+
+                    # Find duplicates (within 0.5%)
+                    j = i + 1
+                    while j < len(sorted_levels):
+                        if abs(sorted_levels[j]['price'] - current['price']) / current['price'] <= 0.005:
+                            duplicates.append(sorted_levels[j])
+                            j += 1
+                        else:
+                            break
+
+                    # Keep the one with highest priority and most touches
+                    best = max(duplicates, key=lambda x: (x['priority'], x.get('touches', 1)))
+
+                    # If multiple timeframes agree, increase touches
+                    if len(duplicates) > 1:
+                        best['touches'] = best.get('touches', 1) + len(duplicates) - 1
+                        best['multi_timeframe_confirmed'] = True
+
+                    merged.append(best)
+                    i = j if j > i + 1 else i + 1
+
+                return merged
+
+            all_support = merge_duplicate_levels(all_support)
+            all_resistance = merge_duplicate_levels(all_resistance)
+
+            logger.info(
+                f"   🎯 Multi-timeframe S/R complete: "
+                f"{len(all_support)} supports, {len(all_resistance)} resistances "
+                f"(after merging duplicates)"
+            )
+
+            return {
+                'support': all_support,
+                'resistance': all_resistance,
+                'timeframes_used': ['4h', '1h', '15m'] if exchange else ['15m']
+            }
+
+        except Exception as e:
+            logger.error(f"Multi-timeframe S/R analysis failed: {e}")
+            # Fallback to 15m only
+            if df_15m is not None:
+                return self.analyze_support_resistance(df_15m, current_price=current_price)
+            return {
+                'support': [],
+                'resistance': [],
+                'timeframes_used': []
             }
 
     def should_enter_trade(
@@ -940,10 +1482,15 @@ class PriceActionAnalyzer:
         Returns:
             Dict with should_enter, reason, entry details
         """
-        logger.info(f"🔍 Price Action Analysis BALANCED v3.0: {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
+        logger.info(f"🔍 Price Action Analysis ENHANCED v4.0: {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
 
-        # 🔥 ENHANCED: Comprehensive market analysis
-        sr_analysis = self.analyze_support_resistance(df)
+        # 🎯 NEW v4.0: Multi-timeframe S/R analysis with adaptive window & psychological levels
+        sr_analysis = self.analyze_multi_timeframe_sr(
+            symbol=symbol,
+            current_price=current_price,
+            exchange=exchange,
+            df_15m=df
+        )
         trend = self.detect_trend(df)
         volume = self.analyze_volume(df)
 
@@ -1018,17 +1565,14 @@ class PriceActionAnalyzer:
 
         # === LONG ENTRY LOGIC ===
         if ml_signal == 'BUY':
-            # Find nearest support and resistance
-            supports = [s['price'] for s in sr_analysis['support']]
-            resistances = [r['price'] for r in sr_analysis['resistance']]
-
-            if not supports or not resistances:
+            # 🎯 NEW v4.0: Use strength-weighted S/R selection instead of just nearest
+            if not sr_analysis['support'] or not sr_analysis['resistance']:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
             # 🎯 RELAXED FILTER #1: Check total S/R count (need 2+ for basic reliability)
             # Relaxed approach: 2+ levels is acceptable (find more opportunities)
-            total_sr_levels = len(supports) + len(resistances)
+            total_sr_levels = len(sr_analysis['support']) + len(sr_analysis['resistance'])
             if total_sr_levels < 2:
                 result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+ minimum)'
                 return result
@@ -1040,16 +1584,28 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
                 return result
 
-            # 🔧 BUG FIX: Ensure BOTH supports AND resistances exist (LONG needs both)
-            # Error: "cannot access local variable 'nearest_support' where it is not associated with a value"
-            # Cause: If supports=[] or resistances=[], min() crashes
-            # Fix: Check both lists have elements before using min()
-            if not supports or not resistances:
-                result['reason'] = f'Missing S/R for LONG: {len(supports)} supports, {len(resistances)} resistances (need 1+ each)'
+            # 🎯 NEW v4.0: Select BEST support/resistance (strength-weighted)
+            # OLD: nearest_support = min(supports, key=lambda x: abs(x - current_price))
+            # NEW: Considers strength (touches) + distance + timeframe priority
+            best_support_dict = self.select_best_sr_level(
+                levels=sr_analysis['support'],
+                current_price=current_price,
+                level_type='support',
+                max_distance_pct=0.05  # 5% max distance
+            )
+            best_resistance_dict = self.select_best_sr_level(
+                levels=sr_analysis['resistance'],
+                current_price=current_price,
+                level_type='resistance',
+                max_distance_pct=0.15  # 15% max distance for target room
+            )
+
+            if not best_support_dict or not best_resistance_dict:
+                result['reason'] = f'No valid S/R levels within acceptable distance'
                 return result
 
-            nearest_support = min(supports, key=lambda x: abs(x - current_price))
-            nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
+            nearest_support = best_support_dict['price']
+            nearest_resistance = best_resistance_dict['price']
 
             # ✅ OPTION F (2025-11-21 15:00): Support break check RESTORED
             # CHANGE: Re-enabled after analyzing commit 370a574 (2025-11-20 12:40)
@@ -1248,17 +1804,14 @@ class PriceActionAnalyzer:
 
         # === SHORT ENTRY LOGIC ===
         elif ml_signal == 'SELL':
-            # Find nearest support and resistance
-            supports = [s['price'] for s in sr_analysis['support']]
-            resistances = [r['price'] for r in sr_analysis['resistance']]
-
-            if not supports or not resistances:
+            # 🎯 NEW v4.0: Use strength-weighted S/R selection instead of just nearest
+            if not sr_analysis['support'] or not sr_analysis['resistance']:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
             # 🎯 RELAXED FILTER #1: Check total S/R count (need 2+ for basic reliability)
             # Relaxed approach: 2+ levels is acceptable (find more opportunities)
-            total_sr_levels = len(supports) + len(resistances)
+            total_sr_levels = len(sr_analysis['support']) + len(sr_analysis['resistance'])
             if total_sr_levels < 2:
                 result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+ minimum)'
                 return result
@@ -1270,16 +1823,28 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
                 return result
 
-            # 🔧 BUG FIX: Ensure BOTH supports AND resistances exist (SHORT needs both)
-            # Error: "cannot access local variable 'nearest_support' where it is not associated with a value"
-            # Cause: If supports=[] or resistances=[], min() crashes
-            # Fix: Check both lists have elements before using min()
-            if not supports or not resistances:
-                result['reason'] = f'Missing S/R for SHORT: {len(supports)} supports, {len(resistances)} resistances (need 1+ each)'
+            # 🎯 NEW v4.0: Select BEST support/resistance (strength-weighted)
+            # OLD: nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
+            # NEW: Considers strength (touches) + distance + timeframe priority
+            best_support_dict = self.select_best_sr_level(
+                levels=sr_analysis['support'],
+                current_price=current_price,
+                level_type='support',
+                max_distance_pct=0.15  # 15% max distance for target room
+            )
+            best_resistance_dict = self.select_best_sr_level(
+                levels=sr_analysis['resistance'],
+                current_price=current_price,
+                level_type='resistance',
+                max_distance_pct=0.02  # 2% max distance
+            )
+
+            if not best_support_dict or not best_resistance_dict:
+                result['reason'] = f'No valid S/R levels within acceptable distance'
                 return result
 
-            nearest_support = min(supports, key=lambda x: abs(x - current_price))
-            nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
+            nearest_support = best_support_dict['price']
+            nearest_resistance = best_resistance_dict['price']
 
             # 🚨 CRITICAL FIX: Check price POSITION relative to support/resistance
             # SHORT should only trigger when price is BELOW resistance (rejection expected)
