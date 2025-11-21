@@ -1482,7 +1482,7 @@ class PriceActionAnalyzer:
         Returns:
             Dict with should_enter, reason, entry details
         """
-        logger.info(f"🔍 Price Action Analysis ENHANCED v4.0: {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
+        logger.info(f"🔍 Price Action Analysis v4.0-SR-ENHANCEMENTS (Multi-TF + Adaptive + Psych): {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
 
         # 🎯 NEW v4.0: Multi-timeframe S/R analysis with adaptive window & psychological levels
         sr_analysis = self.analyze_multi_timeframe_sr(
