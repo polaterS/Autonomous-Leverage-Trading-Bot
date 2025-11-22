@@ -1452,7 +1452,7 @@ class PriceActionAnalyzer:
                 'timeframes_used': []
             }
 
-    async def should_enter_trade(
+    async def should_enter_trade_v4_20251122(
         self,
         symbol: str,
         df: pd.DataFrame,
@@ -1463,7 +1463,11 @@ class PriceActionAnalyzer:
         btc_ohlcv: Optional[List] = None  # 🔧 FIX #3: Optional BTC data for correlation
     ) -> Dict:
         """
-        🎯 MASTER DECISION ENGINE
+        🎯 MASTER DECISION ENGINE v4.0 - BYTECODE CACHE BYPASS
+
+        🔥 RENAMED FUNCTION TO FORCE FRESH COMPILATION! 🔥
+        Old: should_enter_trade()
+        New: should_enter_trade_v4_20251122()  ← UNIQUE NAME = CACHE BYPASS!
 
         Combines Price Action + ML for smart entries.
 
@@ -1486,7 +1490,8 @@ class PriceActionAnalyzer:
         """
         # 🔥 DEPLOYMENT VERIFICATION: This log MUST appear if v4.0 code is loaded
         logger.info("=" * 80)
-        logger.info(f"🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE - DEPLOYED: 2025-11-22 14:19:04 UTC")
+        logger.info(f"🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE - DEPLOYED: 2025-11-22 15:10 UTC")
+        logger.info(f"🔥 FUNCTION RENAMED FOR CACHE BYPASS: should_enter_trade_v4_20251122()")
         logger.info(f"🔍 Price Action Analysis v4.0 (Multi-TF + Adaptive + Psych): {symbol}")
         logger.info(f"📊 ML Signal: {ml_signal} | Confidence: {ml_confidence:.1f}%")
         logger.info("=" * 80)

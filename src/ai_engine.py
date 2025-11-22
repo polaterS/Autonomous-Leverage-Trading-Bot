@@ -230,8 +230,8 @@ class AIConsensusEngine:
             }
 
         # 🔥 USE ADVANCED PA ANALYZER instead of basic logic!
-        # price_action_analyzer.should_enter_trade() includes:
-        # - S/R analysis
+        # price_action_analyzer.should_enter_trade_v4_20251122() includes:
+        # - S/R analysis (Multi-timeframe v4.0!)
         # - Trend analysis
         # - Volume analysis
         # - Candle patterns
@@ -240,11 +240,12 @@ class AIConsensusEngine:
         # - RISK/REWARD filtering (minimum 2:1 ratio)
         # - Stop-loss optimization
         #
+        # 🔥 RENAMED FUNCTION FOR BYTECODE CACHE BYPASS!
         # OLD: Basic PA logic here (only S/R + trend + volume)
         # NEW: Advanced PA analyzer with full confluence system
 
-        # Call should_enter_trade() for professional PA analysis
-        pa_result = pa_analyzer.should_enter_trade(
+        # Call should_enter_trade_v4_20251122() for professional PA analysis
+        pa_result = pa_analyzer.should_enter_trade_v4_20251122(
             symbol=symbol,
             df=df,
             ml_signal='BUY',  # Check both LONG and SHORT
@@ -261,7 +262,7 @@ class AIConsensusEngine:
             logger.info(f"✅ LONG setup found: {pa_reasoning}")
         else:
             # Check SHORT
-            pa_result_short = pa_analyzer.should_enter_trade(
+            pa_result_short = pa_analyzer.should_enter_trade_v4_20251122(
                 symbol=symbol,
                 df=df,
                 ml_signal='SELL',  # Check SHORT
