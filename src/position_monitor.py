@@ -282,43 +282,70 @@ class PositionMonitor:
             # - Trailing stops lock in profits as position moves favorably
             # ====================================================================
 
-            # 🔥 CRITICAL FIX: Use database profit target (user's configured value)
-            # PROBLEM: Volatility-based targets ($10-15) were TOO HIGH
-            # - Position hits $6.46 profit ✓
-            # - But target is $10+ ✗
-            # - Position never closes! ✗
+            # ====================================================================
+            # 🚨 BUG FIX #2: MULTI-LAYER STOP-LOSS PROTECTION
+            # ====================================================================
+            # PROBLEM: Bot had -95% ROI loss (SKLUSDT: -$13.03 from $13.62 position!)
+            # ROOT CAUSE:
+            #   1. No exchange-level stop-loss (bot crash = no protection!)
+            #   2. Position monitor checks every 60s (gaps in coverage)
+            #   3. Loss limit used %5 position value (ignored leverage!)
+            #   4. Config stop-loss (0.08-0.12%) was IGNORED!
             #
-            # SOLUTION: Use min_profit_target_usd from database (user's config)
-            # - Consistent with what Telegram shows user
-            # - Positions close at achievable targets
+            # SOLUTION: 4-Layer Protection System
+            # ====================================================================
+
+            # Get values for all layers
             PROFIT_TARGET_USD = Decimal(str(position.get('min_profit_target_usd', self.settings.min_profit_usd)))
-
-            # 🔥 FIX: Loss limit based on position size (5%)
-            # PROBLEM: Was equal to profit target ($2.50) - TOO TIGHT!
-            # - Position size: $300
-            # - Loss limit: $2.50
-            # - Price moves 0.83% → position closed ✗
-            # - Position closed after 8 minutes ✗
-            #
-            # SOLUTION: Loss limit = 5% of position size
-            # - Position size: $300 → Loss limit: $15
-            # - Allows ~5% price movement before exit
-            # - More room for normal market volatility
             position_value = Decimal(str(position['position_value_usd']))
-            LOSS_LIMIT_USD = position_value * Decimal("0.05")  # 5% of position size (~$15 for $300 position)
+            entry_price = Decimal(str(position['entry_price']))
+            leverage = int(position.get('leverage', 5))
 
-            # Get volatility for logging only
+            # 🛡️ LAYER 1: Config-based percentage stop-loss (TIGHT)
+            # Example: 0.10% = price moves 0.10% against position
+            # With 5x leverage: 0.10% price move = 0.50% ROI loss
+            config_stop_loss_pct = Decimal(str(position.get('stop_loss_percent', 0.10)))  # 0.10%
+
+            if side == 'LONG':
+                LAYER1_STOP_PRICE = entry_price * (1 - config_stop_loss_pct / 100)
+                layer1_triggered = current_price <= LAYER1_STOP_PRICE
+            else:  # SHORT
+                LAYER1_STOP_PRICE = entry_price * (1 + config_stop_loss_pct / 100)
+                layer1_triggered = current_price >= LAYER1_STOP_PRICE
+
+            # 🛡️ LAYER 2: Dollar-based loss limit (MODERATE)
+            # Example: $15 loss regardless of percentage
+            LAYER2_LOSS_LIMIT_USD = position_value * Decimal("0.05")  # 5% of position value
+            layer2_triggered = unrealized_pnl <= -LAYER2_LOSS_LIMIT_USD
+
+            # 🛡️ LAYER 3: ROI-based emergency stop (WIDE - CATASTROPHIC PROTECTION)
+            # Example: -50% ROI = losing half the capital on this position
+            # This catches cases where bot was offline/crashed
+            LAYER3_ROI_EMERGENCY = Decimal("-50.0")  # -50% ROI
+            current_roi = (unrealized_pnl / position_value) * 100 if position_value > 0 else Decimal("0")
+            layer3_triggered = current_roi <= LAYER3_ROI_EMERGENCY
+
+            # 🛡️ LAYER 4: Exchange-level stop order (HARDWARE PROTECTION)
+            # This is set when position opens (see trade_executor.py)
+            # Binance executes it automatically even if bot crashes
+            # We don't check it here - exchange handles it
+
+            # Get volatility for logging
             indicators_15m = indicators if indicators else {}
             atr_percent = indicators_15m.get('atr_percent', 3.0)
             TARGET_LEVEL = "LOW VOL" if atr_percent < 2.5 else "MED VOL" if atr_percent < 4.5 else "HIGH VOL"
 
             logger.info(
-                f"🎯 Exit targets (from DB): Profit +${float(PROFIT_TARGET_USD):.2f}, "
-                f"Loss -${float(LOSS_LIMIT_USD):.2f} "
-                f"(ATR {atr_percent:.2f}% = {TARGET_LEVEL})"
+                f"🎯 Exit targets: Profit +${float(PROFIT_TARGET_USD):.2f} | "
+                f"Loss -${float(LAYER2_LOSS_LIMIT_USD):.2f} | "
+                f"Stop ${float(LAYER1_STOP_PRICE):.4f} ({float(config_stop_loss_pct):.2f}%) | "
+                f"ROI {float(current_roi):+.1f}% | "
+                f"ATR {atr_percent:.2f}% = {TARGET_LEVEL}"
             )
 
-            # 🔥 INSTANT PROFIT CAPTURE: Check if we're close to target
+            # ====================================================================
+            # 🎯 PROFIT TARGET CHECK
+            # ====================================================================
             profit_progress = (unrealized_pnl / PROFIT_TARGET_USD) * 100 if PROFIT_TARGET_USD > 0 else 0
 
             if profit_progress >= 90:
@@ -328,7 +355,6 @@ class PositionMonitor:
                     f"({float(profit_progress):.1f}%) - WATCHING CLOSELY!"
                 )
 
-            # Check profit target
             if unrealized_pnl >= PROFIT_TARGET_USD:
                 close_reason = f"✅ Profit target hit: ${float(unrealized_pnl):+.2f} (target: ${float(PROFIT_TARGET_USD):.2f})"
                 logger.info(f"💰 {close_reason}")
@@ -344,18 +370,80 @@ class PositionMonitor:
                 await executor.close_position(position, current_price, close_reason)
                 return
 
-            # Check loss limit
-            if unrealized_pnl <= -LOSS_LIMIT_USD:
-                close_reason = f"❌ Loss limit hit: ${float(unrealized_pnl):+.2f} (limit: -${float(LOSS_LIMIT_USD):.2f})"
-                logger.warning(f"⚠️ {close_reason}")
+            # ====================================================================
+            # 🛡️ MULTI-LAYER STOP-LOSS CHECKS (Priority: Layer 1 → Layer 3)
+            # ====================================================================
+
+            # 🛡️ LAYER 1 CHECK: Config-based percentage stop (TIGHTEST - PRIMARY PROTECTION)
+            if layer1_triggered:
+                price_move_pct = abs((current_price - entry_price) / entry_price * 100)
+                roi_loss = float(current_roi)
+
+                close_reason = (
+                    f"🛡️ LAYER 1 STOP: Price moved {float(price_move_pct):.2f}% against position "
+                    f"(limit: {float(config_stop_loss_pct):.2f}%). "
+                    f"Stop price: ${float(LAYER1_STOP_PRICE):.4f}, Current: ${float(current_price):.4f}. "
+                    f"Loss: ${float(unrealized_pnl):+.2f} ({roi_loss:.1f}% ROI)"
+                )
+
+                logger.warning(f"🛡️ {close_reason}")
                 await notifier.send_alert(
                     'warning',
-                    f"⚠️ <b>LOSS LIMIT HIT!</b>\n\n"
+                    f"🛡️ <b>LAYER 1 STOP-LOSS HIT!</b>\n\n"
                     f"💎 {symbol} {side}\n"
                     f"Entry: ${float(position['entry_price']):.4f}\n"
                     f"Exit: ${float(current_price):.4f}\n"
-                    f"Loss: <b>${float(unrealized_pnl):+.2f}</b>\n\n"
-                    f"🛑 Limit was -${float(LOSS_LIMIT_USD):.2f}"
+                    f"Loss: <b>${float(unrealized_pnl):+.2f}</b> ({roi_loss:.1f}% ROI)\n\n"
+                    f"🛡️ Stop: {float(config_stop_loss_pct):.2f}% price move\n"
+                    f"Price moved {float(price_move_pct):.2f}% against position"
+                )
+                await executor.close_position(position, current_price, close_reason)
+                return
+
+            # 🛡️ LAYER 2 CHECK: Dollar-based loss limit (MODERATE PROTECTION)
+            if layer2_triggered:
+                roi_loss = float(current_roi)
+
+                close_reason = (
+                    f"🛡️ LAYER 2 STOP: Dollar loss limit hit ${float(unrealized_pnl):+.2f} "
+                    f"(limit: -${float(LAYER2_LOSS_LIMIT_USD):.2f}, {roi_loss:.1f}% ROI)"
+                )
+
+                logger.warning(f"🛡️ {close_reason}")
+                await notifier.send_alert(
+                    'warning',
+                    f"🛡️ <b>LAYER 2 STOP-LOSS HIT!</b>\n\n"
+                    f"💎 {symbol} {side}\n"
+                    f"Entry: ${float(position['entry_price']):.4f}\n"
+                    f"Exit: ${float(current_price):.4f}\n"
+                    f"Loss: <b>${float(unrealized_pnl):+.2f}</b> ({roi_loss:.1f}% ROI)\n\n"
+                    f"🛡️ Dollar limit: -${float(LAYER2_LOSS_LIMIT_USD):.2f} (5% of position)"
+                )
+                await executor.close_position(position, current_price, close_reason)
+                return
+
+            # 🛡️ LAYER 3 CHECK: ROI-based emergency stop (CATASTROPHIC PROTECTION)
+            # This catches extreme cases like -95% ROI (SKLUSDT bug)
+            # Only triggers if Layers 1 & 2 somehow failed (bot crash, restart, etc.)
+            if layer3_triggered:
+                close_reason = (
+                    f"🚨 LAYER 3 EMERGENCY STOP: Catastrophic loss detected! "
+                    f"ROI: {float(current_roi):.1f}% (emergency threshold: {float(LAYER3_ROI_EMERGENCY):.0f}%). "
+                    f"Loss: ${float(unrealized_pnl):+.2f}. "
+                    f"This indicates Layers 1 & 2 failed - possible bot crash/restart during position!"
+                )
+
+                logger.critical(f"🚨 {close_reason}")
+                await notifier.send_alert(
+                    'critical',
+                    f"🚨 <b>LAYER 3 EMERGENCY STOP!</b>\n\n"
+                    f"💎 {symbol} {side}\n"
+                    f"Entry: ${float(position['entry_price']):.4f}\n"
+                    f"Exit: ${float(current_price):.4f}\n"
+                    f"Loss: <b>${float(unrealized_pnl):+.2f}</b> ({float(current_roi):.1f}% ROI)\n\n"
+                    f"🚨 CATASTROPHIC LOSS DETECTED!\n"
+                    f"Emergency threshold: {float(LAYER3_ROI_EMERGENCY):.0f}% ROI\n\n"
+                    f"⚠️ Layers 1 & 2 failed - check bot logs for crashes/restarts!"
                 )
                 await executor.close_position(position, current_price, close_reason)
                 return

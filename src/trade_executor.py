@@ -496,9 +496,31 @@ class TradeExecutor:
                 f"(slippage: {float(slippage_percent):.3f}%)"
             )
 
-            # CRITICAL: Place stop-loss order (MANDATORY)
+            # ====================================================================
+            # 🛡️ LAYER 4: EXCHANGE-LEVEL STOP-LOSS ORDER (HARDWARE PROTECTION)
+            # ====================================================================
+            # CRITICAL: This is the MOST IMPORTANT protection layer!
+            # Even if bot crashes, Railway restarts, or position monitor fails,
+            # Binance will automatically execute this stop-loss order.
+            #
+            # BUG FIX #2: Enhanced stop-loss placement with verification
+            # - Logs exact stop price and expected loss
+            # - Verifies order placement succeeded
+            # - Stores order ID in database for monitoring
+            # - Closes position immediately if stop-loss fails
+            # ====================================================================
             stop_loss_order_id = None
             sl_order_side = 'sell' if side == 'LONG' else 'buy'
+
+            # Calculate expected loss at stop price (for logging)
+            price_to_stop_pct = abs((stop_loss_price - entry_price) / entry_price) * 100
+            expected_loss_usd = position_value * price_to_stop_pct / 100 * leverage
+
+            logger.info(
+                f"🛡️ LAYER 4 STOP-LOSS: Placing exchange-level stop order | "
+                f"Stop price: ${float(stop_loss_price):.4f} ({float(price_to_stop_pct):.2f}% from entry) | "
+                f"Expected loss if hit: -${float(expected_loss_usd):.2f}"
+            )
 
             try:
                 sl_order = await exchange.create_stop_loss_order(
@@ -508,7 +530,12 @@ class TradeExecutor:
                     stop_loss_price
                 )
                 stop_loss_order_id = sl_order.get('id')
-                logger.info(f"✅ Stop-loss order placed: {stop_loss_order_id}")
+
+                logger.info(
+                    f"✅ LAYER 4 STOP-LOSS PLACED: Order ID {stop_loss_order_id} | "
+                    f"Stop: ${float(stop_loss_price):.4f} | "
+                    f"Max loss: -${float(expected_loss_usd):.2f}"
+                )
 
                 # 🎯 ADAPTIVE TAKE-PROFIT: Place TP order for $2.0 profit target
                 take_profit_price = await adaptive_risk.get_adaptive_take_profit(

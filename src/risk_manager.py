@@ -148,7 +148,7 @@ class RiskManager:
                 'adjusted_params': None
             }
 
-        # Check if same symbol already has an open position
+        # RULE 4A: Check if same symbol already has an open position
         for pos in active_positions:
             if pos['symbol'] == trade_params['symbol']:
                 return {
@@ -156,6 +156,56 @@ class RiskManager:
                     'reason': f'Position already open for {trade_params["symbol"]}. Cannot open duplicate.',
                     'adjusted_params': None
                 }
+
+        # 🚨 BUG FIX #1: RULE 4B: Recent trades cooldown (prevent re-entry to same symbol)
+        # PROBLEM: Bot was opening same coin multiple times in short succession:
+        #   - SKLUSDT: 3 positions in 5 hours (all losses!)
+        #   - MASKUSDT: 4 positions in 6 hours
+        # ROOT CAUSE: Only checked active positions, not recent closed trades
+        # SOLUTION: 30-minute cooldown after closing any position on a symbol
+        #
+        # WHY 30 MINUTES:
+        # - Prevents emotional re-entry into losing setups
+        # - Allows market structure to change before re-evaluation
+        # - Reduces over-concentration in single assets
+        # - Proven by professional traders to reduce revenge trading
+        try:
+            recent_trades = await db.get_recent_trades_for_symbol(
+                symbol=trade_params['symbol'],
+                minutes=30
+            )
+
+            if recent_trades:
+                last_trade = recent_trades[0]
+                minutes_ago = float(last_trade['minutes_ago'])
+                wait_time = 30 - minutes_ago
+                last_pnl = float(last_trade['realized_pnl_usd'])
+                last_side = last_trade['side']
+
+                logger.warning(
+                    f"🔄 COOLDOWN: {symbol} traded {minutes_ago:.0f}m ago "
+                    f"({last_side} ${last_pnl:+.2f}). Wait {wait_time:.0f}m more."
+                )
+
+                return {
+                    'approved': False,
+                    'reason': (
+                        f'Recent trade cooldown: {symbol} was traded {minutes_ago:.0f} minutes ago '
+                        f'({last_side} resulted in ${last_pnl:+.2f}). '
+                        f'Wait {wait_time:.0f} more minutes before re-entry. '
+                        f'This prevents over-concentration and revenge trading.'
+                    ),
+                    'adjusted_params': None,
+                    'cooldown_info': {
+                        'last_trade_minutes_ago': minutes_ago,
+                        'wait_minutes_remaining': wait_time,
+                        'last_pnl': last_pnl,
+                        'last_side': last_side
+                    }
+                }
+        except Exception as cooldown_error:
+            # Non-critical: allow trade if cooldown check fails
+            logger.warning(f"Cooldown check failed (allowing trade): {cooldown_error}")
 
         # 🎯 #6: RULE 4B: CROSS-SYMBOL CORRELATION CHECK
         # Prevent over-concentration in highly correlated assets

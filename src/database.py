@@ -529,6 +529,44 @@ class DatabaseClient:
             """)
             logger.debug(f"Cleaned up expired AI cache entries")
 
+    # 🚨 BUG FIX #1: Recent Trades Check (Prevent duplicate entries to same symbol)
+    async def get_recent_trades_for_symbol(self, symbol: str, minutes: int = 30) -> List[Dict[str, Any]]:
+        """
+        Get trades for a symbol that closed within the last N minutes.
+
+        Used to prevent re-entry into recently closed positions.
+        This prevents the bot from:
+        - Re-entering a losing trade immediately after exit
+        - Trading the same symbol in quick succession
+        - Over-concentration in a single asset
+
+        Args:
+            symbol: Trading symbol (e.g., 'BTC/USDT:USDT')
+            minutes: Lookback period in minutes (default: 30)
+
+        Returns:
+            List of recent trade dictionaries, sorted by exit_time DESC
+
+        Example:
+            recent = await db.get_recent_trades_for_symbol('SKL/USDT:USDT', 30)
+            if recent:
+                # SKL was traded in last 30 minutes - don't re-enter!
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT
+                    id, symbol, side, entry_price, exit_price,
+                    quantity, realized_pnl_usd, entry_time, exit_time,
+                    EXTRACT(EPOCH FROM (NOW() - exit_time)) / 60 as minutes_ago
+                FROM trade_history
+                WHERE symbol = $1
+                  AND exit_time IS NOT NULL
+                  AND exit_time >= NOW() - ($2 || ' minutes')::INTERVAL
+                ORDER BY exit_time DESC
+            """, symbol, minutes)
+
+            return [dict(row) for row in rows]
+
 
 # Singleton instance
 _db_client: Optional[DatabaseClient] = None
