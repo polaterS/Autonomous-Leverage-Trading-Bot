@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "6.4-SR-ENHANCEMENTS-V4"
+BOT_VERSION = "6.4-SR-ENHANCEMENTS-V4-VERIFICATION"
 
 # Log deployment version from VERSION file
 try:

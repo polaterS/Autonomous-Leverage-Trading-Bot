@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (cache bust: v4.0-NUCLEAR-PYCACHE-DISABLE-20251121)
+# Copy application code (cache bust: v4.0-SR-ENHANCEMENTS-DEPLOY-20251122-141904)
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
@@ -42,7 +42,11 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the trading bot (FORCE clear ALL Python cache to ensure fresh code)
-CMD find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
+CMD echo "🔥 DELETING PYTHON CACHE BEFORE STARTUP..." && \
+    find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
     find /app -type f -name "*.pyc" -delete 2>/dev/null || true && \
     find /app -type f -name "*.pyo" -delete 2>/dev/null || true && \
+    echo "✅ Cache deletion complete, verifying..." && \
+    echo "Remaining .pyc files: $(find /app -type f -name '*.pyc' | wc -l)" && \
+    echo "🚀 Starting bot with -B flag (bypass bytecode)..." && \
     python -u -B main.py

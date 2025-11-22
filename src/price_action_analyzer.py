@@ -1484,10 +1484,15 @@ class PriceActionAnalyzer:
         Returns:
             Dict with should_enter, reason, entry details
         """
-        logger.info(f"🔍 Price Action Analysis v4.0-SR-ENHANCEMENTS (Multi-TF + Adaptive + Psych): {symbol} | ML: {ml_signal} {ml_confidence:.1f}%")
+        # 🔥 DEPLOYMENT VERIFICATION: This log MUST appear if v4.0 code is loaded
+        logger.info("=" * 80)
+        logger.info(f"🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE - DEPLOYED: 2025-11-22 14:19:04 UTC")
+        logger.info(f"🔍 Price Action Analysis v4.0 (Multi-TF + Adaptive + Psych): {symbol}")
+        logger.info(f"📊 ML Signal: {ml_signal} | Confidence: {ml_confidence:.1f}%")
+        logger.info("=" * 80)
 
-        # 🔥 FORCE BYTECODE RECOMPILE: v4.0 deployment marker
-        _v4_sr_enhancements_active = True
+        # 🔥 FORCE BYTECODE RECOMPILE: Unique marker with timestamp
+        _v4_sr_enhancements_deployment_20251122_141904 = True
 
         # 🎯 NEW v4.0: Multi-timeframe S/R analysis with adaptive window & psychological levels
         # 🔥 CRITICAL FIX: await async analyze_multi_timeframe_sr()
