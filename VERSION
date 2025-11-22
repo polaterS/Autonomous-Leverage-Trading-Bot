@@ -30,7 +30,7 @@ LEVERAGE:
 - Default: 5x (AI suggestion)
 
 POSITION MANAGEMENT:
-- Max Concurrent: 2 positions
+- Max Concurrent: 4 positions
 - Position Size: 85% of capital ($75-90 with $100 balance)
 - Stop Loss: 15% (emergency only)
 
