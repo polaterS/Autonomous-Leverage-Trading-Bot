@@ -561,7 +561,7 @@ class DatabaseClient:
                 FROM trade_history
                 WHERE symbol = $1
                   AND exit_time IS NOT NULL
-                  AND exit_time >= NOW() - ($2 || ' minutes')::INTERVAL
+                  AND exit_time >= NOW() - INTERVAL '1 minute' * $2
                 ORDER BY exit_time DESC
             """, symbol, minutes)
 
