@@ -531,11 +531,13 @@ class TradeExecutor:
                 )
                 stop_loss_order_id = sl_order.get('id')
 
+                # 🔍 DEBUG: Log full stop-loss order response for troubleshooting
                 logger.info(
                     f"✅ LAYER 4 STOP-LOSS PLACED: Order ID {stop_loss_order_id} | "
                     f"Stop: ${float(stop_loss_price):.4f} | "
                     f"Max loss: -${float(expected_loss_usd):.2f}"
                 )
+                logger.debug(f"🔍 STOP-LOSS ORDER DETAILS: {sl_order}")
 
                 # 🎯 ADAPTIVE TAKE-PROFIT: Place TP order for $2.0 profit target
                 take_profit_price = await adaptive_risk.get_adaptive_take_profit(
@@ -558,7 +560,13 @@ class TradeExecutor:
 
             except Exception as e:
                 # CRITICAL: Stop-loss placement failed - close position immediately
-                logger.critical(f"🚨 STOP-LOSS PLACEMENT FAILED: {e}")
+                logger.critical(
+                    f"🚨 STOP-LOSS PLACEMENT FAILED: {e}\n"
+                    f"Symbol: {symbol}, Side: {side}, Quantity: {quantity}\n"
+                    f"Stop Price: ${float(stop_loss_price):.4f}\n"
+                    f"Error Type: {type(e).__name__}\n"
+                    f"Full Error: {str(e)}"
+                )
 
                 try:
                     # Close the position immediately

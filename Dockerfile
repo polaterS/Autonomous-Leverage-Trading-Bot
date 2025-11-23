@@ -1,5 +1,10 @@
 FROM python:3.11-slim
 
+# 🔥 AGGRESSIVE CACHE BUSTING: Unique build argument for each deployment
+# This invalidates Docker layer cache COMPLETELY - forces fresh compilation
+ARG CACHE_BUST=20251123_211500
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - Forcing fresh build..."
+
 # Set working directory
 WORKDIR /app
 
@@ -18,7 +23,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (cache bust: v4.0-SR-ENHANCEMENTS-DEPLOY-20251122-141904)
+# 🔥 CACHE BUST MARKER: This line changes every deployment to invalidate cache
+# Current deployment: 20251123_211500_database_fix_stop_loss_debug
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

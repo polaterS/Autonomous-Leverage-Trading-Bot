@@ -567,6 +567,22 @@ class DatabaseClient:
 
             return [dict(row) for row in rows]
 
+    async def update_position_stop_loss(self, position_id: int, new_stop_loss: float) -> None:
+        """
+        Update the stop-loss price for an active position (used by trailing stop).
+
+        Args:
+            position_id: Position ID to update
+            new_stop_loss: New stop-loss price
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE active_positions
+                SET stop_loss_price = $1,
+                    updated_at = NOW()
+                WHERE id = $2
+            """, new_stop_loss, position_id)
+
 
 # Singleton instance
 _db_client: Optional[DatabaseClient] = None
