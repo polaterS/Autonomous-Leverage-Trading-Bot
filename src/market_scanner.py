@@ -459,12 +459,7 @@ class MarketScanner:
                         await self.execute_trade(opp)
                         await asyncio.sleep(2)  # Small delay between trades
 
-                    # 🔧 CRITICAL: Reset capital cache after all positions opened
-                    # Ensures next scan cycle fetches fresh balance instead of using cached value
-                    from src.trade_executor import get_trade_executor
-                    executor = get_trade_executor()
-                    executor.reset_scan_capital_cache()
-                    logger.info("✅ Capital cache reset for next scan cycle")
+                    # Note: Capital is now always read from config (no cache to reset)
                 else:
                     # Show best opportunity from AVAILABLE coins (excluding existing positions)
                     if available_analyses:

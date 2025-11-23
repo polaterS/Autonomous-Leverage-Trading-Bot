@@ -1,8 +1,8 @@
 FROM python:3.11-slim AS base
 
-# 🔥 AGGRESSIVE CACHE BUST: Force Railway to rebuild by changing base stage
-FROM python:3.11-slim AS rebuild_stage_20251123_231700
-ARG CACHE_BUST=20251123_231700
+# 🔥 CRITICAL FIX: AttributeError + Symbol Status - Force complete rebuild
+FROM python:3.11-slim AS rebuild_20251123_233348
+ARG CACHE_BUST=20251123_233348
 RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - NUCLEAR REBUILD FORCED!" && \
     echo "Build timestamp: $(date)" && \
     echo "Forcing complete cache invalidation..."
@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # 🔥 CACHE BUST MARKER: This line changes every deployment to invalidate cache
-# Current deployment: 20251123_230849_24-7_TRADING_ENABLED
+# Current deployment: 20251123_233348_CRITICAL_FIX_ATTRIBUTE_ERROR
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
