@@ -34,11 +34,11 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
-    initial_capital: Decimal = Field(default=Decimal("2.29"), gt=0)  # 🔥 SYNCED: Current actual Binance balance
+    initial_capital: Decimal = Field(default=Decimal("150.00"), gt=0)  # 🔥 USER UPDATE: $150 total capital
     min_leverage: int = Field(default=3, ge=1, le=50)  # 🎯 USER UPDATE: 3x min leverage (ultra-safe with smaller positions)
     max_leverage: int = Field(default=5, ge=1, le=50)  # 🎯 USER UPDATE: 5x max leverage (dynamic 3x-5x based on confidence)
-    max_concurrent_positions: int = Field(default=4, ge=1, le=30)  # 🔧 USER UPDATE: 4 positions max (increased for better diversification)
-    position_size_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)  # 🎯 USER UPDATE: 10% per position (~$100 with $1000 capital, smaller safer positions)
+    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔥 USER UPDATE: 2 positions max ($75 each)
+    position_size_percent: Decimal = Field(default=Decimal("0.50"), gt=0, le=1)  # 🔥 USER UPDATE: 50% per position ($75 @ $150 capital)
     min_stop_loss_percent: Decimal = Field(default=Decimal("8.0"), gt=0, le=100)  # 🎯 LIVE TRADING: 8% min = $4.80 loss @ $60 position (2.4% of $200 capital) - Professional 2-3% risk
     max_stop_loss_percent: Decimal = Field(default=Decimal("12.0"), gt=0, le=100)  # 🎯 LIVE TRADING: 12% max = $7.20 loss @ $60 position (3.6% of $200 capital) - Conservative risk management
     min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # 🎯 USER UPDATE: $1.20 profit target (realistic with 3x-5x leverage)
