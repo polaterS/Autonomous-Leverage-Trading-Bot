@@ -2,7 +2,7 @@ FROM python:3.11-slim AS base
 
 # 🔥 NUCLEAR CACHE BUST: Railway ignores ARG, so we use multi-stage build to force invalidation
 FROM base
-ARG CACHE_BUST=20251123_223000
+ARG CACHE_BUST=20251123_230849
 RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - NUCLEAR REBUILD FORCED!" && \
     echo "Build timestamp: $(date)" && \
     echo "Forcing complete cache invalidation..."
@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # 🔥 CACHE BUST MARKER: This line changes every deployment to invalidate cache
-# Current deployment: 20251123_223000_FORCE_REBUILD_CACHE_BYPASS
+# Current deployment: 20251123_230849_24-7_TRADING_ENABLED
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
