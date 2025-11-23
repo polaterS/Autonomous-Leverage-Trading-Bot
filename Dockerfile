@@ -1,9 +1,11 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS base
 
-# 🔥 AGGRESSIVE CACHE BUSTING: Unique build argument for each deployment
-# This invalidates Docker layer cache COMPLETELY - forces fresh compilation
+# 🔥 NUCLEAR CACHE BUST: Railway ignores ARG, so we use multi-stage build to force invalidation
+FROM base
 ARG CACHE_BUST=20251123_223000
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - Forcing fresh build..."
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - NUCLEAR REBUILD FORCED!" && \
+    echo "Build timestamp: $(date)" && \
+    echo "Forcing complete cache invalidation..."
 
 # Set working directory
 WORKDIR /app
