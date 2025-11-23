@@ -233,28 +233,18 @@ class TradeExecutor:
             notifier = get_notifier()
             adaptive_risk = get_adaptive_risk_manager()
 
-            # 🔥 CRITICAL FIX: Use INITIAL capital for ALL positions in same scan cycle
-            # PROBLEM (from logs):
-            # - 1st position: balance $60.97 → uses $30.49 margin ✅
-            # - 2nd position: balance $30.08 → uses $15.04 margin ❌ WRONG!
-            # - Reason: 1st position locked $30, so Binance balance dropped!
+            # 🔥 CRITICAL FIX: ALWAYS use config INITIAL_CAPITAL, NEVER Binance balance!
+            # PROBLEM (User Report):
+            # - 1st position: $150 × 50% = $75 margin ✅ CORRECT
+            # - 2nd position: $75 × 50% = $37.5 margin ❌ WRONG! (uses remaining balance)
+            # - Root cause: Fetching Binance balance AFTER 1st position was opened
             #
-            # SOLUTION: Store initial balance at scan start, use for ALL positions
-            if not hasattr(self, '_scan_initial_capital') or self._scan_initial_capital is None:
-                # First position in scan - fetch and store
-                try:
-                    real_balance = await exchange.fetch_balance()
-                    logger.info(f"💰 INITIAL balance (scan start): ${real_balance:.2f} USDT")
-                    self._scan_initial_capital = real_balance
-                    current_capital = real_balance
-                except Exception as balance_error:
-                    logger.warning(f"Could not fetch balance: {balance_error}, using DB")
-                    current_capital = await db.get_current_capital()
-                    self._scan_initial_capital = current_capital
-            else:
-                # Subsequent positions - use STORED initial capital
-                current_capital = self._scan_initial_capital
-                logger.info(f"💰 Using INITIAL capital: ${current_capital:.2f} (stored from scan start, ignoring current balance change)")
+            # SOLUTION: Use INITIAL_CAPITAL from config for ALL position size calculations
+            # - This ensures consistent position sizing regardless of open positions
+            # - Position 1: $150 × 50% = $75
+            # - Position 2: $150 × 50% = $75 (uses SAME base capital, not remaining balance)
+            current_capital = self.settings.initial_capital
+            logger.info(f"💰 Using CONFIG capital for position sizing: ${current_capital:.2f} (ignores Binance balance)")
 
             # 🎯 ADAPTIVE STOP-LOSS: Adjust based on recent performance
             adaptive_sl_percent = await adaptive_risk.get_adaptive_stop_loss_percent(
