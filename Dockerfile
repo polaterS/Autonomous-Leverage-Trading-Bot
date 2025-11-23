@@ -1,8 +1,8 @@
 FROM python:3.11-slim AS base
 
-# 🔥 NUCLEAR CACHE BUST: Railway ignores ARG, so we use multi-stage build to force invalidation
-FROM base
-ARG CACHE_BUST=20251123_230849
+# 🔥 AGGRESSIVE CACHE BUST: Force Railway to rebuild by changing base stage
+FROM python:3.11-slim AS rebuild_stage_20251123_231700
+ARG CACHE_BUST=20251123_231700
 RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - NUCLEAR REBUILD FORCED!" && \
     echo "Build timestamp: $(date)" && \
     echo "Forcing complete cache invalidation..."
