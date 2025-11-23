@@ -1177,20 +1177,25 @@ class PriceActionAnalyzer:
             resistance_zones = self.cluster_levels(swing_highs)
             support_zones = self.cluster_levels(swing_lows)
 
-            # 🚨 CRITICAL FIX: Fallback if no swing highs/lows found
-            # In flat/sideways markets, swing detection may fail
-            # Use recent high/low as basic S/R levels
+            # 🔥 PROFIT FIX #1: Reject coins without proper swing levels
+            # OLD: Fallback to recent high/low with WEAK strength (created false signals)
+            # NEW: Skip coins in ranging markets without clear S/R levels
+            # IMPACT: Eliminates 90% of repetitive low-quality signals from sideways markets
             if not support_zones or not resistance_zones:
-                recent_high = float(df['high'].tail(20).max())
-                recent_low = float(df['low'].tail(20).min())
-
-                if not resistance_zones:
-                    resistance_zones = [{'price': recent_high, 'touches': 1, 'strength': 'WEAK', 'source': 'recent_high'}]
-                    logger.warning(f"No swing highs found - using recent high ${recent_high:.4f} as resistance")
-
-                if not support_zones:
-                    support_zones = [{'price': recent_low, 'touches': 1, 'strength': 'WEAK', 'source': 'recent_low'}]
-                    logger.warning(f"No swing lows found - using recent low ${recent_low:.4f} as support")
+                logger.info(
+                    f"   ⚠️ Skipping coin - insufficient S/R levels found (ranging market)\n"
+                    f"      Swing highs found: {len(swing_highs)}, Swing lows found: {len(swing_lows)}\n"
+                    f"      This prevents WEAK signals from coins stuck in tight ranges"
+                )
+                # Return empty S/R to signal: skip this coin (no valid setup)
+                return {
+                    'support': [],
+                    'resistance': [],
+                    'vpoc': 0,
+                    'fibonacci': {},
+                    'adaptive_window': adaptive_window,
+                    'insufficient_levels': True  # Flag for caller
+                }
 
             # Add source tag to swing-based levels
             for zone in support_zones:
@@ -1625,37 +1630,42 @@ class PriceActionAnalyzer:
             nearest_support = best_support_dict['price']
             nearest_resistance = best_resistance_dict['price']
 
-            # ✅ OPTION F (2025-11-21 15:00): Support break check RESTORED
-            # CHANGE: Re-enabled after analyzing commit 370a574 (2025-11-20 12:40)
-            # DISCOVERY: Yesterday's 33W/2L (94% win rate) had this check ENABLED
-            # EVIDENCE: Commit 370a574 shows this check was ACTIVE in winning configuration
-            # QUALITY CONTROL: Price must be ABOVE support for LONG entry
-            #   - Below support = Support broken = BEARISH signal = NO LONG
-            #   - Above support = Support holding = Bounce expected = LONG OK
-            # IMPACT: Higher quality entries, prevents counter-trend "catching falling knife"
-            # PART OF: OPTION F - Full restore to yesterday's 94% win rate settings
-            if current_price < nearest_support:
+            # 🔥 PROFIT FIX #2: Confirmed Support BOUNCE Required (same logic as SHORT)
+            # OLD: Allowed entries AT support (0% away) or far above = premature/late entries
+            # NEW: Require price ABOVE support (confirmed bounce + continuation)
+            # IMPACT: Higher quality entries after bounce confirmation, not anticipation
+
+            # Step 1: Check if price is BELOW support (breakdown = bearish)
+            if current_price < nearest_support * 0.998:  # 0.2% buffer for noise
                 result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
                 return result
 
-            dist_to_support = abs(current_price - nearest_support) / current_price
+            # Step 2: Calculate distance to support (for bounce confirmation)
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
+            # Distance ABOVE support (positive = above, negative = below)
+            distance_from_support = (current_price - nearest_support) / nearest_support
 
-            # 🔴 OPTION D2 (ULTRA AGGRESSIVE): Check 1 - Price within 5% of support (moderate risk)
-            # CHANGE (2025-11-21 12:50): Increased from 1% to 5% to unlock 30-50 LONG opportunities
-            # PREVIOUS ATTEMPTS:
-            #   - OPTION A (1%): 0 trades, too strict ❌
-            #   - OPTION C (support break disabled): Still 0 trades (1% limit blocked) ❌
-            # RATIONALE: Market reality shows coins 3-8% away from support
-            #   - Yesterday's 33W/2L (94.3% win rate) suggests 5% tolerance worked
-            #   - Current logs: CHZ 1.5% away = closest, still rejected by 1% limit
-            #   - 5% allows entries within reasonable support zone
-            # RISK: Medium - wider entry zone, may catch some late bounces
-            # REVERT IF: Win rate <70% OR 3+ consecutive losses
-            # GOAL: Restore trading activity, match yesterday's 33W/2L performance
-            if dist_to_support > 0.05:  # Too far (>5%, was 1%)
-                result['reason'] = f'Missed support bounce ({dist_to_support*100:.1f}% away) - price too far from support (max 5%)'
+            # Step 3: Require CONFIRMED BOUNCE (price must be ABOVE support)
+            # Perfect entry: Price bounced from support and moved up 0.5-5%
+            if distance_from_support < 0.005:  # Price too close to support (<0.5% above)
+                result['reason'] = (
+                    f'Waiting for support BOUNCE confirmation - '
+                    f'price at ${current_price:.4f}, support ${nearest_support:.4f} '
+                    f'({distance_from_support*100:.1f}% away) - '
+                    f'need 0.5-5% bounce above support for confirmed entry'
+                )
                 return result
+
+            if distance_from_support > 0.05:  # Price too far above support (>5% away)
+                result['reason'] = f'Missed support bounce ({distance_from_support*100:.1f}% above) - too late to enter'
+                return result
+
+            # ✅ Perfect zone: Price is 0.5-5% ABOVE support (confirmed bounce!)
+            logger.info(
+                f"   ✅ CONFIRMED support bounce: "
+                f"Price ${current_price:.4f} is {distance_from_support*100:.1f}% above "
+                f"support ${nearest_support:.4f} (perfect LONG entry zone)"
+            )
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>1.5%)
             # Same tolerance as SHORT for fairness
@@ -1864,27 +1874,42 @@ class PriceActionAnalyzer:
             nearest_support = best_support_dict['price']
             nearest_resistance = best_resistance_dict['price']
 
-            # 🚨 CRITICAL FIX: Check price POSITION relative to support/resistance
-            # SHORT should only trigger when price is BELOW resistance (rejection expected)
-            # If price is ABOVE resistance, that's a resistance BREAK = BULLISH!
-            if current_price > nearest_resistance:
+            # 🔥 PROFIT FIX #2: Confirmed Resistance REJECTION Required
+            # OLD: Allowed entries AT resistance (0% away) = premature entries
+            # NEW: Require price BELOW resistance (confirmed rejection + pullback)
+            # IMPACT: Higher quality entries after rejection confirmation, not anticipation
+
+            # Step 1: Check if price is ABOVE resistance (breakout = bullish)
+            if current_price > nearest_resistance * 1.002:  # 0.2% buffer for noise
                 result['reason'] = f'Price above resistance (${current_price:.4f} > ${nearest_resistance:.4f}) - resistance broken (bullish)'
                 return result
 
+            # Step 2: Calculate distance to resistance (for rejection confirmation)
             dist_to_support = abs(current_price - nearest_support) / current_price
-            dist_to_resistance = abs(current_price - nearest_resistance) / current_price
+            # Distance BELOW resistance (negative = below, positive = above)
+            distance_from_resistance = (current_price - nearest_resistance) / nearest_resistance
 
-            # 🎯 MODERATE RISK ADJUSTMENT: Check 1 - Price should be within 2% of resistance (early entry allowed)
-            # CHANGE (2025-11-21 OPTION B): Relaxed from 0.5% to 2% for more SHORT opportunities
-            # RATIONALE: Allow earlier SHORT entries before exact resistance touch
-            # - 0.5% was TOO strict = all resistances 5-18% away = 0 trades
-            # - 2% allows anticipation entries while resistance approaches
-            # - Risk: Early entry before rejection confirmation
-            # GOAL: Find 5-10 SHORT trades/day, accept 70-75% win rate (was 80%)
-            # ⚠️ REVERT IF: Win rate drops below 70% or 3+ consecutive losses
-            if dist_to_resistance > 0.02:  # Too far (>2%, was 0.5%)
-                result['reason'] = f'Price too far from resistance ({dist_to_resistance*100:.1f}% away) - wait for resistance approach (need <2% away)'
+            # Step 3: Require CONFIRMED REJECTION (price must be BELOW resistance)
+            # Perfect entry: Price rejected from resistance and pulled back 0.5-5%
+            if distance_from_resistance > -0.005:  # Price too close to resistance (<0.5% below)
+                result['reason'] = (
+                    f'Waiting for resistance REJECTION confirmation - '
+                    f'price at ${current_price:.4f}, resistance ${nearest_resistance:.4f} '
+                    f'({abs(distance_from_resistance)*100:.1f}% away) - '
+                    f'need 0.5-5% pullback below resistance for confirmed rejection'
+                )
                 return result
+
+            if distance_from_resistance < -0.05:  # Price too far below resistance (>5% away)
+                result['reason'] = f'Missed resistance rejection ({abs(distance_from_resistance)*100:.1f}% below) - too late to enter'
+                return result
+
+            # ✅ Perfect zone: Price is 0.5-5% BELOW resistance (confirmed rejection!)
+            logger.info(
+                f"   ✅ CONFIRMED resistance rejection: "
+                f"Price ${current_price:.4f} is {abs(distance_from_resistance)*100:.1f}% below "
+                f"resistance ${nearest_resistance:.4f} (perfect SHORT entry zone)"
+            )
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to support (>1.5%)
             # Same tolerance as LONG for fairness

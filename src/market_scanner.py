@@ -21,6 +21,7 @@ from src.trade_executor import get_trade_executor
 from src.telegram_notifier import get_notifier
 from src.telegram_bot import get_telegram_bot
 from src.database import get_db_client
+from src.symbol_blacklist import get_symbol_blacklist  # 🔥 FIX #4: Symbol blacklist
 from src.utils import setup_logging, is_bullish, is_bearish
 from src.indicators import (
     calculate_indicators,
@@ -51,6 +52,12 @@ class MarketScanner:
         self.settings = get_settings()
         self.symbols = self.settings.trading_symbols
         self.last_position_time = 0  # 🔧 FIX #4: Track last position opening time (Unix timestamp)
+
+        # 🔥 PROFIT FIX #5: Signal cache to prevent repetitive signals
+        # Tracks recent signals: {(symbol, side): timestamp}
+        # Prevents same coin+direction from appearing in consecutive scans
+        self.signal_cache: Dict[tuple, float] = {}
+        self.signal_expiry_minutes = 5  # Signals expire after 5 minutes
 
     async def scan_and_execute(self) -> None:
         """
@@ -205,6 +212,35 @@ class MarketScanner:
                         f"ML Conf: {analysis.get('confidence', 0):.1%}"
                     )
                     continue
+
+                # 🔥 PROFIT FIX #5: Signal Cache Check (Prevent Repetitive Signals)
+                # Skip if same symbol+side appeared recently (within 5 minutes)
+                # IMPACT: Eliminates repetitive signals from ranging coins
+                from datetime import datetime, timezone
+                signal_key = (symbol, trade_side)
+                current_time = datetime.now(timezone.utc).timestamp()
+
+                if signal_key in self.signal_cache:
+                    last_seen = self.signal_cache[signal_key]
+                    minutes_ago = (current_time - last_seen) / 60
+
+                    if minutes_ago < self.signal_expiry_minutes:
+                        logger.info(
+                            f"⏭️ {symbol} {trade_side} - Signal seen recently "
+                            f"({minutes_ago:.1f}m ago, expires after {self.signal_expiry_minutes}m) - Skipping to avoid repetition"
+                        )
+                        continue
+
+                # Add to signal cache (will be used if trade is selected)
+                self.signal_cache[signal_key] = current_time
+
+                # Clean old signals from cache (older than expiry time)
+                expired_signals = [
+                    key for key, timestamp in self.signal_cache.items()
+                    if (current_time - timestamp) / 60 > self.signal_expiry_minutes
+                ]
+                for key in expired_signals:
+                    del self.signal_cache[key]
 
                 # Calculate comprehensive opportunity score (akan önce market sentiment belirlenmeli)
                 # Market sentiment henüz belirlenmedi, bu yüzden None geçiyoruz, sonra güncelleyeceğiz
@@ -524,6 +560,15 @@ class MarketScanner:
         async with semaphore:  # Rate limiting
             try:
                 logger.debug(f"Scanning {symbol}...")
+
+                # 🔥 PROFIT FIX #4: BLACKLIST CHECK (Skip problematic symbols)
+                # Prevents wasted execution attempts on symbols with exchange restrictions
+                # or repeated failures
+                blacklist = get_symbol_blacklist()
+                is_blacklisted, blacklist_reason = blacklist.is_blacklisted(symbol)
+                if is_blacklisted:
+                    logger.info(f"🚫 {symbol} - BLACKLISTED: {blacklist_reason} - Skipping")
+                    return None  # Skip this symbol
 
                 # 🚫 COOLDOWN CHECK: Prevent re-trading same symbol too soon (prevents doubling down)
                 if self.settings.position_cooldown_minutes > 0:
@@ -1561,16 +1606,21 @@ class MarketScanner:
         model_name = analysis.get('model_name', 'unknown')
         confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
 
-        # 🎯 RELAXED: Different thresholds for different signal types
-        # PA-ONLY: 40 (strictest PA filters + confluence)
-        # PA-Override: 50 (PA validated but no ML pattern - relaxed for more opportunities)
-        # Others (ML): 60 (standard threshold)
+        # 🔥 PROFIT FIX #3: Raised Confluence Thresholds for Quality
+        # OLD: PA-Override 50/155 = 32% confluence (too low, many false signals)
+        # NEW: PA-Override 70/155 = 45% confluence (better quality, fewer losses)
+        # IMPACT: Blocks low-quality setups with minimal confirmation
+        #
+        # Thresholds by signal type:
+        # PA-ONLY: 40/155 = 26% (strictest PA filters already applied)
+        # PA-Override: 70/155 = 45% 🔥 RAISED from 50 (better quality!)
+        # Others (ML): 80/155 = 52% 🔥 RAISED from 60 (ML needs more confirmation)
         if model_name == 'PA-ONLY':
             min_confluence_score = 40
         elif model_name == 'PA-Override':
-            min_confluence_score = 50  # 🎯 RELAXED: Catch TIA-like opportunities
+            min_confluence_score = 70  # 🔥 RAISED: From 50 → 70 for profit!
         else:
-            min_confluence_score = 60
+            min_confluence_score = 80  # 🔥 RAISED: From 60 → 80 for ML trades
 
         if not confluence['approved'] or confluence['score'] < min_confluence_score:
             logger.warning(
