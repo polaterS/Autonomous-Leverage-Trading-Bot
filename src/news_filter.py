@@ -15,7 +15,7 @@ NOTE: This is a simplified version using time-based heuristics.
 For production, integrate with economic calendar API (forexfactory, investing.com)
 """
 
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from datetime import datetime, timezone, timedelta
 import logging
 
