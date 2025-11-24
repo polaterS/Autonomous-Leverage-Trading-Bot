@@ -9,7 +9,9 @@
       "Bash(python:*)",
       "Bash(pip install:*)",
       "Bash(test:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(psql:*)",
+      "Bash(docker run:*)"
     ],
     "deny": [],
     "ask": []
