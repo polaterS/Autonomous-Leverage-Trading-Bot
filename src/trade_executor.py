@@ -334,13 +334,14 @@ class TradeExecutor:
                 side
             )
 
-            # 🎯 PROFIT TARGETS: Calculate scaled exit targets for partial exit strategy
+            # 🎯 PROFIT TARGETS: Calculate scaled exit targets based on R/R ratio
             from src.utils import calculate_profit_targets
             profit_targets = calculate_profit_targets(
                 entry_price=entry_price,
                 side=side,
                 position_value=position_value,
                 leverage=leverage,
+                stop_loss_price=stop_loss_price,  # 🔥 NEW: Pass stop_loss for R/R-based calculation
                 market_data=market_data
             )
 

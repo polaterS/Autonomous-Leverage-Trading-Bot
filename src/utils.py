@@ -312,74 +312,83 @@ def calculate_profit_targets(
     side: str,
     position_value: Decimal,
     leverage: int,
+    stop_loss_price: Decimal,
     market_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Decimal]:
     """
-    Calculate scaled profit targets for partial exit strategy.
+    Calculate scaled profit targets based on RISK/REWARD RATIO.
 
-    🎯 STRATEGY (USER REQUESTED: $1.5-2.5 profit per trade):
-    - Target 1: Close 50% of position for guaranteed profit ($1.5)
-    - Target 2: Close remaining 50% for additional profit ($1.0)
-    - Total profit if both targets hit: $2.5
-    - Conservative approach: Small but consistent wins
+    🎯 NEW STRATEGY (R/R-BASED):
+    - Calculate risk distance from entry to stop-loss
+    - Target 1: 1.5x risk distance (minimum R/R 1.5:1)
+    - Target 2: 2.0x risk distance (minimum R/R 2.0:1)
+    - Ensures profitable trading even with 60% win rate
+
+    🔥 CRITICAL FIX:
+    - OLD: Fixed $2.50 profit targets (caused R/R 0.04 for large positions!)
+    - NEW: R/R-based targets (ensures minimum 1.5:1 R/R for all positions)
 
     Args:
         entry_price: Entry price of position
         side: 'LONG' or 'SHORT'
         position_value: Position value in USD
         leverage: Leverage used
+        stop_loss_price: Actual stop-loss price (leverage-adjusted)
         market_data: Optional market data with S/R levels and ATR
 
     Returns:
         Dict with profit_target_1, profit_target_2, target_1_profit_usd, target_2_profit_usd
     """
 
-    # 🎯 USER REQUESTED: $1.5-2.5 profit targets
-    # Calculate price move needed for $1.5 and $2.5 profit
-    leverage_decimal = Decimal(str(leverage))
+    # 🔥 NEW: Calculate risk distance (entry to stop-loss)
+    risk_distance = abs(entry_price - stop_loss_price)
 
-    # Target 1: $1.5 profit on 50% of position
-    # Formula: $1.5 = (position_value * 0.5) * price_move * leverage
-    # So: price_move = $1.5 / (position_value * 0.5 * leverage)
-    target_1_profit = Decimal("1.5")
-    target_1_distance_pct = target_1_profit / (position_value * Decimal("0.5") * leverage_decimal)
+    logger = logging.getLogger('trading_bot')
+    logger.info(
+        f"💰 Calculating R/R-based profit targets:\n"
+        f"   Entry: ${float(entry_price):.4f}\n"
+        f"   Stop: ${float(stop_loss_price):.4f}\n"
+        f"   Risk Distance: ${float(risk_distance):.4f} ({float(risk_distance/entry_price*100):.2f}%)"
+    )
+
+    leverage_decimal = Decimal(str(leverage))
 
     if side == 'LONG':
         # For LONG: profit from price increase
-        # TARGET 1: Small move for $1.5 profit (0.3-0.5% typically)
+        # TARGET 1: 1.5x risk distance (conservative, lock in profit early)
+        reward_distance_1 = risk_distance * Decimal("1.5")
+        profit_target_1 = entry_price + reward_distance_1
 
-        # Just use calculated target for consistency
-        profit_target_1 = entry_price * (Decimal("1") + target_1_distance_pct)
-
-        # TARGET 2: $2.5 total profit ($1.5 from T1 + $1.0 from T2)
-        # For remaining 50%: need $1.0 profit
-        target_2_additional_profit = Decimal("1.0")
-        target_2_distance_pct = target_2_additional_profit / (position_value * Decimal("0.5") * leverage_decimal)
-        profit_target_2 = entry_price * (Decimal("1") + target_2_distance_pct)
+        # TARGET 2: 2.0x risk distance (aggressive, let winners run)
+        reward_distance_2 = risk_distance * Decimal("2.0")
+        profit_target_2 = entry_price + reward_distance_2
 
     else:  # SHORT
         # For SHORT: profit from price decrease
-        # TARGET 1: Small move for $1.5 profit (0.3-0.5% typically)
+        # TARGET 1: 1.5x risk distance (conservative, lock in profit early)
+        reward_distance_1 = risk_distance * Decimal("1.5")
+        profit_target_1 = entry_price - reward_distance_1
 
-        # Just use calculated target for consistency
-        profit_target_1 = entry_price * (Decimal("1") - target_1_distance_pct)
-
-        # TARGET 2: $2.5 total profit ($1.5 from T1 + $1.0 from T2)
-        # For remaining 50%: need $1.0 profit
-        target_2_additional_profit = Decimal("1.0")
-        target_2_distance_pct = target_2_additional_profit / (position_value * Decimal("0.5") * leverage_decimal)
-        profit_target_2 = entry_price * (Decimal("1") - target_2_distance_pct)
+        # TARGET 2: 2.0x risk distance (aggressive, let winners run)
+        reward_distance_2 = risk_distance * Decimal("2.0")
+        profit_target_2 = entry_price - reward_distance_2
 
     # Calculate expected profit in USD for each target
     # Target 1: 50% of position
     price_change_1 = abs(profit_target_1 - entry_price) / entry_price
-    target_1_profit_usd = (position_value * Decimal("0.5")) * price_change_1 * Decimal(str(leverage))
+    target_1_profit_usd = (position_value * Decimal("0.5")) * price_change_1 * leverage_decimal
 
     # Target 2: Remaining 50% (total profit if both hit)
     price_change_2 = abs(profit_target_2 - entry_price) / entry_price
     target_2_total_profit_usd = (
         target_1_profit_usd +  # Profit from T1 (already closed)
-        (position_value * Decimal("0.5")) * price_change_2 * Decimal(str(leverage))  # Profit from T2
+        (position_value * Decimal("0.5")) * price_change_2 * leverage_decimal  # Profit from T2
+    )
+
+    logger.info(
+        f"✅ Profit targets calculated:\n"
+        f"   Target 1: ${float(profit_target_1):.4f} (R/R 1.5:1) → ${float(target_1_profit_usd):.2f} profit\n"
+        f"   Target 2: ${float(profit_target_2):.4f} (R/R 2.0:1) → ${float(target_2_total_profit_usd):.2f} total profit"
     )
 
     return {
