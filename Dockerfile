@@ -1,11 +1,11 @@
-FROM python:3.11-slim AS base
+# 🧪 TEST MODE: Loosened Filters for Paper Trading
+FROM python:3.11-slim
 
-# 🧪 TEST MODE: Loosened Filters for Paper Trading - Force complete rebuild
-FROM python:3.11-slim AS rebuild_20251124_173000
+# Cache bust argument to force rebuild when needed
 ARG CACHE_BUST=20251124_173000
 RUN echo "🧪 CACHE BUST: ${CACHE_BUST} - TEST MODE DEPLOYED!" && \
     echo "Build timestamp: $(date)" && \
-    echo "Loosened filters: ADX 18+, AI 60%+, Confirmation 0.1%, MTF 2/4 - Forcing complete cache invalidation..."
+    echo "Loosened filters: ADX 18+, AI 60%+, Confirmation 0.1%, MTF 2/4"
 
 # Set working directory
 WORKDIR /app
