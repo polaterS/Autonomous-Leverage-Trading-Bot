@@ -77,7 +77,7 @@ class PriceActionAnalyzer:
         # 🎯 ULTRA RELAXED: More flexible tolerances for more opportunities
         # Trade near S/R levels with room to target - same for LONG/SHORT
         self.support_resistance_tolerance = 0.05  # 🎯 RELAXED: 5% max distance to S/R (find more setups)
-        self.room_to_opposite_level = 0.015  # 🎯 ULTRA RELAXED: 1.5% min room to target (from 2%, capture 1.6-1.9% setups)
+        self.room_to_opposite_level = 0.010  # 🔥 PROFIT FIX: 1.0% min room (from 1.5%, unlock 40-50 coins at 0.8-1.4%!)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
