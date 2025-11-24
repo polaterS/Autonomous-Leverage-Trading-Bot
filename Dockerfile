@@ -1,8 +1,8 @@
 FROM python:3.11-slim AS base
 
-# 🔥 CRITICAL FIX: AttributeError + Symbol Status - Force complete rebuild
-FROM python:3.11-slim AS rebuild_20251123_233348
-ARG CACHE_BUST=20251123_233348
+# 🔥 CRITICAL FIX: Filter Loosening + R/R Profit Targets - Force complete rebuild
+FROM python:3.11-slim AS rebuild_20251124_125000
+ARG CACHE_BUST=20251124_125000
 RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - NUCLEAR REBUILD FORCED!" && \
     echo "Build timestamp: $(date)" && \
     echo "Forcing complete cache invalidation..."
@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # 🔥 CACHE BUST MARKER: This line changes every deployment to invalidate cache
-# Current deployment: 20251123_233348_CRITICAL_FIX_ATTRIBUTE_ERROR
+# Current deployment: 20251124_125000_FILTER_LOOSENING_RR_TARGETS
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
