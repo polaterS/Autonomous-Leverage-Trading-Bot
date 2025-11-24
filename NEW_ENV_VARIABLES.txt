@@ -1,0 +1,105 @@
+================================================================
+ENHANCED TRADING SYSTEM - NEW ENVIRONMENT VARIABLES
+================================================================
+
+Railway'de Variables sekmesine eklenecek yeni variable'lar:
+
+================================================================
+CORE SYSTEM
+================================================================
+ENABLE_ENHANCED_SYSTEM="true"
+ENABLE_CONFLUENCE_FILTERING="true"
+MIN_CONFLUENCE_SCORE="75"
+
+================================================================
+VOLUME PROFILE
+================================================================
+ENABLE_VOLUME_PROFILE="true"
+VOLUME_PROFILE_BINS="50"
+
+================================================================
+DYNAMIC POSITION SIZING
+================================================================
+ENABLE_DYNAMIC_SIZING="true"
+BASE_RISK_PERCENT="0.02"
+MAX_RISK_PERCENT="0.05"
+USE_KELLY_CRITERION="true"
+KELLY_FRACTION="0.25"
+
+================================================================
+DYNAMIC PROFIT TARGETS
+================================================================
+ENABLE_DYNAMIC_TARGETS="true"
+MIN_RR_RATIO="3.0"
+TP1_R_MULTIPLE="1.5"
+TP2_R_MULTIPLE="3.0"
+TP3_R_MULTIPLE="5.0"
+
+================================================================
+ADVANCED TRAILING STOP
+================================================================
+ENABLE_ADVANCED_TRAILING="true"
+TRAILING_BREAK_EVEN_R="1.5"
+TRAILING_50PCT_R="2.5"
+TRAILING_25PCT_R="4.0"
+TRAILING_ATR_R="6.0"
+
+================================================================
+MARKET REGIME FILTER
+================================================================
+ENABLE_REGIME_FILTER="true"
+SKIP_CHOPPY_MARKETS="true"
+MIN_REGIME_CONFIDENCE="0.55"
+
+================================================================
+PERFORMANCE TRACKING
+================================================================
+TRACK_CONFLUENCE_SCORES="true"
+TRACK_QUALITY_DISTRIBUTION="true"
+CALCULATE_ROLLING_METRICS="true"
+ROLLING_WINDOW_TRADES="20"
+
+================================================================
+
+MEVCUT VARIABLE'LARDA DEGISIKLIK:
+==================================
+ENABLE_DYNAMIC_POSITION_SIZING="true"  (suanda "false", "true" yap)
+
+================================================================
+TOPLAM: 21 yeni variable + 1 degisiklik
+================================================================
+
+HIZLI KOPYALA (Railway Variables icin):
+========================================
+ENABLE_ENHANCED_SYSTEM="true"
+ENABLE_CONFLUENCE_FILTERING="true"
+MIN_CONFLUENCE_SCORE="75"
+ENABLE_VOLUME_PROFILE="true"
+VOLUME_PROFILE_BINS="50"
+ENABLE_DYNAMIC_SIZING="true"
+BASE_RISK_PERCENT="0.02"
+MAX_RISK_PERCENT="0.05"
+USE_KELLY_CRITERION="true"
+KELLY_FRACTION="0.25"
+ENABLE_DYNAMIC_TARGETS="true"
+MIN_RR_RATIO="3.0"
+TP1_R_MULTIPLE="1.5"
+TP2_R_MULTIPLE="3.0"
+TP3_R_MULTIPLE="5.0"
+ENABLE_ADVANCED_TRAILING="true"
+TRAILING_BREAK_EVEN_R="1.5"
+TRAILING_50PCT_R="2.5"
+TRAILING_25PCT_R="4.0"
+TRAILING_ATR_R="6.0"
+ENABLE_REGIME_FILTER="true"
+SKIP_CHOPPY_MARKETS="true"
+MIN_REGIME_CONFIDENCE="0.55"
+TRACK_CONFLUENCE_SCORES="true"
+TRACK_QUALITY_DISTRIBUTION="true"
+CALCULATE_ROLLING_METRICS="true"
+ROLLING_WINDOW_TRADES="20"
+
+VE DEGISTIR:
+ENABLE_DYNAMIC_POSITION_SIZING="true"
+
+================================================================

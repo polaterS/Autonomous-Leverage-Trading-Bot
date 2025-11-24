@@ -8,7 +8,8 @@
       "Bash(\"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\Desktop\\Github\\Autonomous-Leverage-Trading-Bot\\src\\indicators.py\")",
       "Bash(python:*)",
       "Bash(pip install:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(touch:*)"
     ],
     "deny": [],
     "ask": []

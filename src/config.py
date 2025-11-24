@@ -213,6 +213,85 @@ class Settings(BaseSettings):
     ai_cache_ttl_seconds: int = Field(default=600)  # OPTIMIZED: 10 minutes (reduce API costs)
     ai_timeout_seconds: int = Field(default=30)
 
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # 🚀 PROFESSIONAL TRADING SYSTEM - 75-80% WIN RATE TARGET
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    # Enhanced Trading System Configuration
+    enable_enhanced_system: bool = Field(default=True)  # ✅ Use professional enhanced trading system
+
+    # Confluence Scoring (Quality Filter)
+    enable_confluence_filtering: bool = Field(default=True)  # ✅ Filter trades by quality score
+    min_confluence_score: int = Field(default=75, ge=0, le=100)  # Minimum score to trade (75-100)
+    confluence_weights: dict = Field(default={
+        'multi_timeframe': 25,
+        'volume_profile': 20,
+        'indicators': 20,
+        'market_regime': 15,
+        'support_resistance': 15,
+        'risk_reward': 5
+    })
+
+    # Volume Profile Analysis
+    enable_volume_profile: bool = Field(default=True)  # ✅ Use volume-based S/R levels
+    volume_profile_bins: int = Field(default=50, ge=20, le=100)  # Price bins for volume distribution
+    volume_hvn_percentile: int = Field(default=75, ge=50, le=95)  # High Volume Node threshold
+    volume_lvn_percentile: int = Field(default=25, ge=5, le=50)  # Low Volume Node threshold
+
+    # Dynamic Position Sizing
+    enable_dynamic_sizing: bool = Field(default=True)  # ✅ Adjust size based on trade quality
+    base_risk_percent: Decimal = Field(default=Decimal("0.02"), gt=0, le=0.10)  # 2% base risk
+    max_risk_percent: Decimal = Field(default=Decimal("0.05"), gt=0, le=0.15)  # 5% maximum risk per trade
+    min_risk_percent: Decimal = Field(default=Decimal("0.005"), gt=0, le=0.05)  # 0.5% minimum risk
+
+    # Kelly Criterion (Optional)
+    use_kelly_criterion: bool = Field(default=True)  # ✅ Use Kelly for optimal sizing
+    kelly_fraction: Decimal = Field(default=Decimal("0.25"), gt=0, le=1)  # 1/4 Kelly (conservative)
+
+    # Quality-Based Size Multipliers
+    size_multiplier_excellent: Decimal = Field(default=Decimal("1.8"), ge=1, le=3)  # 90-100 score
+    size_multiplier_strong: Decimal = Field(default=Decimal("1.4"), ge=1, le=2)  # 80-89 score
+    size_multiplier_good: Decimal = Field(default=Decimal("1.0"), ge=1, le=1.5)  # 75-79 score
+
+    # Drawdown Protection
+    reduce_size_on_drawdown: bool = Field(default=True)  # ✅ Reduce sizes during drawdown
+    drawdown_reduce_threshold: Decimal = Field(default=Decimal("0.10"), gt=0, le=0.50)  # -10% threshold
+    drawdown_reduce_severe: Decimal = Field(default=Decimal("0.20"), gt=0, le=0.50)  # -20% severe
+    profit_scale_threshold: Decimal = Field(default=Decimal("0.30"), gt=0, le=1.0)  # +30% scale up
+
+    # Dynamic Profit Targets
+    enable_dynamic_targets: bool = Field(default=True)  # ✅ ATR-based dynamic targets
+    min_rr_ratio: Decimal = Field(default=Decimal("3.0"), ge=1, le=10)  # Minimum 3:1 R/R
+    tp1_r_multiple: Decimal = Field(default=Decimal("1.5"), gt=0, le=5)  # TP1 at +1.5R
+    tp2_r_multiple: Decimal = Field(default=Decimal("3.0"), gt=0, le=10)  # TP2 at +3R
+    tp3_r_multiple: Decimal = Field(default=Decimal("5.0"), gt=0, le=15)  # TP3 at +5R
+    tp1_allocation: Decimal = Field(default=Decimal("0.40"), gt=0, le=1)  # 40% at TP1
+    tp2_allocation: Decimal = Field(default=Decimal("0.40"), gt=0, le=1)  # 40% at TP2
+    tp3_allocation: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 20% runner
+    atr_multiplier_base: Decimal = Field(default=Decimal("2.0"), gt=0, le=5)  # 2x ATR for targets
+
+    # Advanced Trailing Stop
+    enable_advanced_trailing: bool = Field(default=True)  # ✅ 4-stage progressive trailing
+    trailing_break_even_r: Decimal = Field(default=Decimal("1.5"), gt=0, le=5)  # Move to BE at +1.5R
+    trailing_50pct_r: Decimal = Field(default=Decimal("2.5"), gt=0, le=10)  # 50% trail at +2.5R
+    trailing_25pct_r: Decimal = Field(default=Decimal("4.0"), gt=0, le=15)  # 25% trail at +4R
+    trailing_atr_r: Decimal = Field(default=Decimal("6.0"), gt=0, le=20)  # ATR trail at +6R
+    trailing_atr_multiplier: Decimal = Field(default=Decimal("1.5"), gt=0, le=5)  # 1.5x ATR distance
+    trailing_momentum_aware: bool = Field(default=True)  # ✅ Tighten on weak momentum
+
+    # Market Regime Filters
+    enable_regime_filter: bool = Field(default=True)  # ✅ Don't trade in choppy markets
+    skip_choppy_markets: bool = Field(default=True)  # ✅ Skip CHOPPY regime entirely
+    min_regime_confidence: Decimal = Field(default=Decimal("0.55"), ge=0, le=1)  # 55% min confidence
+
+    # Performance Tracking
+    track_confluence_scores: bool = Field(default=True)  # ✅ Log all scores for analysis
+    track_quality_distribution: bool = Field(default=True)  # ✅ Track EXCELLENT/STRONG/GOOD counts
+    calculate_rolling_metrics: bool = Field(default=True)  # ✅ Rolling win rate, avg R/R
+    rolling_window_trades: int = Field(default=20, ge=10, le=100)  # Last 20 trades for rolling metrics
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
     class Config:
         env_file = ".env"
         case_sensitive = False
