@@ -1640,9 +1640,11 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
                 return result
 
-            # Step 2: Calculate distance to support (for bounce confirmation)
+            # Step 2: Calculate distances for all checks
+            # Old variables (still used in SIDEWAYS/room checks below)
+            dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
-            # Distance ABOVE support (positive = above, negative = below)
+            # New variable for bounce confirmation (signed distance)
             distance_from_support = (current_price - nearest_support) / nearest_support
 
             # Step 3: Require CONFIRMED BOUNCE (price must be ABOVE support)
@@ -1884,9 +1886,11 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Price above resistance (${current_price:.4f} > ${nearest_resistance:.4f}) - resistance broken (bullish)'
                 return result
 
-            # Step 2: Calculate distance to resistance (for rejection confirmation)
+            # Step 2: Calculate distances for all checks
+            # Old variables (still used in SIDEWAYS/room checks below)
             dist_to_support = abs(current_price - nearest_support) / current_price
-            # Distance BELOW resistance (negative = below, positive = above)
+            dist_to_resistance = abs(current_price - nearest_resistance) / current_price
+            # New variable for rejection confirmation (signed distance)
             distance_from_resistance = (current_price - nearest_resistance) / nearest_resistance
 
             # Step 3: Require CONFIRMED REJECTION (price must be BELOW resistance)
