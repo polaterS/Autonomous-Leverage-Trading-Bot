@@ -77,7 +77,7 @@ class PriceActionAnalyzer:
         # 🎯 ULTRA RELAXED: More flexible tolerances for more opportunities
         # Trade near S/R levels with room to target - same for LONG/SHORT
         self.support_resistance_tolerance = 0.05  # 🎯 RELAXED: 5% max distance to S/R (find more setups)
-        self.room_to_opposite_level = 0.010  # 🔥 PROFIT FIX: 1.0% min room (from 1.5%, unlock 40-50 coins at 0.8-1.4%!)
+        self.room_to_opposite_level = 0.005  # 🚨 ULTRA AGGRESSIVE: 0.5% min room (unlock 30-50 coins at 0.5-0.9%!)
 
         # Risk/Reward parameters
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
@@ -1648,14 +1648,14 @@ class PriceActionAnalyzer:
             distance_from_support = (current_price - nearest_support) / nearest_support
 
             # Step 3: Require CONFIRMED BOUNCE (price must be ABOVE support)
-            # 🔥 PROFIT FIX: Lowered from 0.5% to 0.3% (catch more early bounces!)
-            # Perfect entry: Price bounced from support and moved up 0.3-5%
-            if distance_from_support < 0.003:  # Price too close to support (<0.3% above)
+            # 🚨 ULTRA AGGRESSIVE: Lowered from 0.3% to 0.1% (catch earliest bounces!)
+            # Perfect entry: Price bounced from support and moved up 0.1-5%
+            if distance_from_support < 0.001:  # Price too close to support (<0.1% above)
                 result['reason'] = (
                     f'Waiting for support BOUNCE confirmation - '
                     f'price at ${current_price:.4f}, support ${nearest_support:.4f} '
                     f'({distance_from_support*100:.1f}% away) - '
-                    f'need 0.3-5% bounce above support for confirmed entry'
+                    f'need 0.1-5% bounce above support for confirmed entry'
                 )
                 return result
 
@@ -1895,14 +1895,14 @@ class PriceActionAnalyzer:
             distance_from_resistance = (current_price - nearest_resistance) / nearest_resistance
 
             # Step 3: Require CONFIRMED REJECTION (price must be BELOW resistance)
-            # 🔥 PROFIT FIX: Lowered from 0.5% to 0.3% (catch more early rejections!)
-            # Perfect entry: Price rejected from resistance and pulled back 0.3-5%
-            if distance_from_resistance > -0.003:  # Price too close to resistance (<0.3% below)
+            # 🚨 ULTRA AGGRESSIVE: Lowered from 0.3% to 0.1% (catch earliest rejections!)
+            # Perfect entry: Price rejected from resistance and pulled back 0.1-5%
+            if distance_from_resistance > -0.001:  # Price too close to resistance (<0.1% below)
                 result['reason'] = (
                     f'Waiting for resistance REJECTION confirmation - '
                     f'price at ${current_price:.4f}, resistance ${nearest_resistance:.4f} '
                     f'({abs(distance_from_resistance)*100:.1f}% away) - '
-                    f'need 0.3-5% pullback below resistance for confirmed rejection'
+                    f'need 0.1-5% pullback below resistance for confirmed rejection'
                 )
                 return result
 
