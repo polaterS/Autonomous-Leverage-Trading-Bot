@@ -1758,17 +1758,18 @@ class PriceActionAnalyzer:
                     return result
                 logger.info(f"   ✅ STRONG trend with momentum ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
 
-            # Calculate R/R
+            # Calculate R/R (informational only - actual R/R checked in execution layer)
             stop_loss = nearest_support * (1 - self.sl_buffer)
             target1 = nearest_resistance * 0.99  # Just below resistance
             target2 = nearest_resistance * 1.02  # Slightly above (breakout target)
 
             rr = self.calculate_risk_reward(current_price, stop_loss, [target1, target2], 'LONG')
 
-            # Check 5: R/R must be >= 2.0
-            if not rr['is_good_trade']:
-                result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
-                return result
+            # 🔥 FIX: R/R check DISABLED here (misleading due to leverage-adjusted stops)
+            # R/R check now done in trade_executor.py with actual execution prices
+            # if not rr['is_good_trade']:
+            #     result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
+            #     return result
 
             # 🎯 RELAXED: Advanced filters DISABLED for more opportunities
             # These filters were too strict and filtered out many valid setups
@@ -1981,17 +1982,18 @@ class PriceActionAnalyzer:
                     return result
                 logger.info(f"   ✅ STRONG trend with momentum ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
 
-            # Calculate R/R
+            # Calculate R/R (informational only - actual R/R checked in execution layer)
             stop_loss = nearest_resistance * (1 + self.sl_buffer)
             target1 = nearest_support * 1.01  # Just above support
             target2 = nearest_support * 0.98  # Slightly below (breakdown target)
 
             rr = self.calculate_risk_reward(current_price, stop_loss, [target1, target2], 'SHORT')
 
-            # Check 5: R/R must be >= 2.0
-            if not rr['is_good_trade']:
-                result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
-                return result
+            # 🔥 FIX: R/R check DISABLED here (misleading due to leverage-adjusted stops)
+            # R/R check now done in trade_executor.py with actual execution prices
+            # if not rr['is_good_trade']:
+            #     result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
+            #     return result
 
             # 🔥 NEW FILTERS: Candlestick patterns + order flow + structure
             # Check 6: Candlestick pattern confirmation

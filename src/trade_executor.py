@@ -380,6 +380,43 @@ class TradeExecutor:
             logger.info(f"🎯 Profit Target 1 (50%): ${float(profit_target_1):.4f} (Est. profit: ${float(target_1_profit):.2f})")
             logger.info(f"🎯 Profit Target 2 (50%): ${float(profit_target_2):.4f} (Est. total: ${float(target_2_profit):.2f})")
 
+            # 🔥 CRITICAL FIX: R/R Check with ACTUAL execution prices (leverage-adjusted!)
+            # Calculate risk and reward using REAL stop-loss and take-profit prices
+            risk_distance = abs(float(entry_price) - float(stop_loss_price))
+            reward_distance = abs(float(entry_price) - float(profit_target_2))  # Use higher target
+
+            # Avoid division by zero
+            if risk_distance > 0:
+                actual_rr_ratio = reward_distance / risk_distance
+            else:
+                actual_rr_ratio = 0
+
+            # Minimum R/R threshold
+            MIN_RR_RATIO = 1.5  # Professional minimum (need 1.5:1 for long-term profitability)
+
+            if actual_rr_ratio < MIN_RR_RATIO:
+                error_msg = (
+                    f"❌ POOR RISK/REWARD RATIO: {actual_rr_ratio:.2f} (need ≥{MIN_RR_RATIO})\n"
+                    f"   Entry: ${entry_price:.4f}\n"
+                    f"   Stop: ${stop_loss_price:.4f} (risk: {risk_distance:.4f})\n"
+                    f"   Target: ${profit_target_2:.4f} (reward: {reward_distance:.4f})\n"
+                    f"   This trade would lose money over time even with 60% win rate!"
+                )
+                logger.error(error_msg)
+                await notifier.send_alert(
+                    'warning',
+                    f"🚫 TRADE REJECTED - Poor R/R\n\n"
+                    f"Symbol: {symbol} {side} {leverage}x\n"
+                    f"R/R Ratio: {actual_rr_ratio:.2f} (need ≥{MIN_RR_RATIO})\n\n"
+                    f"Entry: ${entry_price:.4f}\n"
+                    f"Stop: ${stop_loss_price:.4f}\n"
+                    f"Target: ${profit_target_2:.4f}\n\n"
+                    f"💡 Reason: Trade rejected to protect capital"
+                )
+                raise ValueError(error_msg)
+
+            logger.info(f"✅ R/R CHECK PASSED: {actual_rr_ratio:.2f} (≥{MIN_RR_RATIO} required)")
+
             # Set leverage and margin mode on exchange
             await exchange.set_leverage(symbol, leverage)
             await exchange.set_margin_mode(symbol, 'isolated')
