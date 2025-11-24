@@ -68,7 +68,7 @@ class PriceActionAnalyzer:
         self.trend_lookback = 20  # Candles for trend detection
         self.adx_period = 14  # ADX calculation period
         self.strong_trend_threshold = 30  # 🔥 STRICT: ADX > 30 = strong trend
-        self.min_trend_threshold = 15  # 🎯 RELAXED: Minimum ADX 15 (find more opportunities, allow ranging)
+        self.min_trend_threshold = 12  # 🔥 PROFIT FIX: ADX 12+ (was 15, too strict - missed 50+ coins!)
 
         # Volume parameters
         self.volume_surge_multiplier = 2.0  # 🎯 CONSERVATIVE: 2.0x average = realistic surge
@@ -1648,13 +1648,14 @@ class PriceActionAnalyzer:
             distance_from_support = (current_price - nearest_support) / nearest_support
 
             # Step 3: Require CONFIRMED BOUNCE (price must be ABOVE support)
-            # Perfect entry: Price bounced from support and moved up 0.5-5%
-            if distance_from_support < 0.005:  # Price too close to support (<0.5% above)
+            # 🔥 PROFIT FIX: Lowered from 0.5% to 0.3% (catch more early bounces!)
+            # Perfect entry: Price bounced from support and moved up 0.3-5%
+            if distance_from_support < 0.003:  # Price too close to support (<0.3% above)
                 result['reason'] = (
                     f'Waiting for support BOUNCE confirmation - '
                     f'price at ${current_price:.4f}, support ${nearest_support:.4f} '
                     f'({distance_from_support*100:.1f}% away) - '
-                    f'need 0.5-5% bounce above support for confirmed entry'
+                    f'need 0.3-5% bounce above support for confirmed entry'
                 )
                 return result
 
@@ -1662,7 +1663,7 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Missed support bounce ({distance_from_support*100:.1f}% above) - too late to enter'
                 return result
 
-            # ✅ Perfect zone: Price is 0.5-5% ABOVE support (confirmed bounce!)
+            # ✅ Perfect zone: Price is 0.3-5% ABOVE support (confirmed bounce!)
             logger.info(
                 f"   ✅ CONFIRMED support bounce: "
                 f"Price ${current_price:.4f} is {distance_from_support*100:.1f}% above "
@@ -1894,13 +1895,14 @@ class PriceActionAnalyzer:
             distance_from_resistance = (current_price - nearest_resistance) / nearest_resistance
 
             # Step 3: Require CONFIRMED REJECTION (price must be BELOW resistance)
-            # Perfect entry: Price rejected from resistance and pulled back 0.5-5%
-            if distance_from_resistance > -0.005:  # Price too close to resistance (<0.5% below)
+            # 🔥 PROFIT FIX: Lowered from 0.5% to 0.3% (catch more early rejections!)
+            # Perfect entry: Price rejected from resistance and pulled back 0.3-5%
+            if distance_from_resistance > -0.003:  # Price too close to resistance (<0.3% below)
                 result['reason'] = (
                     f'Waiting for resistance REJECTION confirmation - '
                     f'price at ${current_price:.4f}, resistance ${nearest_resistance:.4f} '
                     f'({abs(distance_from_resistance)*100:.1f}% away) - '
-                    f'need 0.5-5% pullback below resistance for confirmed rejection'
+                    f'need 0.3-5% pullback below resistance for confirmed rejection'
                 )
                 return result
 
@@ -1908,7 +1910,7 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Missed resistance rejection ({abs(distance_from_resistance)*100:.1f}% below) - too late to enter'
                 return result
 
-            # ✅ Perfect zone: Price is 0.5-5% BELOW resistance (confirmed rejection!)
+            # ✅ Perfect zone: Price is 0.3-5% BELOW resistance (confirmed rejection!)
             logger.info(
                 f"   ✅ CONFIRMED resistance rejection: "
                 f"Price ${current_price:.4f} is {abs(distance_from_resistance)*100:.1f}% below "
