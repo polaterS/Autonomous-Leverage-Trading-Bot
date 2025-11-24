@@ -35,17 +35,17 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     initial_capital: Decimal = Field(default=Decimal("150.00"), gt=0)  # 🔥 USER UPDATE: $150 total capital
-    min_leverage: int = Field(default=3, ge=1, le=50)  # 🎯 USER UPDATE: 3x min leverage (ultra-safe with smaller positions)
-    max_leverage: int = Field(default=5, ge=1, le=50)  # 🎯 USER UPDATE: 5x max leverage (dynamic 3x-5x based on confidence)
+    min_leverage: int = Field(default=20, ge=1, le=50)  # 🚀 AGGRESSIVE: 20x min leverage (professional trader mode)
+    max_leverage: int = Field(default=25, ge=1, le=50)  # 🚀 AGGRESSIVE: 25x max leverage (dynamic 20x-25x based on confidence)
     max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔥 USER UPDATE: 2 positions max ($75 each)
     position_size_percent: Decimal = Field(default=Decimal("0.50"), gt=0, le=1)  # 🔥 USER UPDATE: 50% per position ($75 @ $150 capital)
-    min_stop_loss_percent: Decimal = Field(default=Decimal("8.0"), gt=0, le=100)  # 🎯 LIVE TRADING: 8% min = $4.80 loss @ $60 position (2.4% of $200 capital) - Professional 2-3% risk
-    max_stop_loss_percent: Decimal = Field(default=Decimal("12.0"), gt=0, le=100)  # 🎯 LIVE TRADING: 12% max = $7.20 loss @ $60 position (3.6% of $200 capital) - Conservative risk management
-    min_profit_usd: Decimal = Field(default=Decimal("1.20"), gt=0)  # 🎯 USER UPDATE: $1.20 profit target (realistic with 3x-5x leverage)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("2.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 2% min for 25x leverage (tight stop = $37.5 loss on $1,875 position)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("3.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 3% max for 25x leverage ($56.25 max loss = 37.5% of capital)
+    min_profit_usd: Decimal = Field(default=Decimal("20.0"), gt=0)  # 🎯 AGGRESSIVE TARGET: $20 min profit (realistic with 25x leverage)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.65"), ge=0, le=1)  # 🎯 USER UPDATE: 65% min confidence (capture more PA opportunities like TIA/MINA)
-    scan_interval_seconds: int = Field(default=20, ge=10)  # 🔥 ULTRA AGGRESSIVE: 20 seconds for rapid AI+ML learning
-    position_check_seconds: int = Field(default=3, ge=1)  # 🔥 INSTANT PROFIT CAPTURE: 3 seconds for real-time monitoring (prevent profit erosion!)
+    min_ai_confidence: Decimal = Field(default=Decimal("0.70"), ge=0, le=1)  # 🎯 PROFESSIONAL: 70% min confidence for 75% accuracy target
+    scan_interval_seconds: int = Field(default=180, ge=10)  # 🎯 QUALITY FOCUS: 3 minutes (quality over quantity)
+    position_check_seconds: int = Field(default=15, ge=1)  # 🔥 REAL-TIME: 15 seconds for profit/loss monitoring
 
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
@@ -58,17 +58,17 @@ class Settings(BaseSettings):
     enable_short_trades: bool = Field(default=True)  # Enable SHORT trades for complete ML learning
     enable_ml_exit: bool = Field(default=False)  # ML exit DISABLED - rely only on stop-loss/take-profit/trailing (USER REQUEST: positions closing too fast)
 
-    # 🚀 PROFESSIONAL TRADING FEATURES (12 Improvements for 90-95% Win Rate!)
+    # 🚀 PROFESSIONAL TRADING FEATURES - 75% ACCURACY TARGET
     enable_time_filter: bool = Field(default=False)  # 🔥 DISABLED: 24/7 trading enabled (USER REQUEST: Trust AI analysis at all hours)
     enable_trailing_stop: bool = Field(default=True)  # ✅ ENABLED: Trailing stop-loss system
     enable_partial_exits: bool = Field(default=False)  # 3-tier partial exit system (DISABLED: creates orders below Binance $20 minimum)
     enable_market_regime: bool = Field(default=False)  # Market regime detection
-    enable_multi_timeframe: bool = Field(default=False)  # Multi-timeframe confluence analysis
+    enable_multi_timeframe: bool = Field(default=True)  # 🎯 CRITICAL: Multi-timeframe confluence (MANDATORY for 75% accuracy)
     enable_dynamic_position_sizing: bool = Field(default=False)  # Kelly Criterion + quality-based sizing
     enable_news_filter: bool = Field(default=False)  # News/event filter (avoid high-impact news)
     enable_ml_ensemble: bool = Field(default=False)  # ML ensemble (multiple models voting)
-    enable_smc_patterns: bool = Field(default=False)  # Smart Money Concepts (order blocks, FVG)
-    enable_order_flow: bool = Field(default=False)  # Order flow analysis (bid/ask imbalance)
+    enable_smc_patterns: bool = Field(default=True)  # 🎯 CRITICAL: Smart Money Concepts - market structure confirmation
+    enable_order_flow: bool = Field(default=True)  # 🎯 CRITICAL: Order flow analysis - buyer/seller pressure confirmation
     enable_whale_tracking: bool = Field(default=False)  # Whale activity tracking (PLACEHOLDER)
     enable_online_learning: bool = Field(default=False)  # Online learning (adaptive ML updates)
 

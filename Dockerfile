@@ -1,11 +1,11 @@
 FROM python:3.11-slim AS base
 
-# 🔥 CRITICAL FIX: Filter Loosening + R/R Profit Targets - Force complete rebuild
-FROM python:3.11-slim AS rebuild_20251124_125000
-ARG CACHE_BUST=20251124_125000
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - NUCLEAR REBUILD FORCED!" && \
+# 🚀 PROFESSIONAL AGGRESSIVE MODE: 25x Leverage + 75% Accuracy Target - Force complete rebuild
+FROM python:3.11-slim AS rebuild_20251124_160000
+ARG CACHE_BUST=20251124_160000
+RUN echo "🚀 CACHE BUST: ${CACHE_BUST} - PROFESSIONAL AGGRESSIVE MODE DEPLOYED!" && \
     echo "Build timestamp: $(date)" && \
-    echo "Forcing complete cache invalidation..."
+    echo "25x leverage + Multi-timeframe + Order Flow + SMC - Forcing complete cache invalidation..."
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +25,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: This line changes every deployment to invalidate cache
-# Current deployment: 20251124_125000_FILTER_LOOSENING_RR_TARGETS
+# 🚀 CACHE BUST MARKER: This line changes every deployment to invalidate cache
+# Current deployment: 20251124_160000_AGGRESSIVE_25X_LEVERAGE_75PCT_ACCURACY
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
