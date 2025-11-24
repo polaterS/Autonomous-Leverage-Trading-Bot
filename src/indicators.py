@@ -1989,18 +1989,16 @@ def calculate_multi_timeframe_indicators(
         ])
 
         # Determine overall trend alignment
-        if bullish_count >= 3:
+        # 🧪 TEST MODE: Loosened from >= 3 to >= 2 (accept 2/4 timeframe agreement)
+        if bullish_count >= 2:
             trend_alignment = 'strong_bullish'
             alignment_score = (bullish_count / 4) * 100
-        elif bearish_count >= 3:
+        elif bearish_count >= 2:
             trend_alignment = 'strong_bearish'
             alignment_score = (bearish_count / 4) * 100
-        elif bullish_count == 2 and bearish_count == 2:
-            trend_alignment = 'conflicted'
-            alignment_score = 50
         else:
             trend_alignment = 'mixed'
-            alignment_score = 60
+            alignment_score = 50
 
         # Check EMA50 alignment (price above/below EMA50 on higher timeframes)
         ema50_1h = indicators_1h.get('sma_50', current_price)

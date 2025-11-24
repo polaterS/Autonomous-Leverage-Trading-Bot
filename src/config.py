@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     max_stop_loss_percent: Decimal = Field(default=Decimal("3.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 3% max for 25x leverage ($56.25 max loss = 37.5% of capital)
     min_profit_usd: Decimal = Field(default=Decimal("20.0"), gt=0)  # 🎯 AGGRESSIVE TARGET: $20 min profit (realistic with 25x leverage)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.70"), ge=0, le=1)  # 🎯 PROFESSIONAL: 70% min confidence for 75% accuracy target
+    min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 🧪 TEST MODE: 60% min confidence (loosened from 70% for more opportunities)
     scan_interval_seconds: int = Field(default=180, ge=10)  # 🎯 QUALITY FOCUS: 3 minutes (quality over quantity)
     position_check_seconds: int = Field(default=15, ge=1)  # 🔥 REAL-TIME: 15 seconds for profit/loss monitoring
 

@@ -1,11 +1,11 @@
 FROM python:3.11-slim AS base
 
-# 🚀 PROFESSIONAL AGGRESSIVE MODE: 25x Leverage + 75% Accuracy Target - Force complete rebuild
-FROM python:3.11-slim AS rebuild_20251124_160000
-ARG CACHE_BUST=20251124_160000
-RUN echo "🚀 CACHE BUST: ${CACHE_BUST} - PROFESSIONAL AGGRESSIVE MODE DEPLOYED!" && \
+# 🧪 TEST MODE: Loosened Filters for Paper Trading - Force complete rebuild
+FROM python:3.11-slim AS rebuild_20251124_173000
+ARG CACHE_BUST=20251124_173000
+RUN echo "🧪 CACHE BUST: ${CACHE_BUST} - TEST MODE DEPLOYED!" && \
     echo "Build timestamp: $(date)" && \
-    echo "25x leverage + Multi-timeframe + Order Flow + SMC - Forcing complete cache invalidation..."
+    echo "Loosened filters: ADX 18+, AI 60%+, Confirmation 0.1%, MTF 2/4 - Forcing complete cache invalidation..."
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +25,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🚀 CACHE BUST MARKER: This line changes every deployment to invalidate cache
-# Current deployment: 20251124_160000_AGGRESSIVE_25X_LEVERAGE_75PCT_ACCURACY
+# 🧪 CACHE BUST MARKER: This line changes every deployment to invalidate cache
+# Current deployment: 20251124_173000_TEST_MODE_LOOSENED_FILTERS
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

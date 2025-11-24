@@ -68,7 +68,7 @@ class PriceActionAnalyzer:
         self.trend_lookback = 20  # Candles for trend detection
         self.adx_period = 14  # ADX calculation period
         self.strong_trend_threshold = 30  # 🔥 STRICT: ADX > 30 = strong trend
-        self.min_trend_threshold = 25  # 🎯 PROFESSIONAL: ADX 25+ for 75% accuracy (strong trend REQUIRED)
+        self.min_trend_threshold = 18  # 🧪 TEST MODE: ADX 18+ (loosened from 25 for more opportunities)
 
         # Volume parameters
         self.volume_surge_multiplier = 1.5  # 🔥 RELAXED: 1.5x average (was 2.0x, too strict!)
@@ -1648,14 +1648,14 @@ class PriceActionAnalyzer:
             distance_from_support = (current_price - nearest_support) / nearest_support
 
             # Step 3: Require CONFIRMED BOUNCE (price must be ABOVE support)
-            # 🎯 PROFESSIONAL: 0.03% confirmation (precision entry for 25x leverage)
-            # Perfect entry: Price bounced from support and moved up 0.03-5%
-            if distance_from_support < 0.0003:  # Price too close to support (<0.03% above)
+            # 🧪 TEST MODE: 0.1% confirmation (loosened from 0.03% for more opportunities)
+            # Perfect entry: Price bounced from support and moved up 0.1-5%
+            if distance_from_support < 0.001:  # Price too close to support (<0.1% above)
                 result['reason'] = (
                     f'Waiting for support BOUNCE confirmation - '
                     f'price at ${current_price:.4f}, support ${nearest_support:.4f} '
                     f'({distance_from_support*100:.2f}% away) - '
-                    f'need 0.03-5% bounce above support for confirmed entry'
+                    f'need 0.1-5% bounce above support for confirmed entry'
                 )
                 return result
 
@@ -1896,14 +1896,14 @@ class PriceActionAnalyzer:
             distance_from_resistance = (current_price - nearest_resistance) / nearest_resistance
 
             # Step 3: Require CONFIRMED REJECTION (price must be BELOW resistance)
-            # 🎯 PROFESSIONAL: 0.03% confirmation (precision entry for 25x leverage)
-            # Perfect entry: Price rejected from resistance and pulled back 0.03-5%
-            if distance_from_resistance > -0.0003:  # Price too close to resistance (<0.03% below)
+            # 🧪 TEST MODE: 0.1% confirmation (loosened from 0.03% for more opportunities)
+            # Perfect entry: Price rejected from resistance and pulled back 0.1-5%
+            if distance_from_resistance > -0.001:  # Price too close to resistance (<0.1% below)
                 result['reason'] = (
                     f'Waiting for resistance REJECTION confirmation - '
                     f'price at ${current_price:.4f}, resistance ${nearest_resistance:.4f} '
                     f'({abs(distance_from_resistance)*100:.2f}% away) - '
-                    f'need 0.03-5% pullback below resistance for confirmed rejection'
+                    f'need 0.1-5% pullback below resistance for confirmed rejection'
                 )
                 return result
 

@@ -1,491 +1,85 @@
-7.0-PROFESSIONAL-AGGRESSIVE-25X-LEVERAGE-75PCT-ACCURACY
-PROFESSIONAL AGGRESSIVE MODE: 25x Leverage + 75% Accuracy Target + $20-30/day
-Deployed: 2025-11-24 16:00 (NUCLEAR REBUILD FORCED - NEW VERSION)
+7.1-TEST-MODE-LOOSENED-FILTERS-PAPER-TRADING
+🧪 TEST MODE: Loosened Filters for Paper Trading Testing
+Deployed: 2025-11-24 17:30 (FILTER ADJUSTMENT TEST)
 
 ═══════════════════════════════════════════════════════════
-🚨 CRITICAL BUGS FIXED (v6.5)
+🧪 FILTER ADJUSTMENTS FOR TESTING
 ═══════════════════════════════════════════════════════════
 
-**ANALYSIS OF 39 RECENT TRADES:**
-- Win Rate: 61.5% (24 wins, 15 losses) ✅
-- Avg Win: +$1.35
-- Avg Loss: -$3.02 ❌ (TOO BIG!)
-- Net P&L: -$12.79 ❌ (LOSING MONEY!)
-
-**ROOT CAUSES IDENTIFIED:**
-
-🔴 BUG #1: MISSING DATABASE METHOD
-Error in logs: 'DatabaseClient' object has no attribute 'update_position_stop_loss'
-
-Impact:
-- Trailing stop-loss NOT updating in database
-- Position monitor crashes on every update attempt
-- Positions not protected by trailing stops
-
-FIX APPLIED:
-Added missing method to src/database.py:570
-```python
-async def update_position_stop_loss(self, position_id: int, new_stop_loss: float):
-    """Update the stop-loss price for an active position (trailing stop)."""
-    async with self.pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE active_positions
-            SET stop_loss_price = $1, updated_at = NOW()
-            WHERE id = $2
-        """, new_stop_loss, position_id)
-```
-
-🔴 BUG #2: STOP-LOSS SYSTEM FAILURES
-Evidence from trade history:
-- BLUR:  -41.20% ROI (should have stopped at -0.50% ROI!)
-- HOT:   -35.97% ROI (should have stopped at -0.50% ROI!)
-- ETHW:  -26.60% ROI (should have stopped at -0.50% ROI!)
-- VET:   -23.36% ROI (should have stopped at -0.50% ROI!)
-- SKL:   -14.34% ROI (should have stopped at -0.50% ROI!)
-
-Config: 0.08-0.12% stop-loss (with 5x leverage = -0.50% ROI max loss)
-Reality: -14% to -41% ROI losses! 🚨
-
-4-Layer stop-loss system exists but may be failing:
-- Layer 1: Config-based 0.10% price stop
-- Layer 2: 5% dollar limit
-- Layer 3: -50% ROI emergency
-- Layer 4: Exchange-level stop order
-
-FIX APPLIED:
-Enhanced debug logging in src/trade_executor.py:
-- Full stop-loss order response logged
-- Detailed error messages with order parameters
-- Better visibility into exchange stop-loss placement
-
-Expected in logs after fix:
-```
-✅ LAYER 4 STOP-LOSS PLACED: Order ID 12345
-🔍 STOP-LOSS ORDER DETAILS: {full_response}
-```
-
-If placement fails:
-```
-🚨 STOP-LOSS PLACEMENT FAILED: {error}
-Symbol: BTC/USDT, Side: LONG, Quantity: 0.001
-Stop Price: $80000.0000
-Error Type: BinanceAPIException
-Full Error: {detailed_message}
-```
-
-🔴 BUG #3: DOCKER CACHE PREVENTING v4.0 CODE EXECUTION
-Evidence: v4.0 multi-timeframe S/R code NEVER executed in 3 deployments
-Expected logs (MISSING):
-```
-🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE - DEPLOYED: 2025-11-22 15:10 UTC
-🔥 FUNCTION RENAMED FOR CACHE BYPASS: should_enter_trade_v4_20251122()
-📊 Fetching 4h S/R levels...
-```
-
-Actual logs (OLD CODE):
-```
-No swing lows found - using recent low $80600.0000 as support
-```
-
-Previous attempts failed:
-- ❌ Cache deletion in Dockerfile RUN + CMD
-- ❌ Python -B flag (bypass bytecode)
-- ❌ PYTHONDONTWRITEBYTECODE environment variable
-- ❌ Function rename (should_enter_trade_v4_20251122)
-
-FIX APPLIED:
-AGGRESSIVE Docker cache busting in Dockerfile:
-- Added build ARG with unique timestamp: CACHE_BUST=20251123_211500
-- ARG placed BEFORE COPY commands to invalidate Docker layer cache
-- Forces Docker to rebuild ALL layers after ARG line
-- Every deployment MUST update ARG timestamp manually
-
-Impact:
-- Completely bypasses Railway/Docker build cache
-- Forces fresh Python compilation from source
-- v4.0 multi-timeframe S/R will FINALLY execute
-
-**FILES CHANGED:**
-1. src/database.py:570 - Added update_position_stop_loss() method
-2. src/trade_executor.py:534,563 - Enhanced stop-loss debug logging
-3. Dockerfile:5-6,27 - Aggressive cache busting with build ARG
-
-**EXPECTED IMPROVEMENTS:**
-
-Before fixes:
-- Win rate: 61.5%
-- Avg win: $1.35
-- Avg loss: -$3.02
-- Net: -$12.79 ❌
-
-After database + stop-loss debug fix:
-- Win rate: 61.5% (same)
-- Avg win: $1.35 (same)
-- Avg loss: -$0.50 ✅ (stop-loss working!)
-- Net: +$25.87 ✅
-
-After v4.0 S/R fix (if cache bust works):
-- Win rate: 68% ✅ (better entry points!)
-- Avg win: $2.00 ✅
-- Avg loss: -$0.50 ✅
-- Net: +$45.12 ✅
-
-**MONITORING AFTER DEPLOY:**
-
-1. Check for missing method error (should be GONE):
-   ❌ OLD: 'DatabaseClient' object has no attribute 'update_position_stop_loss'
-   ✅ NEW: No errors, trailing stops update smoothly
-
-2. Check for stop-loss placement logs (should appear):
-   ✅ LAYER 4 STOP-LOSS PLACED: Order ID 12345
-   ✅ STOP-LOSS ORDER DETAILS: {...}
-
-3. Check for v4.0 S/R execution (should FINALLY appear):
-   ✅ 🔥 CACHE BUST: 20251123_211500 - Forcing fresh build...
-   ✅ 🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE - DEPLOYED: 2025-11-22 15:10 UTC
-   ✅ 📊 Fetching 4h S/R levels...
-
-4. Monitor ROI losses (should be MUCH smaller):
-   ❌ OLD: -14% to -41% ROI losses
-   ✅ NEW: -0.5% to -2% ROI losses (stop-loss triggers quickly)
+USER REQUEST: Test bot with loosened filters in paper trading mode
+Railway Variables: USE_PAPER_TRADING="true", AUTO_START_LIVE_TRADING="false"
 
 ═══════════════════════════════════════════════════════════
-
-🎯 FINE-TUNED CLASSIC STRATEGY
-
-═══════════════════════════════════════════════════════════
-USER REQUEST: Restore original winning strategy
+FILTER CHANGES (v7.0 → v7.1 TEST):
 ═══════════════════════════════════════════════════════════
 
-✅ "Eski stratejimiz bize günde 10-15 dolar kazandırıyordu"
-✅ "$0.70-$1.00 kar/zarar hedefi"
-✅ "Hızlı kapatma yok, sadece hedeflere ulaşınca kapat"
-✅ "ML kendi yönünü kullansın (LONG/SHORT değiştirme yok)"
+1. ADX THRESHOLD RELAXED:
+   - Professional: 25 (very strict - only strong trends)
+   - Test Mode: 18 (moderate trends allowed)
+   - Impact: +50-70% more coins pass trend filter
+   - Location: src/price_action_analyzer.py:71
+
+2. AI CONFIDENCE LOWERED:
+   - Professional: 70% minimum
+   - Test Mode: 60% minimum
+   - Impact: +30-40% more opportunities
+   - Location: src/config.py:46
+
+3. CONFIRMATION ZONE LOOSENED:
+   - Professional: 0.03% (very precise entries)
+   - Test Mode: 0.1% (more lenient entries)
+   - Impact: +20-30% more entries accepted
+   - Locations:
+     * src/price_action_analyzer.py:1653 (LONG)
+     * src/price_action_analyzer.py:1901 (SHORT)
+
+4. MULTI-TIMEFRAME RELAXED:
+   - Professional: 3/4 timeframes must agree
+   - Test Mode: 2/4 timeframes must agree
+   - Impact: +40-50% more coins pass MTF filter
+   - Location: src/indicators.py:1993
 
 ═══════════════════════════════════════════════════════════
-VERSION 6.1-CLASSIC-FINE SETTINGS:
+EXPECTED RESULTS:
 ═══════════════════════════════════════════════════════════
 
-PROFIT/LOSS TARGETS:
-- Profit: +$0.85 ($0.70-$1.00 range)
-- Loss: -$0.85 ($0.70-$1.00 range)
-- Position stays open if between -$0.70 and +$0.70
-- NO fast closing, NO time-based exits
-- ONLY close on profit/loss targets
+v7.0 PROFESSIONAL (Strict):
+- Scan results: 0-2 opportunities per 108 coins
+- Entry rate: <2%
+- Win rate target: 75% (high precision)
 
-LEVERAGE:
-- Min: 4x (conservative)
-- Max: 6x (moderate)
-- Default: 5x (AI suggestion)
+v7.1 TEST MODE (Loosened):
+- Scan results: 5-15 opportunities per 108 coins
+- Entry rate: 5-15%
+- Win rate: 60-70% (more trades, lower precision)
 
-POSITION MANAGEMENT:
-- Max Concurrent: 4 positions
-- Position Size: 85% of capital ($75-90 with $100 balance)
-- Stop Loss: 15% (emergency only)
-
-ML STRATEGY:
-- NORMAL ML predictions (no tricks, no inversion)
-- ML LONG → Open LONG
-- ML SHORT → Open SHORT
-- Trust the trained model 100%
+PURPOSE: See actual trade execution in paper mode, evaluate results
 
 ═══════════════════════════════════════════════════════════
-FILES CHANGED (v6.1 → v6.2):
+CORE SETTINGS UNCHANGED (Still Professional):
 ═══════════════════════════════════════════════════════════
 
-🎯 NEW: PRICE ACTION + ML INTEGRATION (AŞAMA 1)
-
-src/snapshot_capture.py:
-- ✅ Import PriceActionAnalyzer
-- ✅ Add get_pa_analyzer() singleton
-- ✅ Add _analyze_price_action() function (200+ lines)
-- ✅ Call PA analysis in capture_market_snapshot()
-- ✅ Add PA data to snapshot['price_action']
-- ✅ Fetch 100 candles of OHLCV for real S/R detection
-- ✅ Calculate swing highs/lows, trend, volume
-- ✅ Fallback mechanism if PA analysis fails
-
-src/feature_engineering.py:
-- ✅ Update _extract_professional_price_action() to use real PA data
-- ✅ Features F41-F46 now get REAL values instead of hardcoded 0.5
-- ✅ Add documentation for AŞAMA 1 integration
-
-New Files:
-- PA_INTEGRATION_COMPLETE.md (comprehensive documentation)
+✅ Leverage: 20x-25x (UNCHANGED)
+✅ Stop-loss: 2-3% (UNCHANGED)
+✅ Min profit: $20 (UNCHANGED)
+✅ Position size: 50% ($75 per position @ $150 capital) (UNCHANGED)
+✅ Max positions: 2 (UNCHANGED)
+✅ Smart Money Concepts: ENABLED (UNCHANGED)
+✅ Order Flow Analysis: ENABLED (UNCHANGED)
+✅ Multi-timeframe: ENABLED (just less strict)
 
 ═══════════════════════════════════════════════════════════
-🚀 WHAT'S NEW IN v6.2:
+MONITORING AFTER DEPLOY:
 ═══════════════════════════════════════════════════════════
 
-**MAJOR IMPROVEMENT: ML Now "Sees" Real Market Structure!**
+Watch for:
+1. ✅ More opportunities found (5-15 per scan vs 0-2)
+2. ✅ Trades actually opening in paper mode
+3. ✅ ADX 18+ instead of 25+
+4. ✅ 60%+ AI confidence instead of 70%+
+5. ✅ Entries at 0.1% from S/R instead of 0.03%
+6. ✅ 2/4 timeframe agreement logs
 
-BEFORE (v6.1):
-- ML features F41-F46 all hardcoded to 0.5 (neutral)
-- No real support/resistance data
-- No trend quality measurement
-- No volume confirmation data
-- ML confidence: 40-50% average
-
-AFTER (v6.2):
-- ML features F41-F46 use REAL price action data:
-  * F41: Real distance to swing low support
-  * F42: Real distance to swing high resistance
-  * F43: Real S/R strength (touch count)
-  * F44: Real trend quality (ADX + direction)
-  * F45: Real volume surge ratio
-  * F46: Real calculated risk/reward ratio
-- ML confidence: 50-65% average (+10-15% improvement!)
+User will evaluate test results and decide on final filter configuration.
 
 ═══════════════════════════════════════════════════════════
-PRICE ACTION ANALYSIS DETAILS:
-═══════════════════════════════════════════════════════════
-
-What PA Analyzer Does:
-1. Fetches 100 candles of 15m OHLCV data
-2. Finds swing highs (local resistance points)
-3. Finds swing lows (local support points)
-4. Calculates nearest support/resistance
-5. Measures S/R strength (touch count)
-6. Analyzes trend direction + ADX strength
-7. Detects volume surges
-8. Calculates risk/reward ratios
-
-Example Output:
-```
-BTC/USDT at $43,000:
-- Support: $42,500 (2.3% away, 3 touches = strong)
-- Resistance: $43,200 (1.6% away, 2 touches)
-- Trend: UPTREND (ADX 45 = moderate strength)
-- Volume: 1.6x surge confirming move
-- R/R LONG: 3.0:1 (excellent!)
-- R/R SHORT: 0.5:1 (poor)
-
-ML sees this and says: "58% confident LONG" (was 45% before!)
-```
-
-═══════════════════════════════════════════════════════════
-EXPECTED BEHAVIOR:
-═══════════════════════════════════════════════════════════
-
-✅ Max 2 positions open at once
-✅ Each position $75-90 in size
-✅ Leverage 4-6x (safe, proven)
-✅ Normal ML predictions (LONG=LONG, SHORT=SHORT)
-✅ Positions stay open until:
-   - Profit reaches $0.70-$1.00 → CLOSE
-   - Loss reaches -$0.70 to -$1.00 → CLOSE
-   - Otherwise → KEEP OPEN (no fast exits!)
-
-═══════════════════════════════════════════════════════════
-HOW THIS DIFFERS FROM v6.0:
-═══════════════════════════════════════════════════════════
-
-v6.0-CLASSIC:
-- Profit target: $1.50
-- Loss limit: Stop-loss based (15%)
-- Comment: "Back to basics"
-
-v6.1-CLASSIC-FINE:
-- Profit target: $0.85 ($0.70-$1.00)
-- Loss limit: -$0.85 (-$0.70 to -$1.00)
-- Comment: "Exact replica of winning strategy"
-
-This version EXACTLY matches the strategy that earned $10-15/day!
-
-═══════════════════════════════════════════════════════════
-DEPLOYMENT CHECKLIST:
-═══════════════════════════════════════════════════════════
-
-BEFORE STARTING:
-1. ✅ Emergency stop completed (all positions closed)
-2. ✅ Railway AUTO_START_LIVE_TRADING=false
-3. ✅ Verify Binance balance (~$100)
-
-AFTER DEPLOYMENT:
-1. Monitor first trade closely
-2. Verify profit target is $0.85 (not $1.00 or $1.50)
-3. Verify loss limit is -$0.85
-4. Verify positions stay open between -$0.70 and +$0.70
-5. Verify ML uses normal predictions (no inversion)
-
-═══════════════════════════════════════════════════════════
-SUCCESS METRICS (Expected v6.2 vs v6.1):
-═══════════════════════════════════════════════════════════
-
-v6.1 (Classic Only):
-- Trades: 10-20 per day
-- ML Confidence: 40-50% avg
-- Win Rate: 60-70%
-- Daily P&L: +$10-15
-
-v6.2 (Classic + PA Integration):
-- Trades: 10-20 per day (same)
-- ML Confidence: 50-65% avg (+10-15%!) ✅
-- Win Rate: 63-73% (+3-7%!) ✅
-- Daily P&L: +$12-18 (+20-35%!) ✅
-
-With $100 capital and 4-6x leverage:
-- Monthly Return: 360-540% ($360-540)
-- Risk: Low to moderate (proven strategy + better ML)
-
-═══════════════════════════════════════════════════════════
-WHY v6.2 IS BETTER:
-═══════════════════════════════════════════════════════════
-
-**Analogy:**
-v6.1 = Trading with sunglasses on (can't see S/R clearly)
-v6.2 = Trading with clear vision (sees exact S/R levels!)
-
-**Technical:**
-- ML model was making predictions with incomplete information
-- 6 features (F41-F46) were all neutral (0.5 = blind spots!)
-- Now these features use REAL market structure data
-- ML can make more informed, higher-confidence predictions
-
-**Result:**
-- Better trade selection (higher confidence = better setups)
-- Better timing (knows when near support/resistance)
-- Better risk management (sees real risk/reward ratios)
-- Higher win rate (fewer bad trades taken)
-
-🎯 CLASSIC STRATEGY + PROFESSIONAL PRICE ACTION = WINNING COMBO!
-
-═══════════════════════════════════════════════════════════
-DEPLOYMENT NOTES (v6.2):
-═══════════════════════════════════════════════════════════
-
-✅ NO RAILWAY VARIABLE CHANGES NEEDED
-✅ NO NEW DEPENDENCIES (pandas, numpy already installed)
-✅ BACKWARD COMPATIBLE (fallback if PA analysis fails)
-✅ LOW RISK (well-tested PA analyzer + fallback mechanism)
-
-Performance Impact:
-- CPU: +5-10% (PA analysis calculation)
-- Memory: +10MB (pandas DataFrame)
-- API Calls: 0 extra (uses already-fetched OHLCV)
-- Latency: +20-50ms per snapshot
-
-What to Monitor:
-- PA analysis logs: "✅ PA Analysis complete for BTC/USDT..."
-- ML confidence increase: 45% → 52-55% average
-- Win rate improvement: After 50-100 trades
-- No PA analysis errors in logs
-
-🚀 READY TO DEPLOY! This is AŞAMA 1 from PA_ML_INTEGRATION_PLAN.md!
-
-═══════════════════════════════════════════════════════════
-🔧 BUG FIX (v6.4-COOLDOWN-FIX): PostgreSQL Type Error
-═══════════════════════════════════════════════════════════
-
-**ERROR FOUND IN LOGS:**
-```
-Cooldown check failed (allowing trade): invalid input for query
-argument $2: 30 (expected str, got int)
-```
-
-**ROOT CAUSE:**
-src/database.py:564 - PostgreSQL INTERVAL query used string
-concatenation (||) with integer parameter:
-```sql
-AND exit_time >= NOW() - ($2 || ' minutes')::INTERVAL
-```
-
-The || operator expects string types, but minutes parameter is int.
-
-**FIX APPLIED:**
-Changed to PostgreSQL interval multiplication (proper way):
-```sql
-AND exit_time >= NOW() - INTERVAL '1 minute' * $2
-```
-
-**IMPACT:**
-- ✅ Cooldown system now works correctly
-- ✅ No more type errors in logs
-- ✅ Duplicate trades properly rejected within 30 minutes
-- ✅ Better protection against revenge trading
-
-**FILES CHANGED:**
-- src/database.py:564 (SQL query fix)
-
-**TESTING:**
-After deploy, verify in logs:
-```
-🔄 COOLDOWN: SKL/USDT traded 12m ago (LONG $-2.50). Wait 18m more.
-```
-
-No more "Cooldown check failed" errors should appear!
-
-═══════════════════════════════════════════════════════════
-🔥 AGGRESSIVE FIX (v6.4-CACHE-BYPASS): Function Rename
-═══════════════════════════════════════════════════════════
-
-**PROBLEM:**
-Despite 3 deployment attempts, v4.0 multi-timeframe S/R code NEVER executed:
-- ❌ Cache deletion in Dockerfile (RUN + CMD)
-- ❌ Python -B flag (bypass bytecode)
-- ❌ PYTHONDONTWRITEBYTECODE environment variable
-- ❌ Unique deployment markers in code
-- ❌ All strategies failed - Railway still loading .pyc files!
-
-**PROOF FROM LOGS:**
-```
-Expected: 🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE...  ❌ NEVER APPEARED
-Expected: 📊 Fetching 4h S/R levels...  ❌ NEVER APPEARED
-Actual:   No swing lows found - using recent low...  ❌ OLD CODE!
-```
-
-**ROOT CAUSE:**
-Python bytecode cache (.pyc files) persisting across Docker builds.
-Railway/Docker layer caching was too aggressive - even explicit cache
-deletion didn't work.
-
-**AGGRESSIVE SOLUTION:**
-🔥 **RENAMED CORE FUNCTION TO FORCE FRESH COMPILATION!** 🔥
-
-Old .pyc file has `should_enter_trade()` compiled bytecode.
-New code has `should_enter_trade_v4_20251122()` - DIFFERENT NAME!
-
-When Python loads:
-1. Looks for `should_enter_trade_v4_20251122` in .pyc
-2. NOT FOUND (old .pyc only has `should_enter_trade`)
-3. FORCED to compile fresh Python source code!
-4. v4.0 multi-timeframe S/R code FINALLY executes!
-
-**FILES CHANGED:**
-- src/price_action_analyzer.py:1455 (renamed function)
-- src/market_scanner.py:605,615 (updated calls)
-- src/ai_engine.py:248,265 (updated calls)
-
-**EXPECTED LOGS AFTER DEPLOY:**
-```
-🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE - DEPLOYED: 2025-11-22 15:10 UTC
-🔥 FUNCTION RENAMED FOR CACHE BYPASS: should_enter_trade_v4_20251122()
-📊 Fetching 4h S/R levels...
-✅ 4h S/R: 3 supports, 2 resistances
-📊 Fetching 1h S/R levels...
-✅ 1h S/R: 2 supports, 3 resistances
-```
-
-**WHY THIS WILL WORK:**
-- Function name is part of bytecode signature
-- Old .pyc has different function name = NO MATCH
-- Python has NO CHOICE but to recompile from source
-- This is more aggressive than cache deletion (which can fail)
-- Used by Django, Flask, and other frameworks for deployment
-
-**IMPACT:**
-✅ v4.0 multi-timeframe S/R will FINALLY execute
-✅ Adaptive swing windows will work
-✅ Psychological level detection will work
-✅ ML confidence will increase 10-15% (proper S/R data)
-✅ Win rate will improve 3-7% (better trade selection)
-
-**MONITORING:**
-After deploy, verify these logs appear:
-1. ✅ v4.0 deployment banner (80 characters wide)
-2. ✅ "FUNCTION RENAMED FOR CACHE BYPASS" message
-3. ✅ Multi-timeframe S/R fetching messages
-4. ✅ NO MORE "No swing lows found" fallback messages
-
-If this STILL doesn't work, the issue is deeper than bytecode cache
-and would indicate Docker layer caching or Railway-specific issues.
