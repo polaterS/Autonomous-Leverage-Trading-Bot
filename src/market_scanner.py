@@ -41,6 +41,7 @@ from src.indicators import (
     analyze_open_interest,
     estimate_liquidation_levels
 )
+from src.enhanced_trading_system import get_enhanced_trading_system
 
 logger = setup_logging()
 
@@ -246,9 +247,36 @@ class MarketScanner:
                 # Market sentiment henüz belirlenmedi, bu yüzden None geçiyoruz, sonra güncelleyeceğiz
                 opportunity_score = 0  # Placeholder, will calculate after market sentiment
 
-                # Calculate CONFLUENCE SCORE (multi-factor agreement)
+                # 🚀 ENHANCED CONFLUENCE SCORING (Professional Trading System)
                 side = analysis.get('side', 'LONG')
-                confluence = calculate_confluence_score(market_data, side)
+
+                # Check if enhanced system is enabled
+                try:
+                    enhanced_system = get_enhanced_trading_system()
+                    if enhanced_system.settings.enable_confluence_filtering:
+                        # Use advanced confluence scoring engine
+                        confluence_result = enhanced_system.confluence_engine.calculate_confluence_score(
+                            market_data=market_data,
+                            side=side,
+                            indicators=market_data.get('indicators', {})
+                        )
+                        confluence = {
+                            'score': confluence_result['total_score'],
+                            'approved': confluence_result['total_score'] >= enhanced_system.settings.min_confluence_score,
+                            'confluence_count': len(confluence_result['component_scores']),
+                            'quality': confluence_result.get('quality', 'UNKNOWN'),
+                            'reasoning': confluence_result.get('reasoning', '')
+                        }
+                        logger.info(
+                            f"🎯 {symbol} Enhanced Confluence: {confluence['score']:.1f}/100 "
+                            f"({confluence['quality']}) - {confluence['reasoning']}"
+                        )
+                    else:
+                        # Fall back to old confluence scoring
+                        confluence = calculate_confluence_score(market_data, side)
+                except Exception as e:
+                    logger.warning(f"Enhanced confluence failed for {symbol}, using fallback: {e}")
+                    confluence = calculate_confluence_score(market_data, side)
 
                 # Add to collection with metadata
                 all_analyses.append({
@@ -1606,21 +1634,32 @@ class MarketScanner:
         model_name = analysis.get('model_name', 'unknown')
         confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
 
-        # 🔥 PROFIT FIX #3: Raised Confluence Thresholds for Quality
-        # OLD: PA-Override 50/155 = 32% confluence (too low, many false signals)
-        # NEW: PA-Override 70/155 = 45% confluence (better quality, fewer losses)
-        # IMPACT: Blocks low-quality setups with minimal confirmation
-        #
-        # Thresholds by signal type:
-        # PA-ONLY: 40/155 = 26% (strictest PA filters already applied)
-        # PA-Override: 70/155 = 45% 🔥 RAISED from 50 (better quality!)
-        # Others (ML): 80/155 = 52% 🔥 RAISED from 60 (ML needs more confirmation)
-        if model_name == 'PA-ONLY':
-            min_confluence_score = 40
-        elif model_name == 'PA-Override':
-            min_confluence_score = 70  # 🔥 RAISED: From 50 → 70 for profit!
-        else:
-            min_confluence_score = 80  # 🔥 RAISED: From 60 → 80 for ML trades
+        # 🚀 ENHANCED SYSTEM: Use professional confluence thresholds if enabled
+        try:
+            enhanced_system = get_enhanced_trading_system()
+            if enhanced_system.settings.enable_confluence_filtering:
+                # Professional system: Single high threshold (75+) for ALL trades
+                min_confluence_score = enhanced_system.settings.min_confluence_score
+                logger.info(
+                    f"🎯 Enhanced System Active: Using {min_confluence_score} threshold "
+                    f"(Quality: {confluence.get('quality', 'UNKNOWN')})"
+                )
+            else:
+                # Legacy system: Different thresholds by model
+                if model_name == 'PA-ONLY':
+                    min_confluence_score = 40
+                elif model_name == 'PA-Override':
+                    min_confluence_score = 70
+                else:
+                    min_confluence_score = 80
+        except Exception as e:
+            # Fallback to legacy thresholds
+            if model_name == 'PA-ONLY':
+                min_confluence_score = 40
+            elif model_name == 'PA-Override':
+                min_confluence_score = 70
+            else:
+                min_confluence_score = 80
 
         if not confluence['approved'] or confluence['score'] < min_confluence_score:
             logger.warning(
