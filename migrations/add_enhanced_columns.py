@@ -28,15 +28,15 @@ async def migrate():
         print("🔄 Starting migration: Add Enhanced Trading System columns...")
         print("=" * 70)
 
-        # Check if trades table exists first (using direct PostgreSQL query)
-        table_check_query = """
-            SELECT EXISTS (
-                SELECT FROM pg_tables
-                WHERE schemaname = 'public'
-                AND tablename = 'trades'
-            )
-        """
-        table_exists = await conn.fetchval(table_check_query)
+        # Check if trades table exists by directly querying it
+        # This is more reliable than information_schema/pg_tables
+        try:
+            await conn.fetchval("SELECT 1 FROM trades LIMIT 1")
+            table_exists = True
+        except Exception as e:
+            # If query fails, table doesn't exist
+            table_exists = False
+            print(f"   Table check error (expected if table doesn't exist): {type(e).__name__}")
 
         print(f"   Table existence check: {table_exists}")
 
