@@ -1,11 +1,11 @@
-# 🧪 TEST MODE: Loosened Filters for Paper Trading
+# 🚀 ENHANCED TRADING SYSTEM: Professional Confluence Scoring
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251124_173000
-RUN echo "🧪 CACHE BUST: ${CACHE_BUST} - TEST MODE DEPLOYED!" && \
+ARG CACHE_BUST=20251125_171900
+RUN echo "🚀 CACHE BUST: ${CACHE_BUST} - ENHANCED SYSTEM DEPLOYED!" && \
     echo "Build timestamp: $(date)" && \
-    echo "Loosened filters: ADX 18+, AI 60%+, Confirmation 0.1%, MTF 2/4"
+    echo "Enhanced Trading System: Confluence 75+, Volume Profile, Quality Filtering"
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +25,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🧪 CACHE BUST MARKER: This line changes every deployment to invalidate cache
-# Current deployment: 20251124_173000_TEST_MODE_LOOSENED_FILTERS
+# 🚀 CACHE BUST MARKER: Enhanced Trading System Deployment
+# Current deployment: 20251125_171900_ENHANCED_SYSTEM_INTEGRATED
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
