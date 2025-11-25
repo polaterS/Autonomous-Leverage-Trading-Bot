@@ -86,19 +86,6 @@ async def main():
         else:
             logger.error(f"⚠️ Migration check failed (non-critical): {e}")
 
-    # 🚀 ENHANCED SYSTEM: Run enhanced trading system migration (if needed)
-    try:
-        logger.info("🚀 Checking Enhanced Trading System migrations...")
-        from migrations.add_enhanced_columns import migrate as migrate_enhanced
-        await migrate_enhanced()
-        logger.info("✅ Enhanced Trading System migrations completed!")
-    except Exception as e:
-        # If columns already exist, that's fine
-        if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
-            logger.info("✅ Enhanced columns already exist")
-        else:
-            logger.error(f"⚠️ Enhanced migration check failed (non-critical): {e}")
-
     # Database health check and auto-cleanup
     try:
         from src.db_maintenance import verify_database_health, cleanup_duplicate_configs
@@ -268,6 +255,22 @@ async def main():
     # Initialize engine
     try:
         await engine.initialize()
+        logger.info("✅ Engine initialized successfully")
+
+        # 🚀 ENHANCED SYSTEM: Run enhanced trading system migration (if needed)
+        # NOTE: Must run AFTER engine.initialize() to ensure database pool sees committed tables
+        try:
+            logger.info("🚀 Checking Enhanced Trading System migrations...")
+            from migrations.add_enhanced_columns import migrate as migrate_enhanced
+            await migrate_enhanced()
+            logger.info("✅ Enhanced Trading System migrations completed!")
+        except Exception as e:
+            # If columns already exist, that's fine
+            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+                logger.info("✅ Enhanced columns already exist")
+            else:
+                logger.error(f"⚠️ Enhanced migration check failed (non-critical): {e}")
+
     except Exception as e:
         error_msg = str(e)
 
