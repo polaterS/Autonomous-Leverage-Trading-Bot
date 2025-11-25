@@ -1,5 +1,5 @@
 """
-<¯ CONFLUENCE SCORING ENGINE - The Key to 75%+ Win Rate
+< CONFLUENCE SCORING ENGINE - The Key to 75%+ Win Rate
 
 
 CRITICAL PHILOSOPHY: Quality Over Quantity
@@ -73,7 +73,7 @@ class ConfluenceScorer:
             'MEDIOCRE': 60
         }
 
-        logger.info(f"<¯ Confluence Scorer initialized (min_score={self.min_score_to_trade})")
+        logger.info(f"< Confluence Scorer initialized (min_score={self.min_score_to_trade})")
 
     def score_opportunity(
         self,
@@ -218,7 +218,7 @@ class ConfluenceScorer:
             return min(score, max_points)
 
         except Exception as e:
-            logger.warning(f"  MTF scoring error: {e}")
+            logger.warning(f" MTF scoring error: {e}")
             return 5  # Default low score on error
 
     def _score_volume_profile(self, side: str, volume_profile: Dict, pa_analysis: Dict) -> float:
@@ -271,7 +271,7 @@ class ConfluenceScorer:
             return min(score, max_points)
 
         except Exception as e:
-            logger.warning(f"  Volume profile scoring error: {e}")
+            logger.warning(f" Volume profile scoring error: {e}")
             return 5  # Default low score on error
 
     def _score_indicators(self, side: str, indicators: Dict) -> float:
@@ -373,7 +373,7 @@ class ConfluenceScorer:
             return min(score, max_points)
 
         except Exception as e:
-            logger.warning(f"  Indicator scoring error: {e}")
+            logger.warning(f" Indicator scoring error: {e}")
             return 5  # Default low score on error
 
     def _score_market_regime(self, side: str, market_regime: Dict) -> float:
@@ -426,7 +426,7 @@ class ConfluenceScorer:
             return min(score, max_points)
 
         except Exception as e:
-            logger.warning(f"  Market regime scoring error: {e}")
+            logger.warning(f" Market regime scoring error: {e}")
             return 5  # Default low score on error
 
     def _score_support_resistance(self, side: str, pa_analysis: Dict) -> float:
@@ -482,7 +482,7 @@ class ConfluenceScorer:
             return min(score, max_points)
 
         except Exception as e:
-            logger.warning(f"  S/R scoring error: {e}")
+            logger.warning(f" S/R scoring error: {e}")
             return 5  # Default low score on error
 
     def _score_risk_reward(self, pa_analysis: Dict) -> float:
@@ -510,7 +510,7 @@ class ConfluenceScorer:
                 return 0  # Unacceptable R/R
 
         except Exception as e:
-            logger.warning(f"  R/R scoring error: {e}")
+            logger.warning(f" R/R scoring error: {e}")
             return 1  # Default minimal score
 
     def _classify_quality(self, score: float) -> SignalQuality:
@@ -561,11 +561,11 @@ class ConfluenceScorer:
         if total_score >= 90:
             overall = "< PREMIUM SETUP - Maximum confidence"
         elif total_score >= 80:
-            overall = "=Ž STRONG SETUP - High confidence"
+            overall = "= STRONG SETUP - High confidence"
         elif total_score >= 75:
             overall = " GOOD SETUP - Trade acceptable"
         else:
-            overall = "=« SKIP - Insufficient quality"
+            overall = "= SKIP - Insufficient quality"
 
         return overall + "\n" + "\n".join(reasons)
 
@@ -577,14 +577,14 @@ class ConfluenceScorer:
         quality = result['quality']
         should_trade = result['should_trade']
 
-        emoji = "" if should_trade else "=«"
+        emoji = "" if should_trade else "="
 
         logger.info("")
         logger.info("=" * 70)
-        logger.info(f"<¯ CONFLUENCE SCORING: {symbol} {side}")
+        logger.info(f"< CONFLUENCE SCORING: {symbol} {side}")
         logger.info("=" * 70)
         logger.info(f"{emoji} Total Score: {score}/100")
-        logger.info(f"=Ê Quality: {quality}")
+        logger.info(f"= Quality: {quality}")
         logger.info(f" Trade Decision: {'TAKE TRADE' if should_trade else 'SKIP'}")
         logger.info("")
         logger.info("Component Breakdown:")
@@ -593,7 +593,7 @@ class ConfluenceScorer:
             pct = (component_score / max_score) * 100
             logger.info(f"  {component.replace('_', ' ').title()}: {component_score:.1f}/{max_score} ({pct:.0f}%)")
         logger.info("")
-        logger.info(f"=­ Reasoning:\n{result['reasoning']}")
+        logger.info(f"= Reasoning:\n{result['reasoning']}")
         logger.info("=" * 70)
         logger.info("")
 

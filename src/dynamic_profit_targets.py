@@ -1,5 +1,5 @@
 """
-=° DYNAMIC PROFIT TARGETS - Professional Edition
+= DYNAMIC PROFIT TARGETS - Professional Edition
 
 
 PROBLEM WITH FIXED TARGETS ($1.50):
@@ -61,7 +61,7 @@ class DynamicProfitTargetCalculator:
         # ATR multipliers for target calculation
         self.atr_multiplier_base = 2.0  # Base: 2x ATR for profit target
 
-        logger.info("=° Dynamic Profit Target Calculator initialized")
+        logger.info("= Dynamic Profit Target Calculator initialized")
 
     def calculate_profit_targets(
         self,
@@ -180,7 +180,7 @@ class DynamicProfitTargetCalculator:
 
             # Validate minimum R/R
             if rr_ratio < self.min_rr_ratio:
-                logger.warning(f"  R/R ratio {rr_ratio:.2f} below minimum {self.min_rr_ratio}. Adjusting targets...")
+                logger.warning(f" R/R ratio {rr_ratio:.2f} below minimum {self.min_rr_ratio}. Adjusting targets...")
                 # Scale up targets to meet minimum R/R
                 scale_factor = self.min_rr_ratio / rr_ratio
                 if side == 'LONG':
@@ -333,18 +333,18 @@ class DynamicProfitTargetCalculator:
         """Log profit target calculation results."""
         logger.info("")
         logger.info("=" * 70)
-        logger.info(f"=° DYNAMIC PROFIT TARGETS - {result['side']}")
+        logger.info(f"= DYNAMIC PROFIT TARGETS - {result['side']}")
         logger.info("=" * 70)
-        logger.info(f"=Í Entry: ${result['entry_price']:.2f}")
-        logger.info(f"=Ñ Stop Loss: ${result['stop_loss_price']:.2f}")
+        logger.info(f"= Entry: ${result['entry_price']:.2f}")
+        logger.info(f"= Stop Loss: ${result['stop_loss_price']:.2f}")
         logger.info(f"L Risk: ${result['risk_usd']:.2f}")
         logger.info("")
-        logger.info(f"<¯ TP1 ({int(result['tp1_allocation']*100)}%): ${result['tp1_price']:.2f} ’ +${result['tp1_usd']:.2f}")
-        logger.info(f"<¯ TP2 ({int(result['tp2_allocation']*100)}%): ${result['tp2_price']:.2f} ’ +${result['tp2_usd']:.2f}")
-        logger.info(f"<¯ TP3 ({int(result['tp3_allocation']*100)}%): ${result['tp3_price']:.2f} ’ +${result['tp3_usd']:.2f}")
+        logger.info(f"< TP1 ({int(result['tp1_allocation']*100)}%): ${result['tp1_price']:.2f}  +${result['tp1_usd']:.2f}")
+        logger.info(f"< TP2 ({int(result['tp2_allocation']*100)}%): ${result['tp2_price']:.2f}  +${result['tp2_usd']:.2f}")
+        logger.info(f"< TP3 ({int(result['tp3_allocation']*100)}%): ${result['tp3_price']:.2f}  +${result['tp3_usd']:.2f}")
         logger.info("")
-        logger.info(f"=Ž Total Potential: +${result['total_potential_profit_usd']:.2f}")
-        logger.info(f"=Ê Risk/Reward: {result['rr_ratio']:.2f}:1")
+        logger.info(f"= Total Potential: +${result['total_potential_profit_usd']:.2f}")
+        logger.info(f"= Risk/Reward: {result['rr_ratio']:.2f}:1")
         logger.info(f" Meets Min R/R ({self.min_rr_ratio}:1): {result['meets_min_rr']}")
         logger.info("=" * 70)
         logger.info("")

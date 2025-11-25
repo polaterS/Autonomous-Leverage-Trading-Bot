@@ -1,5 +1,5 @@
 """
-=á ADVANCED TRAILING STOP SYSTEM - Let Winners Run, Protect Profits
+= ADVANCED TRAILING STOP SYSTEM - Let Winners Run, Protect Profits
 
 
 PHILOSOPHY: "Cut losses short, let winners run"
@@ -32,8 +32,8 @@ Stage 4: ATR TRAIL (+6R)
 
 MOMENTUM AWARENESS:
 -------------------
-- If momentum weakening ’ Tighten trailing stop
-- If momentum strengthening ’ Loosen trailing stop
+- If momentum weakening  Tighten trailing stop
+- If momentum strengthening  Loosen trailing stop
 - Uses RSI, MACD divergence, volume decline
 
 
@@ -77,7 +77,7 @@ class AdvancedTrailingStop:
         self.momentum_tighten_enabled = True
         self.momentum_loosen_enabled = True
 
-        logger.info("=á Advanced Trailing Stop System initialized")
+        logger.info("= Advanced Trailing Stop System initialized")
 
     def calculate_trailing_stop(
         self,
@@ -354,7 +354,7 @@ class AdvancedTrailingStop:
             return should_tighten, should_loosen, reason_str
 
         except Exception as e:
-            logger.warning(f"  Momentum analysis error: {e}")
+            logger.warning(f" Momentum analysis error: {e}")
             return False, False, "Error analyzing momentum"
 
     def _tighten_stop(
@@ -440,18 +440,18 @@ class AdvancedTrailingStop:
         """Log trailing stop calculation."""
         logger.info("")
         logger.info("=" * 70)
-        logger.info(f"=á TRAILING STOP UPDATE - {result['side']}")
+        logger.info(f"= TRAILING STOP UPDATE - {result['side']}")
         logger.info("=" * 70)
-        logger.info(f"=Í Entry: ${result['entry_price']:.2f}")
-        logger.info(f"=Í Current: ${result['current_price']:.2f}")
-        logger.info(f"=Ñ Trailing Stop: ${result['trailing_stop_price']:.2f}")
+        logger.info(f"= Entry: ${result['entry_price']:.2f}")
+        logger.info(f"= Current: ${result['current_price']:.2f}")
+        logger.info(f"= Trailing Stop: ${result['trailing_stop_price']:.2f}")
         logger.info("")
-        logger.info(f"=Ê Stage: {result['stage']}")
-        logger.info(f"=° Current Profit: +{result['profit_r']:.2f}R")
+        logger.info(f"= Stage: {result['stage']}")
+        logger.info(f"= Current Profit: +{result['profit_r']:.2f}R")
         logger.info(f"= Locked In: +{result['locked_in_profit_r']:.2f}R")
-        logger.info(f"¡ Momentum: {result['momentum_action']}")
+        logger.info(f" Momentum: {result['momentum_action']}")
         logger.info("")
-        logger.info(f"=­ Reasoning:\n{result['reasoning']}")
+        logger.info(f"= Reasoning:\n{result['reasoning']}")
         logger.info("=" * 70)
         logger.info("")
 

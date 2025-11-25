@@ -1,5 +1,5 @@
 """
-=Ž DYNAMIC POSITION SIZER - Risk More on Better Setups
+= DYNAMIC POSITION SIZER - Risk More on Better Setups
 
 
 CRITICAL CONCEPT: Not all trades are equal
@@ -117,7 +117,7 @@ class DynamicPositionSizer:
         # Profit scaling parameters
         self.profit_scale_threshold = 0.30     # +30% profit
 
-        logger.info(f"=Ž Dynamic Position Sizer initialized (base_risk={base_risk_pct*100:.1f}%)")
+        logger.info(f"= Dynamic Position Sizer initialized (base_risk={base_risk_pct*100:.1f}%)")
 
     def calculate_position_size(
         self,
@@ -270,7 +270,7 @@ class DynamicPositionSizer:
             fractional_kelly = max(0.2, min(fractional_kelly, 2.0))
 
             logger.debug(
-                f"=Ê Kelly: win_rate={win_rate:.2%}, "
+                f"= Kelly: win_rate={win_rate:.2%}, "
                 f"avg_rr={avg_rr_ratio:.2f}, "
                 f"kelly={kelly_pct:.2%}, "
                 f"fractional={fractional_kelly:.2%}"
@@ -279,7 +279,7 @@ class DynamicPositionSizer:
             return fractional_kelly
 
         except Exception as e:
-            logger.warning(f"  Kelly calculation error: {e}")
+            logger.warning(f" Kelly calculation error: {e}")
             return 1.0  # Neutral multiplier on error
 
     def _calculate_performance_adjustment(
@@ -334,7 +334,7 @@ class DynamicPositionSizer:
     ) -> str:
         """Generate human-readable reasoning."""
         lines = [
-            f"Setup Quality: {quality} ({score:.1f}/100) ’ {quality_mult:.2f}x base",
+            f"Setup Quality: {quality} ({score:.1f}/100)  {quality_mult:.2f}x base",
         ]
 
         if kelly_applied:
@@ -349,12 +349,12 @@ class DynamicPositionSizer:
         """Log position sizing results."""
         logger.info("")
         logger.info("=" * 70)
-        logger.info("=Ž DYNAMIC POSITION SIZING")
+        logger.info("= DYNAMIC POSITION SIZING")
         logger.info("=" * 70)
-        logger.info(f"=° Position Size: ${result['position_size_usd']:.2f}")
-        logger.info(f">™ Position Size: {result['position_size_coins']:.6f} coins")
+        logger.info(f"= Position Size: ${result['position_size_usd']:.2f}")
+        logger.info(f"> Position Size: {result['position_size_coins']:.6f} coins")
         logger.info(f"L Risk Amount: ${result['risk_amount_usd']:.2f}")
-        logger.info(f"=Ê Risk %: {result['risk_percentage']:.2f}%")
+        logger.info(f"= Risk %: {result['risk_percentage']:.2f}%")
         logger.info("")
         logger.info("Multipliers:")
         logger.info(f"  Quality: {result['quality_multiplier']:.2f}x")
@@ -362,7 +362,7 @@ class DynamicPositionSizer:
         logger.info(f"  Performance: {result['performance_multiplier']:.2f}x")
         logger.info(f"  TOTAL: {result['size_multiplier']:.2f}x")
         logger.info("")
-        logger.info(f"=­ Reasoning:\n{result['reasoning']}")
+        logger.info(f"= Reasoning:\n{result['reasoning']}")
         logger.info("=" * 70)
         logger.info("")
 
