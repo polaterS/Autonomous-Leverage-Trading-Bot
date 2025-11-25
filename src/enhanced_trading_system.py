@@ -1,6 +1,5 @@
 """
-=€ ENHANCED TRADING SYSTEM - Professional Integration Layer
-
+ENHANCED TRADING SYSTEM - Professional Integration Layer
 
 This module integrates professional trading components with the existing system:
 - Volume Profile Analysis
@@ -34,7 +33,7 @@ if evaluation['should_trade']:
     profit_targets = evaluation['profit_targets']
     # Execute trade...
 
-
+
 """
 
 import logging
@@ -76,10 +75,10 @@ class EnhancedTradingSystem:
         self.enable_confluence_filtering = True
         self.enable_dynamic_sizing = True
 
-        logger.info("=€ Enhanced Trading System initialized")
-        logger.info(f"   =Ê Volume Profile: {'ENABLED' if self.enable_volume_profile else 'DISABLED'}")
-        logger.info(f"   <¯ Confluence Filtering (min {self.min_confluence_score}): {'ENABLED' if self.enable_confluence_filtering else 'DISABLED'}")
-        logger.info(f"   =Ž Dynamic Sizing: {'ENABLED' if self.enable_dynamic_sizing else 'DISABLED'}")
+        logger.info("= Enhanced Trading System initialized")
+        logger.info(f"   = Volume Profile: {'ENABLED' if self.enable_volume_profile else 'DISABLED'}")
+        logger.info(f"   < Confluence Filtering (min {self.min_confluence_score}): {'ENABLED' if self.enable_confluence_filtering else 'DISABLED'}")
+        logger.info(f"   = Dynamic Sizing: {'ENABLED' if self.enable_dynamic_sizing else 'DISABLED'}")
 
     async def evaluate_trading_opportunity(
         self,
@@ -122,7 +121,7 @@ class EnhancedTradingSystem:
         try:
             logger.info("")
             logger.info("=" * 80)
-            logger.info(f"=€ ENHANCED EVALUATION: {symbol} {side}")
+            logger.info(f"= ENHANCED EVALUATION: {symbol} {side}")
             logger.info("=" * 80)
 
             # Step 1: Volume Profile Analysis
@@ -151,7 +150,7 @@ class EnhancedTradingSystem:
             quality = confluence_result['quality']
 
             if not should_trade:
-                logger.warning(f"=« {symbol} {side} - Confluence score {confluence_score:.1f} below minimum {self.min_confluence_score}")
+                logger.warning(f"= {symbol} {side} - Confluence score {confluence_score:.1f} below minimum {self.min_confluence_score}")
                 return {
                     'should_trade': False,
                     'confluence_score': confluence_score,
@@ -268,7 +267,7 @@ class EnhancedTradingSystem:
             # Get OHLCV data
             ohlcv = market_data.get('ohlcv_15m', [])
             if len(ohlcv) < 20:
-                logger.warning(f"  {symbol} - Insufficient data for volume profile")
+                logger.warning(f" {symbol} - Insufficient data for volume profile")
                 return {}
 
             # Convert to DataFrame
@@ -283,7 +282,7 @@ class EnhancedTradingSystem:
             return volume_profile
 
         except Exception as e:
-            logger.warning(f"  {symbol} - Volume profile analysis error: {e}")
+            logger.warning(f" {symbol} - Volume profile analysis error: {e}")
             return {}
 
     async def _detect_market_regime(self, symbol: str, market_data: Dict, indicators: Dict) -> Dict:
@@ -304,7 +303,7 @@ class EnhancedTradingSystem:
             return regime_data
 
         except Exception as e:
-            logger.warning(f"  {symbol} - Regime detection error: {e}")
+            logger.warning(f" {symbol} - Regime detection error: {e}")
             return {'regime': None, 'should_trade': True, 'confidence': 0.5}
 
     def _score_confluence(
@@ -427,21 +426,21 @@ class EnhancedTradingSystem:
         # Volume Profile
         if volume_profile:
             vpoc = volume_profile.get('vpoc', 0)
-            lines.append(f"  =Ê VPOC: ${vpoc:.2f} (volume-based support/resistance)")
+            lines.append(f"  = VPOC: ${vpoc:.2f} (volume-based support/resistance)")
 
         # Market Regime
         regime = regime_data.get('regime', None)
         if regime:
             regime_name = regime.value if hasattr(regime, 'value') else str(regime)
-            lines.append(f"  <¯ Market Regime: {regime_name}")
+            lines.append(f"  < Market Regime: {regime_name}")
 
         # Profit Targets
         rr_ratio = profit_targets.get('rr_ratio', 0)
-        lines.append(f"  =° Expected R/R: {rr_ratio:.2f}:1")
+        lines.append(f"  = Expected R/R: {rr_ratio:.2f}:1")
 
         # Position Size
         risk_pct = position_size_data.get('risk_percentage', 0)
-        lines.append(f"  =Ž Position Risk: {risk_pct:.2f}%")
+        lines.append(f"  = Position Risk: {risk_pct:.2f}%")
 
         lines.append("")
         lines.append("=" * 60)
@@ -455,7 +454,7 @@ class EnhancedTradingSystem:
         should_trade = result['should_trade']
         score = result['confluence_score']
 
-        emoji = "" if should_trade else "=«"
+        emoji = "" if should_trade else "="
 
         logger.info("")
         logger.info("=" * 80)
