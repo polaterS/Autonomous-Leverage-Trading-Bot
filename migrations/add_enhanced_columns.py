@@ -1,7 +1,7 @@
 """
 Database migration: Add enhanced trading system columns.
 
-This migration adds the following columns to trades table:
+This migration adds the following columns to trade_history table:
 - confluence_score: Quality score (0-100) from confluence scoring engine
 - quality: Quality classification (EXCELLENT, STRONG, GOOD, MEDIOCRE, POOR)
 - risk_percentage: Percentage of account risked on this trade
@@ -28,10 +28,10 @@ async def migrate():
         print("🔄 Starting migration: Add Enhanced Trading System columns...")
         print("=" * 70)
 
-        # Check if trades table exists by directly querying it
+        # Check if trade_history table exists by directly querying it
         # This is more reliable than information_schema/pg_tables
         try:
-            await conn.fetchval("SELECT 1 FROM trades LIMIT 1")
+            await conn.fetchval("SELECT 1 FROM trade_history LIMIT 1")
             table_exists = True
         except Exception as e:
             # If query fails, table doesn't exist
@@ -41,19 +41,19 @@ async def migrate():
         print(f"   Table existence check: {table_exists}")
 
         if not table_exists:
-            print("⚠️  'trades' table doesn't exist yet. Skipping migration.")
+            print("⚠️  'trade_history' table doesn't exist yet. Skipping migration.")
             print("   Migration will run automatically on next bot restart.")
             print("=" * 70)
             return
 
-        print("✅ 'trades' table found! Proceeding with migration...")
+        print("✅ 'trade_history' table found! Proceeding with migration...")
 
         # Check if columns already exist
         check_query = """
             SELECT column_name
             FROM information_schema.columns
             WHERE table_schema = 'public'
-            AND table_name = 'trades'
+            AND table_name = 'trade_history'
             AND column_name IN ('confluence_score', 'quality', 'risk_percentage')
         """
         existing_columns = await conn.fetch(check_query)
@@ -74,19 +74,19 @@ async def migrate():
 
         if 'confluence_score' not in existing_column_names:
             migrations.append("""
-                ALTER TABLE trades
+                ALTER TABLE trade_history
                 ADD COLUMN IF NOT EXISTS confluence_score FLOAT DEFAULT NULL
             """)
 
         if 'quality' not in existing_column_names:
             migrations.append("""
-                ALTER TABLE trades
+                ALTER TABLE trade_history
                 ADD COLUMN IF NOT EXISTS quality VARCHAR(20) DEFAULT NULL
             """)
 
         if 'risk_percentage' not in existing_column_names:
             migrations.append("""
-                ALTER TABLE trades
+                ALTER TABLE trade_history
                 ADD COLUMN IF NOT EXISTS risk_percentage FLOAT DEFAULT NULL
             """)
 
@@ -105,7 +105,7 @@ async def migrate():
             SELECT column_name, data_type, is_nullable
             FROM information_schema.columns
             WHERE table_schema = 'public'
-            AND table_name = 'trades'
+            AND table_name = 'trade_history'
             AND column_name IN ('confluence_score', 'quality', 'risk_percentage')
             ORDER BY column_name
         """
