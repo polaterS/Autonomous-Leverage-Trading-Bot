@@ -28,14 +28,17 @@ async def migrate():
         print("🔄 Starting migration: Add Enhanced Trading System columns...")
         print("=" * 70)
 
-        # Check if trades table exists first
+        # Check if trades table exists first (using direct PostgreSQL query)
         table_check_query = """
             SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'trades'
+                SELECT FROM pg_tables
+                WHERE schemaname = 'public'
+                AND tablename = 'trades'
             )
         """
         table_exists = await conn.fetchval(table_check_query)
+
+        print(f"   Table existence check: {table_exists}")
 
         if not table_exists:
             print("⚠️  'trades' table doesn't exist yet. Skipping migration.")
@@ -43,15 +46,20 @@ async def migrate():
             print("=" * 70)
             return
 
+        print("✅ 'trades' table found! Proceeding with migration...")
+
         # Check if columns already exist
         check_query = """
             SELECT column_name
             FROM information_schema.columns
-            WHERE table_name = 'trades'
+            WHERE table_schema = 'public'
+            AND table_name = 'trades'
             AND column_name IN ('confluence_score', 'quality', 'risk_percentage')
         """
         existing_columns = await conn.fetch(check_query)
         existing_column_names = [row['column_name'] for row in existing_columns]
+
+        print(f"   Found {len(existing_column_names)} existing enhanced columns: {existing_column_names}")
 
         if len(existing_column_names) == 3:
             print("✅ All columns already exist. Migration not needed.")
@@ -96,7 +104,8 @@ async def migrate():
         verify_query = """
             SELECT column_name, data_type, is_nullable
             FROM information_schema.columns
-            WHERE table_name = 'trades'
+            WHERE table_schema = 'public'
+            AND table_name = 'trades'
             AND column_name IN ('confluence_score', 'quality', 'risk_percentage')
             ORDER BY column_name
         """
