@@ -28,6 +28,21 @@ async def migrate():
         print("🔄 Starting migration: Add Enhanced Trading System columns...")
         print("=" * 70)
 
+        # Check if trades table exists first
+        table_check_query = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'trades'
+            )
+        """
+        table_exists = await conn.fetchval(table_check_query)
+
+        if not table_exists:
+            print("⚠️  'trades' table doesn't exist yet. Skipping migration.")
+            print("   Migration will run automatically on next bot restart.")
+            print("=" * 70)
+            return
+
         # Check if columns already exist
         check_query = """
             SELECT column_name
