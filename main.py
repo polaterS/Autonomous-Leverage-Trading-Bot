@@ -43,6 +43,8 @@ async def main():
         from setup_database import setup_database
         logger.info("Checking database setup...")
         await setup_database()
+        # Small delay to ensure database commits are fully visible
+        await asyncio.sleep(0.5)
     except Exception as e:
         # If tables already exist, setup_database will succeed anyway
         # Only fail if it's a connection error
