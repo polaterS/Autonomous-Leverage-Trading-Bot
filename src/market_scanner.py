@@ -256,14 +256,30 @@ class MarketScanner:
                     if enhanced_system.enable_confluence_filtering:
                         # Use advanced confluence scoring engine
                         # Extract needed components from market_data
+                        # ✅ Extract timeframes dict from multi_timeframe data
+                        mtf_full = market_data.get('multi_timeframe', {})
+                        mtf_timeframes = mtf_full.get('timeframes', None) if mtf_full else None
+
+                        # ✅ Convert market_regime string to dict format expected by scorer
+                        regime_str = market_data.get('market_regime', 'UNKNOWN')
+                        regime_dict = {
+                            'regime': regime_str,
+                            'should_trade': True,  # Allow trading in all regimes
+                            'confidence': 0.7  # Default confidence
+                        }
+
+                        # ✅ Extract 15m indicators (primary execution timeframe)
+                        indicators_dict = market_data.get('indicators', {})
+                        indicators_15m = indicators_dict.get('15m', {})
+
                         confluence_result = enhanced_system.confluence_scorer.score_opportunity(
                             symbol=symbol,
                             side=side,
                             pa_analysis=analysis,  # PA analysis from above
-                            indicators=market_data.get('indicators', {}),
-                            volume_profile={},  # Will be calculated inside scorer if needed
-                            market_regime={'regime': None, 'should_trade': True},  # Simplified for now
-                            mtf_data=market_data.get('mtf', None)
+                            indicators=indicators_15m,  # ✅ Use 15m indicators (not multi-timeframe dict)
+                            volume_profile=market_data.get('volume_profile', {}),  # ✅ Use real volume profile data
+                            market_regime=regime_dict,  # ✅ Use real regime data (converted to dict)
+                            mtf_data=mtf_timeframes  # ✅ Pass timeframes dict (not full mtf object)
                         )
                         confluence = {
                             'score': confluence_result['total_score'],
