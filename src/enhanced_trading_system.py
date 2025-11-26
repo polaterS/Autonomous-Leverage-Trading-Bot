@@ -70,7 +70,8 @@ class EnhancedTradingSystem:
         self.regime_detector = get_regime_detector()
 
         # Configuration
-        self.min_confluence_score = 75  # Minimum score to trade
+        # ✅ LOWERED: From 75 to 50 for more realistic crypto trading
+        self.min_confluence_score = 50  # Minimum score to trade
         self.enable_volume_profile = True
         self.enable_confluence_filtering = True
         self.enable_dynamic_sizing = True

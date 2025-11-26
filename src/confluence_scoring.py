@@ -53,24 +53,27 @@ class ConfluenceScorer:
 
     def __init__(self):
         # Scoring weights (must sum to 100)
+        # ✅ OPTIMIZED: Reduced strict components, boosted reliable ones
         self.weights = {
-            'multi_timeframe': 25,      # Biggest TF alignment is crucial
-            'volume_profile': 20,        # Volume-based S/R is real S/R
-            'indicators': 20,            # Technical confirmation
-            'market_regime': 15,         # Right market conditions
-            'support_resistance': 15,    # S/R quality matters
-            'risk_reward': 5             # Minimum R/R threshold
+            'multi_timeframe': 20,       # Reduced from 25 (perfect MTF rare in crypto)
+            'volume_profile': 15,        # Reduced from 20 (not every setup at VPOC)
+            'indicators': 25,            # Increased from 20 (more reliable)
+            'market_regime': 15,         # Keep (OK as is)
+            'support_resistance': 15,    # Keep (will soften logic instead)
+            'risk_reward': 10            # Increased from 5 (R/R is critical)
         }
 
         # Minimum score to trade
-        self.min_score_to_trade = 75
+        # ✅ LOWERED: From 75 to 50 (more realistic for crypto volatility)
+        self.min_score_to_trade = 50
 
         # Confidence thresholds for quality classification
+        # ✅ ADJUSTED: Aligned with new 50+ threshold
         self.quality_thresholds = {
-            'EXCELLENT': 90,
-            'STRONG': 80,
-            'GOOD': 75,
-            'MEDIOCRE': 60
+            'EXCELLENT': 75,   # 75+ (was 90)
+            'STRONG': 65,      # 65-74 (was 80)
+            'GOOD': 50,        # 50-64 (was 75)
+            'MEDIOCRE': 40     # 40-49 (was 60)
         }
 
         logger.info(f"< Confluence Scorer initialized (min_score={self.min_score_to_trade})")
@@ -165,9 +168,9 @@ class ConfluenceScorer:
 
     def _score_multi_timeframe(self, side: str, mtf_data: Optional[Dict], indicators: Dict) -> float:
         """
-        Score multi-timeframe alignment (25 points max).
+        Score multi-timeframe alignment (20 points max - reduced from 25).
 
-        Perfect score: All timeframes (4h, 1h, 15m) agree on direction.
+        ✅ SOFTENED: More forgiving - 2/3 timeframe alignment = good score
         """
         max_points = self.weights['multi_timeframe']
         score = 0
@@ -175,13 +178,13 @@ class ConfluenceScorer:
         try:
             if not mtf_data:
                 # Fallback: Use current timeframe indicators only
-                # This is less ideal, so max 15/25 points
+                # ✅ IMPROVED: More generous fallback scoring
                 current_trend = indicators.get('trend', 'unknown')
                 if (side == 'LONG' and current_trend == 'uptrend') or \
                    (side == 'SHORT' and current_trend == 'downtrend'):
-                    score = 15  # Single timeframe alignment
+                    score = max_points * 0.70  # 70% of max (was 60%)
                 else:
-                    score = 5   # Conflicting signals
+                    score = max_points * 0.30  # 30% of max (was 20%)
                 return score
 
             # Extract trend for each timeframe
@@ -193,27 +196,33 @@ class ConfluenceScorer:
             trend_1h = tf_1h.get('trend', 'unknown')
             trend_15m = tf_15m.get('trend', 'unknown')
 
-            # 4h is most important (primary bias) = 12 points
+            # ✅ SOFTENED: More generous scoring
+            # 4h is most important (primary bias) = 8 points (was 12)
             if (side == 'LONG' and trend_4h == 'uptrend') or \
                (side == 'SHORT' and trend_4h == 'downtrend'):
-                score += 12
+                score += 8
             elif trend_4h == 'unknown' or trend_4h == 'sideways':
-                score += 6  # Neutral is okay
-            # else: 0 points (wrong direction)
+                score += 5  # More forgiving for neutral (was 6)
+            else:
+                score += 2  # ✅ NEW: Even wrong direction gets something
 
-            # 1h pullback/continuation = 8 points
+            # 1h pullback/continuation = 7 points (was 8)
             if (side == 'LONG' and trend_1h in ['uptrend', 'sideways']) or \
                (side == 'SHORT' and trend_1h in ['downtrend', 'sideways']):
-                score += 8
+                score += 7
             elif trend_1h == 'unknown':
-                score += 4
+                score += 4  # Keep
+            else:
+                score += 1  # ✅ NEW: Even conflicting gets 1 point
 
-            # 15m entry confirmation = 5 points
+            # 15m entry confirmation = 5 points (keep)
             if (side == 'LONG' and trend_15m == 'uptrend') or \
                (side == 'SHORT' and trend_15m == 'downtrend'):
                 score += 5
             elif trend_15m in ['unknown', 'sideways']:
-                score += 2
+                score += 3  # More forgiving (was 2)
+            else:
+                score += 1  # ✅ NEW: Even wrong gets 1 point
 
             return min(score, max_points)
 
@@ -223,24 +232,32 @@ class ConfluenceScorer:
 
     def _score_volume_profile(self, side: str, volume_profile: Dict, pa_analysis: Dict) -> float:
         """
-        Score volume profile confluence (20 points max).
+        Score volume profile confluence (15 points max - reduced from 20).
 
-        Perfect score: Trading near VPOC or HVN with high volume.
+        ✅ SOFTENED: More forgiving distances, base score even without VPOC
         """
         max_points = self.weights['volume_profile']
         score = 0
 
         try:
+            # ✅ BASE SCORE: Give 3 points just for having volume data
+            if volume_profile:
+                score += 3  # Baseline for any volume analysis
+
             # Check if near VPOC (strongest level)
+            # ✅ SOFTENED: Extended distance ranges
             vpoc_distance_pct = abs(volume_profile.get('vpoc_distance_pct', 100))
-            if vpoc_distance_pct <= 0.5:  # Within 0.5% of VPOC
-                score += 10  # Maximum VPOC proximity score
-            elif vpoc_distance_pct <= 1.0:
-                score += 7
-            elif vpoc_distance_pct <= 2.0:
-                score += 4
+            if vpoc_distance_pct <= 1.0:  # Within 1% of VPOC (was 0.5%)
+                score += 6  # Maximum VPOC proximity (was 10)
+            elif vpoc_distance_pct <= 2.0:  # Within 2% (was 1%)
+                score += 4  # Good proximity (was 7)
+            elif vpoc_distance_pct <= 3.0:  # ✅ NEW: Within 3%
+                score += 2  # Decent proximity (was 4 for 2%)
+            elif vpoc_distance_pct <= 5.0:  # ✅ NEW: Within 5%
+                score += 1  # Acceptable
 
             # Check if near HVN (High Volume Node)
+            # ✅ SOFTENED: More forgiving HVN distances
             hvn_levels = volume_profile.get('hvn_levels', [])
             current_price = volume_profile.get('current_price', 0)
 
@@ -251,22 +268,24 @@ class ConfluenceScorer:
                     if distance_pct < nearest_hvn_distance:
                         nearest_hvn_distance = distance_pct
 
-            if nearest_hvn_distance <= 1.0:  # Within 1% of HVN
-                score += 6
-            elif nearest_hvn_distance <= 2.0:
-                score += 3
+            if nearest_hvn_distance <= 2.0:  # Within 2% of HVN (was 1%)
+                score += 3  # Good HVN proximity (was 6)
+            elif nearest_hvn_distance <= 4.0:  # ✅ NEW: Within 4%
+                score += 2  # Decent (was 3 for 2%)
+            elif nearest_hvn_distance <= 6.0:  # ✅ NEW: Within 6%
+                score += 1  # Acceptable
 
             # Check if in Value Area
             in_value_area = volume_profile.get('price_in_value_area', False)
             if in_value_area:
-                score += 2  # In VA = normal/good
+                score += 2  # In VA = normal/good (keep)
             else:
-                score += 1  # Outside VA = less predictable
+                score += 1  # Outside VA still gets 1 (keep)
 
-            # Volume surge confirmation
+            # Volume surge confirmation - ✅ NO CHANGE (already good)
             volume_trend = pa_analysis.get('volume_surge', False)
             if volume_trend:
-                score += 2  # Volume confirms move
+                score += 1  # Volume confirms (reduced from 2 to fit 15 max)
 
             return min(score, max_points)
 
@@ -433,7 +452,7 @@ class ConfluenceScorer:
         """
         Score support/resistance quality (15 points max).
 
-        High quality S/R = many touches, recent, clean bounces.
+        ✅ SOFTENED: More forgiving - base score even without perfect S/R
         """
         max_points = self.weights['support_resistance']
         score = 0
@@ -445,39 +464,50 @@ class ConfluenceScorer:
             else:
                 sr_level = pa_analysis.get('resistance_level', {})
 
+            # ✅ IMPROVED: More generous fallback
             if not sr_level:
-                return 5  # No clear S/R = mediocre setup
+                return max_points * 0.40  # 40% for no S/R (was 33%)
+
+            # ✅ BASE SCORE: Give 3 points for having any S/R level
+            score += 3
 
             # Touch count (more touches = stronger level)
+            # ✅ SOFTENED: More generous scoring
             touch_count = sr_level.get('touch_count', 0)
             if touch_count >= 5:
-                score += 6  # Very strong level
+                score += 5  # Very strong (was 6)
             elif touch_count >= 3:
-                score += 4  # Strong level
+                score += 4  # Strong (keep)
             elif touch_count >= 2:
-                score += 2  # Moderate level
+                score += 3  # Moderate (was 2)
             else:
-                score += 1  # Weak level
+                score += 2  # Weak but still gets 2 (was 1)
 
-            # Strength/quality score
+            # Strength/quality score - ✅ NO CHANGE (already percentage-based)
             strength = sr_level.get('strength', 0.5)
-            score += strength * 5  # 0-5 points based on strength
+            score += strength * 4  # 0-4 points (was 0-5 to fit 15 max)
 
             # Recent test (recent = more relevant)
+            # ✅ SOFTENED: Extended time ranges
             last_test_candles_ago = sr_level.get('last_test', 999)
-            if last_test_candles_ago <= 10:
-                score += 3  # Very recent
-            elif last_test_candles_ago <= 30:
-                score += 2  # Recent
-            elif last_test_candles_ago <= 50:
-                score += 1  # Somewhat recent
+            if last_test_candles_ago <= 20:  # Within 20 candles (was 10)
+                score += 2  # Very recent (was 3)
+            elif last_test_candles_ago <= 50:  # Within 50 (was 30)
+                score += 1.5  # Recent (was 2)
+            elif last_test_candles_ago <= 100:  # ✅ NEW: Within 100
+                score += 1  # Somewhat recent (was 1 for 50)
+            else:
+                score += 0.5  # ✅ NEW: Even old S/R gets something
 
             # Distance to S/R (closer = better)
+            # ✅ SOFTENED: Extended distance ranges
             distance_pct = sr_level.get('distance_pct', 10)
-            if distance_pct <= 0.5:  # Within 0.5%
-                score += 1  # At the level
-            elif distance_pct <= 1.0:
-                score += 0.5  # Very close
+            if distance_pct <= 1.0:  # Within 1% (was 0.5%)
+                score += 1  # At the level (keep)
+            elif distance_pct <= 2.0:  # ✅ NEW: Within 2%
+                score += 0.5  # Very close (was 0.5 for 1%)
+            elif distance_pct <= 3.0:  # ✅ NEW: Within 3%
+                score += 0.3  # Close enough
 
             return min(score, max_points)
 
@@ -487,27 +517,32 @@ class ConfluenceScorer:
 
     def _score_risk_reward(self, pa_analysis: Dict) -> float:
         """
-        Score risk/reward ratio (5 points max).
+        Score risk/reward ratio (10 points max - increased from 5).
 
-        Minimum 2:1, ideally 3:1 or better.
+        ✅ SOFTENED: More forgiving, even 1.2:1 R/R gets points
         """
         max_points = self.weights['risk_reward']
 
         try:
             rr_ratio = pa_analysis.get('risk_reward_ratio', 0)
 
-            if rr_ratio >= 4.0:
-                return 5  # Excellent R/R
-            elif rr_ratio >= 3.0:
-                return 4  # Good R/R
-            elif rr_ratio >= 2.5:
-                return 3  # Acceptable R/R
-            elif rr_ratio >= 2.0:
-                return 2  # Minimum R/R
-            elif rr_ratio >= 1.5:
-                return 1  # Poor R/R
+            # ✅ SOFTENED: Scale adjusted for 10 max points (was 5)
+            if rr_ratio >= 5.0:  # 5:1 or better
+                return 10  # Exceptional R/R
+            elif rr_ratio >= 4.0:  # 4:1
+                return 9   # Excellent R/R (was 5)
+            elif rr_ratio >= 3.0:  # 3:1
+                return 8   # Very good R/R (was 4)
+            elif rr_ratio >= 2.5:  # 2.5:1
+                return 6   # Good R/R (was 3)
+            elif rr_ratio >= 2.0:  # 2:1
+                return 5   # Acceptable R/R (was 2)
+            elif rr_ratio >= 1.5:  # 1.5:1
+                return 3   # Minimum R/R (was 1)
+            elif rr_ratio >= 1.2:  # ✅ NEW: 1.2:1
+                return 2   # Low but tradeable
             else:
-                return 0  # Unacceptable R/R
+                return 1   # Very poor R/R (was 0)
 
         except Exception as e:
             logger.warning(f" R/R scoring error: {e}")
