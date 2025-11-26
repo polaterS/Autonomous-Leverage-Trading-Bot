@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251126_174500
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - Confluence Data Fix: Real Market Data!" && \
+ARG CACHE_BUST=20251126_180000
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - Optimized Scoring: 50+ Threshold!" && \
     echo "Build timestamp: $(date)" && \
-    echo "Enhanced System: Using volume profile, MTF, regime - scores will vary!"
+    echo "Scoring optimized: Threshold 50, softened logic, balanced weights!"
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +25,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: Confluence Data Integration Fixed!
-# Current deployment: 20251126_174500_CONFLUENCE_DATA_FIX
+# 🔥 CACHE BUST MARKER: Optimized Scoring System!
+# Current deployment: 20251126_180000_SCORING_OPTIMIZED
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
