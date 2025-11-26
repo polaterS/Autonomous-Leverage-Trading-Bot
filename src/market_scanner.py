@@ -270,7 +270,8 @@ class MarketScanner:
                             'approved': confluence_result['should_trade'],
                             'confluence_count': len(confluence_result['component_scores']),
                             'quality': confluence_result.get('quality', 'UNKNOWN'),
-                            'reasoning': confluence_result.get('reasoning', '')
+                            'reasoning': confluence_result.get('reasoning', ''),
+                            'component_scores': confluence_result.get('component_scores', {})
                         }
                         logger.info(
                             f"🎯 {symbol} Enhanced Confluence: {confluence['score']:.1f}/100 "
@@ -1676,10 +1677,13 @@ class MarketScanner:
                 min_confluence_score = 80
 
         if not confluence['approved'] or confluence['score'] < min_confluence_score:
+            # Support both old ('reason', 'factors') and new ('reasoning', 'component_scores') formats
+            reason_text = confluence.get('reasoning', confluence.get('reason', 'Unknown'))
+
             logger.warning(
                 f"❌ CONFLUENCE CHECK FAILED ({model_name}): {confluence['score']}/100 (need {min_confluence_score}+)\n"
-                f"   Reason: {confluence['reason']}\n"
-                f"   Factors: {', '.join(confluence['factors'])}"
+                f"   Quality: {confluence.get('quality', 'UNKNOWN')}\n"
+                f"   Reason: {reason_text}"
             )
             notifier = get_notifier()
             await notifier.send_alert(
@@ -1687,15 +1691,21 @@ class MarketScanner:
                 f"⏸️ Trade skipped - Low confluence:\n"
                 f"{symbol} {analysis['side']} ({model_name})\n\n"
                 f"Score: {confluence['score']}/100 (need {min_confluence_score}+)\n"
-                f"Reason: {confluence['reason']}\n\n"
-                f"Factors present ({len(confluence['factors'])}):\n" +
-                '\n'.join([f"✓ {f}" for f in confluence['factors']])
+                f"Quality: {confluence.get('quality', 'UNKNOWN')}\n"
+                f"Reason: {reason_text}"
             )
             return
 
+        # Support both formats for passed trades too
+        factors_info = ""
+        if 'factors' in confluence:
+            factors_info = f"Factors ({len(confluence['factors'])}): {', '.join(confluence['factors'])}"
+        elif 'component_scores' in confluence:
+            factors_info = f"Quality: {confluence.get('quality', 'UNKNOWN')}"
+
         logger.info(
             f"✅ CONFLUENCE CHECK PASSED ({model_name}): {confluence['score']}/100\n"
-            f"   Factors ({len(confluence['factors'])}): {', '.join(confluence['factors'])}"
+            f"   {factors_info}"
         )
 
         # 🎯 NEW: Trade Quality Manager validation (prevents overtrading and repeated failures)
