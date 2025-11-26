@@ -76,12 +76,14 @@ class PriceActionAnalyzer:
 
         # 🎯 ULTRA RELAXED: More flexible tolerances for more opportunities
         # Trade near S/R levels with room to target - same for LONG/SHORT
-        self.support_resistance_tolerance = 0.05  # 🎯 RELAXED: 5% max distance to S/R (find more setups)
-        self.room_to_opposite_level = 0.005  # 🚨 ULTRA AGGRESSIVE: 0.5% min room (unlock 30-50 coins at 0.5-0.9%!)
+        # ✅ FURTHER RELAXED: More forgiving S/R requirements
+        self.support_resistance_tolerance = 0.08  # 8% max distance to S/R (was 5%)
+        self.room_to_opposite_level = 0.003  # 0.3% min room (was 0.5% - tighter targets OK)
 
         # Risk/Reward parameters
-        self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward
-        self.sl_buffer = 0.005  # 0.5% buffer beyond S/R for stop-loss
+        # ✅ LOWERED: From 2.0 to 1.2 for more realistic setups
+        self.min_rr_ratio = 1.2  # Minimum acceptable risk/reward (was 2.0)
+        self.sl_buffer = 0.003  # 0.3% buffer beyond S/R (tighter, was 0.5%)
 
         # Fibonacci levels
         self.fib_retracement = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]

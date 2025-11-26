@@ -64,16 +64,16 @@ class ConfluenceScorer:
         }
 
         # Minimum score to trade
-        # ✅ LOWERED: From 75 to 50 (more realistic for crypto volatility)
-        self.min_score_to_trade = 50
+        # ✅ LOWERED: From 75 → 50 → 40 (ultra-realistic for volatile crypto markets)
+        self.min_score_to_trade = 40
 
         # Confidence thresholds for quality classification
-        # ✅ ADJUSTED: Aligned with new 50+ threshold
+        # ✅ ADJUSTED: Aligned with new 40+ threshold
         self.quality_thresholds = {
-            'EXCELLENT': 75,   # 75+ (was 90)
-            'STRONG': 65,      # 65-74 (was 80)
-            'GOOD': 50,        # 50-64 (was 75)
-            'MEDIOCRE': 40     # 40-49 (was 60)
+            'EXCELLENT': 65,   # 65+ (was 75)
+            'STRONG': 55,      # 55-64 (was 65)
+            'GOOD': 45,        # 45-54 (was 50)
+            'MEDIOCRE': 40     # 40-44 (keep - minimum)
         }
 
         logger.info(f"< Confluence Scorer initialized (min_score={self.min_score_to_trade})")
@@ -240,9 +240,9 @@ class ConfluenceScorer:
         score = 0
 
         try:
-            # ✅ BASE SCORE: Give 3 points just for having volume data
+            # ✅ BASE SCORE: Give 5 points just for having volume data (was 3)
             if volume_profile:
-                score += 3  # Baseline for any volume analysis
+                score += 5  # Baseline for any volume analysis (increased)
 
             # Check if near VPOC (strongest level)
             # ✅ SOFTENED: Extended distance ranges
@@ -295,9 +295,9 @@ class ConfluenceScorer:
 
     def _score_indicators(self, side: str, indicators: Dict) -> float:
         """
-        Score technical indicator agreement (20 points max).
+        Score technical indicator agreement (25 points max - increased).
 
-        Check multiple indicators for confluence.
+        ✅ SOFTENED: Base score + more forgiving thresholds
         """
         max_points = self.weights['indicators']
         score = 0
@@ -305,21 +305,29 @@ class ConfluenceScorer:
         total_indicators = 0
 
         try:
-            # RSI (oversold/overbought)
+            # ✅ BASE SCORE: Give 5 points for having any indicators
+            if indicators:
+                score += 5  # Baseline
+
+            # RSI (oversold/overbought) - ✅ SOFTENED thresholds
             rsi = indicators.get('rsi', 50)
             total_indicators += 1
             if side == 'LONG':
-                if rsi < 40:  # Oversold favors LONG
+                if rsi < 45:  # Oversold favors LONG (was 40, more forgiving)
                     score += 3
                     agreement_count += 1
-                elif rsi < 50:  # Neutral-bearish
-                    score += 1.5
+                elif rsi < 55:  # Neutral-bearish (was 50, expanded range)
+                    score += 2  # More generous (was 1.5)
+                else:
+                    score += 0.5  # ✅ NEW: Even high RSI gets something
             else:  # SHORT
-                if rsi > 60:  # Overbought favors SHORT
+                if rsi > 55:  # Overbought favors SHORT (was 60, more forgiving)
                     score += 3
                     agreement_count += 1
-                elif rsi > 50:  # Neutral-bullish
-                    score += 1.5
+                elif rsi > 45:  # Neutral-bullish (was 50, expanded range)
+                    score += 2  # More generous (was 1.5)
+                else:
+                    score += 0.5  # ✅ NEW: Even low RSI gets something
 
             # MACD
             macd = indicators.get('macd', 0)
@@ -430,17 +438,18 @@ class ConfluenceScorer:
             # Ranging markets are trickier
             elif 'RANGING' in regime_name:
                 # Mean reversion strategies work better
-                # Reduce score slightly for all trades
-                score = 8 + (confidence * 4)  # 8-12 points
+                # ✅ MORE GENEROUS: RANGING markets acceptable (was 8-12, now 10-13)
+                score = 10 + (confidence * 3)  # 10-13 points
 
-            # Choppy markets
-            elif 'CHOPPY' in regime_name:
-                # Should have been filtered already, but just in case
-                score = 0  # Don't trade
+            # Choppy/Volatile markets
+            elif 'CHOPPY' in regime_name or 'VOLATILE' in regime_name:
+                # ✅ SOFTENED: Still tradeable but cautious (was 0, now 5-8)
+                score = 5 + (confidence * 3)  # 5-8 points
 
-            # Unknown
+            # Unknown/Sideways
             else:
-                score = 5  # Neutral
+                # ✅ MORE GENEROUS: Unknown gets decent score (was 5, now 7)
+                score = 7  # Neutral but tradeable
 
             return min(score, max_points)
 
