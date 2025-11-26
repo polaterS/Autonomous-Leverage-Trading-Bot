@@ -1637,14 +1637,22 @@ class MarketScanner:
         # FIX: PA-ONLY now has strict internal filters + confluence acts as final quality gate
 
         model_name = analysis.get('model_name', 'unknown')
-        confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
+
+        # 🚀 CRITICAL FIX: Use enhanced confluence from scan phase (don't recalculate!)
+        # The opportunity already contains confluence score from enhanced system
+        confluence = opportunity.get('confluence', {})
+
+        # If no confluence data (shouldn't happen), calculate it now
+        if not confluence or 'score' not in confluence:
+            logger.warning(f"⚠️ No confluence data in opportunity, calculating now...")
+            confluence = self._check_entry_confluence(analysis, market_data, analysis['side'])
 
         # 🚀 ENHANCED SYSTEM: Use professional confluence thresholds if enabled
         try:
             enhanced_system = get_enhanced_trading_system()
-            if enhanced_system.settings.enable_confluence_filtering:
+            if enhanced_system.enable_confluence_filtering:
                 # Professional system: Single high threshold (75+) for ALL trades
-                min_confluence_score = enhanced_system.settings.min_confluence_score
+                min_confluence_score = enhanced_system.min_confluence_score
                 logger.info(
                     f"🎯 Enhanced System Active: Using {min_confluence_score} threshold "
                     f"(Quality: {confluence.get('quality', 'UNKNOWN')})"
@@ -1658,6 +1666,7 @@ class MarketScanner:
                 else:
                     min_confluence_score = 80
         except Exception as e:
+            logger.warning(f"⚠️ Enhanced system check failed: {e}")
             # Fallback to legacy thresholds
             if model_name == 'PA-ONLY':
                 min_confluence_score = 40
