@@ -253,16 +253,21 @@ class MarketScanner:
                 # Check if enhanced system is enabled
                 try:
                     enhanced_system = get_enhanced_trading_system()
-                    if enhanced_system.settings.enable_confluence_filtering:
+                    if enhanced_system.enable_confluence_filtering:
                         # Use advanced confluence scoring engine
-                        confluence_result = enhanced_system.confluence_engine.calculate_confluence_score(
-                            market_data=market_data,
+                        # Extract needed components from market_data
+                        confluence_result = enhanced_system.confluence_scorer.score_opportunity(
+                            symbol=symbol,
                             side=side,
-                            indicators=market_data.get('indicators', {})
+                            pa_analysis=analysis,  # PA analysis from above
+                            indicators=market_data.get('indicators', {}),
+                            volume_profile={},  # Will be calculated inside scorer if needed
+                            market_regime={'regime': None, 'should_trade': True},  # Simplified for now
+                            mtf_data=market_data.get('mtf', None)
                         )
                         confluence = {
                             'score': confluence_result['total_score'],
-                            'approved': confluence_result['total_score'] >= enhanced_system.settings.min_confluence_score,
+                            'approved': confluence_result['should_trade'],
                             'confluence_count': len(confluence_result['component_scores']),
                             'quality': confluence_result.get('quality', 'UNKNOWN'),
                             'reasoning': confluence_result.get('reasoning', '')
