@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251126_180000
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - Optimized Scoring: 50+ Threshold!" && \
+ARG CACHE_BUST=20251126_183000
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - FINAL A+B+C: Threshold 40!" && \
     echo "Build timestamp: $(date)" && \
-    echo "Scoring optimized: Threshold 50, softened logic, balanced weights!"
+    echo "Triple optimization: Threshold 40, PA R/R 1.2, Ultra-soft scoring!"
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +25,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: Optimized Scoring System!
-# Current deployment: 20251126_180000_SCORING_OPTIMIZED
+# 🔥 CACHE BUST MARKER: FINAL A+B+C Triple Optimization!
+# Current deployment: 20251126_183000_ABC_FINAL_OPTIMIZATION
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
