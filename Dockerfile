@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251126_154840
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - CRITICAL FIX: AttributeError Resolved!" && \
+ARG CACHE_BUST=20251126_160437
+RUN echo "✅ CACHE BUST: ${CACHE_BUST} - QUALITY FILTER ENFORCED: 75+ Threshold!" && \
     echo "Build timestamp: $(date)" && \
-    echo "Enhanced Trading System: Confluence 75+, Volume Profile, Quality Filtering - NOW WORKING!"
+    echo "Enhanced System: Rejecting <75 confluence trades - NO MORE LOW QUALITY!"
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +25,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: Enhanced Trading System - AttributeError Fixed!
-# Current deployment: 20251126_154840_ATTRIBUTEERROR_FIXED
+# ✅ CACHE BUST MARKER: Enhanced System - 75+ Confluence Enforced!
+# Current deployment: 20251126_160437_QUALITY_FILTER_ENFORCED
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
