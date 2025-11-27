@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_152200
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - LEVERAGE FIX!" && \
+ARG CACHE_BUST=20251127_160500
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - MARKET TREND FILTER!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Add leverage to trade_params for risk_manager validation"
+    echo "FIX: Block counter-trend trades when BTC is dumping/pumping"
 
 # Set working directory
 WORKDIR /app

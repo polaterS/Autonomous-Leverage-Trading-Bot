@@ -37,6 +37,7 @@ class RealtimeSignalHandler:
     - Position limits
     - Confluence score (quick check)
     - Market conditions
+    - 🔥 NEW: Market trend filter (BTC trend alignment)
     """
 
     def __init__(self):
@@ -50,23 +51,89 @@ class RealtimeSignalHandler:
         # Minimum signal strength to consider
         self.min_signal_strength = 30
 
+        # 🔥 NEW: Market trend cache (BTC trend determines market direction)
+        self.market_trend: Dict[str, Any] = {
+            'direction': 'NEUTRAL',  # 'BULLISH', 'BEARISH', 'NEUTRAL'
+            'strength': 0,
+            'last_update': None
+        }
+        self.market_trend_update_interval = 60  # Update every 60 seconds
+
         # Statistics
         self.stats = {
             'signals_received': 0,
             'signals_validated': 0,
             'trades_executed': 0,
-            'trades_rejected': 0
+            'trades_rejected': 0,
+            'counter_trend_rejected': 0  # 🔥 NEW: Track counter-trend rejections
         }
 
     async def start(self):
         """Start the signal handler."""
         self.is_running = True
+        # Update market trend on startup
+        await self._update_market_trend()
         logger.info("✅ Real-Time Signal Handler started")
 
     async def stop(self):
         """Stop the signal handler."""
         self.is_running = False
         logger.info("Real-Time Signal Handler stopped")
+
+    async def _update_market_trend(self):
+        """
+        🔥 NEW: Update market trend based on BTC.
+
+        BTC is the market leader - when BTC dumps, altcoins dump harder.
+        When BTC pumps, altcoins pump (usually).
+
+        This helps us avoid counter-trend trades that lose money.
+        """
+        try:
+            exchange = await get_exchange_client()
+
+            # Fetch BTC 15m candles for trend analysis
+            btc_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '15m', limit=20)
+
+            if not btc_ohlcv or len(btc_ohlcv) < 15:
+                logger.warning("Could not fetch BTC data for market trend")
+                return
+
+            closes = [c[4] for c in btc_ohlcv]
+
+            # Calculate EMAs
+            ema_fast = self._quick_ema(closes, 5)
+            ema_slow = self._quick_ema(closes, 13)
+
+            # Calculate recent momentum (last 5 candles = 75 minutes)
+            recent_change_pct = (closes[-1] - closes[-5]) / closes[-5] * 100
+
+            # Determine market direction
+            if ema_fast > ema_slow and recent_change_pct > 0.3:
+                direction = 'BULLISH'
+                strength = min(100, int(recent_change_pct * 30))
+            elif ema_fast < ema_slow and recent_change_pct < -0.3:
+                direction = 'BEARISH'
+                strength = min(100, int(abs(recent_change_pct) * 30))
+            else:
+                direction = 'NEUTRAL'
+                strength = 0
+
+            self.market_trend = {
+                'direction': direction,
+                'strength': strength,
+                'btc_price': closes[-1],
+                'btc_change_pct': recent_change_pct,
+                'last_update': datetime.now()
+            }
+
+            logger.info(
+                f"📊 Market Trend Updated: {direction} | "
+                f"BTC: ${closes[-1]:.2f} ({recent_change_pct:+.2f}%)"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to update market trend: {e}")
 
     async def handle_signal(self, signal: Dict[str, Any]):
         """
@@ -108,9 +175,56 @@ class RealtimeSignalHandler:
         try:
             # === VALIDATION PHASE (must be fast!) ===
 
+            # 0. 🔥 NEW: Update market trend periodically
+            if (self.market_trend['last_update'] is None or
+                (datetime.now() - self.market_trend['last_update']).seconds > self.market_trend_update_interval):
+                await self._update_market_trend()
+
             # 1. Check signal strength
             if strength < self.min_signal_strength:
                 logger.debug(f"Signal too weak: {strength} < {self.min_signal_strength}")
+                self.stats['trades_rejected'] += 1
+                return
+
+            # 1.5 🔥 NEW: Market trend filter - BLOCK counter-trend trades
+            market_direction = self.market_trend.get('direction', 'NEUTRAL')
+
+            if market_direction == 'BEARISH' and side == 'LONG':
+                # Market is bearish but signal is LONG - HIGH RISK!
+                logger.warning(
+                    f"⚠️ COUNTER-TREND BLOCKED: {symbol} LONG signal rejected | "
+                    f"Market is BEARISH (BTC dumping)"
+                )
+                await notifier.send_alert(
+                    'warning',
+                    f"⚠️ Counter-Trend Signal Blocked:\\n\\n"
+                    f"Symbol: {symbol}\\n"
+                    f"Signal: LONG\\n"
+                    f"Market: BEARISH 📉\\n"
+                    f"BTC Change: {self.market_trend.get('btc_change_pct', 0):.2f}%\\n\\n"
+                    f"❌ LONG trades blocked when BTC is dumping!\\n"
+                    f"This prevents losses like WIF/CRV."
+                )
+                self.stats['counter_trend_rejected'] += 1
+                self.stats['trades_rejected'] += 1
+                return
+
+            elif market_direction == 'BULLISH' and side == 'SHORT':
+                # Market is bullish but signal is SHORT - HIGH RISK!
+                logger.warning(
+                    f"⚠️ COUNTER-TREND BLOCKED: {symbol} SHORT signal rejected | "
+                    f"Market is BULLISH (BTC pumping)"
+                )
+                await notifier.send_alert(
+                    'warning',
+                    f"⚠️ Counter-Trend Signal Blocked:\\n\\n"
+                    f"Symbol: {symbol}\\n"
+                    f"Signal: SHORT\\n"
+                    f"Market: BULLISH 📈\\n"
+                    f"BTC Change: {self.market_trend.get('btc_change_pct', 0):.2f}%\\n\\n"
+                    f"❌ SHORT trades blocked when BTC is pumping!"
+                )
+                self.stats['counter_trend_rejected'] += 1
                 self.stats['trades_rejected'] += 1
                 return
 
@@ -480,6 +594,8 @@ class RealtimeSignalHandler:
         return {
             **self.stats,
             'is_running': self.is_running,
+            'market_trend': self.market_trend.get('direction', 'UNKNOWN'),
+            'btc_change': f"{self.market_trend.get('btc_change_pct', 0):.2f}%",
             'symbols_in_cooldown': len([
                 s for s, ts in self.recent_executions.items()
                 if datetime.now().timestamp() - ts < self.execution_cooldown
