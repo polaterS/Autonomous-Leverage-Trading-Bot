@@ -264,6 +264,22 @@ class RealtimeSignalHandler:
                 self.stats['trades_rejected'] += 1
                 return
 
+            # 5.5 🎯 QUALITY FILTER: Volume confirmation required
+            # Reject signals without sufficient volume (prevents false breakouts)
+            current_volume = market_data.get('volume_24h', 0)
+            avg_volume = market_data.get('avg_volume_24h', current_volume)
+
+            if avg_volume > 0:
+                volume_ratio = current_volume / avg_volume
+                MIN_VOLUME_RATIO = 1.2  # Require 20% above average volume
+
+                if volume_ratio < MIN_VOLUME_RATIO:
+                    logger.info(
+                        f"❌ Volume too low for {symbol}: {volume_ratio:.2f}x (need {MIN_VOLUME_RATIO}x)"
+                    )
+                    self.stats['trades_rejected'] += 1
+                    return
+
             # 6. Quick confluence check (simplified for speed)
             confluence_score = await self._quick_confluence_check(
                 symbol, side, market_data, signal

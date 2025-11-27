@@ -64,16 +64,17 @@ class ConfluenceScorer:
         }
 
         # Minimum score to trade
-        # ✅ LOWERED: From 75 → 50 → 40 (ultra-realistic for volatile crypto markets)
-        self.min_score_to_trade = 40
+        # 🎯 QUALITY: 60+ required for live trading with real money
+        # 40 was too low - allowed mediocre signals that often fail
+        self.min_score_to_trade = 60
 
         # Confidence thresholds for quality classification
-        # ✅ ADJUSTED: Aligned with new 40+ threshold
+        # 🎯 PROFESSIONAL STANDARDS
         self.quality_thresholds = {
-            'EXCELLENT': 65,   # 65+ (was 75)
-            'STRONG': 55,      # 55-64 (was 65)
-            'GOOD': 45,        # 45-54 (was 50)
-            'MEDIOCRE': 40     # 40-44 (keep - minimum)
+            'EXCELLENT': 80,   # 80+ = elite setup, full position
+            'STRONG': 70,      # 70-79 = strong setup, normal position
+            'GOOD': 60,        # 60-69 = acceptable, reduced position
+            'MEDIOCRE': 50     # 50-59 = skip (below minimum)
         }
 
         logger.info(f"< Confluence Scorer initialized (min_score={self.min_score_to_trade})")
@@ -309,25 +310,30 @@ class ConfluenceScorer:
             if indicators:
                 score += 5  # Baseline
 
-            # RSI (oversold/overbought) - ✅ SOFTENED thresholds
+            # RSI (oversold/overbought) - 🎯 PROFESSIONAL THRESHOLDS
+            # Industry standard: <35 oversold, >65 overbought
             rsi = indicators.get('rsi', 50)
             total_indicators += 1
             if side == 'LONG':
-                if rsi < 45:  # Oversold favors LONG (was 40, more forgiving)
-                    score += 3
+                if rsi < 35:  # 🎯 TRUE oversold - strong buy signal
+                    score += 4
                     agreement_count += 1
-                elif rsi < 55:  # Neutral-bearish (was 50, expanded range)
-                    score += 2  # More generous (was 1.5)
+                elif rsi < 45:  # Moderately oversold
+                    score += 2
+                elif rsi < 55:  # Neutral zone
+                    score += 1
                 else:
-                    score += 0.5  # ✅ NEW: Even high RSI gets something
+                    score += 0  # RSI high = weak for LONG
             else:  # SHORT
-                if rsi > 55:  # Overbought favors SHORT (was 60, more forgiving)
-                    score += 3
+                if rsi > 65:  # 🎯 TRUE overbought - strong sell signal
+                    score += 4
                     agreement_count += 1
-                elif rsi > 45:  # Neutral-bullish (was 50, expanded range)
-                    score += 2  # More generous (was 1.5)
+                elif rsi > 55:  # Moderately overbought
+                    score += 2
+                elif rsi > 45:  # Neutral zone
+                    score += 1
                 else:
-                    score += 0.5  # ✅ NEW: Even low RSI gets something
+                    score += 0  # RSI low = weak for SHORT
 
             # MACD
             macd = indicators.get('macd', 0)

@@ -2,11 +2,14 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_205500_CONFLUENCE_FIX
+ARG CACHE_BUST=20251127_211500_QUALITY_UPGRADE
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 FIX: Realtime signals now use MIN_CONFLUENCE_SCORE (60)" && \
-    echo "🎯 OLD: Hardcoded 35 threshold | NEW: Config-based 60+"
+    echo "🎯 MAJOR QUALITY UPGRADE:" && \
+    echo "  - EMA: 5/13 → 8/21 (industry standard)" && \
+    echo "  - RSI: 45/55 → 35/65 (professional levels)" && \
+    echo "  - Volume: 1.2x minimum required" && \
+    echo "  - Confluence: 60+ minimum everywhere"
 
 # Set working directory
 WORKDIR /app

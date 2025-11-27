@@ -71,13 +71,15 @@ class RealtimeTrendDetector:
         # Timeframes to monitor (1m for instant detection, 5m/15m for confirmation)
         self.timeframes = ['1m', '5m', '15m']
 
-        # Detection parameters - OPTIMIZED FOR EARLY TREND DETECTION
-        # 🔥 FIX: Faster EMAs to catch trends at START not middle
-        self.ema_fast = 5   # Was 9 - too slow, missed 14 minutes
-        self.ema_slow = 13  # Was 21 - too slow for early detection
+        # Detection parameters - BALANCED FOR QUALITY SIGNALS
+        # 🎯 QUALITY FIX: EMA 8/21 is industry standard for trend detection
+        # Too fast (5/13) = too many false signals, whipsaws every 2-3 candles
+        # Too slow (20/50) = misses entries by 15+ minutes
+        self.ema_fast = 8   # Industry standard - balances speed vs accuracy
+        self.ema_slow = 21  # Industry standard - confirms real trends
         self.rsi_period = 14
-        self.volume_spike_threshold = 1.3  # Was 2.0 - too strict, 1.3x is early signal
-        self.momentum_threshold = 0.3  # Was 0.5 - 0.3% catches smaller initial moves
+        self.volume_spike_threshold = 1.5  # 🎯 QUALITY: Require 1.5x volume for confirmation
+        self.momentum_threshold = 0.5  # 🎯 QUALITY: 0.5% minimum move (filters noise)
 
     async def start(self, symbols: List[str]):
         """
