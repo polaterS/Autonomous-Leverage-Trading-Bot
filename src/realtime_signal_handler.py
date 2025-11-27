@@ -269,8 +269,9 @@ class RealtimeSignalHandler:
                 symbol, side, market_data, signal
             )
 
-            # Minimum confluence for real-time signals (lower than scan because signal is strong)
-            min_realtime_confluence = 35  # Lower threshold for real-time signals
+            # 🎯 USER REQUEST: Use same confluence threshold for ALL signals (60+)
+            # Real-time signals should NOT have lower threshold - quality over speed!
+            min_realtime_confluence = self.settings.min_confluence_score  # From config (default 60)
 
             if confluence_score < min_realtime_confluence:
                 logger.info(

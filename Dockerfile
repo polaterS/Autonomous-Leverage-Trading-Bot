@@ -2,11 +2,11 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_204500_DB_FIX
+ARG CACHE_BUST=20251127_205500_CONFLUENCE_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🔧 FIX: Database table name active_positions → active_position" && \
-    echo "🎯 CONFIG: Confluence 60+, Max 2 positions"
+    echo "🎯 FIX: Realtime signals now use MIN_CONFLUENCE_SCORE (60)" && \
+    echo "🎯 OLD: Hardcoded 35 threshold | NEW: Config-based 60+"
 
 # Set working directory
 WORKDIR /app
