@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_171000
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - LIVE TRADING READY!" && \
+ARG CACHE_BUST=20251127_172700
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - AUTO-SYNC FIX!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Auto-sync on close, TP=$5 min, SL=25% of margin (~$12.50)"
+    echo "FIX: reconcile_positions() method name corrected"
 
 # Set working directory
 WORKDIR /app

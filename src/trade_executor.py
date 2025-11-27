@@ -1188,7 +1188,7 @@ class TradeExecutor:
             try:
                 from src.position_reconciliation import get_reconciliation_system
                 reconciler = get_reconciliation_system()
-                sync_result = await reconciler.full_reconciliation()
+                sync_result = await reconciler.reconcile_positions(on_startup=False)
 
                 if sync_result.get('success'):
                     matched = sync_result.get('matched', 0)
