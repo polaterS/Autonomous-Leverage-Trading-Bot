@@ -30,6 +30,7 @@ from collections import deque
 import numpy as np
 from src.config import get_settings
 from src.utils import setup_logging
+from src.exchange_client import get_exchange_client
 
 logger = setup_logging()
 
@@ -70,12 +71,13 @@ class RealtimeTrendDetector:
         # Timeframes to monitor (1m for instant detection, 5m/15m for confirmation)
         self.timeframes = ['1m', '5m', '15m']
 
-        # Detection parameters
-        self.ema_fast = 9
-        self.ema_slow = 21
+        # Detection parameters - OPTIMIZED FOR EARLY TREND DETECTION
+        # 🔥 FIX: Faster EMAs to catch trends at START not middle
+        self.ema_fast = 5   # Was 9 - too slow, missed 14 minutes
+        self.ema_slow = 13  # Was 21 - too slow for early detection
         self.rsi_period = 14
-        self.volume_spike_threshold = 2.0  # 2x average volume
-        self.momentum_threshold = 0.5  # 0.5% price change threshold
+        self.volume_spike_threshold = 1.3  # Was 2.0 - too strict, 1.3x is early signal
+        self.momentum_threshold = 0.3  # Was 0.5 - 0.3% catches smaller initial moves
 
     async def start(self, symbols: List[str]):
         """
@@ -99,6 +101,11 @@ class RealtimeTrendDetector:
                 'strength': 0,
                 'last_update': None
             }
+
+        # 🔥 NEW: Pre-fetch historical data so we can start analyzing IMMEDIATELY
+        logger.info("📊 Pre-fetching historical klines for instant analysis...")
+        await self._prefetch_historical_data(symbols)
+        logger.info("✅ Historical data loaded - ready for instant detection!")
 
         # Connect to combined stream (more efficient than individual connections)
         # Binance allows up to 200 streams per connection
@@ -137,6 +144,57 @@ class RealtimeTrendDetector:
         self.kline_cache.clear()
         self.trend_states.clear()
         logger.info("✅ Real-Time Trend Detector stopped")
+
+    async def _prefetch_historical_data(self, symbols: List[str]):
+        """
+        Pre-fetch historical kline data for all symbols.
+
+        🔥 CRITICAL FIX: Without this, bot waits 15-26 minutes to collect
+        enough candles before it can analyze! With prefetch, analysis starts INSTANTLY.
+        """
+        try:
+            exchange = await get_exchange_client()
+
+            # Only prefetch 1m data (primary analysis timeframe)
+            # Fetch 20 candles - enough for EMA 5/13 calculation
+            successful = 0
+            failed = 0
+
+            for symbol in symbols:
+                try:
+                    ohlcv = await exchange.fetch_ohlcv(symbol, '1m', limit=20)
+
+                    if ohlcv and len(ohlcv) >= 15:
+                        cache = self.kline_cache[symbol]['1m']
+
+                        for candle in ohlcv:
+                            cache.append({
+                                'timestamp': candle[0],
+                                'open': float(candle[1]),
+                                'high': float(candle[2]),
+                                'low': float(candle[3]),
+                                'close': float(candle[4]),
+                                'volume': float(candle[5]),
+                                'closed': True
+                            })
+
+                        successful += 1
+                    else:
+                        failed += 1
+
+                except Exception as e:
+                    failed += 1
+                    logger.debug(f"Failed to prefetch {symbol}: {e}")
+
+                # Small delay to avoid rate limits
+                if successful % 10 == 0:
+                    await asyncio.sleep(0.1)
+
+            logger.info(f"📊 Prefetch complete: {successful}/{len(symbols)} symbols loaded")
+
+        except Exception as e:
+            logger.warning(f"Historical data prefetch failed: {e}")
+            # Continue anyway - WebSocket will fill cache over time
 
     def register_signal_callback(self, callback: Callable):
         """
@@ -318,8 +376,12 @@ class RealtimeTrendDetector:
             return
 
         cache = self.kline_cache[symbol]['1m']
-        if len(cache) < self.ema_slow + 5:
-            return  # Not enough data
+        # 🔥 FIX: Reduced minimum data requirement for faster startup
+        # Was: ema_slow + 5 = 26 candles = 26 min wait!
+        # Now: ema_slow + 2 = 15 candles = 15 min wait (still safe for EMA 5/13)
+        min_candles = self.ema_slow + 2  # 15 candles minimum
+        if len(cache) < min_candles:
+            return  # Not enough data yet
 
         # Get closes including current candle
         closes = [c['close'] for c in cache] + [current_candle['close']]
@@ -378,18 +440,19 @@ class RealtimeTrendDetector:
                     strength = min(100, int(abs(price_change) * 20))
 
         # 3. Strong Momentum Shift
+        # 🔥 FIX: Lowered threshold from 1.5% to 0.8% for earlier detection
         if signal is None and len(closes) >= 5:
             # Check last 5 candles for momentum
             recent_change = (current_price - closes[-5]) / closes[-5] * 100
 
-            if recent_change > 1.5:  # 1.5% up in 5 candles
+            if recent_change > 0.8:  # Was 1.5% - too late! 0.8% catches early momentum
                 signal = 'LONG'
                 trigger = 'MOMENTUM_SHIFT_UP'
-                strength = min(100, int(recent_change * 15))
-            elif recent_change < -1.5:  # 1.5% down in 5 candles
+                strength = min(100, int(recent_change * 20))  # Increased multiplier
+            elif recent_change < -0.8:  # Was -1.5% - now -0.8% for early detection
                 signal = 'SHORT'
                 trigger = 'MOMENTUM_SHIFT_DOWN'
-                strength = min(100, int(abs(recent_change) * 15))
+                strength = min(100, int(abs(recent_change) * 20))
 
         # === EMIT SIGNAL ===
         if signal:

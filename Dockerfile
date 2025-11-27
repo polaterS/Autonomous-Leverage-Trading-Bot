@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_131500
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - REALTIME WEBSOCKET DETECTION!" && \
+ARG CACHE_BUST=20251127_143000
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - FASTER TREND DETECTION!" && \
     echo "Build timestamp: $(date)" && \
-    echo "INSTANT ENTRY: WebSocket kline streams + sub-second trade execution!"
+    echo "FIX: EMA 5/13, Volume 1.3x, Momentum 0.8%, Historical Prefetch!"
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: REALTIME WEBSOCKET DETECTION!
-# Current deployment: 20251127_131500_REALTIME_WS
+# 🔥 CACHE BUST MARKER: FASTER TREND DETECTION!
+# Current deployment: 20251127_143000_FASTER_DETECTION
+# Changes: EMA 5/13 (was 9/21), Volume 1.3x (was 2x), Momentum 0.8% (was 1.5%), Historical Prefetch
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
