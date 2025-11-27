@@ -23,7 +23,7 @@ from src.risk_manager import get_risk_manager
 from src.trade_executor import get_trade_executor
 from src.telegram_notifier import get_notifier
 from src.exchange_client import get_exchange_client
-from src.database import get_database
+from src.database import get_db_client
 
 logger = setup_logging()
 
@@ -134,7 +134,7 @@ class RealtimeSignalHandler:
 
             # 4. Check if we already have a position in this symbol
             # 🔥 FIX: Get active positions from database instead of exchange
-            db = await get_database()
+            db = await get_db_client()
             active_positions = await db.get_active_positions()
             existing_symbols = [p['symbol'] for p in active_positions]
 

@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_151000
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - GET_POSITIONS FIX!" && \
+ARG CACHE_BUST=20251127_151500
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - IMPORT FIX!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Use database for active positions check instead of exchange"
+    echo "FIX: get_db_client instead of get_database"
 
 # Set working directory
 WORKDIR /app
