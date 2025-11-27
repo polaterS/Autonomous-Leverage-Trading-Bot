@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_150000
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - SIGNAL STRENGTH FIX!" && \
+ARG CACHE_BUST=20251127_151000
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - GET_POSITIONS FIX!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Signal strength base values (EMA:50, Volume:45, Momentum:40)"
+    echo "FIX: Use database for active positions check instead of exchange"
 
 # Set working directory
 WORKDIR /app
