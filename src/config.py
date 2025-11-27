@@ -34,11 +34,12 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
-    initial_capital: Decimal = Field(default=Decimal("150.00"), gt=0)  # 🔥 USER UPDATE: $150 total capital
-    min_leverage: int = Field(default=20, ge=1, le=50)  # 🚀 AGGRESSIVE: 20x min leverage (professional trader mode)
-    max_leverage: int = Field(default=25, ge=1, le=50)  # 🚀 AGGRESSIVE: 25x max leverage (dynamic 20x-25x based on confidence)
-    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🔥 USER UPDATE: 2 positions max ($75 each)
-    position_size_percent: Decimal = Field(default=Decimal("0.50"), gt=0, le=1)  # 🔥 USER UPDATE: 50% per position ($75 @ $150 capital)
+    # 🔥 LIVE TRADING CONFIG: $100 balance, conservative sizing
+    initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)  # 🔥 ACTUAL: $100 Binance balance
+    min_leverage: int = Field(default=20, ge=1, le=50)  # 🚀 AGGRESSIVE: 20x min leverage
+    max_leverage: int = Field(default=20, ge=1, le=50)  # 🔥 FIXED: 20x max (no dynamic)
+    max_concurrent_positions: int = Field(default=1, ge=1, le=30)  # 🔥 SAFE: 1 position at a time (prevents margin errors!)
+    position_size_percent: Decimal = Field(default=Decimal("0.40"), gt=0, le=1)  # 🔥 SAFE: 40% = $40 margin per position
     min_stop_loss_percent: Decimal = Field(default=Decimal("2.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 2% min for 25x leverage (tight stop = $37.5 loss on $1,875 position)
     max_stop_loss_percent: Decimal = Field(default=Decimal("3.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 3% max for 25x leverage ($56.25 max loss = 37.5% of capital)
     min_profit_usd: Decimal = Field(default=Decimal("5.0"), gt=0)  # 🎯 USER REQUEST: $5 min profit (realistic for $50 margin positions)
