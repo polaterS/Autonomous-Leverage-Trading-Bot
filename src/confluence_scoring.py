@@ -64,17 +64,15 @@ class ConfluenceScorer:
         }
 
         # Minimum score to trade
-        # 🎯 HIGH-CERTAINTY: 75+ required for real money trades
-        # Anything below 75 = too risky, skip the trade
-        self.min_score_to_trade = 75
+        # 🎯 60+ with MTF+momentum+volume checks for extra safety
+        self.min_score_to_trade = 60
 
         # Confidence thresholds for quality classification
-        # 🎯 HIGH-CERTAINTY STANDARDS
         self.quality_thresholds = {
-            'EXCELLENT': 85,   # 85+ = elite setup, full position
-            'STRONG': 75,      # 75-84 = strong setup, MINIMUM for trading
-            'GOOD': 65,        # 65-74 = skip (not confident enough)
-            'MEDIOCRE': 50     # <65 = definitely skip
+            'EXCELLENT': 80,   # 80+ = elite setup, full position
+            'STRONG': 70,      # 70-79 = strong setup
+            'GOOD': 60,        # 60-69 = acceptable with other checks
+            'MEDIOCRE': 50     # <60 = skip
         }
 
         logger.info(f"< Confluence Scorer initialized (min_score={self.min_score_to_trade})")

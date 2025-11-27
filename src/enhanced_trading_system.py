@@ -70,9 +70,8 @@ class EnhancedTradingSystem:
         self.regime_detector = get_regime_detector()
 
         # Configuration
-        # 🎯 HIGH-CERTAINTY: 75+ confluence required for real money trades
-        # Lower scores = more false signals = losses
-        self.min_confluence_score = 75  # Minimum score to trade
+        # 🎯 60+ confluence with additional MTF+momentum+volume checks
+        self.min_confluence_score = 60  # Minimum score to trade
         self.enable_volume_profile = True
         self.enable_confluence_filtering = True
         self.enable_dynamic_sizing = True

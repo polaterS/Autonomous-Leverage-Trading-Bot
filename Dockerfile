@@ -2,14 +2,13 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_213000_HIGH_CERTAINTY
+ARG CACHE_BUST=20251127_214000_BALANCED
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 HIGH-CERTAINTY TRADING SYSTEM:" && \
-    echo "  - Confluence: 75+ REQUIRED (was 35-60)" && \
-    echo "  - Multi-timeframe: 4h+1h+15m must align" && \
-    echo "  - Momentum: 0.3%+ price move required" && \
-    echo "  - Profit potential: $2.50+ minimum" && \
+    echo "🎯 BALANCED TRADING SYSTEM:" && \
+    echo "  - Confluence: 60+ (balanced)" && \
+    echo "  - Multi-timeframe: 4h+1h+15m alignment" && \
+    echo "  - Momentum: 0.3%+ required" && \
     echo "  - Volume: 1.2x+ required"
 
 # Set working directory
