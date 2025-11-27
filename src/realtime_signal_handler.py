@@ -285,32 +285,108 @@ class RealtimeSignalHandler:
                 symbol, side, market_data, signal
             )
 
-            # 🎯 USER REQUEST: Use same confluence threshold for ALL signals (60+)
-            # Real-time signals should NOT have lower threshold - quality over speed!
-            min_realtime_confluence = self.settings.min_confluence_score  # From config (default 60)
+            # ═══════════════════════════════════════════════════════════════════
+            # 🎯 HIGH-CERTAINTY TRADE VALIDATION SYSTEM
+            # ═══════════════════════════════════════════════════════════════════
+            # For a trade to execute, ALL of these must be TRUE:
+            # 1. Confluence >= 75 (high quality signal)
+            # 2. Multi-timeframe alignment (4h, 1h, 15m same direction)
+            # 3. Strong momentum (price actively moving in our direction)
+            # 4. Minimum $2-3 profit potential before fees
+            # ═══════════════════════════════════════════════════════════════════
 
-            if confluence_score < min_realtime_confluence:
+            # 🎯 CHECK 1: HIGH CONFLUENCE REQUIRED (75+)
+            MIN_CERTAINTY_CONFLUENCE = 75  # Must be 75+ for high-certainty trades
+
+            if confluence_score < MIN_CERTAINTY_CONFLUENCE:
                 logger.info(
-                    f"❌ Confluence too low for {symbol}: {confluence_score:.1f} < {min_realtime_confluence}"
-                )
-                await notifier.send_alert(
-                    'info',
-                    f"⚡ Real-time signal rejected:\n{symbol} {side}\n\n"
-                    f"Trigger: {trigger}\n"
-                    f"Signal Strength: {strength}\n"
-                    f"Confluence: {confluence_score:.1f}/100\n"
-                    f"Required: {min_realtime_confluence}+\n\n"
-                    f"Waiting for better confluence..."
+                    f"❌ HIGH-CERTAINTY REJECTED: {symbol} confluence {confluence_score:.1f} < {MIN_CERTAINTY_CONFLUENCE}"
                 )
                 self.stats['trades_rejected'] += 1
                 return
 
+            # 🎯 CHECK 2: MULTI-TIMEFRAME ALIGNMENT
+            indicators = market_data.get('indicators', {})
+
+            # Get EMA trends from different timeframes
+            ema_15m_fast = indicators.get('15m', {}).get('ema_fast', 0)
+            ema_15m_slow = indicators.get('15m', {}).get('ema_slow', 0)
+            ema_1h_fast = indicators.get('1h', {}).get('ema_fast', 0)
+            ema_1h_slow = indicators.get('1h', {}).get('ema_slow', 0)
+            ema_4h_fast = indicators.get('4h', {}).get('ema_fast', 0)
+            ema_4h_slow = indicators.get('4h', {}).get('ema_slow', 0)
+
+            # Check alignment
+            trend_15m = 'LONG' if ema_15m_fast > ema_15m_slow else 'SHORT'
+            trend_1h = 'LONG' if ema_1h_fast > ema_1h_slow else 'SHORT'
+            trend_4h = 'LONG' if ema_4h_fast > ema_4h_slow else 'SHORT'
+
+            # All timeframes must agree with our trade direction
+            mtf_aligned = (trend_15m == side and trend_1h == side and trend_4h == side)
+
+            if not mtf_aligned and ema_15m_fast > 0:  # Only check if we have data
+                logger.info(
+                    f"❌ HIGH-CERTAINTY REJECTED: {symbol} MTF not aligned | "
+                    f"4h:{trend_4h} 1h:{trend_1h} 15m:{trend_15m} vs Trade:{side}"
+                )
+                self.stats['trades_rejected'] += 1
+                return
+
+            # 🎯 CHECK 3: STRONG MOMENTUM (price actively moving)
+            current_price = float(market_data.get('current_price', 0))
+            price_change_1h = float(indicators.get('1h', {}).get('price_change_pct', 0))
+
+            # For LONG: price should be rising (positive momentum)
+            # For SHORT: price should be falling (negative momentum)
+            MIN_MOMENTUM_PCT = 0.3  # At least 0.3% move in our direction
+
+            momentum_ok = False
+            if side == 'LONG' and price_change_1h > MIN_MOMENTUM_PCT:
+                momentum_ok = True
+            elif side == 'SHORT' and price_change_1h < -MIN_MOMENTUM_PCT:
+                momentum_ok = True
+
+            if not momentum_ok and price_change_1h != 0:
+                logger.info(
+                    f"❌ HIGH-CERTAINTY REJECTED: {symbol} weak momentum | "
+                    f"1h change: {price_change_1h:.2f}% (need {MIN_MOMENTUM_PCT}%+ for {side})"
+                )
+                self.stats['trades_rejected'] += 1
+                return
+
+            # 🎯 CHECK 4: MINIMUM PROFIT POTENTIAL ($2-3 after fees)
+            # Position size ~$1000 with 25x leverage from $40 margin
+            # Need at least 0.3% price move for $3 profit (0.3% × $1000 = $3)
+            # After fees (~$1): net $2 minimum
+            position_value = 1000  # Approximate position value
+            MIN_PROFIT_USD = 2.50  # Minimum $2.50 profit target
+            FEES_USD = 1.00  # Approximate round-trip fees
+
+            # Calculate required price move for minimum profit
+            required_move_pct = ((MIN_PROFIT_USD + FEES_USD) / position_value) * 100
+
+            # Check ATR (Average True Range) - indicates expected price movement
+            atr_pct = float(indicators.get('15m', {}).get('atr_percent', 0))
+
+            # ATR should be at least 1.5x our required move (room for profit)
+            if atr_pct > 0 and atr_pct < required_move_pct * 1.5:
+                logger.info(
+                    f"❌ HIGH-CERTAINTY REJECTED: {symbol} low volatility | "
+                    f"ATR: {atr_pct:.2f}% < {required_move_pct * 1.5:.2f}% needed for ${MIN_PROFIT_USD} profit"
+                )
+                self.stats['trades_rejected'] += 1
+                return
+
+            # ═══════════════════════════════════════════════════════════════════
+            # ✅ ALL CHECKS PASSED - HIGH-CERTAINTY TRADE APPROVED
+            # ═══════════════════════════════════════════════════════════════════
+
             self.stats['signals_validated'] += 1
 
-            # === EXECUTION PHASE ===
             logger.info(
-                f"✅ Signal validated! Executing {symbol} {side} | "
-                f"Confluence: {confluence_score:.1f}/100"
+                f"✅ HIGH-CERTAINTY TRADE APPROVED: {symbol} {side} | "
+                f"Confluence: {confluence_score:.1f}/100 | "
+                f"MTF: ✓ | Momentum: {price_change_1h:.2f}% | ATR: {atr_pct:.2f}%"
             )
 
             # Send notification about instant entry

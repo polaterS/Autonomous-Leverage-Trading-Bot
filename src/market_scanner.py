@@ -1675,21 +1675,21 @@ class MarketScanner:
                     f"(Quality: {confluence.get('quality', 'UNKNOWN')})"
                 )
             else:
-                # Legacy system: Minimum 60 for all models (quality over quantity)
-                # 🎯 QUALITY: No model should trade below 60 confluence
+                # Legacy system: Minimum 75 for HIGH-CERTAINTY trades
+                # 🎯 HIGH-CERTAINTY: All models require 75+ confluence
                 if model_name == 'PA-ONLY':
-                    min_confluence_score = 60  # Was 40 - too low!
+                    min_confluence_score = 75  # HIGH-CERTAINTY minimum
                 elif model_name == 'PA-Override':
-                    min_confluence_score = 70
+                    min_confluence_score = 75  # Same high standard
                 else:
                     min_confluence_score = 80
         except Exception as e:
             logger.warning(f"⚠️ Enhanced system check failed: {e}")
-            # Fallback: Minimum 60 for safety
+            # Fallback: Minimum 75 for safety
             if model_name == 'PA-ONLY':
-                min_confluence_score = 60  # Was 40 - too low!
+                min_confluence_score = 75  # HIGH-CERTAINTY minimum
             elif model_name == 'PA-Override':
-                min_confluence_score = 70
+                min_confluence_score = 75  # Same high standard
             else:
                 min_confluence_score = 80
 

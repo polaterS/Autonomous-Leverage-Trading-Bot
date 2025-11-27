@@ -2,14 +2,15 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_211500_QUALITY_UPGRADE
+ARG CACHE_BUST=20251127_213000_HIGH_CERTAINTY
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 MAJOR QUALITY UPGRADE:" && \
-    echo "  - EMA: 5/13 → 8/21 (industry standard)" && \
-    echo "  - RSI: 45/55 → 35/65 (professional levels)" && \
-    echo "  - Volume: 1.2x minimum required" && \
-    echo "  - Confluence: 60+ minimum everywhere"
+    echo "🎯 HIGH-CERTAINTY TRADING SYSTEM:" && \
+    echo "  - Confluence: 75+ REQUIRED (was 35-60)" && \
+    echo "  - Multi-timeframe: 4h+1h+15m must align" && \
+    echo "  - Momentum: 0.3%+ price move required" && \
+    echo "  - Profit potential: $2.50+ minimum" && \
+    echo "  - Volume: 1.2x+ required"
 
 # Set working directory
 WORKDIR /app
