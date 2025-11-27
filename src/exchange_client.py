@@ -29,6 +29,9 @@ class ExchangeClient:
             'options': {
                 'defaultType': 'swap',  # Use USDT-M Perpetual Swaps (fapi)
                 'adjustForTimeDifference': True,
+                # 🔥 Suppress warning when fetching all open orders without symbol
+                # This is intentional for orphan orders cleanup
+                'warnOnFetchOpenOrdersWithoutSymbol': False,
             }
         })
 

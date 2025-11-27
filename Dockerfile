@@ -2,10 +2,11 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_174900
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - SL TOO TIGHT FIX!" && \
+ARG CACHE_BUST=20251127_181500_SL_FIX_V2
+RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST} - SL FIX V2!!!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Min 0.5% price move for SL (was 0.10% = instant trigger!)"
+    echo "FIX v2: Min 2% price move for SL (was 0.5% = still too tight!)" && \
+    echo "DASH had 0.48% SL - fix was NOT applied! Now forcing 2% minimum!"
 
 # Set working directory
 WORKDIR /app

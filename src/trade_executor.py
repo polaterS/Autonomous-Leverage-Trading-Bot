@@ -273,9 +273,28 @@ class TradeExecutor:
                     f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
                 )
 
+            # 🔥 CHECK ACTUAL BINANCE BALANCE BEFORE OPENING POSITION
+            # This prevents "Margin is insufficient" errors by checking BEFORE trying to trade
+            try:
+                balance_info = await exchange.fetch_balance()
+                available_usdt = Decimal(str(balance_info.get('USDT', {}).get('free', 0)))
+                logger.info(f"💰 Binance available USDT: ${available_usdt:.2f}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not fetch Binance balance: {e}")
+                available_usdt = Decimal("0")
+
             # 🔥 SIMPLIFIED: Always use POSITION_SIZE_PERCENT (10% per position)
             position_size_decimal = self.settings.position_size_percent  # e.g., 0.10 (10%)
             margin_per_position = current_capital * position_size_decimal
+
+            # Check if we have enough margin BEFORE trying to trade
+            MARGIN_BUFFER = Decimal("1.05")  # 5% buffer for fees
+            required_margin = margin_per_position * MARGIN_BUFFER
+            if available_usdt < required_margin:
+                raise ValueError(
+                    f"Insufficient margin: need ${required_margin:.2f} but only ${available_usdt:.2f} available. "
+                    f"Wait for positions to close or add funds."
+                )
 
             logger.info(
                 f"💰 Capital allocation (position {num_active_positions + 1}/{max_positions}): "

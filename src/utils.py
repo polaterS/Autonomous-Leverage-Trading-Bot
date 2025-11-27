@@ -184,11 +184,22 @@ def calculate_stop_loss_price(
         max_usd_loss_percent = stop_loss_percent / 100  # e.g., 0.02 for 2%
         price_move_percent = max_usd_loss_percent / Decimal(str(leverage))
 
-        # 🔥 FIX: Ensure minimum price move to avoid instant stop-loss trigger!
-        # Problem: 2% / 20x = 0.10% → Too tight! Normal spread triggers it instantly
-        # Solution: Minimum 0.5% price move (covers spread + small fluctuations)
-        MIN_PRICE_MOVE_PERCENT = Decimal("0.005")  # 0.5% minimum
+        # 🔥🔥🔥 CRITICAL FIX v2: Ensure MINIMUM 2% price move for stop-loss!
+        # Problem: 2% loss / 20x leverage = 0.10% price move → Too tight!
+        # Real-world issue: Normal bid-ask spread (0.1-0.3%) triggers instant SL
+        # Solution: MINIMUM 2% price move (allows normal market fluctuation)
+        # With 20x leverage: 2% price move = 40% of position value loss
+        # But this is SAFER than 0.1% which causes instant liquidation!
+        MIN_PRICE_MOVE_PERCENT = Decimal("0.02")  # 2% MINIMUM (was 0.5%, still too tight!)
+
+        logger = logging.getLogger('trading_bot')
+        logger.warning(f"🔥🔥🔥 SL FIX v2 ACTIVE: Min price move = {float(MIN_PRICE_MOVE_PERCENT)*100:.1f}%")
+
         if price_move_percent < MIN_PRICE_MOVE_PERCENT:
+            logger.warning(
+                f"⚠️ SL TOO TIGHT! Calculated {float(price_move_percent)*100:.3f}% → "
+                f"Enforcing minimum {float(MIN_PRICE_MOVE_PERCENT)*100:.1f}%"
+            )
             price_move_percent = MIN_PRICE_MOVE_PERCENT
 
         if side == 'LONG':
