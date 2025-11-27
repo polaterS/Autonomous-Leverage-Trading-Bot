@@ -417,6 +417,7 @@ class RealtimeSignalHandler:
                 'symbol': symbol,
                 'side': side,
                 'confidence': signal['strength'] / 100,
+                'leverage': self.settings.max_leverage,  # 🔥 FIX: Add required leverage param
                 'take_profit_price': take_profit_price,
                 'stop_loss_price': stop_loss_price,
                 'stop_loss_percent': stop_loss_percent,

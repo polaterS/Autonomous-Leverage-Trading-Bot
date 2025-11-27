@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_151500
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - IMPORT FIX!" && \
+ARG CACHE_BUST=20251127_152200
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - LEVERAGE FIX!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: get_db_client instead of get_database"
+    echo "FIX: Add leverage to trade_params for risk_manager validation"
 
 # Set working directory
 WORKDIR /app
