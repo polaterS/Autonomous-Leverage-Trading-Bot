@@ -23,8 +23,6 @@ from src.risk_manager import get_risk_manager
 from src.trade_executor import get_trade_executor
 from src.telegram_notifier import get_notifier
 from src.exchange_client import get_exchange_client
-from src.confluence_scoring import get_confluence_scorer
-from src.enhanced_trading_system import get_enhanced_trading_system
 
 logger = setup_logging()
 
