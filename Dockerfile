@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_172700
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - AUTO-SYNC FIX!" && \
+ARG CACHE_BUST=20251127_173500
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - ORPHAN ORDERS CLEANUP!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: reconcile_positions() method name corrected"
+    echo "FIX: Auto-cancel orders that have no position (critical for live!)"
 
 # Set working directory
 WORKDIR /app

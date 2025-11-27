@@ -223,6 +223,10 @@ class PositionReconciliationSystem:
             # 🔥 FIX 3: Check and add missing stop-loss orders
             await self._check_and_fix_stop_losses(matched_positions, results, exchange, notifier)
 
+            # 🔥 FIX 4: Clean orphan orders (orders without positions) - CRITICAL FOR LIVE TRADING!
+            # USER REQUEST: "open orders kısmında açık kalırsa emirler tekrar işleme girebilir!"
+            await self._clean_orphan_orders(binance_positions, db_positions, results, exchange, notifier)
+
             # Log final status
             if orphaned_positions or ghost_positions:
                 logger.warning(
@@ -561,6 +565,102 @@ class PositionReconciliationSystem:
             logger.warning(
                 f"🛡️ Stop-loss protection added to {len(positions_without_sl)} position(s)"
             )
+
+
+    async def _clean_orphan_orders(
+        self,
+        binance_positions: List[Dict],
+        db_positions: List[Dict],
+        results: Dict,
+        exchange,
+        notifier
+    ) -> None:
+        """
+        🔥 CRITICAL: Cancel orders for symbols that have NO open positions.
+
+        This prevents the dangerous scenario where:
+        1. Position closes
+        2. Stop-loss/take-profit orders remain active
+        3. New position opens for same symbol
+        4. OLD orders trigger and mess up the new position!
+
+        USER REQUEST: "open orders kısmında açık kalırsa emirler tekrar işleme girebilir!"
+        """
+        try:
+            # Get all symbols with open positions (both Binance and DB)
+            active_symbols = set()
+            for pos in binance_positions:
+                active_symbols.add(pos['symbol'])
+            for pos in db_positions:
+                active_symbols.add(pos['symbol'])
+
+            # Fetch ALL open orders across all symbols
+            all_open_orders = await exchange.exchange.fetch_open_orders()
+
+            if not all_open_orders:
+                logger.debug("✅ No open orders found on exchange")
+                return
+
+            # Group orders by symbol
+            orders_by_symbol = {}
+            for order in all_open_orders:
+                symbol = order.get('symbol')
+                if symbol not in orders_by_symbol:
+                    orders_by_symbol[symbol] = []
+                orders_by_symbol[symbol].append(order)
+
+            # Find orphan orders (orders for symbols without positions)
+            orphan_orders = []
+            for symbol, orders in orders_by_symbol.items():
+                if symbol not in active_symbols:
+                    orphan_orders.extend(orders)
+                    logger.warning(f"⚠️ Found {len(orders)} orphan order(s) for {symbol} (NO POSITION!)")
+
+            if not orphan_orders:
+                logger.debug("✅ No orphan orders found")
+                return
+
+            # Cancel orphan orders
+            logger.warning(f"🗑️ Cancelling {len(orphan_orders)} orphan order(s)...")
+            cancelled_count = 0
+
+            for order in orphan_orders:
+                try:
+                    order_id = order.get('id')
+                    symbol = order.get('symbol')
+                    order_type = order.get('type', 'unknown')
+                    order_side = order.get('side', 'unknown')
+
+                    await exchange.cancel_order(order_id, symbol)
+                    cancelled_count += 1
+                    logger.info(f"  ✅ Cancelled orphan {order_type} {order_side} order {order_id} for {symbol}")
+
+                except Exception as cancel_err:
+                    logger.warning(f"  ⚠️ Could not cancel orphan order {order_id}: {cancel_err}")
+
+            results['actions_taken'].append(
+                f"🗑️ Cancelled {cancelled_count} orphan order(s) (no position)"
+            )
+
+            # Send alert
+            if cancelled_count > 0:
+                await notifier.send_alert(
+                    'warning',
+                    f"🗑️ <b>ORPHAN ORDERS CLEANED</b>\n\n"
+                    f"Cancelled {cancelled_count} order(s) that had NO open position:\n\n" +
+                    "\n".join([
+                        f"• {o.get('symbol')} {o.get('type')} {o.get('side')}"
+                        for o in orphan_orders[:5]  # Show max 5
+                    ]) +
+                    (f"\n... and {len(orphan_orders) - 5} more" if len(orphan_orders) > 5 else "") +
+                    f"\n\n✅ These stale orders could have caused problems!"
+                )
+
+                logger.warning(f"✅ Cancelled {cancelled_count} orphan orders")
+
+        except Exception as e:
+            logger.error(f"❌ Orphan orders cleanup failed: {e}")
+            results['actions_taken'].append(f"⚠️ Orphan orders cleanup failed: {e}")
 
 
 # Singleton instance
