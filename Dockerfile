@@ -2,13 +2,12 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_200000_PNL_FIX_FINAL
-RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST} - CRITICAL P&L FIX!!!" && \
+ARG CACHE_BUST=20251127_203000_CONFLUENCE_60
+RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: P&L was 25x WRONG - position_value already includes leverage!" && \
-    echo "OLD: gross_pnl = position_value * price_change * LEVERAGE (WRONG)" && \
-    echo "NEW: gross_pnl = position_value * price_change (CORRECT)" && \
-    echo "Fixed in: trade_executor.py, telegram_notifier.py, utils.py, partial_exit_manager.py"
+    echo "🎯 USER CONFIG: Confluence 60+ = trade, <60 = skip" && \
+    echo "🎯 USER CONFIG: Max 2 concurrent positions" && \
+    echo "✅ P&L FIX: position_value already includes leverage"
 
 # Set working directory
 WORKDIR /app

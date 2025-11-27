@@ -3,7 +3,7 @@ ENHANCED TRADING SYSTEM - Professional Integration Layer
 
 This module integrates professional trading components with the existing system:
 - Volume Profile Analysis
-- Confluence Scoring (75+ threshold)
+- Confluence Scoring (60+ threshold)
 - Dynamic Profit Targets
 - Advanced Trailing Stops
 - Dynamic Position Sizing
@@ -70,8 +70,8 @@ class EnhancedTradingSystem:
         self.regime_detector = get_regime_detector()
 
         # Configuration
-        # ✅ LOWERED: From 75 → 50 → 40 for ultra-realistic crypto trading
-        self.min_confluence_score = 40  # Minimum score to trade
+        # 🎯 USER REQUEST: 60+ confluence = open position, <60 = skip
+        self.min_confluence_score = 60  # Minimum score to trade
         self.enable_volume_profile = True
         self.enable_confluence_filtering = True
         self.enable_dynamic_sizing = True

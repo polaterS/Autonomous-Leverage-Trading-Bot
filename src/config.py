@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)  # 🔥 ACTUAL: $100 Binance balance
     min_leverage: int = Field(default=20, ge=1, le=50)  # 🚀 AGGRESSIVE: 20x min leverage
     max_leverage: int = Field(default=20, ge=1, le=50)  # 🔥 FIXED: 20x max (no dynamic)
-    max_concurrent_positions: int = Field(default=1, ge=1, le=30)  # 🔥 SAFE: 1 position at a time (prevents margin errors!)
+    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🎯 USER REQUEST: Max 2 positions at a time
     position_size_percent: Decimal = Field(default=Decimal("0.40"), gt=0, le=1)  # 🔥 SAFE: 40% = $40 margin per position
     min_stop_loss_percent: Decimal = Field(default=Decimal("2.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 2% min for 25x leverage (tight stop = $37.5 loss on $1,875 position)
     max_stop_loss_percent: Decimal = Field(default=Decimal("3.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 3% max for 25x leverage ($56.25 max loss = 37.5% of capital)
@@ -224,7 +224,7 @@ class Settings(BaseSettings):
 
     # Confluence Scoring (Quality Filter)
     enable_confluence_filtering: bool = Field(default=True)  # ✅ Filter trades by quality score
-    min_confluence_score: int = Field(default=75, ge=0, le=100)  # Minimum score to trade (75-100)
+    min_confluence_score: int = Field(default=60, ge=0, le=100)  # 🎯 USER REQUEST: 60+ confluence = trade, <60 = skip
     confluence_weights: dict = Field(default={
         'multi_timeframe': 25,
         'volume_profile': 20,
