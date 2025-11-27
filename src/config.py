@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     enable_order_flow: bool = Field(default=True)  # 🎯 CRITICAL: Order flow analysis - buyer/seller pressure confirmation
     enable_whale_tracking: bool = Field(default=False)  # Whale activity tracking (PLACEHOLDER)
     enable_online_learning: bool = Field(default=False)  # Online learning (adaptive ML updates)
+    enable_realtime_detection: bool = Field(default=True)  # 🚀 INSTANT ENTRY: WebSocket-based real-time trend detection (< 1 sec entry!)
 
     # Trading Symbols (high liquidity perpetual futures) - 120 coins (USER REQUEST: 100-150)
     trading_symbols: list[str] = Field(default=[

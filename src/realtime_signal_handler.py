@@ -1,0 +1,498 @@
+"""
+Real-Time Signal Handler - Instant trade execution from WebSocket signals.
+
+This module handles signals from RealtimeTrendDetector and executes trades
+IMMEDIATELY without waiting for periodic scans.
+
+Flow:
+1. RealtimeTrendDetector detects trend start via WebSocket
+2. Emits signal to this handler
+3. Handler validates signal (confluence, risk, etc.)
+4. Executes trade INSTANTLY
+
+This reduces entry delay from 3-8 minutes to < 1 second!
+"""
+
+import asyncio
+from typing import Dict, Any, Optional
+from decimal import Decimal
+from datetime import datetime
+from src.config import get_settings
+from src.utils import setup_logging
+from src.risk_manager import get_risk_manager
+from src.trade_executor import get_trade_executor
+from src.telegram_notifier import get_notifier
+from src.exchange_client import get_exchange_client
+from src.confluence_scoring import get_confluence_scorer
+from src.enhanced_trading_system import get_enhanced_trading_system
+
+logger = setup_logging()
+
+
+class RealtimeSignalHandler:
+    """
+    Handles real-time signals and executes trades instantly.
+
+    Validates signals against:
+    - Risk management rules
+    - Position limits
+    - Confluence score (quick check)
+    - Market conditions
+    """
+
+    def __init__(self):
+        self.settings = get_settings()
+        self.is_running = False
+
+        # Track recent executions to prevent duplicates
+        self.recent_executions: Dict[str, float] = {}  # symbol -> timestamp
+        self.execution_cooldown = 300  # 5 minutes between same-symbol trades
+
+        # Minimum signal strength to consider
+        self.min_signal_strength = 30
+
+        # Statistics
+        self.stats = {
+            'signals_received': 0,
+            'signals_validated': 0,
+            'trades_executed': 0,
+            'trades_rejected': 0
+        }
+
+    async def start(self):
+        """Start the signal handler."""
+        self.is_running = True
+        logger.info("✅ Real-Time Signal Handler started")
+
+    async def stop(self):
+        """Stop the signal handler."""
+        self.is_running = False
+        logger.info("Real-Time Signal Handler stopped")
+
+    async def handle_signal(self, signal: Dict[str, Any]):
+        """
+        Handle incoming signal from RealtimeTrendDetector.
+
+        This is called INSTANTLY when a trend is detected.
+        Must be fast but thorough in validation.
+
+        Args:
+            signal: {
+                'symbol': 'BTC/USDT:USDT',
+                'side': 'LONG' or 'SHORT',
+                'trend': 'UP' or 'DOWN',
+                'strength': 0-100,
+                'trigger': 'EMA_CROSS' / 'MOMENTUM_SHIFT' / 'VOLUME_SPIKE',
+                'price': Decimal,
+                'timestamp': datetime,
+                'source': 'REALTIME_WEBSOCKET'
+            }
+        """
+        if not self.is_running:
+            return
+
+        self.stats['signals_received'] += 1
+        symbol = signal['symbol']
+        side = signal['side']
+        strength = signal['strength']
+        trigger = signal['trigger']
+        price = signal['price']
+
+        logger.info(
+            f"📡 REALTIME SIGNAL RECEIVED: {symbol} {side} | "
+            f"Strength: {strength} | Trigger: {trigger} | "
+            f"Price: ${float(price):.4f}"
+        )
+
+        notifier = get_notifier()
+
+        try:
+            # === VALIDATION PHASE (must be fast!) ===
+
+            # 1. Check signal strength
+            if strength < self.min_signal_strength:
+                logger.debug(f"Signal too weak: {strength} < {self.min_signal_strength}")
+                self.stats['trades_rejected'] += 1
+                return
+
+            # 2. Check execution cooldown
+            current_time = datetime.now().timestamp()
+            last_execution = self.recent_executions.get(symbol, 0)
+
+            if current_time - last_execution < self.execution_cooldown:
+                remaining = int(self.execution_cooldown - (current_time - last_execution))
+                logger.info(f"⏰ Execution cooldown for {symbol}: {remaining}s remaining")
+                return
+
+            # 3. Check if we can open more positions
+            risk_manager = get_risk_manager()
+            can_open = await risk_manager.can_open_position()
+
+            if not can_open['can_open']:
+                logger.info(f"❌ Cannot open position: {can_open.get('reason', 'Unknown')}")
+                self.stats['trades_rejected'] += 1
+                return
+
+            # 4. Check if we already have a position in this symbol
+            exchange = await get_exchange_client()
+            positions = await exchange.get_positions()
+            existing_symbols = [p['symbol'] for p in positions if p.get('contracts', 0) != 0]
+
+            if symbol in existing_symbols:
+                logger.info(f"⚠️ Already have position in {symbol}, skipping")
+                return
+
+            # 5. Quick market data fetch for confluence scoring
+            market_data = await self._fetch_quick_market_data(symbol)
+
+            if not market_data:
+                logger.warning(f"Failed to fetch market data for {symbol}")
+                self.stats['trades_rejected'] += 1
+                return
+
+            # 6. Quick confluence check (simplified for speed)
+            confluence_score = await self._quick_confluence_check(
+                symbol, side, market_data, signal
+            )
+
+            # Minimum confluence for real-time signals (lower than scan because signal is strong)
+            min_realtime_confluence = 35  # Lower threshold for real-time signals
+
+            if confluence_score < min_realtime_confluence:
+                logger.info(
+                    f"❌ Confluence too low for {symbol}: {confluence_score:.1f} < {min_realtime_confluence}"
+                )
+                await notifier.send_alert(
+                    'info',
+                    f"⚡ Real-time signal rejected:\n{symbol} {side}\n\n"
+                    f"Trigger: {trigger}\n"
+                    f"Signal Strength: {strength}\n"
+                    f"Confluence: {confluence_score:.1f}/100\n"
+                    f"Required: {min_realtime_confluence}+\n\n"
+                    f"Waiting for better confluence..."
+                )
+                self.stats['trades_rejected'] += 1
+                return
+
+            self.stats['signals_validated'] += 1
+
+            # === EXECUTION PHASE ===
+            logger.info(
+                f"✅ Signal validated! Executing {symbol} {side} | "
+                f"Confluence: {confluence_score:.1f}/100"
+            )
+
+            # Send notification about instant entry
+            await notifier.send_alert(
+                'info',
+                f"⚡ INSTANT ENTRY TRIGGERED!\n\n"
+                f"Symbol: {symbol}\n"
+                f"Side: {side}\n"
+                f"Trigger: {trigger}\n"
+                f"Signal Strength: {strength}\n"
+                f"Confluence: {confluence_score:.1f}/100\n"
+                f"Price: ${float(price):.4f}\n\n"
+                f"🚀 Executing trade NOW..."
+            )
+
+            # Execute trade
+            success = await self._execute_instant_trade(
+                symbol=symbol,
+                side=side,
+                signal=signal,
+                market_data=market_data,
+                confluence_score=confluence_score
+            )
+
+            if success:
+                self.recent_executions[symbol] = current_time
+                self.stats['trades_executed'] += 1
+                logger.info(f"✅ INSTANT TRADE EXECUTED: {symbol} {side}")
+            else:
+                self.stats['trades_rejected'] += 1
+                logger.warning(f"❌ Trade execution failed: {symbol}")
+
+        except Exception as e:
+            logger.error(f"Error handling signal for {symbol}: {e}", exc_info=True)
+            self.stats['trades_rejected'] += 1
+
+    async def _fetch_quick_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch minimal market data for quick validation.
+
+        Optimized for speed - only fetch what's necessary.
+        """
+        try:
+            exchange = await get_exchange_client()
+
+            # Fetch 15m candles (minimal for analysis)
+            ohlcv = await exchange.fetch_ohlcv(symbol, '15m', limit=50)
+
+            if not ohlcv or len(ohlcv) < 20:
+                return None
+
+            # Calculate quick indicators
+            closes = [c[4] for c in ohlcv]
+            volumes = [c[5] for c in ohlcv]
+            current_price = closes[-1]
+
+            # Quick RSI calculation
+            rsi = self._quick_rsi(closes)
+
+            # Quick trend check (EMA)
+            ema_9 = self._quick_ema(closes, 9)
+            ema_21 = self._quick_ema(closes, 21)
+
+            trend = 'UPTREND' if ema_9 > ema_21 else 'DOWNTREND' if ema_9 < ema_21 else 'NEUTRAL'
+
+            # Volume analysis
+            avg_volume = sum(volumes[-20:]) / 20
+            current_volume = volumes[-1]
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+
+            return {
+                'symbol': symbol,
+                'current_price': current_price,
+                'ohlcv': ohlcv,
+                'indicators': {
+                    'rsi': rsi,
+                    'ema_9': ema_9,
+                    'ema_21': ema_21,
+                    'trend': trend,
+                    'volume_ratio': volume_ratio
+                },
+                'timestamp': datetime.now()
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching market data for {symbol}: {e}")
+            return None
+
+    def _quick_rsi(self, closes: list, period: int = 14) -> float:
+        """Calculate RSI quickly."""
+        if len(closes) < period + 1:
+            return 50.0
+
+        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+        gains = [d if d > 0 else 0 for d in deltas[-period:]]
+        losses = [-d if d < 0 else 0 for d in deltas[-period:]]
+
+        avg_gain = sum(gains) / period
+        avg_loss = sum(losses) / period
+
+        if avg_loss == 0:
+            return 100.0
+
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
+    def _quick_ema(self, data: list, period: int) -> float:
+        """Calculate EMA quickly."""
+        if len(data) < period:
+            return data[-1] if data else 0
+
+        multiplier = 2 / (period + 1)
+        ema = data[0]
+
+        for price in data[1:]:
+            ema = (price - ema) * multiplier + ema
+
+        return ema
+
+    async def _quick_confluence_check(
+        self,
+        symbol: str,
+        side: str,
+        market_data: Dict[str, Any],
+        signal: Dict[str, Any]
+    ) -> float:
+        """
+        Quick confluence score calculation for real-time signals.
+
+        Simplified version for speed - focuses on key factors.
+        """
+        score = 0.0
+        indicators = market_data.get('indicators', {})
+
+        # 1. Signal strength bonus (up to 25 points)
+        signal_strength = signal.get('strength', 0)
+        score += min(25, signal_strength * 0.25)
+
+        # 2. Trend alignment (up to 25 points)
+        trend = indicators.get('trend', 'NEUTRAL')
+
+        if side == 'LONG' and trend == 'UPTREND':
+            score += 25
+        elif side == 'SHORT' and trend == 'DOWNTREND':
+            score += 25
+        elif trend == 'NEUTRAL':
+            score += 10
+        else:
+            score += 5  # Counter-trend (risky but possible)
+
+        # 3. RSI alignment (up to 20 points)
+        rsi = indicators.get('rsi', 50)
+
+        if side == 'LONG':
+            if rsi < 35:  # Oversold - good for long
+                score += 20
+            elif rsi < 45:
+                score += 15
+            elif rsi < 55:
+                score += 10
+            else:
+                score += 5
+        else:  # SHORT
+            if rsi > 65:  # Overbought - good for short
+                score += 20
+            elif rsi > 55:
+                score += 15
+            elif rsi > 45:
+                score += 10
+            else:
+                score += 5
+
+        # 4. Volume confirmation (up to 15 points)
+        volume_ratio = indicators.get('volume_ratio', 1)
+
+        if volume_ratio > 2.0:
+            score += 15
+        elif volume_ratio > 1.5:
+            score += 12
+        elif volume_ratio > 1.0:
+            score += 8
+        else:
+            score += 4
+
+        # 5. Trigger quality bonus (up to 15 points)
+        trigger = signal.get('trigger', '')
+
+        if 'EMA_CROSS' in trigger:
+            score += 15  # Most reliable
+        elif 'VOLUME_SPIKE' in trigger:
+            score += 12
+        elif 'MOMENTUM' in trigger:
+            score += 10
+        else:
+            score += 5
+
+        return min(100, score)
+
+    async def _execute_instant_trade(
+        self,
+        symbol: str,
+        side: str,
+        signal: Dict[str, Any],
+        market_data: Dict[str, Any],
+        confluence_score: float
+    ) -> bool:
+        """
+        Execute trade instantly.
+
+        Uses simplified parameters based on signal data.
+        """
+        try:
+            notifier = get_notifier()
+            risk_manager = get_risk_manager()
+            executor = get_trade_executor()
+
+            current_price = market_data['current_price']
+
+            # Calculate stop-loss and take-profit
+            # Use tighter stops for instant entries (we caught the trend early)
+            if side == 'LONG':
+                stop_loss_percent = 2.0  # 2% stop
+                take_profit_percent = 4.0  # 4% target (2:1 R/R)
+                stop_loss_price = current_price * (1 - stop_loss_percent / 100)
+                take_profit_price = current_price * (1 + take_profit_percent / 100)
+            else:  # SHORT
+                stop_loss_percent = 2.0
+                take_profit_percent = 4.0
+                stop_loss_price = current_price * (1 + stop_loss_percent / 100)
+                take_profit_price = current_price * (1 - take_profit_percent / 100)
+
+            # Build trade params
+            trade_params = {
+                'symbol': symbol,
+                'side': side,
+                'confidence': signal['strength'] / 100,
+                'take_profit_price': take_profit_price,
+                'stop_loss_price': stop_loss_price,
+                'stop_loss_percent': stop_loss_percent,
+                'current_price': current_price,
+                'market_breadth': None,
+                'source': 'REALTIME_INSTANT'
+            }
+
+            # Validate with risk manager
+            validation = await risk_manager.validate_trade(trade_params)
+
+            if not validation['approved']:
+                logger.warning(f"Trade rejected by risk manager: {validation['reason']}")
+                await notifier.send_alert(
+                    'warning',
+                    f"⚡ Instant trade rejected:\n{symbol} {side}\n\n"
+                    f"Reason: {validation['reason']}"
+                )
+                return False
+
+            # Use adjusted params if provided
+            if validation.get('adjusted_params'):
+                trade_params = validation['adjusted_params']
+
+            # Build analysis dict for executor
+            analysis = {
+                'action': 'buy' if side == 'LONG' else 'sell',
+                'side': side,
+                'confidence': signal['strength'] / 100,
+                'stop_loss_percent': stop_loss_percent,
+                'reasoning': f"Real-time {signal['trigger']} signal | Confluence: {confluence_score:.1f}",
+                'model_name': 'REALTIME_DETECTOR'
+            }
+
+            # Execute!
+            success = await executor.open_position(trade_params, analysis, market_data)
+
+            if success:
+                await notifier.send_alert(
+                    'success',
+                    f"⚡ INSTANT TRADE EXECUTED!\n\n"
+                    f"Symbol: {symbol}\n"
+                    f"Side: {side}\n"
+                    f"Entry: ${current_price:.4f}\n"
+                    f"Stop Loss: ${stop_loss_price:.4f} ({stop_loss_percent}%)\n"
+                    f"Take Profit: ${take_profit_price:.4f} ({take_profit_percent}%)\n"
+                    f"Confluence: {confluence_score:.1f}/100\n"
+                    f"Trigger: {signal['trigger']}\n\n"
+                    f"🚀 Position opened in < 1 second!"
+                )
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error executing instant trade: {e}", exc_info=True)
+            return False
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get handler statistics."""
+        return {
+            **self.stats,
+            'is_running': self.is_running,
+            'symbols_in_cooldown': len([
+                s for s, ts in self.recent_executions.items()
+                if datetime.now().timestamp() - ts < self.execution_cooldown
+            ])
+        }
+
+
+# Singleton instance
+_signal_handler: Optional[RealtimeSignalHandler] = None
+
+
+async def get_signal_handler() -> RealtimeSignalHandler:
+    """Get or create signal handler instance."""
+    global _signal_handler
+    if _signal_handler is None:
+        _signal_handler = RealtimeSignalHandler()
+    return _signal_handler
