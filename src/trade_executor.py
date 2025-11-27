@@ -276,12 +276,13 @@ class TradeExecutor:
             # 🔥 CHECK ACTUAL BINANCE BALANCE BEFORE OPENING POSITION
             # This prevents "Margin is insufficient" errors by checking BEFORE trying to trade
             try:
-                balance_info = await exchange.fetch_balance()
-                available_usdt = Decimal(str(balance_info.get('USDT', {}).get('free', 0)))
+                # Use exchange client's fetch_balance method (handles Futures correctly)
+                available_usdt = await exchange.fetch_balance()
                 logger.info(f"💰 Binance available USDT: ${available_usdt:.2f}")
             except Exception as e:
                 logger.warning(f"⚠️ Could not fetch Binance balance: {e}")
-                available_usdt = Decimal("0")
+                # If balance check fails, allow trade to proceed (Binance will reject if needed)
+                available_usdt = Decimal("999999")  # Skip balance check on error
 
             # 🔥 SIMPLIFIED: Always use POSITION_SIZE_PERCENT (10% per position)
             position_size_decimal = self.settings.position_size_percent  # e.g., 0.10 (10%)

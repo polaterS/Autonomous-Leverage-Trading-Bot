@@ -2,13 +2,11 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_182500_MARGIN_FIX
-RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST} - MARGIN + SL FIX!!!" && \
+ARG CACHE_BUST=20251127_183000_BALANCE_FIX
+RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST} - BALANCE CHECK FIX!!!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX 1: Min 2% price move for SL" && \
-    echo "FIX 2: Check Binance balance BEFORE opening position" && \
-    echo "FIX 3: 1 position max, 40% position size ($40 margin)" && \
-    echo "LOOK FOR: 'Binance available USDT' in logs to verify new code!"
+    echo "FIX: Use exchange client fetch_balance() not raw CCXT" && \
+    echo "Balance was showing $0.00 instead of $82.62"
 
 # Set working directory
 WORKDIR /app
