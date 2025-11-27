@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     position_size_percent: Decimal = Field(default=Decimal("0.50"), gt=0, le=1)  # 🔥 USER UPDATE: 50% per position ($75 @ $150 capital)
     min_stop_loss_percent: Decimal = Field(default=Decimal("2.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 2% min for 25x leverage (tight stop = $37.5 loss on $1,875 position)
     max_stop_loss_percent: Decimal = Field(default=Decimal("3.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 3% max for 25x leverage ($56.25 max loss = 37.5% of capital)
-    min_profit_usd: Decimal = Field(default=Decimal("20.0"), gt=0)  # 🎯 AGGRESSIVE TARGET: $20 min profit (realistic with 25x leverage)
+    min_profit_usd: Decimal = Field(default=Decimal("5.0"), gt=0)  # 🎯 USER REQUEST: $5 min profit (realistic for $50 margin positions)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
     min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 🧪 TEST MODE: 60% min confidence (loosened from 70% for more opportunities)
     scan_interval_seconds: int = Field(default=60, ge=10)  # 🚀 FAST ENTRY: 1 minute scan (catch trends early!)

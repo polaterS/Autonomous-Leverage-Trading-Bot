@@ -314,8 +314,11 @@ class PositionMonitor:
                 layer1_triggered = current_price >= LAYER1_STOP_PRICE
 
             # 🛡️ LAYER 2: Dollar-based loss limit (MODERATE)
-            # Example: $15 loss regardless of percentage
-            LAYER2_LOSS_LIMIT_USD = position_value * Decimal("0.05")  # 5% of position value
+            # 🔥 FIX: Use MARGIN-based loss limit, not position value!
+            # For $50 margin × 20x = $1000 position, we want $5-15 loss limit (not $50!)
+            # Formula: margin × 20% = max $10-15 loss on $50 margin
+            margin_used = position_value / leverage if leverage > 0 else position_value
+            LAYER2_LOSS_LIMIT_USD = margin_used * Decimal("0.25")  # 25% of margin = ~$12.50 on $50 margin
             layer2_triggered = unrealized_pnl <= -LAYER2_LOSS_LIMIT_USD
 
             # 🛡️ LAYER 3: ROI-based emergency stop (WIDE - CATASTROPHIC PROTECTION)

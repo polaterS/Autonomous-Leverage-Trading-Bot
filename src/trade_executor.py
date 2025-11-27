@@ -1186,15 +1186,15 @@ class TradeExecutor:
             # Auto-sync positions after closing to ensure database is accurate
             logger.info("🔄 AUTO-SYNC: Running position reconciliation after close...")
             try:
-                from src.position_reconciliation import PositionReconciliation
-                reconciler = PositionReconciliation()
-                sync_result = await reconciler.sync_positions()
+                from src.position_reconciliation import get_reconciliation_system
+                reconciler = get_reconciliation_system()
+                sync_result = await reconciler.full_reconciliation()
 
                 if sync_result.get('success'):
-                    added = sync_result.get('added', 0)
-                    removed = sync_result.get('removed', 0)
-                    updated = sync_result.get('updated', 0)
-                    logger.info(f"✅ AUTO-SYNC complete: +{added} -{removed} ~{updated}")
+                    matched = sync_result.get('matched', 0)
+                    orphaned = sync_result.get('orphaned', 0)
+                    ghosts = sync_result.get('ghosts', 0)
+                    logger.info(f"✅ AUTO-SYNC complete: {matched} matched, {orphaned} orphaned, {ghosts} ghosts")
                 else:
                     logger.warning(f"⚠️ AUTO-SYNC had issues: {sync_result.get('error', 'Unknown')}")
             except Exception as sync_error:

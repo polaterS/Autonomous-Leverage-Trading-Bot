@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_160500
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - MARKET TREND FILTER!" && \
+ARG CACHE_BUST=20251127_171000
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - LIVE TRADING READY!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Block counter-trend trades when BTC is dumping/pumping"
+    echo "FIX: Auto-sync on close, TP=$5 min, SL=25% of margin (~$12.50)"
 
 # Set working directory
 WORKDIR /app
