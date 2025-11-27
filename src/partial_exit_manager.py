@@ -217,8 +217,9 @@ class PartialExitManager:
             else:  # SHORT
                 price_diff_pct = (entry_price - fill_price) / entry_price
 
-            # P&L = position_value * leverage * price_diff_pct
-            gross_pnl = close_value * leverage * price_diff_pct
+            # 🔥 CRITICAL FIX: close_value ALREADY includes leverage (portion of notional)
+            # Don't multiply by leverage again - that causes 25x error!
+            gross_pnl = close_value * price_diff_pct
 
             # Calculate fees (Binance futures: 0.05% taker)
             fee_rate = Decimal('0.0005')

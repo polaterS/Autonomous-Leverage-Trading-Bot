@@ -787,7 +787,9 @@ class TradeExecutor:
             else:  # SHORT
                 price_change_pct = (entry_price - exit_price) / entry_price
 
-            gross_pnl = position_value * price_change_pct * leverage
+            # 🔥 CRITICAL FIX: position_value ALREADY includes leverage (margin × leverage)
+            # Don't multiply by leverage again - that causes 25x error!
+            gross_pnl = position_value * price_change_pct
 
             # Calculate fees for this partial close
             taker_fee_rate = Decimal("0.0005")  # 0.05%
@@ -994,6 +996,15 @@ class TradeExecutor:
             logger.info(f"📊 Exit Execution Quality: Fill time: {exit_fill_time_ms}ms, Slippage: {float(exit_slippage_percent):.3f}%")
 
             # Calculate final P&L
+            # 🔥 CRITICAL FIX: position_value ALREADY includes leverage!
+            # position_value = margin × leverage (e.g., $40 × 25 = $1000)
+            # So we should NOT multiply by leverage again!
+            #
+            # OLD (WRONG): realized_pnl = position_value * price_change_pct * leverage
+            #   → $1000 × 1.2% × 25 = $300 (25x too high!)
+            #
+            # NEW (CORRECT): realized_pnl = position_value * price_change_pct
+            #   → $1000 × 1.2% = $12 (correct!)
             entry_price = Decimal(str(position['entry_price']))
             leverage = position['leverage']
             position_value = Decimal(str(position['position_value_usd']))
@@ -1003,8 +1014,11 @@ class TradeExecutor:
             else:  # SHORT
                 price_change_pct = (entry_price - exit_price) / entry_price
 
-            realized_pnl = position_value * price_change_pct * leverage
-            pnl_percent = float(price_change_pct * leverage * 100)
+            # 🔥 FIX: Don't multiply by leverage - position_value already includes it!
+            realized_pnl = position_value * price_change_pct
+            pnl_percent = float(price_change_pct * 100)  # ROI based on position value
+
+            logger.info(f"📊 P&L Calculation: position=${position_value:.2f} × price_change={price_change_pct*100:.3f}% = ${realized_pnl:.2f}")
 
             # Update capital
             new_capital = (await db.get_current_capital()) + realized_pnl

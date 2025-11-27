@@ -99,7 +99,8 @@ Sit back and monitor your portfolio! 💰
             price_move_pct = (stop_loss_price - entry_price) / entry_price * 100
 
         # Calculate USD loss at stop-loss
-        usd_loss_at_sl = position_value * (price_move_pct / 100) * leverage
+        # 🔥 FIX: position_value ALREADY includes leverage, don't multiply again!
+        usd_loss_at_sl = position_value * (price_move_pct / 100)
 
         # Calculate entry fee (Binance futures taker: 0.05%)
         taker_fee_rate = Decimal("0.0005")  # 0.05%
@@ -364,13 +365,17 @@ Sit back and monitor your portfolio! 💰
         total_fees = entry_fee + exit_fee
 
         # Gross PnL (before fees) - calculate from price difference
+        # 🔥 CRITICAL FIX: position_value ALREADY includes leverage!
+        # position_value = margin × leverage (e.g., $40 × 25 = $1000)
+        # So we should NOT multiply by leverage again!
         leverage = int(position['leverage'])
         if position['side'] == 'LONG':
             price_change_pct = (Decimal(str(exit_price)) - entry_price) / entry_price
         else:  # SHORT
             price_change_pct = (entry_price - Decimal(str(exit_price))) / entry_price
 
-        gross_pnl = position_value * price_change_pct * leverage
+        # 🔥 FIX: Don't multiply by leverage - position_value already includes it!
+        gross_pnl = position_value * price_change_pct
 
         # Net PnL (after fees)
         net_pnl = gross_pnl - total_fees

@@ -2,11 +2,13 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_183000_BALANCE_FIX
-RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST} - BALANCE CHECK FIX!!!" && \
+ARG CACHE_BUST=20251127_200000_PNL_FIX_FINAL
+RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST} - CRITICAL P&L FIX!!!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Use exchange client fetch_balance() not raw CCXT" && \
-    echo "Balance was showing $0.00 instead of $82.62"
+    echo "FIX: P&L was 25x WRONG - position_value already includes leverage!" && \
+    echo "OLD: gross_pnl = position_value * price_change * LEVERAGE (WRONG)" && \
+    echo "NEW: gross_pnl = position_value * price_change (CORRECT)" && \
+    echo "Fixed in: trade_executor.py, telegram_notifier.py, utils.py, partial_exit_manager.py"
 
 # Set working directory
 WORKDIR /app

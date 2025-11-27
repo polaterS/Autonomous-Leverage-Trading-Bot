@@ -293,9 +293,12 @@ def calculate_pnl(
     else:  # SHORT
         price_change_pct = (entry_price - current_price) / entry_price
 
-    # Leveraged P&L (GROSS - before fees)
+    # P&L Calculation (GROSS - before fees)
+    # 🔥 CRITICAL FIX: position_value ALREADY includes leverage!
+    # position_value = margin × leverage (e.g., $40 × 25 = $1000)
+    # So we should NOT multiply by leverage again!
     leverage_decimal = Decimal(str(leverage))
-    gross_pnl = position_value * price_change_pct * leverage_decimal
+    gross_pnl = position_value * price_change_pct  # Don't multiply by leverage!
 
     # Calculate trading fees (Binance futures taker: 0.05%)
     total_fees = Decimal("0")

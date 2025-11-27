@@ -97,6 +97,18 @@ class AutonomousTradingEngine:
                     f"{sync_results['ghost_count']} ghosts"
                 )
 
+            # 🔥 CRITICAL: Sync database capital with REAL Binance balance
+            # This fixes the capital tracking bug that showed wrong values
+            try:
+                real_balance = await self.exchange.fetch_balance()
+                logger.info(f"💰 Real Binance balance: ${real_balance:.2f}")
+
+                # Update database with real balance
+                await self.db.update_capital(real_balance)
+                logger.info(f"✅ Database capital synced to ${real_balance:.2f}")
+            except Exception as sync_err:
+                logger.warning(f"⚠️ Could not sync capital: {sync_err}")
+
             # 🚀 REAL-TIME TREND DETECTION: Start WebSocket-based instant entry
             if self.settings.enable_realtime_detection:
                 logger.info("🚀 Starting Real-Time Trend Detection (WebSocket)...")
