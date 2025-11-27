@@ -2,14 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_214000_BALANCED
+ARG CACHE_BUST=20251127_214500_MARGIN_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 BALANCED TRADING SYSTEM:" && \
-    echo "  - Confluence: 60+ (balanced)" && \
-    echo "  - Multi-timeframe: 4h+1h+15m alignment" && \
-    echo "  - Momentum: 0.3%+ required" && \
-    echo "  - Volume: 1.2x+ required"
+    echo "🎯 FIX: Position size 40% -> 35% for 2 positions"
 
 # Set working directory
 WORKDIR /app
