@@ -11,7 +11,8 @@
       "Bash(test:*)",
       "Bash(touch:*)",
       "Bash(psql:*)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

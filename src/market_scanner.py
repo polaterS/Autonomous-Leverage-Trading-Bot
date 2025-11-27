@@ -1764,11 +1764,11 @@ class MarketScanner:
 
         # 🔧 FIX #4: Position spacing check (prevent same-minute entries)
         # PROBLEM: 3 SHORTs opened in 6 minutes (SOL, BNB at 13:14, STORJ at 13:20)
-        # SOLUTION: Minimum 5-minute gap between position openings
+        # SOLUTION: Minimum 2-minute gap between position openings (reduced from 5 for faster entry)
         import time
         current_time = time.time()
         time_since_last_position = current_time - self.last_position_time
-        min_spacing_seconds = 300  # 5 minutes
+        min_spacing_seconds = 120  # 2 minutes (was 5 - too slow for catching trends)
 
         if self.last_position_time > 0 and time_since_last_position < min_spacing_seconds:
             wait_time = min_spacing_seconds - time_since_last_position
