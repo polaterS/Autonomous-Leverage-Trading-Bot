@@ -181,8 +181,15 @@ def calculate_stop_loss_price(
         # Calculate price move % that results in the desired USD loss
         # Example: $100 position, 10% max loss = $10, 9x leverage
         # Price move % = $10 / $100 / 9 = 1.11% (not 10%!)
-        max_usd_loss_percent = stop_loss_percent / 100  # e.g., 0.10 for 10%
+        max_usd_loss_percent = stop_loss_percent / 100  # e.g., 0.02 for 2%
         price_move_percent = max_usd_loss_percent / Decimal(str(leverage))
+
+        # 🔥 FIX: Ensure minimum price move to avoid instant stop-loss trigger!
+        # Problem: 2% / 20x = 0.10% → Too tight! Normal spread triggers it instantly
+        # Solution: Minimum 0.5% price move (covers spread + small fluctuations)
+        MIN_PRICE_MOVE_PERCENT = Decimal("0.005")  # 0.5% minimum
+        if price_move_percent < MIN_PRICE_MOVE_PERCENT:
+            price_move_percent = MIN_PRICE_MOVE_PERCENT
 
         if side == 'LONG':
             # For longs, stop-loss is below entry

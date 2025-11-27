@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_173500
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - ORPHAN ORDERS CLEANUP!" && \
+ARG CACHE_BUST=20251127_174900
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - SL TOO TIGHT FIX!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: Auto-cancel orders that have no position (critical for live!)"
+    echo "FIX: Min 0.5% price move for SL (was 0.10% = instant trigger!)"
 
 # Set working directory
 WORKDIR /app
