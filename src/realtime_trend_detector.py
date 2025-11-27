@@ -413,13 +413,17 @@ class RealtimeTrendDetector:
             # Bullish crossover - LONG signal
             signal = 'LONG'
             trigger = 'EMA_CROSS_UP'
-            strength = min(100, int((ema_fast - ema_slow) / ema_slow * 10000))
+            # 🔥 FIX: Base strength of 50 for EMA cross + bonus for gap size
+            ema_gap_pct = abs(ema_fast - ema_slow) / ema_slow * 100
+            strength = min(100, 50 + int(ema_gap_pct * 500))  # Base 50 + gap bonus
 
         elif prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow:
             # Bearish crossover - SHORT signal
             signal = 'SHORT'
             trigger = 'EMA_CROSS_DOWN'
-            strength = min(100, int((ema_slow - ema_fast) / ema_fast * 10000))
+            # 🔥 FIX: Base strength of 50 for EMA cross + bonus for gap size
+            ema_gap_pct = abs(ema_slow - ema_fast) / ema_fast * 100
+            strength = min(100, 50 + int(ema_gap_pct * 500))  # Base 50 + gap bonus
 
         # 2. Volume Spike + Direction
         if signal is None and len(volumes) >= 20:
@@ -433,11 +437,13 @@ class RealtimeTrendDetector:
                 if price_change > self.momentum_threshold:
                     signal = 'LONG'
                     trigger = 'VOLUME_SPIKE_UP'
-                    strength = min(100, int(price_change * 20))
+                    # 🔥 FIX: Base strength of 45 for volume spike + price change bonus
+                    strength = min(100, 45 + int(price_change * 30))
                 elif price_change < -self.momentum_threshold:
                     signal = 'SHORT'
                     trigger = 'VOLUME_SPIKE_DOWN'
-                    strength = min(100, int(abs(price_change) * 20))
+                    # 🔥 FIX: Base strength of 45 for volume spike + price change bonus
+                    strength = min(100, 45 + int(abs(price_change) * 30))
 
         # 3. Strong Momentum Shift
         # 🔥 FIX: Lowered threshold from 1.5% to 0.8% for earlier detection
@@ -448,11 +454,13 @@ class RealtimeTrendDetector:
             if recent_change > 0.8:  # Was 1.5% - too late! 0.8% catches early momentum
                 signal = 'LONG'
                 trigger = 'MOMENTUM_SHIFT_UP'
-                strength = min(100, int(recent_change * 20))  # Increased multiplier
+                # 🔥 FIX: Base strength of 40 for momentum + change bonus
+                strength = min(100, 40 + int(recent_change * 25))
             elif recent_change < -0.8:  # Was -1.5% - now -0.8% for early detection
                 signal = 'SHORT'
                 trigger = 'MOMENTUM_SHIFT_DOWN'
-                strength = min(100, int(abs(recent_change) * 20))
+                # 🔥 FIX: Base strength of 40 for momentum + change bonus
+                strength = min(100, 40 + int(abs(recent_change) * 25))
 
         # === EMIT SIGNAL ===
         if signal:

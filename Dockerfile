@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_143000
-RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - FASTER TREND DETECTION!" && \
+ARG CACHE_BUST=20251127_150000
+RUN echo "🔥 CACHE BUST: ${CACHE_BUST} - SIGNAL STRENGTH FIX!" && \
     echo "Build timestamp: $(date)" && \
-    echo "FIX: EMA 5/13, Volume 1.3x, Momentum 0.8%, Historical Prefetch!"
+    echo "FIX: Signal strength base values (EMA:50, Volume:45, Momentum:40)"
 
 # Set working directory
 WORKDIR /app
