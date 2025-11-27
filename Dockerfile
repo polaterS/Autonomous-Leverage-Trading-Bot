@@ -2,12 +2,11 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_203000_CONFLUENCE_60
+ARG CACHE_BUST=20251127_204500_DB_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 USER CONFIG: Confluence 60+ = trade, <60 = skip" && \
-    echo "🎯 USER CONFIG: Max 2 concurrent positions" && \
-    echo "✅ P&L FIX: position_value already includes leverage"
+    echo "🔧 FIX: Database table name active_positions → active_position" && \
+    echo "🎯 CONFIG: Confluence 60+, Max 2 positions"
 
 # Set working directory
 WORKDIR /app

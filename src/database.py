@@ -577,7 +577,7 @@ class DatabaseClient:
         """
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                UPDATE active_positions
+                UPDATE active_position
                 SET stop_loss_price = $1,
                     updated_at = NOW()
                 WHERE id = $2
