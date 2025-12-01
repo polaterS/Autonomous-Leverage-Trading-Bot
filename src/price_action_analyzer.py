@@ -1858,41 +1858,119 @@ class PriceActionAnalyzer:
             }
         }
 
-        # 🔥 NEW v4.1: Premium/Discount Zone Filter
-        # Don't LONG in premium zone, don't SHORT in discount zone
-        pd_recommendation = premium_discount.get('recommendation', 'NEUTRAL')
-        if ml_signal == 'BUY' and pd_recommendation == 'SHORT_ONLY':
-            result['reason'] = f"Price in DEEP PREMIUM zone ({premium_discount['position_pct']:.0f}%) - not ideal for LONG"
-            logger.info(f"   ⚠️ Premium/Discount filter: Skipping LONG in premium zone")
-            return result
-        if ml_signal == 'SELL' and pd_recommendation == 'LONG_ONLY':
-            result['reason'] = f"Price in DEEP DISCOUNT zone ({premium_discount['position_pct']:.0f}%) - not ideal for SHORT"
-            logger.info(f"   ⚠️ Premium/Discount filter: Skipping SHORT in discount zone")
-            return result
-
-        # 🔥 NEW v4.1: Liquidity Sweep Confirmation (BOOST confidence)
-        # If we detect a liquidity sweep in our direction, it's a high-probability setup
+        # 🔥 v4.2: SMART CONFIDENCE SYSTEM - No hard blocks, only confidence adjustments
+        # Philosophy: Every market condition has opportunities, we just need to find them
         confidence_boost = 0
-        if liquidity_sweep['bullish_sweep'] and ml_signal == 'BUY':
-            confidence_boost += 15  # Strong bullish signal
-            logger.info(f"   🎯 LIQUIDITY SWEEP BOOST: +15% confidence for LONG (stop hunt completed)")
-        elif liquidity_sweep['bearish_sweep'] and ml_signal == 'SELL':
-            confidence_boost += 15  # Strong bearish signal
-            logger.info(f"   🎯 LIQUIDITY SWEEP BOOST: +15% confidence for SHORT (stop hunt completed)")
+        confidence_penalty = 0
+        trade_notes = []
 
-        # 🔥 NEW v4.1: FVG Entry Confirmation (price near unfilled FVG)
+        # 🎯 PREMIUM/DISCOUNT ZONE - Smart adjustment (not blocking!)
+        pd_zone = premium_discount.get('zone', 'EQUILIBRIUM')
+        pd_pct = premium_discount.get('position_pct', 50)
+        trend_dir = trend.get('direction', 'SIDEWAYS')
+
+        if ml_signal == 'BUY':
+            if pd_zone == 'DEEP_DISCOUNT':
+                confidence_boost += 20  # Perfect zone for LONG!
+                trade_notes.append(f"✅ DEEP DISCOUNT ({pd_pct:.0f}%) - Optimal LONG zone")
+            elif pd_zone == 'DISCOUNT':
+                confidence_boost += 10
+                trade_notes.append(f"✅ DISCOUNT ({pd_pct:.0f}%) - Good LONG zone")
+            elif pd_zone == 'PREMIUM' and trend_dir == 'UPTREND':
+                confidence_boost += 5  # Uptrend momentum can push through premium
+                trade_notes.append(f"⚡ PREMIUM but UPTREND - Momentum play")
+            elif pd_zone == 'DEEP_PREMIUM':
+                if trend_dir == 'UPTREND' and trend.get('strength') == 'STRONG':
+                    trade_notes.append(f"⚠️ DEEP PREMIUM but STRONG UPTREND - Risky but possible")
+                else:
+                    confidence_penalty += 15
+                    trade_notes.append(f"⚠️ DEEP PREMIUM ({pd_pct:.0f}%) - Reduced confidence")
+
+        elif ml_signal == 'SELL':
+            if pd_zone == 'DEEP_PREMIUM':
+                confidence_boost += 20  # Perfect zone for SHORT!
+                trade_notes.append(f"✅ DEEP PREMIUM ({pd_pct:.0f}%) - Optimal SHORT zone")
+            elif pd_zone == 'PREMIUM':
+                confidence_boost += 10
+                trade_notes.append(f"✅ PREMIUM ({pd_pct:.0f}%) - Good SHORT zone")
+            elif pd_zone == 'DISCOUNT' and trend_dir == 'DOWNTREND':
+                confidence_boost += 5  # Downtrend momentum can push through discount
+                trade_notes.append(f"⚡ DISCOUNT but DOWNTREND - Momentum play")
+            elif pd_zone == 'DEEP_DISCOUNT':
+                if trend_dir == 'DOWNTREND' and trend.get('strength') == 'STRONG':
+                    trade_notes.append(f"⚠️ DEEP DISCOUNT but STRONG DOWNTREND - Risky but possible")
+                else:
+                    confidence_penalty += 15
+                    trade_notes.append(f"⚠️ DEEP DISCOUNT ({pd_pct:.0f}%) - Reduced confidence")
+
+        # 🎯 LIQUIDITY SWEEP - High probability signal!
+        if liquidity_sweep['bullish_sweep'] and ml_signal == 'BUY':
+            confidence_boost += 25  # VERY strong signal - stop hunt completed
+            trade_notes.append(f"🎯 BULLISH SWEEP - Stop hunt → Reversal UP (strength: {liquidity_sweep['signal_strength']})")
+        elif liquidity_sweep['bearish_sweep'] and ml_signal == 'SELL':
+            confidence_boost += 25  # VERY strong signal
+            trade_notes.append(f"🎯 BEARISH SWEEP - Stop hunt → Reversal DOWN (strength: {liquidity_sweep['signal_strength']})")
+
+        # 🎯 FVG ENTRY - Price near unfilled imbalance
         for fvg in fair_value_gaps:
-            if not fvg['filled'] and fvg['distance_pct'] < 1.0:  # Within 1% of FVG
+            if not fvg['filled'] and fvg['distance_pct'] < 2.0:  # Within 2% of FVG
                 if fvg['type'] == 'BULLISH_FVG' and ml_signal == 'BUY':
-                    confidence_boost += 10
-                    logger.info(f"   🔲 FVG BOOST: +10% confidence (price near bullish FVG at ${fvg['midpoint']:.4f})")
+                    confidence_boost += 15
+                    trade_notes.append(f"🔲 Near BULLISH FVG (${fvg['midpoint']:.4f}) - Imbalance fill expected")
                     break
                 elif fvg['type'] == 'BEARISH_FVG' and ml_signal == 'SELL':
-                    confidence_boost += 10
-                    logger.info(f"   🔲 FVG BOOST: +10% confidence (price near bearish FVG at ${fvg['midpoint']:.4f})")
+                    confidence_boost += 15
+                    trade_notes.append(f"🔲 Near BEARISH FVG (${fvg['midpoint']:.4f}) - Imbalance fill expected")
                     break
 
-        result['confidence_boost'] = confidence_boost
+        # 🎯 MARKET STRUCTURE - BOS/CHoCH confirmation
+        structure = market_structure.get('structure', 'RANGING')
+        if structure == 'BULLISH_BOS' and ml_signal == 'BUY':
+            confidence_boost += 15
+            trade_notes.append(f"🏗️ BULLISH BOS - Structure break UP confirmed")
+        elif structure == 'BEARISH_BOS' and ml_signal == 'SELL':
+            confidence_boost += 15
+            trade_notes.append(f"🏗️ BEARISH BOS - Structure break DOWN confirmed")
+        elif structure == 'BULLISH_CHOCH' and ml_signal == 'BUY':
+            confidence_boost += 20  # CHoCH is stronger reversal signal
+            trade_notes.append(f"🔄 BULLISH CHoCH - Trend reversal UP detected")
+        elif structure == 'BEARISH_CHOCH' and ml_signal == 'SELL':
+            confidence_boost += 20
+            trade_notes.append(f"🔄 BEARISH CHoCH - Trend reversal DOWN detected")
+
+        # 🎯 CANDLESTICK PATTERNS
+        candle_signal = candle_patterns.get('signal', 'NEUTRAL')
+        candle_score = candle_patterns.get('score', 0)
+        if candle_signal in ['STRONG_BULLISH', 'BULLISH'] and ml_signal == 'BUY':
+            confidence_boost += min(candle_score, 15)
+            trade_notes.append(f"🕯️ Bullish candle pattern: {', '.join(candle_patterns.get('patterns', []))}")
+        elif candle_signal in ['STRONG_BEARISH', 'BEARISH'] and ml_signal == 'SELL':
+            confidence_boost += min(abs(candle_score), 15)
+            trade_notes.append(f"🕯️ Bearish candle pattern: {', '.join(candle_patterns.get('patterns', []))}")
+
+        # 🎯 ORDER FLOW
+        order_bias = order_flow.get('bias', 'BALANCED')
+        if order_bias in ['STRONG_BUYERS', 'BUYERS'] and ml_signal == 'BUY':
+            confidence_boost += 10
+            trade_notes.append(f"💹 Order flow: {order_flow['buy_pressure']:.0%} buy pressure")
+        elif order_bias in ['STRONG_SELLERS', 'SELLERS'] and ml_signal == 'SELL':
+            confidence_boost += 10
+            trade_notes.append(f"💹 Order flow: {order_flow['sell_pressure']:.0%} sell pressure")
+
+        # 🎯 VOLUME CONFIRMATION
+        if volume.get('is_surge', False):
+            confidence_boost += 10
+            trade_notes.append(f"📈 Volume surge: {volume['surge_ratio']:.1f}x average")
+
+        # Calculate final confidence adjustment
+        net_confidence_change = confidence_boost - confidence_penalty
+        result['confidence_boost'] = net_confidence_change
+        result['trade_notes'] = trade_notes
+
+        # Log all analysis
+        logger.info(f"   📊 PA CONFIDENCE: +{confidence_boost}% boost, -{confidence_penalty}% penalty = NET {net_confidence_change:+}%")
+        for note in trade_notes:
+            logger.info(f"      {note}")
 
         # ML says HOLD → skip
         if ml_signal == 'HOLD':
@@ -1939,23 +2017,29 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🎯 RELAXED FILTER #1: Check total S/R count (need 2+ for basic reliability)
-            # Relaxed approach: 2+ levels is acceptable (find more opportunities)
+            # 🎯 v4.2: S/R count check - soft warning, not hard block
             total_sr_levels = len(sr_analysis['support']) + len(sr_analysis['resistance'])
             if total_sr_levels < 2:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+ minimum)'
-                return result
+                confidence_penalty += 15  # Penalty for weak S/R, but allow trade
+                trade_notes.append(f"⚠️ Weak S/R: Only {total_sr_levels} levels")
+            elif total_sr_levels >= 4:
+                confidence_boost += 5  # Bonus for strong S/R confluence
+                trade_notes.append(f"✅ Strong S/R: {total_sr_levels} levels")
 
-            # 🎯 CONSERVATIVE FILTER #2: Check ADX for trend strength (need 20+ for trending market)
-            # Industry standard: ADX 20+ = trending market (balanced approach)
-            adx = trend.get('adx', 20)  # Default to 20 if missing
-            if adx < self.min_trend_threshold:
-                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
-                return result
+            # 🎯 v4.2: ADX as CONFIDENCE ADJUSTMENT (not hard block!)
+            # LOW ADX = sideways/ranging market = RANGE TRADING opportunities!
+            adx = trend.get('adx', 20)
+            if adx < 15:  # Very low ADX = strong ranging market
+                confidence_penalty += 20
+                trade_notes.append(f"⚠️ Very low ADX ({adx:.1f}) - strong ranging market")
+            elif adx < 20:  # Low ADX = mild ranging
+                confidence_penalty += 10
+                trade_notes.append(f"⚠️ Low ADX ({adx:.1f}) - ranging market")
+            elif adx >= 30:  # Strong trend
+                confidence_boost += 10
+                trade_notes.append(f"✅ Strong ADX ({adx:.1f}) - clear trend")
 
             # 🎯 NEW v4.0: Select BEST support/resistance (strength-weighted)
-            # OLD: nearest_support = min(supports, key=lambda x: abs(x - current_price))
-            # NEW: Considers strength (touches) + distance + timeframe priority
             best_support_dict = self.select_best_sr_level(
                 levels=sr_analysis['support'],
                 current_price=current_price,
@@ -2022,87 +2106,54 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Too close to resistance ({dist_to_resistance*100:.1f}%, need >{self.room_to_opposite_level*100:.1f}%)'
                 return result
 
-            # ✅ OPTION E1 REVERTED (2025-11-21 14:50): DOWNTREND CHECK RESTORED
-            # CHANGE: Re-enabled DOWNTREND block after counter-trend trading failed
-            # TEST RESULTS (2025-11-21 13:13-14:48):
-            #   - Deployed OPTION E1 (DOWNTREND disabled) at 13:00
-            #   - First trade: DOT/USDT:USDT LONG in STRONG DOWNTREND
-            #   - Result: LOSS -$6.38 (trailing stop hit after brief +0.7% bounce)
-            #   - Win Rate: 0% (0W/1L) - Far below 70% target
-            #   - Portfolio impact: -11.5% in 1.5 hours
-            #   - Verdict: Counter-trend trading NOT working in current market
-            # LESSON LEARNED: DOWNTREND filter exists for good reason
-            #   - Counter-trend (catching falling knife) = 40-50% win rate typically
-            #   - DOT had "perfect" setup but still failed due to strong downtrend
-            #   - Brief bounces (+0.7%) get overwhelmed by continued selling
-            # RESTORED SAFETY: Only LONG in UPTREND or SIDEWAYS markets
-            # ACTIVE FILTERS:
-            #   ✅ DOWNTREND check: ENABLED (blocks counter-trend LONGs)
-            #   ✅ LONG distance: 5% max (OPTION D2 still active)
-            #   ❌ BTC Correlation: DISABLED (still testing)
-            #   ❌ Support break: DISABLED (proximity check sufficient)
+            # 🎯 v4.2: TREND DIRECTION as CONFIDENCE ADJUSTMENT (not hard block!)
+            # Philosophy: Every market has opportunities - adjust confidence, don't block!
             if trend['direction'] == 'DOWNTREND':
-                result['reason'] = f'DOWNTREND market - cannot LONG in downtrend'
-                return result
-
-            if trend['direction'] == 'SIDEWAYS':
-                # ✅ OPTION F: SIDEWAYS tolerance restored to 2.5% (yesterday's winning setting)
-                # CHANGE (2025-11-21 15:00): Reduced from 5% back to 2.5%
-                # DISCOVERY: Commit 370a574 (33W/2L, 94% win rate) used 2.5% for SIDEWAYS
-                # RATIONALE: Stricter tolerance = Higher quality SIDEWAYS scalps
-                #   - 5% was too loose (OPTION D2 experiment)
-                #   - 2.5% matches yesterday's winning configuration
-                # IMPACT: Fewer but much higher quality SIDEWAYS entries
-                if dist_to_support > 0.025:  # OPTION F: 2.5% (yesterday's winning setting)
-                    result['reason'] = f'SIDEWAYS market - need closer support bounce (<2.5%, got {dist_to_support*100:.1f}%)'
-                    return result
-                if not volume['is_surge']:
-                    result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
-                    return result
-                logger.info(f"   ✅ SIDEWAYS SCALP LONG: Support bounce + volume surge (balanced setup)")
-
-            # 🎯 RELAXED: Allow WEAK trends with extra confirmation
-            # WEAK trends allowed if: volume surge + good R/R (calculated later)
-            # This prevents immediate rejection but adds safety checks
-            weak_trend_allowed = False
-            if trend['strength'] == 'WEAK':
-                # WEAK trend must have volume surge for confirmation
-                if volume['is_surge']:
-                    weak_trend_allowed = True
-                    logger.info(f"   ⚠️ WEAK {trend['direction']} (ADX {adx:.1f}) allowed - volume surge confirmed")
+                if trend['strength'] == 'STRONG':
+                    # Strong downtrend LONG = very risky but possible with reversal signals
+                    confidence_penalty += 25
+                    trade_notes.append(f"⚠️ STRONG DOWNTREND LONG - Counter-trend, high risk")
                 else:
-                    result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) needs volume surge for confirmation'
-                    return result
+                    # Weak/moderate downtrend = possible reversal
+                    confidence_penalty += 15
+                    trade_notes.append(f"⚠️ DOWNTREND LONG - Counter-trend play")
+            elif trend['direction'] == 'SIDEWAYS':
+                # SIDEWAYS = range trading opportunities
+                if dist_to_support <= 0.025:
+                    confidence_boost += 10  # Near support in range = good LONG
+                    trade_notes.append(f"✅ SIDEWAYS near support - Range LONG setup")
+                else:
+                    confidence_penalty += 5
+                    trade_notes.append(f"⚠️ SIDEWAYS mid-range - Okay for scalp")
+            elif trend['direction'] == 'UPTREND':
+                # UPTREND = ideal for LONG
+                confidence_boost += 15
+                trade_notes.append(f"✅ UPTREND - Trend-following LONG")
 
-            # 🎯 CRITICAL FIX: Volume confirmation for ALL trends (even STRONG)
-            # USER ISSUE: TIA opened with 0.6x volume (BELOW average) and failed
-            # - STRONG trend (ADX 52.9) bypassed volume check
-            # - But 0.6x volume = weak momentum = trade failed!
-            #
-            # NEW LOGIC:
-            # - MODERATE trends: Need volume surge (≥1.5x) for confirmation
-            # - STRONG trends: Need minimum volume (≥0.8x average) to avoid dead trades
-            #
-            # RATIONALE: Even STRONG trends need buyers/sellers to sustain momentum
-            # If volume is BELOW average (0.6x), there's no participation → reject!
+            # 🎯 v4.2: TREND STRENGTH as CONFIDENCE ADJUSTMENT
+            if trend['strength'] == 'STRONG':
+                confidence_boost += 10
+                trade_notes.append(f"✅ STRONG trend ({adx:.1f} ADX)")
+            elif trend['strength'] == 'WEAK':
+                confidence_penalty += 10
+                trade_notes.append(f"⚠️ WEAK trend - needs confirmation")
 
-            if trend['strength'] == 'MODERATE':
-                # MODERATE: Strict volume surge requirement
-                if not volume['is_surge']:
-                    result['reason'] = f'MODERATE {trend["direction"]} requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
-                    return result
-                logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
-
-            elif trend['strength'] == 'STRONG':
-                # 🔧 FIX: STRONG trends need MOMENTUM confirmation
-                # PROBLEM: ZIL opened with 1.0x volume (no surge) and failed
-                # OLD: Allowed 0.8x+ volume for STRONG (too relaxed!)
-                # NEW: Require 1.2x+ volume for ALL trends (even STRONG needs momentum)
-                min_volume_ratio = 1.2  # At least 1.2x average volume for momentum
-                if volume['surge_ratio'] < min_volume_ratio:
-                    result['reason'] = f'STRONG {trend["direction"]} needs momentum confirmation (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
-                    return result
-                logger.info(f"   ✅ STRONG trend with momentum ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
+            # 🎯 v4.2: VOLUME as CONFIDENCE ADJUSTMENT (not hard block!)
+            vol_ratio = volume.get('surge_ratio', 1.0)
+            if vol_ratio >= 2.0:  # Strong surge
+                confidence_boost += 15
+                trade_notes.append(f"✅ STRONG volume surge ({vol_ratio:.1f}x)")
+            elif vol_ratio >= 1.5:  # Normal surge
+                confidence_boost += 10
+                trade_notes.append(f"✅ Volume surge ({vol_ratio:.1f}x)")
+            elif vol_ratio >= 1.0:  # Average volume
+                pass  # No adjustment for average volume
+            elif vol_ratio >= 0.7:  # Below average
+                confidence_penalty += 10
+                trade_notes.append(f"⚠️ Low volume ({vol_ratio:.1f}x)")
+            else:  # Very low volume
+                confidence_penalty += 20
+                trade_notes.append(f"⚠️ Very low volume ({vol_ratio:.1f}x) - weak momentum")
 
             # Calculate R/R (informational only - actual R/R checked in execution layer)
             stop_loss = nearest_support * (1 - self.sl_buffer)
@@ -2117,65 +2168,82 @@ class PriceActionAnalyzer:
             #     result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
             #     return result
 
-            # 🎯 RELAXED: Advanced filters DISABLED for more opportunities
-            # These filters were too strict and filtered out many valid setups
-            # Keeping only critical filters: Volume + R/R ratio
+            # 🎯 v4.2: Candle patterns, order flow, structure as CONFIDENCE adjustments
+            # (not hard blocks - every market can be traded!)
 
-            # DISABLED: Candlestick pattern filter (too strict)
-            # DISABLED: Order flow filter (too strict)
-            # DISABLED: Market structure filter (too strict)
-
-            # ✅ ALL CHECKS PASSED - PERFECT LONG SETUP!
-            confidence_boost = 0
-
-            # Bonus confidence for perfect conditions
-            if trend['direction'] == 'UPTREND':
-                confidence_boost += 5
-            if trend['strength'] == 'STRONG':
-                confidence_boost += 5
-            if volume['is_surge']:
-                confidence_boost += 5
-            if rr['max_rr'] >= 3.0:
-                confidence_boost += 5
-
-            # 🔥 NEW: Bonus for bullish candle patterns
+            # Candle patterns
             if candle_patterns['signal'] == 'STRONG_BULLISH':
-                confidence_boost += 10
-                logger.info(f"   ⭐ STRONG bullish pattern: {', '.join(candle_patterns['patterns'])}")
+                confidence_boost += 15
+                trade_notes.append(f"✅ STRONG bullish candle pattern")
             elif candle_patterns['signal'] == 'BULLISH':
-                confidence_boost += 5
-                logger.info(f"   ✨ Bullish pattern: {', '.join(candle_patterns['patterns'])}")
+                confidence_boost += 10
+                trade_notes.append(f"✅ Bullish candle pattern")
+            elif candle_patterns['signal'] in ['STRONG_BEARISH', 'BEARISH']:
+                confidence_penalty += 15  # Penalty, not block
+                trade_notes.append(f"⚠️ Bearish candle pattern conflicts with LONG")
 
-            # 🔥 NEW: Bonus for strong buyer order flow
+            # Order flow
             if order_flow['bias'] == 'STRONG_BUYERS':
-                confidence_boost += 10
-                logger.info(f"   💪 STRONG buyer pressure: {order_flow['buy_pressure']:.0%}")
+                confidence_boost += 15
+                trade_notes.append(f"✅ STRONG buyer pressure ({order_flow['buy_pressure']:.0%})")
             elif order_flow['bias'] == 'BUYERS':
-                confidence_boost += 5
-                logger.info(f"   👍 Buyer dominance: {order_flow['buy_pressure']:.0%}")
-
-            # 🔥 NEW: Bonus for bullish structure break
-            if market_structure['structure'] == 'BULLISH_BOS':
                 confidence_boost += 10
-                logger.info(f"   📈 Bullish Break of Structure confirmed!")
+                trade_notes.append(f"✅ Buyer dominance ({order_flow['buy_pressure']:.0%})")
+            elif order_flow['bias'] in ['STRONG_SELLERS', 'SELLERS']:
+                confidence_penalty += 15  # Penalty, not block
+                trade_notes.append(f"⚠️ Seller pressure conflicts with LONG")
+
+            # Market structure
+            if market_structure['structure'] == 'BULLISH_BOS':
+                confidence_boost += 15
+                trade_notes.append(f"✅ Bullish Break of Structure")
             elif market_structure['structure'] == 'BULLISH_CHOCH':
-                confidence_boost += 15  # CHoCH is stronger (reversal)
-                logger.info(f"   🔄 Bullish Change of Character - trend reversal!")
+                confidence_boost += 20  # CHoCH is stronger
+                trade_notes.append(f"✅ Bullish CHoCH - Reversal signal")
+            elif market_structure['structure'] in ['BEARISH_BOS', 'BEARISH_CHOCH']:
+                confidence_penalty += 15  # Penalty, not block
+                trade_notes.append(f"⚠️ Bearish structure conflicts with LONG")
+
+            # Good R/R bonus
+            if rr['max_rr'] >= 3.0:
+                confidence_boost += 10
+                trade_notes.append(f"✅ Excellent R/R ({rr['max_rr']:.1f})")
+            elif rr['max_rr'] >= 2.0:
+                confidence_boost += 5
+                trade_notes.append(f"✅ Good R/R ({rr['max_rr']:.1f})")
+
+            # 🎯 v4.2: FINAL CONFIDENCE CALCULATION
+            net_confidence = confidence_boost - confidence_penalty
+            final_ml_confidence = ml_confidence + net_confidence
+
+            # Log the confidence analysis
+            logger.info(f"   📊 LONG Confidence: ML {ml_confidence:.0f}% + PA boost {confidence_boost}% - penalty {confidence_penalty}% = {final_ml_confidence:.0f}%")
+            for note in trade_notes[-5:]:  # Last 5 notes
+                logger.info(f"      {note}")
+
+            # 🎯 v4.2: MINIMUM CONFIDENCE THRESHOLD (instead of hard blocks)
+            # If net confidence is too negative, skip the trade
+            MIN_FINAL_CONFIDENCE = 55  # Minimum 55% final confidence to enter
+            if final_ml_confidence < MIN_FINAL_CONFIDENCE:
+                result['reason'] = f'Confidence too low: {final_ml_confidence:.0f}% (need {MIN_FINAL_CONFIDENCE}%+) | Notes: {"; ".join(trade_notes[-3:])}'
+                result['confidence_boost'] = net_confidence
+                result['trade_notes'] = trade_notes
+                return result
 
             result.update({
                 'should_enter': True,
                 'reason': (
-                    f'✅ Perfect LONG: Support bounce ({dist_to_support*100:.0f}% away) | '
-                    f'{trend["direction"]} | R/R {rr["max_rr"]:.1f} | '
-                    f'Volume {volume["surge_ratio"]:.1f}x | '
-                    f'Patterns: {", ".join(candle_patterns["patterns"][:2]) if candle_patterns["patterns"] else "None"} | '
-                    f'Flow: {order_flow["bias"]}'
+                    f'✅ LONG: Support {dist_to_support*100:.1f}% | {trend["direction"]} | '
+                    f'R/R {rr["max_rr"]:.1f} | Vol {volume["surge_ratio"]:.1f}x | '
+                    f'Conf {final_ml_confidence:.0f}% (ML {ml_confidence:.0f}% + PA {net_confidence:+}%)'
                 ),
-                'confidence_boost': confidence_boost,
+                'confidence_boost': net_confidence,
+                'final_confidence': final_ml_confidence,
                 'entry': current_price,
                 'stop_loss': stop_loss,
                 'targets': [target1, target2],
-                'rr_ratio': rr['max_rr']
+                'rr_ratio': rr['max_rr'],
+                'trade_notes': trade_notes
             })
 
             return result
@@ -2187,28 +2255,33 @@ class PriceActionAnalyzer:
                 result['reason'] = 'Insufficient S/R levels'
                 return result
 
-            # 🎯 RELAXED FILTER #1: Check total S/R count (need 2+ for basic reliability)
-            # Relaxed approach: 2+ levels is acceptable (find more opportunities)
+            # 🎯 v4.2: S/R count check - soft warning, not hard block
             total_sr_levels = len(sr_analysis['support']) + len(sr_analysis['resistance'])
             if total_sr_levels < 2:
-                result['reason'] = f'Weak S/R: Only {total_sr_levels} levels (need 2+ minimum)'
-                return result
+                confidence_penalty += 15
+                trade_notes.append(f"⚠️ Weak S/R: Only {total_sr_levels} levels")
+            elif total_sr_levels >= 4:
+                confidence_boost += 5
+                trade_notes.append(f"✅ Strong S/R: {total_sr_levels} levels")
 
-            # 🎯 CONSERVATIVE FILTER #2: Check ADX for trend strength (need 20+ for trending market)
-            # Industry standard: ADX 20+ = trending market (balanced approach)
-            adx = trend.get('adx', 20)  # Default to 20 if missing
-            if adx < self.min_trend_threshold:
-                result['reason'] = f'Weak trend strength: ADX {adx:.1f} (need {self.min_trend_threshold}+ for quality)'
-                return result
+            # 🎯 v4.2: ADX as CONFIDENCE ADJUSTMENT (not hard block!)
+            adx = trend.get('adx', 20)
+            if adx < 15:
+                confidence_penalty += 20
+                trade_notes.append(f"⚠️ Very low ADX ({adx:.1f}) - strong ranging market")
+            elif adx < 20:
+                confidence_penalty += 10
+                trade_notes.append(f"⚠️ Low ADX ({adx:.1f}) - ranging market")
+            elif adx >= 30:
+                confidence_boost += 10
+                trade_notes.append(f"✅ Strong ADX ({adx:.1f}) - clear trend")
 
-            # 🎯 NEW v4.0: Select BEST support/resistance (strength-weighted)
-            # OLD: nearest_resistance = min(resistances, key=lambda x: abs(x - current_price))
-            # NEW: Considers strength (touches) + distance + timeframe priority
+            # 🎯 Select BEST support/resistance (strength-weighted)
             best_support_dict = self.select_best_sr_level(
                 levels=sr_analysis['support'],
                 current_price=current_price,
                 level_type='support',
-                max_distance_pct=0.15  # 15% max distance for target room
+                max_distance_pct=0.15
             )
             best_resistance_dict = self.select_best_sr_level(
                 levels=sr_analysis['resistance'],
@@ -2270,63 +2343,53 @@ class PriceActionAnalyzer:
                 result['reason'] = f'Too close to support ({dist_to_support*100:.1f}%, need >{self.room_to_opposite_level*100:.1f}%)'
                 return result
 
-            # 🎯 BALANCED: Check 3 - Allow DOWNTREND or SIDEWAYS (same as LONG)
-            # UPTREND is blocked, but SIDEWAYS scalping allowed with same conditions as LONG
+            # 🎯 v4.2: TREND DIRECTION as CONFIDENCE ADJUSTMENT (not hard block!)
             if trend['direction'] == 'UPTREND':
-                result['reason'] = f'UPTREND market - cannot SHORT in uptrend'
-                return result
-            elif trend['direction'] == 'SIDEWAYS':
-                # Allow SIDEWAYS with moderate 2% tolerance (OPTION B adjustment, matches main SHORT check)
-                if dist_to_resistance > 0.02:  # Moderate risk: 2% (was 1%, OPTION B)
-                    result['reason'] = f'SIDEWAYS market - need closer resistance rejection (<2%, got {dist_to_resistance*100:.1f}%)'
-                    return result
-                if not volume['is_surge']:
-                    result['reason'] = f'SIDEWAYS market - need volume confirmation for scalp'
-                    return result
-                logger.info(f"   ✅ SIDEWAYS SCALP SHORT: Resistance rejection + volume surge (balanced setup)")
-
-            # 🎯 RELAXED: Allow WEAK trends with extra confirmation
-            # WEAK trends allowed if: volume surge + good R/R (calculated later)
-            # This prevents immediate rejection but adds safety checks
-            weak_trend_allowed = False
-            if trend['strength'] == 'WEAK':
-                # WEAK trend must have volume surge for confirmation
-                if volume['is_surge']:
-                    weak_trend_allowed = True
-                    logger.info(f"   ⚠️ WEAK {trend['direction']} (ADX {adx:.1f}) allowed - volume surge confirmed")
+                if trend['strength'] == 'STRONG':
+                    # Strong uptrend SHORT = very risky but possible with reversal signals
+                    confidence_penalty += 25
+                    trade_notes.append(f"⚠️ STRONG UPTREND SHORT - Counter-trend, high risk")
                 else:
-                    result['reason'] = f'Weak {trend["direction"]} (ADX {adx:.1f}) needs volume surge for confirmation'
-                    return result
+                    # Weak/moderate uptrend = possible reversal
+                    confidence_penalty += 15
+                    trade_notes.append(f"⚠️ UPTREND SHORT - Counter-trend play")
+            elif trend['direction'] == 'SIDEWAYS':
+                # SIDEWAYS = range trading opportunities
+                if dist_to_resistance <= 0.02:
+                    confidence_boost += 10  # Near resistance in range = good SHORT
+                    trade_notes.append(f"✅ SIDEWAYS near resistance - Range SHORT setup")
+                else:
+                    confidence_penalty += 5
+                    trade_notes.append(f"⚠️ SIDEWAYS mid-range - Okay for scalp")
+            elif trend['direction'] == 'DOWNTREND':
+                # DOWNTREND = ideal for SHORT
+                confidence_boost += 15
+                trade_notes.append(f"✅ DOWNTREND - Trend-following SHORT")
 
-            # 🎯 CRITICAL FIX: Volume confirmation for ALL trends (even STRONG)
-            # USER ISSUE: TIA opened with 0.6x volume (BELOW average) and failed
-            # - STRONG trend (ADX 52.9) bypassed volume check
-            # - But 0.6x volume = weak momentum = trade failed!
-            #
-            # NEW LOGIC:
-            # - MODERATE trends: Need volume surge (≥1.5x) for confirmation
-            # - STRONG trends: Need minimum volume (≥0.8x average) to avoid dead trades
-            #
-            # RATIONALE: Even STRONG trends need buyers/sellers to sustain momentum
-            # If volume is BELOW average (0.6x), there's no participation → reject!
+            # 🎯 v4.2: TREND STRENGTH as CONFIDENCE ADJUSTMENT
+            if trend['strength'] == 'STRONG':
+                confidence_boost += 10
+                trade_notes.append(f"✅ STRONG trend ({adx:.1f} ADX)")
+            elif trend['strength'] == 'WEAK':
+                confidence_penalty += 10
+                trade_notes.append(f"⚠️ WEAK trend - needs confirmation")
 
-            if trend['strength'] == 'MODERATE':
-                # MODERATE: Strict volume surge requirement
-                if not volume['is_surge']:
-                    result['reason'] = f'MODERATE {trend["direction"]} requires volume surge (current: {volume["surge_ratio"]:.1f}x, need {self.volume_surge_multiplier}x)'
-                    return result
-                logger.info(f"   ✅ Volume surge confirmed for MODERATE trend ({volume['surge_ratio']:.1f}x)")
-
-            elif trend['strength'] == 'STRONG':
-                # 🔧 FIX: STRONG trends need MOMENTUM confirmation
-                # PROBLEM: ZIL opened with 1.0x volume (no surge) and failed
-                # OLD: Allowed 0.8x+ volume for STRONG (too relaxed!)
-                # NEW: Require 1.2x+ volume for ALL trends (even STRONG needs momentum)
-                min_volume_ratio = 1.2  # At least 1.2x average volume for momentum
-                if volume['surge_ratio'] < min_volume_ratio:
-                    result['reason'] = f'STRONG {trend["direction"]} needs momentum confirmation (current: {volume["surge_ratio"]:.1f}x < {min_volume_ratio}x average)'
-                    return result
-                logger.info(f"   ✅ STRONG trend with momentum ({volume['surge_ratio']:.1f}x >= {min_volume_ratio}x)")
+            # 🎯 v4.2: VOLUME as CONFIDENCE ADJUSTMENT (not hard block!)
+            vol_ratio = volume.get('surge_ratio', 1.0)
+            if vol_ratio >= 2.0:
+                confidence_boost += 15
+                trade_notes.append(f"✅ STRONG volume surge ({vol_ratio:.1f}x)")
+            elif vol_ratio >= 1.5:
+                confidence_boost += 10
+                trade_notes.append(f"✅ Volume surge ({vol_ratio:.1f}x)")
+            elif vol_ratio >= 1.0:
+                pass  # No adjustment
+            elif vol_ratio >= 0.7:
+                confidence_penalty += 10
+                trade_notes.append(f"⚠️ Low volume ({vol_ratio:.1f}x)")
+            else:
+                confidence_penalty += 20
+                trade_notes.append(f"⚠️ Very low volume ({vol_ratio:.1f}x) - weak momentum")
 
             # Calculate R/R (informational only - actual R/R checked in execution layer)
             stop_loss = nearest_resistance * (1 + self.sl_buffer)
@@ -2335,79 +2398,81 @@ class PriceActionAnalyzer:
 
             rr = self.calculate_risk_reward(current_price, stop_loss, [target1, target2], 'SHORT')
 
-            # 🔥 FIX: R/R check DISABLED here (misleading due to leverage-adjusted stops)
-            # R/R check now done in trade_executor.py with actual execution prices
-            # if not rr['is_good_trade']:
-            #     result['reason'] = f'Poor R/R ratio: {rr["max_rr"]:.1f} (need ≥2.0)'
-            #     return result
+            # 🎯 v4.2: Candle patterns, order flow, structure as CONFIDENCE adjustments
+            # (not hard blocks - every market can be traded!)
 
-            # 🔥 NEW FILTERS: Candlestick patterns + order flow + structure
-            # Check 6: Candlestick pattern confirmation
-            if candle_patterns['signal'] in ['STRONG_BULLISH', 'BULLISH']:
-                result['reason'] = f'Bullish candle pattern conflicts with SHORT: {", ".join(candle_patterns["patterns"])}'
-                return result
-
-            # Check 7: Order flow must support SHORT (sellers in control)
-            if order_flow['bias'] in ['STRONG_BUYERS', 'BUYERS']:
-                result['reason'] = f'Order flow shows buyers in control ({order_flow["buy_pressure"]:.0%}) - conflicts with SHORT'
-                return result
-
-            # Check 8: Market structure should support SHORT (bearish BOS or CHoCH)
-            if market_structure['structure'] in ['BULLISH_BOS', 'BULLISH_CHOCH']:
-                result['reason'] = f'Bullish market structure ({market_structure["structure"]}) - conflicts with SHORT'
-                return result
-
-            # ✅ ALL CHECKS PASSED - PERFECT SHORT SETUP!
-            confidence_boost = 0
-
-            # Bonus confidence for perfect conditions
-            if trend['direction'] == 'DOWNTREND':
-                confidence_boost += 5
-            if trend['strength'] == 'STRONG':
-                confidence_boost += 5
-            if volume['is_surge']:
-                confidence_boost += 5
-            if rr['max_rr'] >= 3.0:
-                confidence_boost += 5
-
-            # 🔥 NEW: Bonus for bearish candle patterns
+            # Candle patterns
             if candle_patterns['signal'] == 'STRONG_BEARISH':
-                confidence_boost += 10
-                logger.info(f"   ⭐ STRONG bearish pattern: {', '.join(candle_patterns['patterns'])}")
+                confidence_boost += 15
+                trade_notes.append(f"✅ STRONG bearish candle pattern")
             elif candle_patterns['signal'] == 'BEARISH':
-                confidence_boost += 5
-                logger.info(f"   ✨ Bearish pattern: {', '.join(candle_patterns['patterns'])}")
+                confidence_boost += 10
+                trade_notes.append(f"✅ Bearish candle pattern")
+            elif candle_patterns['signal'] in ['STRONG_BULLISH', 'BULLISH']:
+                confidence_penalty += 15  # Penalty, not block
+                trade_notes.append(f"⚠️ Bullish candle pattern conflicts with SHORT")
 
-            # 🔥 NEW: Bonus for strong seller order flow
+            # Order flow
             if order_flow['bias'] == 'STRONG_SELLERS':
-                confidence_boost += 10
-                logger.info(f"   💪 STRONG seller pressure: {order_flow['sell_pressure']:.0%}")
+                confidence_boost += 15
+                trade_notes.append(f"✅ STRONG seller pressure ({order_flow['sell_pressure']:.0%})")
             elif order_flow['bias'] == 'SELLERS':
-                confidence_boost += 5
-                logger.info(f"   👎 Seller dominance: {order_flow['sell_pressure']:.0%}")
-
-            # 🔥 NEW: Bonus for bearish structure break
-            if market_structure['structure'] == 'BEARISH_BOS':
                 confidence_boost += 10
-                logger.info(f"   📉 Bearish Break of Structure confirmed!")
+                trade_notes.append(f"✅ Seller dominance ({order_flow['sell_pressure']:.0%})")
+            elif order_flow['bias'] in ['STRONG_BUYERS', 'BUYERS']:
+                confidence_penalty += 15  # Penalty, not block
+                trade_notes.append(f"⚠️ Buyer pressure conflicts with SHORT")
+
+            # Market structure
+            if market_structure['structure'] == 'BEARISH_BOS':
+                confidence_boost += 15
+                trade_notes.append(f"✅ Bearish Break of Structure")
             elif market_structure['structure'] == 'BEARISH_CHOCH':
-                confidence_boost += 15  # CHoCH is stronger (reversal)
-                logger.info(f"   🔄 Bearish Change of Character - trend reversal!")
+                confidence_boost += 20  # CHoCH is stronger
+                trade_notes.append(f"✅ Bearish CHoCH - Reversal signal")
+            elif market_structure['structure'] in ['BULLISH_BOS', 'BULLISH_CHOCH']:
+                confidence_penalty += 15  # Penalty, not block
+                trade_notes.append(f"⚠️ Bullish structure conflicts with SHORT")
+
+            # Good R/R bonus
+            if rr['max_rr'] >= 3.0:
+                confidence_boost += 10
+                trade_notes.append(f"✅ Excellent R/R ({rr['max_rr']:.1f})")
+            elif rr['max_rr'] >= 2.0:
+                confidence_boost += 5
+                trade_notes.append(f"✅ Good R/R ({rr['max_rr']:.1f})")
+
+            # 🎯 v4.2: FINAL CONFIDENCE CALCULATION
+            net_confidence = confidence_boost - confidence_penalty
+            final_ml_confidence = ml_confidence + net_confidence
+
+            # Log the confidence analysis
+            logger.info(f"   📊 SHORT Confidence: ML {ml_confidence:.0f}% + PA boost {confidence_boost}% - penalty {confidence_penalty}% = {final_ml_confidence:.0f}%")
+            for note in trade_notes[-5:]:  # Last 5 notes
+                logger.info(f"      {note}")
+
+            # 🎯 v4.2: MINIMUM CONFIDENCE THRESHOLD (instead of hard blocks)
+            MIN_FINAL_CONFIDENCE = 55  # Minimum 55% final confidence to enter
+            if final_ml_confidence < MIN_FINAL_CONFIDENCE:
+                result['reason'] = f'Confidence too low: {final_ml_confidence:.0f}% (need {MIN_FINAL_CONFIDENCE}%+) | Notes: {"; ".join(trade_notes[-3:])}'
+                result['confidence_boost'] = net_confidence
+                result['trade_notes'] = trade_notes
+                return result
 
             result.update({
                 'should_enter': True,
                 'reason': (
-                    f'✅ Perfect SHORT: Resistance rejection ({dist_to_resistance*100:.0f}% away) | '
-                    f'{trend["direction"]} | R/R {rr["max_rr"]:.1f} | '
-                    f'Volume {volume["surge_ratio"]:.1f}x | '
-                    f'Patterns: {", ".join(candle_patterns["patterns"][:2]) if candle_patterns["patterns"] else "None"} | '
-                    f'Flow: {order_flow["bias"]}'
+                    f'✅ SHORT: Resistance {dist_to_resistance*100:.1f}% | {trend["direction"]} | '
+                    f'R/R {rr["max_rr"]:.1f} | Vol {volume["surge_ratio"]:.1f}x | '
+                    f'Conf {final_ml_confidence:.0f}% (ML {ml_confidence:.0f}% + PA {net_confidence:+}%)'
                 ),
-                'confidence_boost': confidence_boost,
+                'confidence_boost': net_confidence,
+                'final_confidence': final_ml_confidence,
                 'entry': current_price,
                 'stop_loss': stop_loss,
                 'targets': [target1, target2],
-                'rr_ratio': rr['max_rr']
+                'rr_ratio': rr['max_rr'],
+                'trade_notes': trade_notes
             })
 
             return result

@@ -288,15 +288,16 @@ class RealtimeSignalHandler:
             # ═══════════════════════════════════════════════════════════════════
             # 🎯 HIGH-CERTAINTY TRADE VALIDATION SYSTEM
             # ═══════════════════════════════════════════════════════════════════
-            # For a trade to execute, ALL of these must be TRUE:
-            # 1. Confluence >= 75 (high quality signal)
-            # 2. Multi-timeframe alignment (4h, 1h, 15m same direction)
-            # 3. Strong momentum (price actively moving in our direction)
-            # 4. Minimum $2-3 profit potential before fees
+            # v4.2 SMART CONFIDENCE SYSTEM
+            # For a trade to execute:
+            # 1. Confluence >= 60 (basic quality signal)
+            # 2. Smart PA confidence >= 55% (ML + PA adjustments)
+            # 3. Multi-timeframe + momentum checks still apply
             # ═══════════════════════════════════════════════════════════════════
 
-            # 🎯 CHECK 1: CONFLUENCE REQUIRED (75+) - Professional Standard
-            MIN_CERTAINTY_CONFLUENCE = 75  # 75+ for higher win rate
+            # 🎯 v4.2: CONFLUENCE REDUCED (60+) - Smart Confidence handles quality
+            # Price action analyzer now does sophisticated confidence calculation
+            MIN_CERTAINTY_CONFLUENCE = 60  # 60+ is sufficient with smart PA system
 
             if confluence_score < MIN_CERTAINTY_CONFLUENCE:
                 logger.info(

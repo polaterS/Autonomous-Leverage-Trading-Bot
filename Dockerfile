@@ -1,11 +1,11 @@
-# 🚀 ENHANCED TRADING SYSTEM: Professional Confluence Scoring
+# 🚀 SMART CONFIDENCE SYSTEM v4.2 - Adaptive Market Trading
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_PA_PROFESSIONAL_V41
+ARG CACHE_BUST=20251201_SMART_CONFIDENCE_V42
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 MAJOR UPDATE: Professional PA v4.1 with FVG, Liquidity Sweep, Premium/Discount"
+    echo "🎯 MAJOR UPDATE: Smart Confidence v4.2 - No hard blocks, adaptive to all markets"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PROFESSIONAL PA SYSTEM v4.1
-# Current deployment: 20251201_PA_PROFESSIONAL_V41
-# Changes: FVG Detection, Liquidity Sweep, Premium/Discount, Confluence 75+, R/R 2:1, ADX 25+
+# 🔥 CACHE BUST MARKER: SMART CONFIDENCE SYSTEM v4.2
+# Current deployment: 20251201_SMART_CONFIDENCE_V42
+# Changes: No hard blocks, confidence-based decision system, adaptive to all market conditions
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
