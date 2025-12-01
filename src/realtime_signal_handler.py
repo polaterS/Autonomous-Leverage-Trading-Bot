@@ -403,48 +403,86 @@ class RealtimeSignalHandler:
 
     async def _fetch_quick_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch minimal market data for quick validation.
+        Fetch FULL market data for proper validation.
 
-        Optimized for speed - only fetch what's necessary.
+        🔥 FIX: Now includes multi-timeframe data, ATR, and price change calculations
+        that are REQUIRED for the quality checks to work!
         """
         try:
             exchange = await get_exchange_client()
 
-            # Fetch 15m candles (minimal for analysis)
-            ohlcv = await exchange.fetch_ohlcv(symbol, '15m', limit=50)
+            # 🔥 Fetch MULTIPLE timeframes for proper MTF analysis
+            ohlcv_15m = await exchange.fetch_ohlcv(symbol, '15m', limit=100)
+            ohlcv_1h = await exchange.fetch_ohlcv(symbol, '1h', limit=50)
+            ohlcv_4h = await exchange.fetch_ohlcv(symbol, '4h', limit=30)
 
-            if not ohlcv or len(ohlcv) < 20:
+            if not ohlcv_15m or len(ohlcv_15m) < 50:
+                logger.warning(f"Insufficient 15m data for {symbol}")
                 return None
 
-            # Calculate quick indicators
-            closes = [c[4] for c in ohlcv]
-            volumes = [c[5] for c in ohlcv]
-            current_price = closes[-1]
+            # Extract price data
+            closes_15m = [c[4] for c in ohlcv_15m]
+            highs_15m = [c[2] for c in ohlcv_15m]
+            lows_15m = [c[3] for c in ohlcv_15m]
+            volumes_15m = [c[5] for c in ohlcv_15m]
+            current_price = closes_15m[-1]
 
-            # Quick RSI calculation
-            rsi = self._quick_rsi(closes)
+            # Calculate 15m indicators
+            ema_fast_15m = self._quick_ema(closes_15m, 9)
+            ema_slow_15m = self._quick_ema(closes_15m, 21)
+            rsi_15m = self._quick_rsi(closes_15m)
+            atr_15m = self._calculate_atr(highs_15m, lows_15m, closes_15m, 14)
+            atr_percent_15m = (atr_15m / current_price * 100) if current_price > 0 else 0
 
-            # Quick trend check (EMA)
-            ema_9 = self._quick_ema(closes, 9)
-            ema_21 = self._quick_ema(closes, 21)
+            # Price change over last 4 candles (1 hour in 15m timeframe)
+            price_change_1h = ((closes_15m[-1] - closes_15m[-5]) / closes_15m[-5] * 100) if len(closes_15m) >= 5 else 0
 
-            trend = 'UPTREND' if ema_9 > ema_21 else 'DOWNTREND' if ema_9 < ema_21 else 'NEUTRAL'
+            # Calculate 1h indicators
+            closes_1h = [c[4] for c in ohlcv_1h] if ohlcv_1h else []
+            ema_fast_1h = self._quick_ema(closes_1h, 9) if len(closes_1h) >= 9 else 0
+            ema_slow_1h = self._quick_ema(closes_1h, 21) if len(closes_1h) >= 21 else 0
+
+            # Calculate 4h indicators
+            closes_4h = [c[4] for c in ohlcv_4h] if ohlcv_4h else []
+            ema_fast_4h = self._quick_ema(closes_4h, 9) if len(closes_4h) >= 9 else 0
+            ema_slow_4h = self._quick_ema(closes_4h, 21) if len(closes_4h) >= 21 else 0
 
             # Volume analysis
-            avg_volume = sum(volumes[-20:]) / 20
-            current_volume = volumes[-1]
+            avg_volume = sum(volumes_15m[-20:]) / 20 if len(volumes_15m) >= 20 else sum(volumes_15m) / len(volumes_15m)
+            current_volume = volumes_15m[-1]
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+
+            # Trend determination
+            trend = 'UPTREND' if ema_fast_15m > ema_slow_15m else 'DOWNTREND' if ema_fast_15m < ema_slow_15m else 'NEUTRAL'
 
             return {
                 'symbol': symbol,
                 'current_price': current_price,
-                'ohlcv': ohlcv,
+                'ohlcv': ohlcv_15m,
+                'volume_24h': current_volume,
+                'avg_volume_24h': avg_volume,
                 'indicators': {
-                    'rsi': rsi,
-                    'ema_9': ema_9,
-                    'ema_21': ema_21,
+                    'rsi': rsi_15m,
+                    'ema_9': ema_fast_15m,
+                    'ema_21': ema_slow_15m,
                     'trend': trend,
-                    'volume_ratio': volume_ratio
+                    'volume_ratio': volume_ratio,
+                    # 🔥 Multi-timeframe data for MTF checks
+                    '15m': {
+                        'ema_fast': ema_fast_15m,
+                        'ema_slow': ema_slow_15m,
+                        'atr_percent': atr_percent_15m,
+                        'rsi': rsi_15m
+                    },
+                    '1h': {
+                        'ema_fast': ema_fast_1h,
+                        'ema_slow': ema_slow_1h,
+                        'price_change_pct': price_change_1h
+                    },
+                    '4h': {
+                        'ema_fast': ema_fast_4h,
+                        'ema_slow': ema_slow_4h
+                    }
                 },
                 'timestamp': datetime.now()
             }
@@ -452,6 +490,23 @@ class RealtimeSignalHandler:
         except Exception as e:
             logger.error(f"Error fetching market data for {symbol}: {e}")
             return None
+
+    def _calculate_atr(self, highs: list, lows: list, closes: list, period: int = 14) -> float:
+        """Calculate Average True Range."""
+        if len(highs) < period + 1:
+            return 0.0
+
+        true_ranges = []
+        for i in range(1, len(highs)):
+            high_low = highs[i] - lows[i]
+            high_close = abs(highs[i] - closes[i-1])
+            low_close = abs(lows[i] - closes[i-1])
+            true_ranges.append(max(high_low, high_close, low_close))
+
+        if len(true_ranges) < period:
+            return sum(true_ranges) / len(true_ranges) if true_ranges else 0
+
+        return sum(true_ranges[-period:]) / period
 
     def _quick_rsi(self, closes: list, period: int = 14) -> float:
         """Calculate RSI quickly."""
@@ -493,76 +548,195 @@ class RealtimeSignalHandler:
         signal: Dict[str, Any]
     ) -> float:
         """
-        Quick confluence score calculation for real-time signals.
+        🔥 ENHANCED confluence score with PA analysis and S/R levels.
 
-        Simplified version for speed - focuses on key factors.
+        Now includes:
+        - Multi-timeframe alignment check
+        - Support/Resistance proximity analysis
+        - Full indicator analysis
+        - PA pattern recognition
         """
         score = 0.0
         indicators = market_data.get('indicators', {})
 
-        # 1. Signal strength bonus (up to 25 points)
-        signal_strength = signal.get('strength', 0)
-        score += min(25, signal_strength * 0.25)
+        # ═══════════════════════════════════════════════════════════════════
+        # 1. MULTI-TIMEFRAME ALIGNMENT (up to 20 points)
+        # ═══════════════════════════════════════════════════════════════════
+        ema_15m_fast = indicators.get('15m', {}).get('ema_fast', 0)
+        ema_15m_slow = indicators.get('15m', {}).get('ema_slow', 0)
+        ema_1h_fast = indicators.get('1h', {}).get('ema_fast', 0)
+        ema_1h_slow = indicators.get('1h', {}).get('ema_slow', 0)
+        ema_4h_fast = indicators.get('4h', {}).get('ema_fast', 0)
+        ema_4h_slow = indicators.get('4h', {}).get('ema_slow', 0)
 
-        # 2. Trend alignment (up to 25 points)
-        trend = indicators.get('trend', 'NEUTRAL')
+        mtf_score = 0
+        if ema_15m_fast > 0:
+            trend_15m = 'LONG' if ema_15m_fast > ema_15m_slow else 'SHORT'
+            trend_1h = 'LONG' if ema_1h_fast > ema_1h_slow else 'SHORT'
+            trend_4h = 'LONG' if ema_4h_fast > ema_4h_slow else 'SHORT'
 
-        if side == 'LONG' and trend == 'UPTREND':
-            score += 25
-        elif side == 'SHORT' and trend == 'DOWNTREND':
-            score += 25
-        elif trend == 'NEUTRAL':
-            score += 10
-        else:
-            score += 5  # Counter-trend (risky but possible)
+            # Count aligned timeframes
+            aligned = sum([
+                1 for t in [trend_15m, trend_1h, trend_4h]
+                if t == side
+            ])
 
-        # 3. RSI alignment (up to 20 points)
+            if aligned == 3:
+                mtf_score = 20  # All aligned - perfect
+            elif aligned == 2:
+                mtf_score = 12  # 2 of 3 aligned
+            elif aligned == 1:
+                mtf_score = 5   # Only 1 aligned - weak
+            else:
+                mtf_score = 0   # Counter-trend on all TFs
+
+        score += mtf_score
+
+        # ═══════════════════════════════════════════════════════════════════
+        # 2. PA ANALYSIS - Support/Resistance (up to 25 points)
+        # ═══════════════════════════════════════════════════════════════════
+        try:
+            from src.pa_analyzer import get_pa_analyzer
+
+            pa_analyzer = get_pa_analyzer()
+            ohlcv = market_data.get('ohlcv', [])
+            current_price = market_data.get('current_price', 0)
+
+            if ohlcv and len(ohlcv) >= 50 and current_price > 0:
+                # Get S/R levels
+                sr_result = pa_analyzer.find_sr_levels_from_ohlcv(ohlcv)
+                supports = sr_result.get('supports', [])
+                resistances = sr_result.get('resistances', [])
+
+                # Calculate distance to nearest S/R
+                nearest_support = min([s for s in supports if s < current_price], default=0)
+                nearest_resistance = min([r for r in resistances if r > current_price], default=current_price * 1.1)
+
+                support_distance_pct = ((current_price - nearest_support) / current_price * 100) if nearest_support > 0 else 10
+                resistance_distance_pct = ((nearest_resistance - current_price) / current_price * 100) if nearest_resistance > 0 else 10
+
+                # For LONG: Want to be near support, away from resistance
+                # For SHORT: Want to be near resistance, away from support
+                if side == 'LONG':
+                    if support_distance_pct < 1.5 and resistance_distance_pct > 3:
+                        score += 25  # Near support, good room to resistance
+                    elif support_distance_pct < 3:
+                        score += 15  # Reasonably close to support
+                    elif resistance_distance_pct < 1.5:
+                        score += 0   # Too close to resistance - bad LONG
+                    else:
+                        score += 8
+                else:  # SHORT
+                    if resistance_distance_pct < 1.5 and support_distance_pct > 3:
+                        score += 25  # Near resistance, good room to support
+                    elif resistance_distance_pct < 3:
+                        score += 15  # Reasonably close to resistance
+                    elif support_distance_pct < 1.5:
+                        score += 0   # Too close to support - bad SHORT
+                    else:
+                        score += 8
+
+                logger.info(
+                    f"📊 PA S/R Check: {symbol} | Support: {support_distance_pct:.1f}% away | "
+                    f"Resistance: {resistance_distance_pct:.1f}% away | {side} score: +{score - mtf_score}"
+                )
+            else:
+                score += 8  # No PA data, neutral score
+        except Exception as e:
+            logger.warning(f"PA analysis failed for {symbol}: {e}")
+            score += 8  # Fallback score
+
+        # ═══════════════════════════════════════════════════════════════════
+        # 3. RSI ANALYSIS (up to 15 points)
+        # ═══════════════════════════════════════════════════════════════════
         rsi = indicators.get('rsi', 50)
 
         if side == 'LONG':
-            if rsi < 35:  # Oversold - good for long
-                score += 20
-            elif rsi < 45:
+            if rsi < 30:  # Strongly oversold
                 score += 15
-            elif rsi < 55:
-                score += 10
+            elif rsi < 40:
+                score += 12
+            elif rsi < 50:
+                score += 8
+            elif rsi > 70:  # Overbought - bad for LONG
+                score += 0
             else:
                 score += 5
         else:  # SHORT
-            if rsi > 65:  # Overbought - good for short
-                score += 20
-            elif rsi > 55:
+            if rsi > 70:  # Strongly overbought
                 score += 15
-            elif rsi > 45:
-                score += 10
+            elif rsi > 60:
+                score += 12
+            elif rsi > 50:
+                score += 8
+            elif rsi < 30:  # Oversold - bad for SHORT
+                score += 0
             else:
                 score += 5
 
-        # 4. Volume confirmation (up to 15 points)
+        # ═══════════════════════════════════════════════════════════════════
+        # 4. VOLUME CONFIRMATION (up to 15 points)
+        # ═══════════════════════════════════════════════════════════════════
         volume_ratio = indicators.get('volume_ratio', 1)
 
-        if volume_ratio > 2.0:
-            score += 15
-        elif volume_ratio > 1.5:
+        if volume_ratio > 2.5:
+            score += 15  # Very high volume
+        elif volume_ratio > 1.8:
             score += 12
-        elif volume_ratio > 1.0:
+        elif volume_ratio > 1.3:
             score += 8
+        elif volume_ratio > 1.0:
+            score += 5
         else:
-            score += 4
+            score += 2  # Low volume - weak signal
 
-        # 5. Trigger quality bonus (up to 15 points)
+        # ═══════════════════════════════════════════════════════════════════
+        # 5. MOMENTUM + ATR (up to 15 points)
+        # ═══════════════════════════════════════════════════════════════════
+        price_change = indicators.get('1h', {}).get('price_change_pct', 0)
+        atr_pct = indicators.get('15m', {}).get('atr_percent', 0)
+
+        # Momentum should match our direction
+        if side == 'LONG' and price_change > 0.5:
+            score += 8
+        elif side == 'SHORT' and price_change < -0.5:
+            score += 8
+        elif abs(price_change) < 0.2:
+            score += 2  # No clear momentum
+
+        # ATR shows volatility potential
+        if atr_pct > 1.5:
+            score += 7  # Good volatility for profit
+        elif atr_pct > 0.8:
+            score += 5
+        elif atr_pct > 0.4:
+            score += 3
+        else:
+            score += 1  # Low volatility
+
+        # ═══════════════════════════════════════════════════════════════════
+        # 6. SIGNAL TRIGGER QUALITY (up to 10 points)
+        # ═══════════════════════════════════════════════════════════════════
         trigger = signal.get('trigger', '')
 
         if 'EMA_CROSS' in trigger:
-            score += 15  # Most reliable
+            score += 10  # Most reliable
         elif 'VOLUME_SPIKE' in trigger:
-            score += 12
+            score += 8
         elif 'MOMENTUM' in trigger:
-            score += 10
+            score += 6
         else:
-            score += 5
+            score += 3
 
-        return min(100, score)
+        final_score = min(100, score)
+
+        logger.info(
+            f"📊 Confluence Score: {symbol} {side} = {final_score:.1f}/100 | "
+            f"MTF: {mtf_score}/20 | RSI: {rsi:.0f} | Vol: {volume_ratio:.1f}x | "
+            f"ATR: {atr_pct:.1f}%"
+        )
+
+        return final_score
 
     async def _execute_instant_trade(
         self,

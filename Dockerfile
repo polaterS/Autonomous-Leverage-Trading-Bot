@@ -1,11 +1,11 @@
-# 🚀 PA-ONLY v4.2.7 - Database Column Fix
+# 🚀 PA-ONLY v4.3.0 - FULL REALTIME ANALYSIS
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V427_DB_COLUMN_FIX
+ARG CACHE_BUST=20251201_V430_REALTIME_FULL_ANALYSIS
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🔧 v4.2.7: Fixed updated_at column error in position monitor"
+    echo "🎯 v4.3.0: Realtime handler now does FULL PA + MTF + S/R analysis!"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.7
-# Current deployment: 20251201_V427_DB_COLUMN_FIX
-# Changes: Fixed updated_at column error in update_position_stop_loss
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.3.0
+# Current deployment: 20251201_V430_REALTIME_FULL_ANALYSIS
+# Changes: Realtime handler now does full MTF + PA + S/R analysis before trading
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
