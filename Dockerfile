@@ -1,11 +1,11 @@
-# 🚀 PA-ONLY v4.2.6 - Paper Trading Margin Fix
+# 🚀 PA-ONLY v4.2.7 - Database Column Fix
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V426_PAPER_MARGIN_FIX
+ARG CACHE_BUST=20251201_V427_DB_COLUMN_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "📝 v4.2.6: Paper trading now uses config capital, not Binance balance"
+    echo "🔧 v4.2.7: Fixed updated_at column error in position monitor"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.6
-# Current deployment: 20251201_V426_PAPER_MARGIN_FIX
-# Changes: Paper trading uses config capital instead of Binance balance
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.7
+# Current deployment: 20251201_V427_DB_COLUMN_FIX
+# Changes: Fixed updated_at column error in update_position_stop_loss
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
