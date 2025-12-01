@@ -1793,12 +1793,10 @@ class PriceActionAnalyzer:
         Returns:
             Dict with should_enter, reason, entry details
         """
-        # 🔥 DEPLOYMENT VERIFICATION: This log MUST appear if v4.0 code is loaded
+        # 🔥 DEPLOYMENT VERIFICATION: v4.2 PA-ONLY mode
         logger.info("=" * 80)
-        logger.info(f"🚀 v4.0-SR-ENHANCEMENTS CODE ACTIVE - DEPLOYED: 2025-11-22 15:10 UTC")
-        logger.info(f"🔥 FUNCTION RENAMED FOR CACHE BYPASS: should_enter_trade_v4_20251122()")
-        logger.info(f"🔍 Price Action Analysis v4.0 (Multi-TF + Adaptive + Psych): {symbol}")
-        logger.info(f"📊 ML Signal: {ml_signal} | Confidence: {ml_confidence:.1f}%")
+        logger.info(f"🎯 PA-ONLY v4.2 - Price Action Analysis: {symbol}")
+        logger.info(f"📊 Signal: {ml_signal} | Base Confidence: {ml_confidence:.1f}% (PA will adjust)")
         logger.info("=" * 80)
 
         # 🔥 FORCE BYTECODE RECOMPILE: Unique marker with timestamp
@@ -2217,7 +2215,7 @@ class PriceActionAnalyzer:
             final_ml_confidence = ml_confidence + net_confidence
 
             # Log the confidence analysis
-            logger.info(f"   📊 LONG Confidence: ML {ml_confidence:.0f}% + PA boost {confidence_boost}% - penalty {confidence_penalty}% = {final_ml_confidence:.0f}%")
+            logger.info(f"   📊 LONG Confidence: Base {ml_confidence:.0f}% + PA boost {confidence_boost}% - penalty {confidence_penalty}% = {final_ml_confidence:.0f}%")
             for note in trade_notes[-5:]:  # Last 5 notes
                 logger.info(f"      {note}")
 
@@ -2235,7 +2233,7 @@ class PriceActionAnalyzer:
                 'reason': (
                     f'✅ LONG: Support {dist_to_support*100:.1f}% | {trend["direction"]} | '
                     f'R/R {rr["max_rr"]:.1f} | Vol {volume["surge_ratio"]:.1f}x | '
-                    f'Conf {final_ml_confidence:.0f}% (ML {ml_confidence:.0f}% + PA {net_confidence:+}%)'
+                    f'Conf {final_ml_confidence:.0f}% (Base {ml_confidence:.0f}% + PA {net_confidence:+}%)'
                 ),
                 'confidence_boost': net_confidence,
                 'final_confidence': final_ml_confidence,
@@ -2447,7 +2445,7 @@ class PriceActionAnalyzer:
             final_ml_confidence = ml_confidence + net_confidence
 
             # Log the confidence analysis
-            logger.info(f"   📊 SHORT Confidence: ML {ml_confidence:.0f}% + PA boost {confidence_boost}% - penalty {confidence_penalty}% = {final_ml_confidence:.0f}%")
+            logger.info(f"   📊 SHORT Confidence: Base {ml_confidence:.0f}% + PA boost {confidence_boost}% - penalty {confidence_penalty}% = {final_ml_confidence:.0f}%")
             for note in trade_notes[-5:]:  # Last 5 notes
                 logger.info(f"      {note}")
 
@@ -2464,7 +2462,7 @@ class PriceActionAnalyzer:
                 'reason': (
                     f'✅ SHORT: Resistance {dist_to_resistance*100:.1f}% | {trend["direction"]} | '
                     f'R/R {rr["max_rr"]:.1f} | Vol {volume["surge_ratio"]:.1f}x | '
-                    f'Conf {final_ml_confidence:.0f}% (ML {ml_confidence:.0f}% + PA {net_confidence:+}%)'
+                    f'Conf {final_ml_confidence:.0f}% (Base {ml_confidence:.0f}% + PA {net_confidence:+}%)'
                 ),
                 'confidence_boost': net_confidence,
                 'final_confidence': final_ml_confidence,

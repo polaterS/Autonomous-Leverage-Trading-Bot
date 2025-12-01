@@ -1,11 +1,11 @@
-# 🚀 SMART CONFIDENCE SYSTEM v4.2.1 - Fixed Drawdown + Counter-Trend
+# 🚀 PA-ONLY v4.2.2 - ML Disabled, Pure Price Action
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V421_DRAWDOWN_FIX
+ARG CACHE_BUST=20251201_V422_PA_ONLY
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v4.2.1: Fixed drawdown calculation + removed counter-trend hard blocks"
+    echo "🎯 v4.2.2: ML DISABLED - Pure PA (S/R + Trend + Volume + Candles)"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: SMART CONFIDENCE SYSTEM v4.2.1
-# Current deployment: 20251201_V421_DRAWDOWN_FIX
-# Changes: Fixed drawdown calculation (env vs db), removed counter-trend hard blocks
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.2
+# Current deployment: 20251201_V422_PA_ONLY
+# Changes: ML DISABLED completely, pure PA analysis only
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

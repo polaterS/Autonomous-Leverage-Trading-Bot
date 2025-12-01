@@ -103,56 +103,15 @@ async def main():
     except Exception as e:
         logger.warning(f"Database health check failed (non-critical): {e}")
 
-    # 🤖 AUTO-TRAIN ML MODEL ON STARTUP (if historical data exists)
-    try:
-        from src.ml_predictor import get_ml_predictor
-        from src.database import get_db_client
-
-        logger.info("=" * 60)
-        logger.info("🤖 ML MODEL STARTUP CHECK")
-        logger.info("=" * 60)
-
-        ml_predictor = get_ml_predictor()
-        stats = ml_predictor.get_model_stats()
-
-        # Check if model already trained
-        if stats['is_trained']:
-            logger.info(f"✅ ML model already trained ({stats['training_samples']} samples)")
-            logger.info(f"   Last trained: {stats['last_training_time']}")
-        else:
-            # Check if we have enough historical data
-            db = await get_db_client()
-            trade_count = await db.pool.fetchval(
-                "SELECT COUNT(*) FROM trade_history WHERE entry_snapshot IS NOT NULL"
-            )
-
-            logger.info(f"📊 Found {trade_count} trades with snapshots in database")
-
-            if trade_count >= 30:
-                logger.info(f"🎓 Training ML model on {trade_count} historical trades...")
-                training_success = await ml_predictor.train(force_retrain=True)
-
-                if training_success:
-                    new_stats = ml_predictor.get_model_stats()
-                    logger.info("=" * 60)
-                    logger.info("✅ ML MODEL TRAINING SUCCESSFUL!")
-                    logger.info(f"   Training Samples: {new_stats['training_samples']}")
-                    logger.info(f"   Model Path: {new_stats['model_path']}")
-                    logger.info("   Confidence will be 40-70% (vs 0-25% with rules)")
-                    logger.info("=" * 60)
-                else:
-                    logger.warning("⚠️ ML training failed, will use rule-based fallback")
-                    logger.warning("   Model will auto-train after 50 new trades")
-            else:
-                logger.info(f"ℹ️ Not enough data for training (need 30+, have {trade_count})")
-                logger.info("   Using rule-based fallback until more trades collected")
-                logger.info("   Model will auto-train after 30 trades")
-
-        logger.info("=" * 60)
-
-    except Exception as e:
-        logger.warning(f"ML model startup check failed (non-critical): {e}")
-        logger.info("   Bot will use rule-based fallback")
+    # 🚫 ML DISABLED BY USER REQUEST
+    # User said: "benim sistemimde ML yanlış tahmin yapıyor lütfen ML kullanma"
+    # System now uses PURE PA (Price Action) analysis only
+    logger.info("=" * 60)
+    logger.info("🚫 ML MODEL DISABLED")
+    logger.info("   Reason: User requested PA-ONLY mode")
+    logger.info("   System uses: Support/Resistance + Trend + Volume + Candles")
+    logger.info("   All signals based on Price Action analysis only")
+    logger.info("=" * 60)
 
     # 🔐 TIER 3: Initialize API Key Manager
     try:
