@@ -1,11 +1,11 @@
-# 🚀 PA-ONLY v4.2.3 - Confluence Scoring Fixed
+# 🚀 PA-ONLY v4.2.4 - Profit Target Fix for Small Accounts
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V423_CONFLUENCE_FIX
+ARG CACHE_BUST=20251201_V424_PROFIT_TARGET_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v4.2.3: Fixed Market Regime + R/R scoring, Confluence 40+"
+    echo "🎯 v4.2.4: Fixed min profit target (15% → 50%) for $20 account"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.3
-# Current deployment: 20251201_V423_CONFLUENCE_FIX
-# Changes: Fixed Market Regime + R/R scoring, Confluence threshold 40+
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.4
+# Current deployment: 20251201_V424_PROFIT_TARGET_FIX
+# Changes: Fixed min profit target threshold (15% → 50%) for small accounts
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

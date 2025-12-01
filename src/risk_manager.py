@@ -344,9 +344,11 @@ class RiskManager:
         )
 
         # RULE 9: Minimum profit target validation
+        # 🎯 v4.2.3: For small accounts ($20), $5 profit on $18 position = 27.8%
+        # Raised threshold from 15% to 50% to allow small account trading
         min_profit_pct = self.settings.min_profit_usd / position_value
 
-        if min_profit_pct > Decimal("0.15"):  # More than 15% needed
+        if min_profit_pct > Decimal("0.50"):  # More than 50% needed (was 15%)
             return {
                 'approved': False,
                 'reason': f'Minimum profit target {float(min_profit_pct)*100:.1f}% too high for position size',
