@@ -1,11 +1,11 @@
-# 🚀 PA-ONLY v4.2.2 - ML Disabled, Pure Price Action
+# 🚀 PA-ONLY v4.2.3 - Confluence Scoring Fixed
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V422_PA_ONLY
+ARG CACHE_BUST=20251201_V423_CONFLUENCE_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v4.2.2: ML DISABLED - Pure PA (S/R + Trend + Volume + Candles)"
+    echo "🎯 v4.2.3: Fixed Market Regime + R/R scoring, Confluence 40+"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.2
-# Current deployment: 20251201_V422_PA_ONLY
-# Changes: ML DISABLED completely, pure PA analysis only
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.3
+# Current deployment: 20251201_V423_CONFLUENCE_FIX
+# Changes: Fixed Market Regime + R/R scoring, Confluence threshold 40+
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

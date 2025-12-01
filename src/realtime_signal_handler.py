@@ -271,9 +271,10 @@ class RealtimeSignalHandler:
             # 3. Multi-timeframe + momentum checks still apply
             # ═══════════════════════════════════════════════════════════════════
 
-            # 🎯 v4.2: CONFLUENCE REDUCED (60+) - Smart Confidence handles quality
+            # 🎯 v4.2.3: CONFLUENCE REDUCED (40+) - Smart Confidence handles quality
             # Price action analyzer now does sophisticated confidence calculation
-            MIN_CERTAINTY_CONFLUENCE = 60  # 60+ is sufficient with smart PA system
+            # Lowered from 60 to 40 because Market Regime + R/R were scoring too low
+            MIN_CERTAINTY_CONFLUENCE = 40  # 40+ with smart PA system
 
             if confluence_score < MIN_CERTAINTY_CONFLUENCE:
                 logger.info(

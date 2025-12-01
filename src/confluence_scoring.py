@@ -419,47 +419,44 @@ class ConfluenceScorer:
         try:
             regime = market_regime.get('regime')
             if not regime:
-                return 5  # Unknown regime
+                # 🎯 v4.2.3: Unknown regime still gets 8 points (was 5)
+                return 8  # Unknown regime = neutral/tradeable
 
             regime_name = regime.value if hasattr(regime, 'value') else str(regime)
             confidence = market_regime.get('confidence', 0.5)
-            should_trade = market_regime.get('should_trade', False)
-
-            # Can't trade in this regime
-            if not should_trade:
-                return 0  # Hard reject
+            # 🎯 v4.2.3: REMOVED should_trade hard block - all regimes tradeable
+            # Previously: if not should_trade: return 0 (hard reject)
 
             # Trending markets favor trend-following
-            if 'TRENDING' in regime_name:
+            if 'TRENDING' in regime_name or 'TREND' in regime_name.upper():
                 # Check if we're trading with the trend
-                if (side == 'LONG' and 'UP' in regime_name) or \
-                   (side == 'SHORT' and 'DOWN' in regime_name):
-                    score = 12 + (confidence * 3)  # 12-15 points
+                if (side == 'LONG' and ('UP' in regime_name or 'BULL' in regime_name.upper())) or \
+                   (side == 'SHORT' and ('DOWN' in regime_name or 'BEAR' in regime_name.upper())):
+                    score = 12 + (confidence * 3)  # 12-15 points (with trend)
                 else:
-                    # Trading against trend
-                    score = 3  # Low score but not disqualifying
+                    # 🎯 v4.2.3: Trading against trend = 7 points (was 3)
+                    score = 7 + (confidence * 2)  # 7-9 points (counter-trend)
 
             # Ranging markets are trickier
-            elif 'RANGING' in regime_name:
+            elif 'RANGING' in regime_name or 'RANGE' in regime_name.upper() or 'SIDEWAYS' in regime_name.upper():
                 # Mean reversion strategies work better
-                # ✅ MORE GENEROUS: RANGING markets acceptable (was 8-12, now 10-13)
                 score = 10 + (confidence * 3)  # 10-13 points
 
             # Choppy/Volatile markets
             elif 'CHOPPY' in regime_name or 'VOLATILE' in regime_name:
-                # ✅ SOFTENED: Still tradeable but cautious (was 0, now 5-8)
-                score = 5 + (confidence * 3)  # 5-8 points
+                # 🎯 v4.2.3: Choppy still tradeable (was 5-8, now 7-10)
+                score = 7 + (confidence * 3)  # 7-10 points
 
-            # Unknown/Sideways
+            # Unknown/Neutral/Other
             else:
-                # ✅ MORE GENEROUS: Unknown gets decent score (was 5, now 7)
-                score = 7  # Neutral but tradeable
+                # 🎯 v4.2.3: Unknown/Other gets good score (was 7, now 9)
+                score = 9  # Neutral but tradeable
 
             return min(score, max_points)
 
         except Exception as e:
             logger.warning(f" Market regime scoring error: {e}")
-            return 5  # Default low score on error
+            return 8  # Default reasonable score on error (was 5)
 
     def _score_support_resistance(self, side: str, pa_analysis: Dict) -> float:
         """
@@ -532,14 +529,19 @@ class ConfluenceScorer:
         """
         Score risk/reward ratio (10 points max - increased from 5).
 
-        ✅ SOFTENED: More forgiving, even 1.2:1 R/R gets points
+        🎯 v4.2.3: SOFTENED - Give moderate score when R/R not calculated
         """
         max_points = self.weights['risk_reward']
 
         try:
             rr_ratio = pa_analysis.get('risk_reward_ratio', 0)
 
-            # ✅ SOFTENED: Scale adjusted for 10 max points (was 5)
+            # 🎯 v4.2.3: If R/R not calculated yet, give moderate score
+            # This happens because R/R is calculated AFTER confluence scoring
+            if rr_ratio == 0 or rr_ratio is None:
+                return 6  # Neutral score (was 1) - assume ~2:1 R/R
+
+            # Scale for 10 max points
             if rr_ratio >= 5.0:  # 5:1 or better
                 return 10  # Exceptional R/R
             elif rr_ratio >= 4.0:  # 4:1
