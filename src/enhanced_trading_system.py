@@ -69,9 +69,12 @@ class EnhancedTradingSystem:
         self.position_sizer = DynamicPositionSizer(base_risk_pct=0.02)
         self.regime_detector = get_regime_detector()
 
-        # Configuration
-        # 🎯 60+ confluence with additional MTF+momentum+volume checks
-        self.min_confluence_score = 60  # Minimum score to trade
+        # Configuration - Read from settings/environment!
+        from src.config import get_settings
+        settings = get_settings()
+
+        # 🎯 v4.3.1: Use MIN_CONFLUENCE_SCORE from environment (default 75)
+        self.min_confluence_score = settings.min_confluence_score  # From env!
         self.enable_volume_profile = True
         self.enable_confluence_filtering = True
         self.enable_dynamic_sizing = True

@@ -271,10 +271,9 @@ class RealtimeSignalHandler:
             # 3. Multi-timeframe + momentum checks still apply
             # ═══════════════════════════════════════════════════════════════════
 
-            # 🎯 v4.2.5: CONFLUENCE RESTORED (60+) - Must match Enhanced Trading System
-            # 40 was too low - allowed COMP trade with 51.2 score that lost money
-            # Keep synchronized with enhanced_trading_system.py min_score=60
-            MIN_CERTAINTY_CONFLUENCE = 60  # 60+ to match Enhanced Trading System
+            # 🎯 v4.3.1: Use MIN_CONFLUENCE_SCORE from environment/config
+            # This ensures env var MIN_CONFLUENCE_SCORE=75 is actually used!
+            MIN_CERTAINTY_CONFLUENCE = self.settings.min_confluence_score  # From env (default 75)
 
             if confluence_score < MIN_CERTAINTY_CONFLUENCE:
                 logger.info(

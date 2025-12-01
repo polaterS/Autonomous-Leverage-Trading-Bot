@@ -1,11 +1,11 @@
-# 🚀 PA-ONLY v4.3.0 - FULL REALTIME ANALYSIS
+# 🚀 PA-ONLY v4.3.1 - MIN_CONFLUENCE_SCORE from ENV
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V430_REALTIME_FULL_ANALYSIS
+ARG CACHE_BUST=20251201_V431_CONFLUENCE_FROM_ENV
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v4.3.0: Realtime handler now does FULL PA + MTF + S/R analysis!"
+    echo "🎯 v4.3.1: MIN_CONFLUENCE_SCORE=75 env var now properly used!"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.3.0
-# Current deployment: 20251201_V430_REALTIME_FULL_ANALYSIS
-# Changes: Realtime handler now does full MTF + PA + S/R analysis before trading
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.3.1
+# Current deployment: 20251201_V431_CONFLUENCE_FROM_ENV
+# Changes: MIN_CONFLUENCE_SCORE env var (75) now properly read and used
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
