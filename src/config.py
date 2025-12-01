@@ -34,17 +34,17 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
-    # 🔥 LIVE TRADING CONFIG: $100 balance, conservative sizing
-    initial_capital: Decimal = Field(default=Decimal("100.00"), gt=0)  # 🔥 ACTUAL: $100 Binance balance
-    min_leverage: int = Field(default=20, ge=1, le=50)  # 🚀 AGGRESSIVE: 20x min leverage
-    max_leverage: int = Field(default=20, ge=1, le=50)  # 🔥 FIXED: 20x max (no dynamic)
-    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🎯 USER REQUEST: Max 2 positions at a time
-    position_size_percent: Decimal = Field(default=Decimal("0.35"), gt=0, le=1)  # 🎯 35% = $35 margin per position (allows 2 positions comfortably)
+    # 🔥 LIVE TRADING CONFIG: $20 balance, single position, full capital
+    initial_capital: Decimal = Field(default=Decimal("20.00"), gt=0)  # 🔥 ACTUAL: $20 Binance balance
+    min_leverage: int = Field(default=10, ge=1, le=50)  # 🎯 SAFER: 10x min leverage
+    max_leverage: int = Field(default=15, ge=1, le=50)  # 🎯 SAFER: 15x max leverage
+    max_concurrent_positions: int = Field(default=1, ge=1, le=30)  # 🎯 USER REQUEST: Max 1 position (single focus)
+    position_size_percent: Decimal = Field(default=Decimal("0.90"), gt=0, le=1)  # 🎯 90% = Use almost all capital per position
     min_stop_loss_percent: Decimal = Field(default=Decimal("2.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 2% min for 25x leverage (tight stop = $37.5 loss on $1,875 position)
     max_stop_loss_percent: Decimal = Field(default=Decimal("3.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 3% max for 25x leverage ($56.25 max loss = 37.5% of capital)
     min_profit_usd: Decimal = Field(default=Decimal("5.0"), gt=0)  # 🎯 USER REQUEST: $5 min profit (realistic for $50 margin positions)
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.60"), ge=0, le=1)  # 🧪 TEST MODE: 60% min confidence (loosened from 70% for more opportunities)
+    min_ai_confidence: Decimal = Field(default=Decimal("0.70"), ge=0, le=1)  # 🎯 QUALITY: 70% min confidence for higher win rate
     scan_interval_seconds: int = Field(default=60, ge=10)  # 🚀 FAST ENTRY: 1 minute scan (catch trends early!)
     position_check_seconds: int = Field(default=15, ge=1)  # 🔥 REAL-TIME: 15 seconds for profit/loss monitoring
 
@@ -224,7 +224,7 @@ class Settings(BaseSettings):
 
     # Confluence Scoring (Quality Filter)
     enable_confluence_filtering: bool = Field(default=True)  # ✅ Filter trades by quality score
-    min_confluence_score: int = Field(default=60, ge=0, le=100)  # 🎯 60+ confluence with MTF+momentum+volume checks
+    min_confluence_score: int = Field(default=75, ge=0, le=100)  # 🎯 75+ confluence for higher win rate
     confluence_weights: dict = Field(default={
         'multi_timeframe': 25,
         'volume_profile': 20,
@@ -263,7 +263,7 @@ class Settings(BaseSettings):
 
     # Dynamic Profit Targets
     enable_dynamic_targets: bool = Field(default=True)  # ✅ ATR-based dynamic targets
-    min_rr_ratio: Decimal = Field(default=Decimal("3.0"), ge=1, le=10)  # Minimum 3:1 R/R
+    min_rr_ratio: Decimal = Field(default=Decimal("2.0"), ge=1, le=10)  # 🎯 Minimum 2:1 R/R (professional standard)
     tp1_r_multiple: Decimal = Field(default=Decimal("1.5"), gt=0, le=5)  # TP1 at +1.5R
     tp2_r_multiple: Decimal = Field(default=Decimal("3.0"), gt=0, le=10)  # TP2 at +3R
     tp3_r_multiple: Decimal = Field(default=Decimal("5.0"), gt=0, le=15)  # TP3 at +5R

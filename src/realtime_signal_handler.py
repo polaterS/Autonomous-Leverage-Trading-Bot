@@ -295,8 +295,8 @@ class RealtimeSignalHandler:
             # 4. Minimum $2-3 profit potential before fees
             # ═══════════════════════════════════════════════════════════════════
 
-            # 🎯 CHECK 1: CONFLUENCE REQUIRED (60+)
-            MIN_CERTAINTY_CONFLUENCE = 60  # 60+ is sufficient with other checks
+            # 🎯 CHECK 1: CONFLUENCE REQUIRED (75+) - Professional Standard
+            MIN_CERTAINTY_CONFLUENCE = 75  # 75+ for higher win rate
 
             if confluence_score < MIN_CERTAINTY_CONFLUENCE:
                 logger.info(

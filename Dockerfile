@@ -2,10 +2,10 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251127_214500_MARGIN_FIX
+ARG CACHE_BUST=20251201_PA_PROFESSIONAL_V41
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 FIX: Position size 40% -> 35% for 2 positions"
+    echo "🎯 MAJOR UPDATE: Professional PA v4.1 with FVG, Liquidity Sweep, Premium/Discount"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: FASTER TREND DETECTION!
-# Current deployment: 20251127_143000_FASTER_DETECTION
-# Changes: EMA 5/13 (was 9/21), Volume 1.3x (was 2x), Momentum 0.8% (was 1.5%), Historical Prefetch
+# 🔥 CACHE BUST MARKER: PROFESSIONAL PA SYSTEM v4.1
+# Current deployment: 20251201_PA_PROFESSIONAL_V41
+# Changes: FVG Detection, Liquidity Sweep, Premium/Discount, Confluence 75+, R/R 2:1, ADX 25+
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

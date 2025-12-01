@@ -68,22 +68,21 @@ class PriceActionAnalyzer:
         self.trend_lookback = 20  # Candles for trend detection
         self.adx_period = 14  # ADX calculation period
         self.strong_trend_threshold = 30  # 🔥 STRICT: ADX > 30 = strong trend
-        self.min_trend_threshold = 18  # 🧪 TEST MODE: ADX 18+ (loosened from 25 for more opportunities)
+        self.min_trend_threshold = 25  # 🎯 PROFESSIONAL: ADX 25+ for reliable trend confirmation
 
         # Volume parameters
         self.volume_surge_multiplier = 1.5  # 🔥 RELAXED: 1.5x average (was 2.0x, too strict!)
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🎯 ULTRA RELAXED: More flexible tolerances for more opportunities
-        # Trade near S/R levels with room to target - same for LONG/SHORT
-        # ✅ FURTHER RELAXED: More forgiving S/R requirements
-        self.support_resistance_tolerance = 0.08  # 8% max distance to S/R (was 5%)
-        self.room_to_opposite_level = 0.003  # 0.3% min room (was 0.5% - tighter targets OK)
+        # 🎯 PROFESSIONAL S/R SETTINGS: Tighter for higher quality
+        # Trade ONLY near confirmed S/R levels
+        self.support_resistance_tolerance = 0.03  # 3% max distance to S/R (professional standard)
+        self.room_to_opposite_level = 0.01  # 1% min room to target (ensures R/R achievable)
 
         # Risk/Reward parameters
-        # ✅ LOWERED: From 2.0 to 1.2 for more realistic setups
-        self.min_rr_ratio = 1.2  # Minimum acceptable risk/reward (was 2.0)
-        self.sl_buffer = 0.003  # 0.3% buffer beyond S/R (tighter, was 0.5%)
+        # 🎯 PROFESSIONAL: Minimum 2:1 R/R for sustainable profitability
+        self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward (professional standard)
+        self.sl_buffer = 0.005  # 0.5% buffer beyond S/R (safer placement)
 
         # Fibonacci levels
         self.fib_retracement = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
@@ -103,14 +102,14 @@ class PriceActionAnalyzer:
         self.choch_confirmation_candles = 2  # Candles to confirm CHoCH
 
         logger.info(
-            f"✅ PriceActionAnalyzer RELAXED v3.1 initialized:\n"
-            f"   - Min ADX threshold: {self.min_trend_threshold} (relaxed from 20)\n"
-            f"   - S/R tolerance: {self.support_resistance_tolerance*100:.1f}% (relaxed from 4%)\n"
-            f"   - Room to target: {self.room_to_opposite_level*100:.1f}% (relaxed from 4%)\n"
-            f"   - Min R/R ratio: {self.min_rr_ratio}:1 (KEPT for safety)\n"
-            f"   - Volume protection: ENABLED (prevent TIA-type failures)\n"
-            f"   - Advanced filters: DISABLED (find more opportunities)\n"
-            f"   - 🎯 RELAXED: More opportunities, controlled risk"
+            f"✅ PriceActionAnalyzer PROFESSIONAL v4.1 initialized:\n"
+            f"   - Min ADX threshold: {self.min_trend_threshold} (professional standard)\n"
+            f"   - S/R tolerance: {self.support_resistance_tolerance*100:.1f}% (tightened for quality)\n"
+            f"   - Room to target: {self.room_to_opposite_level*100:.1f}% (ensures R/R achievable)\n"
+            f"   - Min R/R ratio: {self.min_rr_ratio}:1 (professional standard)\n"
+            f"   - FVG Detection: ENABLED (Fair Value Gap)\n"
+            f"   - Liquidity Sweep: ENABLED (Stop Hunt Protection)\n"
+            f"   - 🎯 PROFESSIONAL: Quality over quantity"
         )
 
     def calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
@@ -955,6 +954,305 @@ class PriceActionAnalyzer:
                 'structure': 'UNDEFINED'
             }
 
+    def detect_fair_value_gaps(self, df: pd.DataFrame) -> List[Dict]:
+        """
+        🔥 FVG Detection - ICT Smart Money Concept
+
+        Fair Value Gap (FVG) = Price imbalance created by strong momentum.
+        - Bullish FVG: Gap between Candle 1 high and Candle 3 low (gap up)
+        - Bearish FVG: Gap between Candle 1 low and Candle 3 high (gap down)
+
+        Price tends to return to fill FVGs before continuing the trend.
+        Unfilled FVGs act as support/resistance zones.
+
+        Trading Strategy:
+        - LONG: Wait for price to fill bullish FVG, then enter long
+        - SHORT: Wait for price to fill bearish FVG, then enter short
+        - FVG midpoint = optimal entry zone
+
+        Args:
+            df: OHLCV dataframe (minimum 10 candles)
+
+        Returns:
+            List of FVG dicts with type, top, bottom, midpoint, filled status
+        """
+        try:
+            if len(df) < 10:
+                return []
+
+            fvgs = []
+            current_price = float(df['close'].iloc[-1])
+
+            # Scan last 50 candles for FVGs
+            lookback = min(50, len(df) - 2)
+
+            for i in range(2, lookback + 2):
+                idx = len(df) - i
+                if idx < 2:
+                    break
+
+                candle_1 = df.iloc[idx - 2]
+                candle_2 = df.iloc[idx - 1]  # Impulse candle
+                candle_3 = df.iloc[idx]
+
+                # Calculate impulse candle size
+                impulse_size = abs(candle_2['close'] - candle_2['open'])
+                avg_candle_size = df['close'].diff().abs().tail(20).mean()
+
+                # Only detect FVGs from strong impulse candles (1.5x average)
+                if impulse_size < avg_candle_size * 1.5:
+                    continue
+
+                # Bullish FVG: Gap between candle 1 high and candle 3 low
+                if candle_3['low'] > candle_1['high']:
+                    fvg_top = float(candle_3['low'])
+                    fvg_bottom = float(candle_1['high'])
+                    fvg_midpoint = (fvg_top + fvg_bottom) / 2
+
+                    # Check if FVG is filled (price has returned to this zone)
+                    filled = current_price <= fvg_top
+
+                    # Only track recent unfilled FVGs within 5% of current price
+                    distance_pct = abs(fvg_midpoint - current_price) / current_price * 100
+                    if distance_pct <= 5.0:
+                        fvgs.append({
+                            'type': 'BULLISH_FVG',
+                            'top': fvg_top,
+                            'bottom': fvg_bottom,
+                            'midpoint': fvg_midpoint,
+                            'size_pct': (fvg_top - fvg_bottom) / fvg_bottom * 100,
+                            'distance_pct': distance_pct,
+                            'filled': filled,
+                            'candle_index': idx
+                        })
+
+                # Bearish FVG: Gap between candle 1 low and candle 3 high
+                elif candle_3['high'] < candle_1['low']:
+                    fvg_top = float(candle_1['low'])
+                    fvg_bottom = float(candle_3['high'])
+                    fvg_midpoint = (fvg_top + fvg_bottom) / 2
+
+                    # Check if FVG is filled
+                    filled = current_price >= fvg_bottom
+
+                    distance_pct = abs(fvg_midpoint - current_price) / current_price * 100
+                    if distance_pct <= 5.0:
+                        fvgs.append({
+                            'type': 'BEARISH_FVG',
+                            'top': fvg_top,
+                            'bottom': fvg_bottom,
+                            'midpoint': fvg_midpoint,
+                            'size_pct': (fvg_top - fvg_bottom) / fvg_bottom * 100,
+                            'distance_pct': distance_pct,
+                            'filled': filled,
+                            'candle_index': idx
+                        })
+
+            # Sort by distance (closest first)
+            fvgs.sort(key=lambda x: x['distance_pct'])
+
+            if fvgs:
+                logger.info(f"   🔲 Found {len(fvgs)} FVGs: {[f['type'] for f in fvgs[:3]]}")
+
+            return fvgs[:5]  # Return top 5 closest FVGs
+
+        except Exception as e:
+            logger.error(f"FVG detection failed: {e}")
+            return []
+
+    def detect_liquidity_sweep(self, df: pd.DataFrame, window: int = 20) -> Dict:
+        """
+        🔥 Liquidity Sweep Detection - Stop Hunt Protection
+
+        Liquidity sweep = Price briefly breaks a key level to trigger stops,
+        then reverses sharply. This is how institutions accumulate positions.
+
+        Types:
+        - Bullish Sweep: Price dips below recent low (triggers long stops),
+          then closes back above = STRONG BUY signal
+        - Bearish Sweep: Price spikes above recent high (triggers short stops),
+          then closes back below = STRONG SELL signal
+
+        Why it works:
+        - Retail traders place stops at obvious levels (recent high/low)
+        - Institutions hunt these stops for liquidity
+        - After sweep, price often moves strongly in opposite direction
+
+        Args:
+            df: OHLCV dataframe
+            window: Lookback period for finding recent high/low (default 20)
+
+        Returns:
+            Dict with sweep detection results
+        """
+        try:
+            if len(df) < window + 1:
+                return {
+                    'bullish_sweep': False,
+                    'bearish_sweep': False,
+                    'sweep_type': None,
+                    'signal_strength': 0
+                }
+
+            current = df.iloc[-1]
+            prev = df.iloc[-2]
+
+            # Find recent high and low (excluding last 2 candles)
+            recent_data = df.iloc[-(window + 2):-2]
+            recent_high = float(recent_data['high'].max())
+            recent_low = float(recent_data['low'].min())
+
+            current_close = float(current['close'])
+            current_low = float(current['low'])
+            current_high = float(current['high'])
+
+            # Bullish Sweep: Wick below recent low but close above
+            bullish_sweep = (
+                current_low < recent_low and  # Swept below
+                current_close > recent_low and  # Closed back above
+                current_close > float(current['open'])  # Bullish candle
+            )
+
+            # Bearish Sweep: Wick above recent high but close below
+            bearish_sweep = (
+                current_high > recent_high and  # Swept above
+                current_close < recent_high and  # Closed back below
+                current_close < float(current['open'])  # Bearish candle
+            )
+
+            # Calculate signal strength based on rejection size
+            signal_strength = 0
+            sweep_type = None
+
+            if bullish_sweep:
+                sweep_type = 'BULLISH_SWEEP'
+                # Strength = how far below and how strong the rejection
+                sweep_depth = (recent_low - current_low) / recent_low * 100
+                rejection_size = (current_close - current_low) / current_close * 100
+                signal_strength = min(100, int((sweep_depth + rejection_size) * 20))
+                logger.info(
+                    f"   🎯 BULLISH LIQUIDITY SWEEP detected! "
+                    f"Swept ${current_low:.4f} (below ${recent_low:.4f}), "
+                    f"closed ${current_close:.4f} | Strength: {signal_strength}"
+                )
+
+            elif bearish_sweep:
+                sweep_type = 'BEARISH_SWEEP'
+                sweep_depth = (current_high - recent_high) / recent_high * 100
+                rejection_size = (current_high - current_close) / current_close * 100
+                signal_strength = min(100, int((sweep_depth + rejection_size) * 20))
+                logger.info(
+                    f"   🎯 BEARISH LIQUIDITY SWEEP detected! "
+                    f"Swept ${current_high:.4f} (above ${recent_high:.4f}), "
+                    f"closed ${current_close:.4f} | Strength: {signal_strength}"
+                )
+
+            return {
+                'bullish_sweep': bullish_sweep,
+                'bearish_sweep': bearish_sweep,
+                'sweep_type': sweep_type,
+                'signal_strength': signal_strength,
+                'recent_high': recent_high,
+                'recent_low': recent_low,
+                'sweep_high': recent_high if bearish_sweep else None,
+                'sweep_low': recent_low if bullish_sweep else None
+            }
+
+        except Exception as e:
+            logger.error(f"Liquidity sweep detection failed: {e}")
+            return {
+                'bullish_sweep': False,
+                'bearish_sweep': False,
+                'sweep_type': None,
+                'signal_strength': 0
+            }
+
+    def calculate_premium_discount_zone(self, df: pd.DataFrame, lookback: int = 50) -> Dict:
+        """
+        🔥 Premium/Discount Zone - ICT Concept
+
+        Divides the recent price range into zones:
+        - Premium Zone (upper 50%): Price is "expensive" - ideal for SHORT
+        - Discount Zone (lower 50%): Price is "cheap" - ideal for LONG
+        - Equilibrium (50% level): Fair value point
+
+        Professional Rule:
+        - Only LONG in discount zone (buy low)
+        - Only SHORT in premium zone (sell high)
+        - Avoid entries at equilibrium (no edge)
+
+        Args:
+            df: OHLCV dataframe
+            lookback: Period for calculating range (default 50 candles)
+
+        Returns:
+            Dict with zone classification and levels
+        """
+        try:
+            recent_df = df.tail(lookback)
+            swing_high = float(recent_df['high'].max())
+            swing_low = float(recent_df['low'].min())
+            equilibrium = (swing_high + swing_low) / 2
+            current_price = float(df['close'].iloc[-1])
+
+            range_size = swing_high - swing_low
+            if range_size == 0:
+                return {
+                    'zone': 'EQUILIBRIUM',
+                    'position_pct': 50,
+                    'equilibrium': current_price,
+                    'swing_high': current_price,
+                    'swing_low': current_price,
+                    'recommendation': 'NEUTRAL'
+                }
+
+            # Calculate position within range (0% = low, 100% = high)
+            position_pct = (current_price - swing_low) / range_size * 100
+
+            # Determine zone and recommendation
+            if position_pct >= 75:
+                zone = 'DEEP_PREMIUM'
+                recommendation = 'SHORT_ONLY'
+            elif position_pct >= 50:
+                zone = 'PREMIUM'
+                recommendation = 'SHORT_PREFERRED'
+            elif position_pct <= 25:
+                zone = 'DEEP_DISCOUNT'
+                recommendation = 'LONG_ONLY'
+            elif position_pct < 50:
+                zone = 'DISCOUNT'
+                recommendation = 'LONG_PREFERRED'
+            else:
+                zone = 'EQUILIBRIUM'
+                recommendation = 'NEUTRAL'
+
+            logger.info(
+                f"   💰 Premium/Discount: {zone} ({position_pct:.0f}%) | "
+                f"Range: ${swing_low:.4f} - ${swing_high:.4f} | "
+                f"Recommendation: {recommendation}"
+            )
+
+            return {
+                'zone': zone,
+                'position_pct': position_pct,
+                'equilibrium': equilibrium,
+                'swing_high': swing_high,
+                'swing_low': swing_low,
+                'range_size': range_size,
+                'recommendation': recommendation
+            }
+
+        except Exception as e:
+            logger.error(f"Premium/Discount zone calculation failed: {e}")
+            return {
+                'zone': 'UNKNOWN',
+                'position_pct': 50,
+                'equilibrium': 0,
+                'swing_high': 0,
+                'swing_low': 0,
+                'recommendation': 'NEUTRAL'
+            }
+
     def analyze_volume(self, df: pd.DataFrame) -> Dict:
         """
         Analyze volume for confirmation signals.
@@ -1522,13 +1820,20 @@ class PriceActionAnalyzer:
         order_flow = self.analyze_order_flow(df)
         market_structure = self.detect_market_structure_break(df)
 
+        # 🔥 NEW v4.1: ICT Smart Money Concepts
+        fair_value_gaps = self.detect_fair_value_gaps(df)
+        liquidity_sweep = self.detect_liquidity_sweep(df)
+        premium_discount = self.calculate_premium_discount_zone(df)
+
         # Log enhanced analysis
         logger.info(
             f"   📊 Trend: {trend['direction']} ({trend['strength']}, ADX {trend.get('adx', 0):.1f})\n"
             f"   📈 Volume: {volume['surge_ratio']:.1f}x avg ({'SURGE' if volume['is_surge'] else 'normal'})\n"
             f"   🕯️ Candles: {', '.join(candle_patterns['patterns']) if candle_patterns['patterns'] else 'None'} (Score: {candle_patterns['score']})\n"
             f"   💹 Order Flow: {order_flow['bias']} ({order_flow['buy_pressure']:.0%} buy / {order_flow['sell_pressure']:.0%} sell)\n"
-            f"   🏗️ Structure: {market_structure['structure']}"
+            f"   🏗️ Structure: {market_structure['structure']}\n"
+            f"   🔲 FVG Count: {len(fair_value_gaps)} | Sweep: {liquidity_sweep['sweep_type'] or 'None'}\n"
+            f"   💰 Zone: {premium_discount['zone']} ({premium_discount['position_pct']:.0f}%) → {premium_discount['recommendation']}"
         )
 
         # Default: don't enter
@@ -1546,9 +1851,48 @@ class PriceActionAnalyzer:
                 'support_resistance': sr_analysis,
                 'candle_patterns': candle_patterns,
                 'order_flow': order_flow,
-                'market_structure': market_structure
+                'market_structure': market_structure,
+                'fair_value_gaps': fair_value_gaps,
+                'liquidity_sweep': liquidity_sweep,
+                'premium_discount': premium_discount
             }
         }
+
+        # 🔥 NEW v4.1: Premium/Discount Zone Filter
+        # Don't LONG in premium zone, don't SHORT in discount zone
+        pd_recommendation = premium_discount.get('recommendation', 'NEUTRAL')
+        if ml_signal == 'BUY' and pd_recommendation == 'SHORT_ONLY':
+            result['reason'] = f"Price in DEEP PREMIUM zone ({premium_discount['position_pct']:.0f}%) - not ideal for LONG"
+            logger.info(f"   ⚠️ Premium/Discount filter: Skipping LONG in premium zone")
+            return result
+        if ml_signal == 'SELL' and pd_recommendation == 'LONG_ONLY':
+            result['reason'] = f"Price in DEEP DISCOUNT zone ({premium_discount['position_pct']:.0f}%) - not ideal for SHORT"
+            logger.info(f"   ⚠️ Premium/Discount filter: Skipping SHORT in discount zone")
+            return result
+
+        # 🔥 NEW v4.1: Liquidity Sweep Confirmation (BOOST confidence)
+        # If we detect a liquidity sweep in our direction, it's a high-probability setup
+        confidence_boost = 0
+        if liquidity_sweep['bullish_sweep'] and ml_signal == 'BUY':
+            confidence_boost += 15  # Strong bullish signal
+            logger.info(f"   🎯 LIQUIDITY SWEEP BOOST: +15% confidence for LONG (stop hunt completed)")
+        elif liquidity_sweep['bearish_sweep'] and ml_signal == 'SELL':
+            confidence_boost += 15  # Strong bearish signal
+            logger.info(f"   🎯 LIQUIDITY SWEEP BOOST: +15% confidence for SHORT (stop hunt completed)")
+
+        # 🔥 NEW v4.1: FVG Entry Confirmation (price near unfilled FVG)
+        for fvg in fair_value_gaps:
+            if not fvg['filled'] and fvg['distance_pct'] < 1.0:  # Within 1% of FVG
+                if fvg['type'] == 'BULLISH_FVG' and ml_signal == 'BUY':
+                    confidence_boost += 10
+                    logger.info(f"   🔲 FVG BOOST: +10% confidence (price near bullish FVG at ${fvg['midpoint']:.4f})")
+                    break
+                elif fvg['type'] == 'BEARISH_FVG' and ml_signal == 'SELL':
+                    confidence_boost += 10
+                    logger.info(f"   🔲 FVG BOOST: +10% confidence (price near bearish FVG at ${fvg['midpoint']:.4f})")
+                    break
+
+        result['confidence_boost'] = confidence_boost
 
         # ML says HOLD → skip
         if ml_signal == 'HOLD':
