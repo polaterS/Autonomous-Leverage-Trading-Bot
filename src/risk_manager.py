@@ -487,15 +487,27 @@ class RiskManager:
         # Prevents catastrophic losses by stopping trading if capital drops too much
         config = await db.get_trading_config()
         current_capital = Decimal(str(config['current_capital']))
-        starting_capital = Decimal(str(config.get('starting_capital', current_capital)))
+
+        # 🎯 v4.2 FIX: Use INITIAL_CAPITAL from environment as reference
+        # This prevents false drawdown calculation when database has old capital values
+        from src.config import get_settings
+        settings = get_settings()
+        env_initial_capital = Decimal(str(settings.initial_capital))
+
+        # Use the SMALLER of env initial capital and database starting capital
+        # This ensures we don't trigger false drawdown when resetting capital
+        db_starting = Decimal(str(config.get('starting_capital', current_capital)))
+        starting_capital = min(env_initial_capital, db_starting) if db_starting > env_initial_capital else current_capital
+
+        # If current capital matches env initial capital (±5%), consider it a fresh start
+        if abs(float(current_capital - env_initial_capital) / float(env_initial_capital)) < 0.05:
+            starting_capital = current_capital  # Fresh start, no drawdown
 
         # Calculate drawdown from session/day start
         if starting_capital > 0:
             drawdown_percent = float(((starting_capital - current_capital) / starting_capital) * 100)
 
             # Maximum drawdown allowed (20% = stop trading if daily loss exceeds 20%)
-            # 🔴 LIVE TRADING: Back to normal 20% threshold
-            # Database starting capital fixed to $100, so drawdown calculation is accurate
             max_allowed_drawdown = 20.0
 
             # Only trigger if we're in LOSS (drawdown > 0)

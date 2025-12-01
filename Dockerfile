@@ -1,11 +1,11 @@
-# 🚀 SMART CONFIDENCE SYSTEM v4.2 - Adaptive Market Trading
+# 🚀 SMART CONFIDENCE SYSTEM v4.2.1 - Fixed Drawdown + Counter-Trend
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_SMART_CONFIDENCE_V42
+ARG CACHE_BUST=20251201_V421_DRAWDOWN_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 MAJOR UPDATE: Smart Confidence v4.2 - No hard blocks, adaptive to all markets"
+    echo "🎯 v4.2.1: Fixed drawdown calculation + removed counter-trend hard blocks"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: SMART CONFIDENCE SYSTEM v4.2
-# Current deployment: 20251201_SMART_CONFIDENCE_V42
-# Changes: No hard blocks, confidence-based decision system, adaptive to all market conditions
+# 🔥 CACHE BUST MARKER: SMART CONFIDENCE SYSTEM v4.2.1
+# Current deployment: 20251201_V421_DRAWDOWN_FIX
+# Changes: Fixed drawdown calculation (env vs db), removed counter-trend hard blocks
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

@@ -186,47 +186,23 @@ class RealtimeSignalHandler:
                 self.stats['trades_rejected'] += 1
                 return
 
-            # 1.5 🔥 NEW: Market trend filter - BLOCK counter-trend trades
+            # 🎯 v4.2: Market trend - LOG ONLY, no blocking
+            # Smart Confidence system in PA analyzer handles trend penalties
             market_direction = self.market_trend.get('direction', 'NEUTRAL')
+            is_counter_trend = False
 
             if market_direction == 'BEARISH' and side == 'LONG':
-                # Market is bearish but signal is LONG - HIGH RISK!
-                logger.warning(
-                    f"⚠️ COUNTER-TREND BLOCKED: {symbol} LONG signal rejected | "
-                    f"Market is BEARISH (BTC dumping)"
+                is_counter_trend = True
+                logger.info(
+                    f"⚠️ COUNTER-TREND NOTE: {symbol} LONG in BEARISH market | "
+                    f"PA analyzer will apply confidence penalty"
                 )
-                await notifier.send_alert(
-                    'warning',
-                    f"⚠️ Counter-Trend Signal Blocked:\\n\\n"
-                    f"Symbol: {symbol}\\n"
-                    f"Signal: LONG\\n"
-                    f"Market: BEARISH 📉\\n"
-                    f"BTC Change: {self.market_trend.get('btc_change_pct', 0):.2f}%\\n\\n"
-                    f"❌ LONG trades blocked when BTC is dumping!\\n"
-                    f"This prevents losses like WIF/CRV."
-                )
-                self.stats['counter_trend_rejected'] += 1
-                self.stats['trades_rejected'] += 1
-                return
-
             elif market_direction == 'BULLISH' and side == 'SHORT':
-                # Market is bullish but signal is SHORT - HIGH RISK!
-                logger.warning(
-                    f"⚠️ COUNTER-TREND BLOCKED: {symbol} SHORT signal rejected | "
-                    f"Market is BULLISH (BTC pumping)"
+                is_counter_trend = True
+                logger.info(
+                    f"⚠️ COUNTER-TREND NOTE: {symbol} SHORT in BULLISH market | "
+                    f"PA analyzer will apply confidence penalty"
                 )
-                await notifier.send_alert(
-                    'warning',
-                    f"⚠️ Counter-Trend Signal Blocked:\\n\\n"
-                    f"Symbol: {symbol}\\n"
-                    f"Signal: SHORT\\n"
-                    f"Market: BULLISH 📈\\n"
-                    f"BTC Change: {self.market_trend.get('btc_change_pct', 0):.2f}%\\n\\n"
-                    f"❌ SHORT trades blocked when BTC is pumping!"
-                )
-                self.stats['counter_trend_rejected'] += 1
-                self.stats['trades_rejected'] += 1
-                return
 
             # 2. Check execution cooldown
             current_time = datetime.now().timestamp()
