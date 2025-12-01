@@ -1,11 +1,11 @@
-# 🚀 PA-ONLY v4.2.5 - Confluence Threshold Restored to 60
+# 🚀 PA-ONLY v4.2.6 - Paper Trading Margin Fix
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V425_CONFLUENCE_60
+ARG CACHE_BUST=20251201_V426_PAPER_MARGIN_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v4.2.5: Confluence 60+ restored (40 was too low, caused COMP loss)"
+    echo "📝 v4.2.6: Paper trading now uses config capital, not Binance balance"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.5
-# Current deployment: 20251201_V425_CONFLUENCE_60
-# Changes: Restored confluence threshold to 60 (40 caused bad trades)
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.6
+# Current deployment: 20251201_V426_PAPER_MARGIN_FIX
+# Changes: Paper trading uses config capital instead of Binance balance
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

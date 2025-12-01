@@ -273,16 +273,22 @@ class TradeExecutor:
                     f"Cannot open new position: {num_active_positions}/{max_positions} slots already filled"
                 )
 
-            # 🔥 CHECK ACTUAL BINANCE BALANCE BEFORE OPENING POSITION
-            # This prevents "Margin is insufficient" errors by checking BEFORE trying to trade
-            try:
-                # Use exchange client's fetch_balance method (handles Futures correctly)
-                available_usdt = await exchange.fetch_balance()
-                logger.info(f"💰 Binance available USDT: ${available_usdt:.2f}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not fetch Binance balance: {e}")
-                # If balance check fails, allow trade to proceed (Binance will reject if needed)
-                available_usdt = Decimal("999999")  # Skip balance check on error
+            # 🔥 CHECK AVAILABLE BALANCE BEFORE OPENING POSITION
+            # For PAPER TRADING: Use config capital (from /setcapital command)
+            # For LIVE TRADING: Check actual Binance balance
+            if self.settings.use_paper_trading:
+                # Paper trading uses config capital, not Binance balance
+                available_usdt = current_capital
+                logger.info(f"📝 Paper trading - using config capital: ${available_usdt:.2f}")
+            else:
+                # Live trading: Check actual Binance balance
+                try:
+                    available_usdt = await exchange.fetch_balance()
+                    logger.info(f"💰 Binance available USDT: ${available_usdt:.2f}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not fetch Binance balance: {e}")
+                    # If balance check fails, allow trade to proceed (Binance will reject if needed)
+                    available_usdt = Decimal("999999")  # Skip balance check on error
 
             # 🔥 SIMPLIFIED: Always use POSITION_SIZE_PERCENT (10% per position)
             position_size_decimal = self.settings.position_size_percent  # e.g., 0.10 (10%)
