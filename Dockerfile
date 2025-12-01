@@ -1,11 +1,11 @@
-# 🚀 PA-ONLY v4.2.4 - Profit Target Fix for Small Accounts
+# 🚀 PA-ONLY v4.2.5 - Confluence Threshold Restored to 60
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V424_PROFIT_TARGET_FIX
+ARG CACHE_BUST=20251201_V425_CONFLUENCE_60
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v4.2.4: Fixed min profit target (15% → 50%) for $20 account"
+    echo "🎯 v4.2.5: Confluence 60+ restored (40 was too low, caused COMP loss)"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.4
-# Current deployment: 20251201_V424_PROFIT_TARGET_FIX
-# Changes: Fixed min profit target threshold (15% → 50%) for small accounts
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.2.5
+# Current deployment: 20251201_V425_CONFLUENCE_60
+# Changes: Restored confluence threshold to 60 (40 caused bad trades)
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

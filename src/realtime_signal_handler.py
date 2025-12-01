@@ -271,10 +271,10 @@ class RealtimeSignalHandler:
             # 3. Multi-timeframe + momentum checks still apply
             # ═══════════════════════════════════════════════════════════════════
 
-            # 🎯 v4.2.3: CONFLUENCE REDUCED (40+) - Smart Confidence handles quality
-            # Price action analyzer now does sophisticated confidence calculation
-            # Lowered from 60 to 40 because Market Regime + R/R were scoring too low
-            MIN_CERTAINTY_CONFLUENCE = 40  # 40+ with smart PA system
+            # 🎯 v4.2.5: CONFLUENCE RESTORED (60+) - Must match Enhanced Trading System
+            # 40 was too low - allowed COMP trade with 51.2 score that lost money
+            # Keep synchronized with enhanced_trading_system.py min_score=60
+            MIN_CERTAINTY_CONFLUENCE = 60  # 60+ to match Enhanced Trading System
 
             if confluence_score < MIN_CERTAINTY_CONFLUENCE:
                 logger.info(
