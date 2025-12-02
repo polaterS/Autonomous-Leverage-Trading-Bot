@@ -2,7 +2,7 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251202_V450_ADVANCED_INDICATORS_FIX
+ARG CACHE_BUST=20251202_V450_NAMING_CONFLICTS_FIXED
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
     echo "🆕 v4.5.0: Advanced Professional Indicators!" && \
@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # 🔥 CACHE BUST MARKER: PA-ONLY v4.5.0
-# Current deployment: 20251202_V450_ADVANCED_INDICATORS_FIX
+# Current deployment: 20251202_V450_NAMING_CONFLICTS_FIXED
 # Changes: Advanced professional indicators for maximum accuracy
 #   - VWAP (Institutional fair value indicator)
 #   - Stochastic RSI (Sensitive momentum with K/D crossovers)
