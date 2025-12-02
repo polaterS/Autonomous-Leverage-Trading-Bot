@@ -3450,3 +3450,818 @@ def calculate_enhanced_indicators(ohlcv: List) -> Dict[str, Any]:
             },
             'error': str(e)
         }
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 🆕 v4.5.0 - ADVANCED PROFESSIONAL INDICATORS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def calculate_vwap(ohlcv: List, include_bands: bool = True) -> Dict[str, Any]:
+    """
+    Calculate VWAP (Volume Weighted Average Price) - Institutional Trading Standard.
+
+    VWAP = Σ(Price × Volume) / Σ(Volume)
+
+    Professional Use:
+    - Price > VWAP = Bullish bias (institutions buying)
+    - Price < VWAP = Bearish bias (institutions selling)
+    - Touches/bounces off VWAP = High probability trades
+    - VWAP acts as dynamic support/resistance
+
+    Why VWAP is critical for futures:
+    - Shows where the "fair value" is for the session
+    - Large traders use VWAP to evaluate their fill quality
+    - Deviations from VWAP often mean-revert
+
+    Args:
+        ohlcv: List of OHLCV data
+        include_bands: Whether to calculate standard deviation bands
+
+    Returns:
+        Dict with VWAP, bands, signal
+    """
+    try:
+        if len(ohlcv) < 10:
+            return {
+                'vwap': 0.0,
+                'upper_band_1': 0.0,
+                'lower_band_1': 0.0,
+                'upper_band_2': 0.0,
+                'lower_band_2': 0.0,
+                'deviation_pct': 0.0,
+                'signal': 'NEUTRAL',
+                'position': 'unknown'
+            }
+
+        # Extract data
+        highs = np.array([candle[2] for candle in ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in ohlcv], dtype=float)
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+        volumes = np.array([candle[5] for candle in ohlcv], dtype=float)
+
+        # Typical Price = (High + Low + Close) / 3
+        typical_price = (highs + lows + closes) / 3
+
+        # VWAP = Cumulative(TP * Volume) / Cumulative(Volume)
+        cumulative_tp_vol = np.cumsum(typical_price * volumes)
+        cumulative_vol = np.cumsum(volumes)
+        vwap = cumulative_tp_vol / (cumulative_vol + 1e-10)
+
+        current_vwap = float(vwap[-1])
+        current_price = closes[-1]
+
+        # Calculate deviation from VWAP
+        deviation_pct = ((current_price - current_vwap) / current_vwap) * 100
+
+        # Calculate VWAP bands (standard deviation)
+        if include_bands:
+            squared_diff = (typical_price - vwap) ** 2
+            variance = np.cumsum(squared_diff * volumes) / (cumulative_vol + 1e-10)
+            std_dev = np.sqrt(variance)
+            current_std = float(std_dev[-1])
+
+            upper_band_1 = current_vwap + current_std
+            lower_band_1 = current_vwap - current_std
+            upper_band_2 = current_vwap + (2 * current_std)
+            lower_band_2 = current_vwap - (2 * current_std)
+        else:
+            upper_band_1 = lower_band_1 = upper_band_2 = lower_band_2 = current_vwap
+
+        # Determine position relative to VWAP
+        if current_price > upper_band_2:
+            position = 'far_above'
+        elif current_price > upper_band_1:
+            position = 'above'
+        elif current_price > current_vwap:
+            position = 'slightly_above'
+        elif current_price < lower_band_2:
+            position = 'far_below'
+        elif current_price < lower_band_1:
+            position = 'below'
+        elif current_price < current_vwap:
+            position = 'slightly_below'
+        else:
+            position = 'at_vwap'
+
+        # Generate signal
+        # Mean reversion from extremes + trend following near VWAP
+        signal = 'NEUTRAL'
+
+        if position == 'far_above':
+            signal = 'SELL'  # Overextended, mean reversion likely
+        elif position == 'far_below':
+            signal = 'BUY'  # Oversold, bounce likely
+        elif position == 'slightly_above' and deviation_pct < 0.5:
+            signal = 'BUY'  # Just above VWAP, bullish bias
+        elif position == 'slightly_below' and deviation_pct > -0.5:
+            signal = 'SELL'  # Just below VWAP, bearish bias
+
+        return {
+            'vwap': current_vwap,
+            'upper_band_1': float(upper_band_1),
+            'lower_band_1': float(lower_band_1),
+            'upper_band_2': float(upper_band_2),
+            'lower_band_2': float(lower_band_2),
+            'deviation_pct': float(deviation_pct),
+            'signal': signal,
+            'position': position,
+            'current_price': float(current_price)
+        }
+
+    except Exception as e:
+        return {
+            'vwap': 0.0,
+            'upper_band_1': 0.0,
+            'lower_band_1': 0.0,
+            'upper_band_2': 0.0,
+            'lower_band_2': 0.0,
+            'deviation_pct': 0.0,
+            'signal': 'NEUTRAL',
+            'position': 'unknown',
+            'error': str(e)
+        }
+
+
+def calculate_stochastic_rsi(ohlcv: List, rsi_period: int = 14,
+                              stoch_period: int = 14, k_smooth: int = 3,
+                              d_smooth: int = 3) -> Dict[str, Any]:
+    """
+    Calculate Stochastic RSI - RSI + Stochastic combined for sensitivity.
+
+    Stoch RSI = (RSI - Lowest RSI) / (Highest RSI - Lowest RSI)
+
+    Why Stochastic RSI is better than plain RSI:
+    - More sensitive to price changes
+    - Better at detecting momentum shifts
+    - K/D crossovers provide entry signals
+    - Better overbought/oversold detection
+
+    Professional Use:
+    - %K crossing above %D = Bullish
+    - %K crossing below %D = Bearish
+    - Both above 80 = Overbought (look for short)
+    - Both below 20 = Oversold (look for long)
+
+    Args:
+        ohlcv: OHLCV data
+        rsi_period: RSI lookback period
+        stoch_period: Stochastic lookback period
+        k_smooth: %K smoothing
+        d_smooth: %D smoothing (signal line)
+
+    Returns:
+        Dict with Stoch RSI values and signal
+    """
+    try:
+        if len(ohlcv) < rsi_period + stoch_period + 10:
+            return {
+                'k': 50.0,
+                'd': 50.0,
+                'zone': 'neutral',
+                'crossover': None,
+                'signal': 'NEUTRAL'
+            }
+
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+
+        # Calculate RSI first
+        deltas = np.diff(closes)
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+
+        avg_gain = pd.Series(gains).rolling(window=rsi_period).mean()
+        avg_loss = pd.Series(losses).rolling(window=rsi_period).mean()
+
+        rs = avg_gain / (avg_loss + 1e-10)
+        rsi = 100 - (100 / (1 + rs))
+        rsi = rsi.fillna(50)
+
+        # Calculate Stochastic of RSI
+        rsi_series = pd.Series(rsi)
+        lowest_rsi = rsi_series.rolling(window=stoch_period).min()
+        highest_rsi = rsi_series.rolling(window=stoch_period).max()
+
+        stoch_rsi = (rsi_series - lowest_rsi) / (highest_rsi - lowest_rsi + 1e-10) * 100
+
+        # Smooth to get %K
+        k_line = stoch_rsi.rolling(window=k_smooth).mean()
+
+        # %D is SMA of %K
+        d_line = k_line.rolling(window=d_smooth).mean()
+
+        current_k = float(k_line.iloc[-1]) if not np.isnan(k_line.iloc[-1]) else 50.0
+        current_d = float(d_line.iloc[-1]) if not np.isnan(d_line.iloc[-1]) else 50.0
+        prev_k = float(k_line.iloc[-2]) if len(k_line) > 1 and not np.isnan(k_line.iloc[-2]) else current_k
+        prev_d = float(d_line.iloc[-2]) if len(d_line) > 1 and not np.isnan(d_line.iloc[-2]) else current_d
+
+        # Determine zone
+        if current_k > 80 and current_d > 80:
+            zone = 'overbought'
+        elif current_k < 20 and current_d < 20:
+            zone = 'oversold'
+        elif current_k > 50:
+            zone = 'bullish'
+        else:
+            zone = 'bearish'
+
+        # Detect crossovers
+        crossover = None
+        if prev_k <= prev_d and current_k > current_d:
+            crossover = 'bullish'  # %K crossed above %D
+        elif prev_k >= prev_d and current_k < current_d:
+            crossover = 'bearish'  # %K crossed below %D
+
+        # Generate signal
+        signal = 'NEUTRAL'
+        if zone == 'oversold' and crossover == 'bullish':
+            signal = 'STRONG_BUY'  # Oversold + bullish crossover
+        elif zone == 'overbought' and crossover == 'bearish':
+            signal = 'STRONG_SELL'  # Overbought + bearish crossover
+        elif crossover == 'bullish':
+            signal = 'BUY'
+        elif crossover == 'bearish':
+            signal = 'SELL'
+        elif zone == 'oversold':
+            signal = 'BUY'  # Prepare for reversal
+        elif zone == 'overbought':
+            signal = 'SELL'  # Prepare for reversal
+
+        return {
+            'k': current_k,
+            'd': current_d,
+            'zone': zone,
+            'crossover': crossover,
+            'signal': signal,
+            'k_d_diff': current_k - current_d,
+            'prev_k': prev_k,
+            'prev_d': prev_d
+        }
+
+    except Exception as e:
+        return {
+            'k': 50.0,
+            'd': 50.0,
+            'zone': 'neutral',
+            'crossover': None,
+            'signal': 'NEUTRAL',
+            'error': str(e)
+        }
+
+
+def calculate_williams_r(ohlcv: List, period: int = 14) -> Dict[str, Any]:
+    """
+    Calculate Williams %R - Fast momentum oscillator.
+
+    Williams %R = ((Highest High - Close) / (Highest High - Lowest Low)) × -100
+
+    Range: -100 to 0
+    - Above -20 = Overbought
+    - Below -80 = Oversold
+
+    Professional Use:
+    - More responsive than RSI (faster signals)
+    - Good for catching reversals early
+    - Best used with confirmation from other indicators
+    - Divergences are powerful reversal signals
+
+    Args:
+        ohlcv: OHLCV data
+        period: Lookback period
+
+    Returns:
+        Dict with Williams %R value and signal
+    """
+    try:
+        if len(ohlcv) < period + 5:
+            return {
+                'williams_r': -50.0,
+                'zone': 'neutral',
+                'signal': 'NEUTRAL'
+            }
+
+        highs = np.array([candle[2] for candle in ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in ohlcv], dtype=float)
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+
+        # Calculate Williams %R
+        highest_high = pd.Series(highs).rolling(window=period).max()
+        lowest_low = pd.Series(lows).rolling(window=period).min()
+
+        williams_r = ((highest_high - closes) / (highest_high - lowest_low + 1e-10)) * -100
+
+        current_wr = float(williams_r.iloc[-1]) if not np.isnan(williams_r.iloc[-1]) else -50.0
+        prev_wr = float(williams_r.iloc[-2]) if len(williams_r) > 1 and not np.isnan(williams_r.iloc[-2]) else current_wr
+
+        # Determine zone
+        if current_wr > -20:
+            zone = 'overbought'
+        elif current_wr < -80:
+            zone = 'oversold'
+        elif current_wr > -50:
+            zone = 'bullish'
+        else:
+            zone = 'bearish'
+
+        # Detect momentum shift
+        momentum_shift = None
+        if prev_wr < -80 and current_wr > -80:
+            momentum_shift = 'bullish'  # Exiting oversold
+        elif prev_wr > -20 and current_wr < -20:
+            momentum_shift = 'bearish'  # Exiting overbought
+
+        # Generate signal
+        signal = 'NEUTRAL'
+        if zone == 'oversold' and momentum_shift == 'bullish':
+            signal = 'STRONG_BUY'
+        elif zone == 'overbought' and momentum_shift == 'bearish':
+            signal = 'STRONG_SELL'
+        elif zone == 'oversold':
+            signal = 'BUY'
+        elif zone == 'overbought':
+            signal = 'SELL'
+
+        return {
+            'williams_r': current_wr,
+            'zone': zone,
+            'momentum_shift': momentum_shift,
+            'signal': signal,
+            'prev_williams_r': prev_wr
+        }
+
+    except Exception as e:
+        return {
+            'williams_r': -50.0,
+            'zone': 'neutral',
+            'signal': 'NEUTRAL',
+            'error': str(e)
+        }
+
+
+def calculate_chaikin_money_flow(ohlcv: List, period: int = 20) -> Dict[str, Any]:
+    """
+    Calculate Chaikin Money Flow (CMF) - Volume-weighted buying/selling pressure.
+
+    CMF = SUM(Money Flow Volume, period) / SUM(Volume, period)
+    where Money Flow Volume = Money Flow Multiplier × Volume
+    Money Flow Multiplier = ((Close - Low) - (High - Close)) / (High - Low)
+
+    Range: -1 to +1
+    - CMF > 0.05 = Buying pressure (accumulation)
+    - CMF < -0.05 = Selling pressure (distribution)
+    - CMF > 0.25 = Strong buying
+    - CMF < -0.25 = Strong selling
+
+    Professional Use:
+    - Confirms trend direction with volume
+    - Divergences between CMF and price = reversal signals
+    - CMF crossing zero = potential trend change
+
+    Args:
+        ohlcv: OHLCV data
+        period: Lookback period
+
+    Returns:
+        Dict with CMF value and signal
+    """
+    try:
+        if len(ohlcv) < period + 5:
+            return {
+                'cmf': 0.0,
+                'zone': 'neutral',
+                'pressure': 'balanced',
+                'signal': 'NEUTRAL'
+            }
+
+        highs = np.array([candle[2] for candle in ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in ohlcv], dtype=float)
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+        volumes = np.array([candle[5] for candle in ohlcv], dtype=float)
+
+        # Calculate Money Flow Multiplier
+        # MFM = ((Close - Low) - (High - Close)) / (High - Low)
+        mfm = ((closes - lows) - (highs - closes)) / (highs - lows + 1e-10)
+
+        # Money Flow Volume = MFM × Volume
+        mfv = mfm * volumes
+
+        # CMF = SUM(MFV, period) / SUM(Volume, period)
+        sum_mfv = pd.Series(mfv).rolling(window=period).sum()
+        sum_vol = pd.Series(volumes).rolling(window=period).sum()
+
+        cmf = sum_mfv / (sum_vol + 1e-10)
+
+        current_cmf = float(cmf.iloc[-1]) if not np.isnan(cmf.iloc[-1]) else 0.0
+        prev_cmf = float(cmf.iloc[-2]) if len(cmf) > 1 and not np.isnan(cmf.iloc[-2]) else current_cmf
+
+        # Determine pressure
+        if current_cmf > 0.25:
+            pressure = 'strong_buying'
+        elif current_cmf > 0.05:
+            pressure = 'buying'
+        elif current_cmf < -0.25:
+            pressure = 'strong_selling'
+        elif current_cmf < -0.05:
+            pressure = 'selling'
+        else:
+            pressure = 'balanced'
+
+        # Determine zone
+        if current_cmf > 0:
+            zone = 'accumulation'
+        else:
+            zone = 'distribution'
+
+        # Detect zero crossover
+        zero_cross = None
+        if prev_cmf < 0 and current_cmf > 0:
+            zero_cross = 'bullish'
+        elif prev_cmf > 0 and current_cmf < 0:
+            zero_cross = 'bearish'
+
+        # Generate signal
+        signal = 'NEUTRAL'
+        if pressure == 'strong_buying':
+            signal = 'STRONG_BUY'
+        elif pressure == 'buying' or zero_cross == 'bullish':
+            signal = 'BUY'
+        elif pressure == 'strong_selling':
+            signal = 'STRONG_SELL'
+        elif pressure == 'selling' or zero_cross == 'bearish':
+            signal = 'SELL'
+
+        return {
+            'cmf': current_cmf,
+            'zone': zone,
+            'pressure': pressure,
+            'zero_cross': zero_cross,
+            'signal': signal,
+            'prev_cmf': prev_cmf
+        }
+
+    except Exception as e:
+        return {
+            'cmf': 0.0,
+            'zone': 'neutral',
+            'pressure': 'balanced',
+            'signal': 'NEUTRAL',
+            'error': str(e)
+        }
+
+
+def calculate_atr_volatility_regime(ohlcv: List, atr_period: int = 14) -> Dict[str, Any]:
+    """
+    Calculate ATR-based Volatility Regime - Essential for position sizing and stop placement.
+
+    ATR% = (ATR / Close) × 100
+
+    Volatility Regimes:
+    - ATR% < 1.5 = Low volatility (tight stops, larger size)
+    - ATR% 1.5-3.0 = Normal volatility
+    - ATR% 3.0-5.0 = High volatility (wider stops, smaller size)
+    - ATR% > 5.0 = Extreme volatility (reduce size significantly)
+
+    Professional Use:
+    - Low volatility often precedes breakouts
+    - High volatility = wider stops, protect capital
+    - Adjust position size inverse to volatility
+    - Best entries occur in low-moderate volatility
+
+    Args:
+        ohlcv: OHLCV data
+        atr_period: ATR calculation period
+
+    Returns:
+        Dict with ATR%, regime, and recommendations
+    """
+    try:
+        if len(ohlcv) < atr_period + 5:
+            return {
+                'atr': 0.0,
+                'atr_pct': 0.0,
+                'regime': 'normal',
+                'stop_multiplier': 1.0,
+                'size_multiplier': 1.0,
+                'signal': 'NEUTRAL'
+            }
+
+        highs = np.array([candle[2] for candle in ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in ohlcv], dtype=float)
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+
+        # Calculate True Range
+        tr = np.zeros(len(ohlcv))
+        tr[0] = highs[0] - lows[0]
+        for i in range(1, len(ohlcv)):
+            hl = highs[i] - lows[i]
+            hc = abs(highs[i] - closes[i-1])
+            lc = abs(lows[i] - closes[i-1])
+            tr[i] = max(hl, hc, lc)
+
+        # ATR (Average True Range)
+        atr = pd.Series(tr).rolling(window=atr_period).mean()
+        current_atr = float(atr.iloc[-1]) if not np.isnan(atr.iloc[-1]) else 0.0
+        current_close = closes[-1]
+
+        # ATR as percentage of price
+        atr_pct = (current_atr / current_close) * 100
+
+        # Historical ATR% for context
+        atr_series = atr / pd.Series(closes) * 100
+        avg_atr_pct = float(atr_series.iloc[-20:].mean()) if len(atr_series) >= 20 else atr_pct
+
+        # Determine regime and multipliers
+        if atr_pct < 1.5:
+            regime = 'low'
+            stop_multiplier = 0.8  # Tighter stops
+            size_multiplier = 1.3  # Larger size (lower risk per trade)
+            signal = 'BREAKOUT_WATCH'  # Low vol often precedes breakout
+        elif atr_pct < 3.0:
+            regime = 'normal'
+            stop_multiplier = 1.0
+            size_multiplier = 1.0
+            signal = 'NEUTRAL'
+        elif atr_pct < 5.0:
+            regime = 'high'
+            stop_multiplier = 1.3  # Wider stops
+            size_multiplier = 0.7  # Smaller size
+            signal = 'CAUTION'
+        else:
+            regime = 'extreme'
+            stop_multiplier = 1.5  # Much wider stops
+            size_multiplier = 0.4  # Much smaller size
+            signal = 'HIGH_RISK'
+
+        # Volatility trend (increasing or decreasing)
+        if len(atr) >= 5:
+            recent_atr = float(atr.iloc[-1])
+            older_atr = float(atr.iloc[-5])
+            if recent_atr > older_atr * 1.2:
+                vol_trend = 'expanding'
+            elif recent_atr < older_atr * 0.8:
+                vol_trend = 'contracting'
+            else:
+                vol_trend = 'stable'
+        else:
+            vol_trend = 'unknown'
+
+        return {
+            'atr': current_atr,
+            'atr_pct': float(atr_pct),
+            'avg_atr_pct': float(avg_atr_pct),
+            'regime': regime,
+            'stop_multiplier': stop_multiplier,
+            'size_multiplier': size_multiplier,
+            'vol_trend': vol_trend,
+            'signal': signal,
+            'recommended_stop_atr': current_atr * stop_multiplier
+        }
+
+    except Exception as e:
+        return {
+            'atr': 0.0,
+            'atr_pct': 0.0,
+            'regime': 'normal',
+            'stop_multiplier': 1.0,
+            'size_multiplier': 1.0,
+            'signal': 'NEUTRAL',
+            'error': str(e)
+        }
+
+
+def calculate_fibonacci_confluence(ohlcv: List, lookback: int = 100) -> Dict[str, Any]:
+    """
+    Calculate Fibonacci Retracement Confluence - Professional level analysis.
+
+    Key Fibonacci Levels:
+    - 23.6% - Shallow retracement (strong trend)
+    - 38.2% - Moderate retracement (healthy pullback)
+    - 50.0% - Mid retracement (psychological level)
+    - 61.8% - Golden ratio (best entry for continuation)
+    - 78.6% - Deep retracement (potential reversal)
+
+    Professional Use:
+    - 38.2%-61.8% retracements = Best continuation entries
+    - Price at Fib level + S/R = High probability trade
+    - Multiple Fib levels clustering = Strong zone
+
+    Args:
+        ohlcv: OHLCV data
+        lookback: Period to find swing high/low
+
+    Returns:
+        Dict with Fibonacci levels, current position, and signal
+    """
+    try:
+        if len(ohlcv) < lookback:
+            lookback = len(ohlcv)
+
+        if lookback < 20:
+            return {
+                'levels': {},
+                'current_level': None,
+                'trend': 'unknown',
+                'signal': 'NEUTRAL'
+            }
+
+        recent_ohlcv = ohlcv[-lookback:]
+        highs = np.array([candle[2] for candle in recent_ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in recent_ohlcv], dtype=float)
+        closes = np.array([candle[4] for candle in recent_ohlcv], dtype=float)
+
+        current_price = closes[-1]
+        swing_high = np.max(highs)
+        swing_low = np.min(lows)
+        swing_range = swing_high - swing_low
+
+        # Find swing high/low positions
+        swing_high_idx = np.argmax(highs)
+        swing_low_idx = np.argmin(lows)
+
+        # Determine trend based on which came first
+        if swing_low_idx < swing_high_idx:
+            trend = 'uptrend'
+            # Calculate retracements from high
+            fib_levels = {
+                '0.0': swing_high,
+                '23.6': swing_high - (0.236 * swing_range),
+                '38.2': swing_high - (0.382 * swing_range),
+                '50.0': swing_high - (0.500 * swing_range),
+                '61.8': swing_high - (0.618 * swing_range),
+                '78.6': swing_high - (0.786 * swing_range),
+                '100.0': swing_low
+            }
+        else:
+            trend = 'downtrend'
+            # Calculate retracements from low
+            fib_levels = {
+                '0.0': swing_low,
+                '23.6': swing_low + (0.236 * swing_range),
+                '38.2': swing_low + (0.382 * swing_range),
+                '50.0': swing_low + (0.500 * swing_range),
+                '61.8': swing_low + (0.618 * swing_range),
+                '78.6': swing_low + (0.786 * swing_range),
+                '100.0': swing_high
+            }
+
+        # Find which Fib level price is near (within 0.5%)
+        tolerance_pct = 0.005  # 0.5%
+        current_level = None
+        distance_to_nearest = float('inf')
+
+        for level_name, level_price in fib_levels.items():
+            distance = abs(current_price - level_price) / level_price
+            if distance < tolerance_pct and distance < distance_to_nearest:
+                current_level = level_name
+                distance_to_nearest = distance
+
+        # Calculate distance to golden ratio (61.8%)
+        golden_level = fib_levels['61.8']
+        distance_to_golden = ((current_price - golden_level) / golden_level) * 100
+
+        # Generate signal
+        signal = 'NEUTRAL'
+
+        if trend == 'uptrend':
+            # In uptrend, look for pullback entries
+            if current_level in ['38.2', '50.0', '61.8']:
+                signal = 'BUY'  # At key retracement level
+                if current_level == '61.8':
+                    signal = 'STRONG_BUY'  # Golden ratio
+            elif current_level == '78.6':
+                signal = 'SELL'  # Deep retracement, might reverse
+        else:  # downtrend
+            # In downtrend, look for rally entries
+            if current_level in ['38.2', '50.0', '61.8']:
+                signal = 'SELL'  # At key retracement level
+                if current_level == '61.8':
+                    signal = 'STRONG_SELL'  # Golden ratio
+            elif current_level == '78.6':
+                signal = 'BUY'  # Deep retracement, might reverse
+
+        return {
+            'levels': {k: float(v) for k, v in fib_levels.items()},
+            'current_level': current_level,
+            'trend': trend,
+            'swing_high': float(swing_high),
+            'swing_low': float(swing_low),
+            'distance_to_golden': float(distance_to_golden),
+            'signal': signal,
+            'current_price': float(current_price)
+        }
+
+    except Exception as e:
+        return {
+            'levels': {},
+            'current_level': None,
+            'trend': 'unknown',
+            'signal': 'NEUTRAL',
+            'error': str(e)
+        }
+
+
+def calculate_advanced_indicators(ohlcv: List) -> Dict[str, Any]:
+    """
+    Calculate ALL advanced indicators for confluence scoring.
+
+    This combines all v4.5.0 professional indicators:
+    1. VWAP - Institutional fair value
+    2. Stochastic RSI - Momentum with sensitivity
+    3. Williams %R - Fast reversal detection
+    4. Chaikin Money Flow - Volume-weighted pressure
+    5. ATR Volatility Regime - Risk management
+    6. Fibonacci Confluence - Key levels
+
+    Args:
+        ohlcv: List of OHLCV data
+
+    Returns:
+        Dict with all advanced indicator values and summary
+    """
+    try:
+        result = {
+            'vwap': calculate_vwap(ohlcv),
+            'stoch_rsi': calculate_stochastic_rsi(ohlcv),
+            'williams_r': calculate_williams_r(ohlcv),
+            'cmf': calculate_chaikin_money_flow(ohlcv),
+            'atr_regime': calculate_atr_volatility_regime(ohlcv),
+            'fibonacci': calculate_fibonacci_confluence(ohlcv),
+        }
+
+        # Count signals
+        signals = []
+
+        # VWAP signal
+        vwap_sig = result['vwap'].get('signal', 'NEUTRAL')
+        if vwap_sig in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'vwap', vwap_sig))
+        elif vwap_sig in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'vwap', vwap_sig))
+
+        # Stochastic RSI signal
+        stoch_sig = result['stoch_rsi'].get('signal', 'NEUTRAL')
+        if stoch_sig in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'stoch_rsi', stoch_sig))
+        elif stoch_sig in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'stoch_rsi', stoch_sig))
+
+        # Williams %R signal
+        wr_sig = result['williams_r'].get('signal', 'NEUTRAL')
+        if wr_sig in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'williams_r', wr_sig))
+        elif wr_sig in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'williams_r', wr_sig))
+
+        # CMF signal
+        cmf_sig = result['cmf'].get('signal', 'NEUTRAL')
+        if cmf_sig in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'cmf', cmf_sig))
+        elif cmf_sig in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'cmf', cmf_sig))
+
+        # Fibonacci signal
+        fib_sig = result['fibonacci'].get('signal', 'NEUTRAL')
+        if fib_sig in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'fibonacci', fib_sig))
+        elif fib_sig in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'fibonacci', fib_sig))
+
+        # Count
+        bullish_count = sum(1 for s in signals if s[0] == 'bullish')
+        bearish_count = sum(1 for s in signals if s[0] == 'bearish')
+
+        # Get risk assessment from ATR regime
+        atr_regime = result['atr_regime'].get('regime', 'normal')
+        size_multiplier = result['atr_regime'].get('size_multiplier', 1.0)
+
+        result['signal_summary'] = {
+            'bullish_signals': bullish_count,
+            'bearish_signals': bearish_count,
+            'total_signals': len(signals),
+            'signals': signals,
+            'overall_bias': 'bullish' if bullish_count > bearish_count else ('bearish' if bearish_count > bullish_count else 'neutral'),
+            'risk_regime': atr_regime,
+            'recommended_size_mult': size_multiplier
+        }
+
+        return result
+
+    except Exception as e:
+        return {
+            'vwap': {'signal': 'NEUTRAL'},
+            'stoch_rsi': {'signal': 'NEUTRAL'},
+            'williams_r': {'signal': 'NEUTRAL'},
+            'cmf': {'signal': 'NEUTRAL'},
+            'atr_regime': {'regime': 'normal', 'size_multiplier': 1.0},
+            'fibonacci': {'signal': 'NEUTRAL'},
+            'signal_summary': {
+                'bullish_signals': 0,
+                'bearish_signals': 0,
+                'total_signals': 0,
+                'signals': [],
+                'overall_bias': 'neutral',
+                'risk_regime': 'normal',
+                'recommended_size_mult': 1.0
+            },
+            'error': str(e)
+        }

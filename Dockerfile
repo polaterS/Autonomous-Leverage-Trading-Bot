@@ -1,15 +1,17 @@
-# 🚀 PA-ONLY v4.4.0 - ENHANCED CONFLUENCE INDICATORS
+# 🚀 PA-ONLY v4.5.0 - ADVANCED PROFESSIONAL INDICATORS
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251202_V440_ENHANCED_INDICATORS
+ARG CACHE_BUST=20251202_V450_ADVANCED_INDICATORS
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🆕 v4.4.0: Enhanced Confluence Indicators!" && \
-    echo "   - BB Squeeze (Bollinger Band Squeeze)" && \
-    echo "   - EMA Stack (Fibonacci-based trend analysis)" && \
-    echo "   - ADX (Average Directional Index)" && \
-    echo "   - RSI/MACD Divergence Detection"
+    echo "🆕 v4.5.0: Advanced Professional Indicators!" && \
+    echo "   - VWAP (Volume Weighted Average Price)" && \
+    echo "   - Stochastic RSI (Sensitive Momentum)" && \
+    echo "   - Williams %R (Fast Reversal Detection)" && \
+    echo "   - Chaikin Money Flow (Volume Pressure)" && \
+    echo "   - ATR Volatility Regime (Risk Management)" && \
+    echo "   - Fibonacci Confluence (Key Levels)"
 
 # Set working directory
 WORKDIR /app
@@ -29,13 +31,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.4.0
-# Current deployment: 20251202_V440_ENHANCED_INDICATORS
-# Changes: New professional confluence indicators added
-#   - BB Squeeze (Bollinger Band Squeeze breakout detection)
-#   - EMA Stack (Fibonacci-based EMA trend analysis)
-#   - ADX (Average Directional Index for trend strength)
-#   - Enhanced RSI/MACD Divergence Detection
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.5.0
+# Current deployment: 20251202_V450_ADVANCED_INDICATORS
+# Changes: Advanced professional indicators for maximum accuracy
+#   - VWAP (Institutional fair value indicator)
+#   - Stochastic RSI (Sensitive momentum with K/D crossovers)
+#   - Williams %R (Fast momentum oscillator)
+#   - Chaikin Money Flow (Volume-weighted buying/selling pressure)
+#   - ATR Volatility Regime (Dynamic position sizing)
+#   - Fibonacci Confluence (Key retracement levels)
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

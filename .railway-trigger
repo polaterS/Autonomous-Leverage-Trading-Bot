@@ -1,7 +1,10 @@
-# Force redeploy v4.4.0 - Enhanced Confluence Indicators - 2 Dec 2025 Mon
+# Force redeploy v4.5.0 - Advanced Professional Indicators - 2 Dec 2025 Mon
 # New features:
-#   - BB Squeeze (Bollinger Band Squeeze breakout detection)
-#   - EMA Stack (Fibonacci-based EMA trend analysis)
-#   - ADX (Average Directional Index for trend strength)
-#   - Enhanced RSI/MACD Divergence Detection
-#   - Momentum Quality Scoring
+#   - VWAP (Volume Weighted Average Price - Institutional Standard)
+#   - Stochastic RSI (Sensitive Momentum with K/D Crossovers)
+#   - Williams %R (Fast Momentum Oscillator)
+#   - Chaikin Money Flow (Volume-weighted Buying/Selling Pressure)
+#   - ATR Volatility Regime (Dynamic Risk Management)
+#   - Fibonacci Confluence (Key Retracement Levels)
+# Previous v4.4.0 features included:
+#   - BB Squeeze, EMA Stack, ADX, RSI/MACD Divergence

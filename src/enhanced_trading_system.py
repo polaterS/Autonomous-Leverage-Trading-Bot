@@ -49,7 +49,8 @@ from src.advanced_trailing_stop import AdvancedTrailingStop, calculate_trailing_
 from src.dynamic_position_sizer import DynamicPositionSizer, calculate_position_size
 from src.market_regime_detector import get_regime_detector
 # 🆕 v4.4.0: Import enhanced indicators for professional confluence scoring
-from src.indicators import calculate_enhanced_indicators
+# 🆕 v4.5.0: Import advanced indicators (VWAP, StochRSI, CMF, Fibonacci)
+from src.indicators import calculate_enhanced_indicators, calculate_advanced_indicators
 
 logger = logging.getLogger('trading_bot')
 
@@ -341,6 +342,8 @@ class EnhancedTradingSystem:
         try:
             # 🆕 v4.4.0: Calculate enhanced indicators if OHLCV data available
             enhanced_data = None
+            advanced_data = None
+
             if ohlcv_data and len(ohlcv_data) >= 50:
                 try:
                     enhanced_data = calculate_enhanced_indicators(ohlcv_data)
@@ -349,7 +352,15 @@ class EnhancedTradingSystem:
                     logger.warning(f"⚠️ {symbol}: Enhanced indicators failed: {e}")
                     enhanced_data = None
 
-            # Score the opportunity with enhanced data
+                # 🆕 v4.5.0: Calculate advanced indicators
+                try:
+                    advanced_data = calculate_advanced_indicators(ohlcv_data)
+                    logger.info(f"🔬 {symbol}: Advanced indicators (VWAP, StochRSI, CMF, Fib) calculated")
+                except Exception as e:
+                    logger.warning(f"⚠️ {symbol}: Advanced indicators failed: {e}")
+                    advanced_data = None
+
+            # Score the opportunity with enhanced + advanced data
             score_result = self.confluence_scorer.score_opportunity(
                 symbol=symbol,
                 side=side,
@@ -358,7 +369,8 @@ class EnhancedTradingSystem:
                 volume_profile=volume_profile,
                 market_regime=market_regime,
                 mtf_data=mtf_data,
-                enhanced_data=enhanced_data  # 🆕 v4.4.0: Pass enhanced indicators
+                enhanced_data=enhanced_data,  # v4.4.0: Enhanced indicators
+                advanced_data=advanced_data   # 🆕 v4.5.0: Advanced indicators
             )
 
             return score_result

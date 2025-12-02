@@ -25,7 +25,8 @@ from src.telegram_notifier import get_notifier
 from src.exchange_client import get_exchange_client
 from src.database import get_db_client
 # 🆕 v4.4.0: Import enhanced indicators for professional confluence scoring
-from src.indicators import calculate_enhanced_indicators
+# 🆕 v4.5.0: Import advanced indicators (VWAP, StochRSI, CMF, Fibonacci)
+from src.indicators import calculate_enhanced_indicators, calculate_advanced_indicators
 
 logger = setup_logging()
 
@@ -811,12 +812,101 @@ class RealtimeSignalHandler:
 
         score += enhanced_score
 
+        # ═══════════════════════════════════════════════════════════════════
+        # 🆕 8. ADVANCED INDICATORS (up to 20 points) - v4.5.0
+        # VWAP, Stochastic RSI, Williams %R, CMF, Fibonacci
+        # ═══════════════════════════════════════════════════════════════════
+        advanced_score = 0
+
+        if ohlcv and len(ohlcv) >= 50:
+            try:
+                advanced_data = calculate_advanced_indicators(ohlcv)
+
+                # VWAP Analysis (up to 5 points)
+                vwap_data = advanced_data.get('vwap', {})
+                vwap_position = vwap_data.get('position', 'unknown')
+                if side == 'LONG':
+                    if vwap_position in ['slightly_above', 'at_vwap']:
+                        advanced_score += 5  # Perfect long setup
+                    elif vwap_position in ['above', 'far_below']:
+                        advanced_score += 3
+                    else:
+                        advanced_score += 1
+                else:
+                    if vwap_position in ['slightly_below', 'at_vwap']:
+                        advanced_score += 5  # Perfect short setup
+                    elif vwap_position in ['below', 'far_above']:
+                        advanced_score += 3
+                    else:
+                        advanced_score += 1
+
+                # Stochastic RSI (up to 4 points)
+                stoch_data = advanced_data.get('stoch_rsi', {})
+                stoch_signal = stoch_data.get('signal', 'NEUTRAL')
+                stoch_zone = stoch_data.get('zone', 'neutral')
+                if (stoch_signal in ['STRONG_BUY', 'BUY'] and side == 'LONG') or \
+                   (stoch_signal in ['STRONG_SELL', 'SELL'] and side == 'SHORT'):
+                    advanced_score += 4
+                elif (stoch_zone == 'oversold' and side == 'LONG') or \
+                     (stoch_zone == 'overbought' and side == 'SHORT'):
+                    advanced_score += 3
+                else:
+                    advanced_score += 1
+
+                # Chaikin Money Flow (up to 4 points)
+                cmf_data = advanced_data.get('cmf', {})
+                cmf_pressure = cmf_data.get('pressure', 'balanced')
+                if (cmf_pressure == 'strong_buying' and side == 'LONG') or \
+                   (cmf_pressure == 'strong_selling' and side == 'SHORT'):
+                    advanced_score += 4
+                elif (cmf_pressure == 'buying' and side == 'LONG') or \
+                     (cmf_pressure == 'selling' and side == 'SHORT'):
+                    advanced_score += 3
+                else:
+                    advanced_score += 1
+
+                # Williams %R (up to 3 points)
+                wr_data = advanced_data.get('williams_r', {})
+                wr_signal = wr_data.get('signal', 'NEUTRAL')
+                if (wr_signal in ['STRONG_BUY', 'BUY'] and side == 'LONG') or \
+                   (wr_signal in ['STRONG_SELL', 'SELL'] and side == 'SHORT'):
+                    advanced_score += 3
+                else:
+                    advanced_score += 1
+
+                # Fibonacci (up to 4 points)
+                fib_data = advanced_data.get('fibonacci', {})
+                fib_signal = fib_data.get('signal', 'NEUTRAL')
+                fib_level = fib_data.get('current_level')
+                if (fib_signal == 'STRONG_BUY' and side == 'LONG') or \
+                   (fib_signal == 'STRONG_SELL' and side == 'SHORT'):
+                    advanced_score += 4
+                elif fib_level in ['38.2', '50.0', '61.8']:
+                    advanced_score += 3
+                else:
+                    advanced_score += 1
+
+                logger.info(
+                    f"🔬 Advanced Indicators: {symbol} | VWAP: {vwap_position} | "
+                    f"StochRSI: {stoch_zone} | CMF: {cmf_pressure} | "
+                    f"Fib: {fib_level} | Score: +{advanced_score}"
+                )
+
+            except Exception as e:
+                logger.warning(f"⚠️ Advanced indicators failed: {e}")
+                advanced_score = 8  # Fallback
+
+        else:
+            advanced_score = 8  # No OHLCV data
+
+        score += advanced_score
+
         final_score = min(100, score)
 
         logger.info(
             f"📊 Confluence Score: {symbol} {side} = {final_score:.1f}/100 | "
             f"MTF: {mtf_score}/20 | RSI: {rsi:.0f} | Vol: {volume_ratio:.1f}x | "
-            f"ATR: {atr_pct:.1f}% | Enhanced: {enhanced_score}/25"
+            f"ATR: {atr_pct:.1f}% | Enhanced: {enhanced_score}/25 | Advanced: {advanced_score}/20"
         )
 
         return final_score

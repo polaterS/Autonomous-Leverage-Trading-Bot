@@ -53,16 +53,17 @@ class ConfluenceScorer:
 
     def __init__(self):
         # Scoring weights (must sum to 100)
-        # 🆕 v4.4.0: Added enhanced indicators for better confluence
+        # 🆕 v4.5.0: Added advanced professional indicators
         self.weights = {
-            'multi_timeframe': 15,       # MTF trend alignment
-            'volume_profile': 10,        # VPOC, HVN proximity
-            'indicators': 20,            # RSI, MACD, SuperTrend, etc.
-            'market_regime': 10,         # ADX-based regime
-            'support_resistance': 12,    # S/R quality
-            'risk_reward': 8,            # R/R ratio
-            'enhanced_indicators': 15,   # 🆕 BB Squeeze, EMA Stack, Divergences
-            'momentum_quality': 10       # 🆕 Momentum strength and direction
+            'multi_timeframe': 12,       # MTF trend alignment
+            'volume_profile': 8,         # VPOC, HVN proximity
+            'indicators': 15,            # RSI, MACD, SuperTrend, etc.
+            'market_regime': 8,          # ADX-based regime
+            'support_resistance': 10,    # S/R quality
+            'risk_reward': 5,            # R/R ratio
+            'enhanced_indicators': 12,   # v4.4.0: BB Squeeze, EMA Stack, Divergences
+            'momentum_quality': 10,      # Momentum strength and direction
+            'advanced_indicators': 20    # 🆕 v4.5.0: VWAP, StochRSI, CMF, Fibonacci
         }
 
         # Minimum score to trade
@@ -88,7 +89,8 @@ class ConfluenceScorer:
         volume_profile: Dict,
         market_regime: Dict,
         mtf_data: Optional[Dict] = None,
-        enhanced_data: Optional[Dict] = None  # 🆕 v4.4.0: Enhanced indicators
+        enhanced_data: Optional[Dict] = None,  # v4.4.0: Enhanced indicators
+        advanced_data: Optional[Dict] = None   # 🆕 v4.5.0: Advanced indicators
     ) -> Dict[str, Any]:
         """
         Main scoring method: Evaluate a trading opportunity.
@@ -144,6 +146,10 @@ class ConfluenceScorer:
             # 🆕 8. Momentum Quality (10 points) - ADX, trend strength
             momentum_score = self._score_momentum_quality(side, enhanced_data, market_regime)
             component_scores['momentum_quality'] = momentum_score
+
+            # 🆕 9. Advanced Indicators (20 points) - VWAP, StochRSI, CMF, Fib - v4.5.0
+            advanced_score = self._score_advanced_indicators(side, advanced_data, indicators)
+            component_scores['advanced_indicators'] = advanced_score
 
             # Calculate total score
             total_score = sum(component_scores.values())
@@ -674,6 +680,167 @@ class ConfluenceScorer:
         except Exception as e:
             logger.warning(f"⚠️ Momentum quality scoring error: {e}")
             return max_points * 0.5
+
+    def _score_advanced_indicators(self, side: str, advanced_data: Optional[Dict], indicators: Dict) -> float:
+        """
+        🆕 v4.5.0: Score advanced professional indicators (20 points max).
+
+        Components:
+        - VWAP Position (5 pts): Institutional fair value
+        - Stochastic RSI (4 pts): Sensitive momentum
+        - Chaikin Money Flow (4 pts): Volume-weighted pressure
+        - Williams %R (3 pts): Fast momentum
+        - Fibonacci (4 pts): Key level confluence
+
+        These are institutional-grade indicators for maximum accuracy.
+        """
+        max_points = self.weights['advanced_indicators']
+        score = 0
+
+        try:
+            if not advanced_data:
+                return max_points * 0.4  # 40% fallback if no advanced data
+
+            # 1. VWAP Position (5 points) - Institutional bias
+            vwap_data = advanced_data.get('vwap', {})
+            vwap_signal = vwap_data.get('signal', 'NEUTRAL')
+            vwap_position = vwap_data.get('position', 'unknown')
+            deviation_pct = abs(vwap_data.get('deviation_pct', 0))
+
+            if side == 'LONG':
+                if vwap_position in ['slightly_above', 'at_vwap'] and deviation_pct < 0.5:
+                    score += 5  # Perfect long position near VWAP
+                elif vwap_position == 'above' and deviation_pct < 1.5:
+                    score += 4  # Good bullish bias
+                elif vwap_position == 'far_below':
+                    score += 4  # Oversold bounce opportunity
+                elif vwap_signal == 'BUY':
+                    score += 3
+                else:
+                    score += 1
+            else:  # SHORT
+                if vwap_position in ['slightly_below', 'at_vwap'] and deviation_pct < 0.5:
+                    score += 5  # Perfect short position near VWAP
+                elif vwap_position == 'below' and deviation_pct < 1.5:
+                    score += 4  # Good bearish bias
+                elif vwap_position == 'far_above':
+                    score += 4  # Overbought short opportunity
+                elif vwap_signal == 'SELL':
+                    score += 3
+                else:
+                    score += 1
+
+            # 2. Stochastic RSI (4 points) - Sensitive momentum
+            stoch_data = advanced_data.get('stoch_rsi', {})
+            stoch_signal = stoch_data.get('signal', 'NEUTRAL')
+            stoch_zone = stoch_data.get('zone', 'neutral')
+            crossover = stoch_data.get('crossover')
+
+            if side == 'LONG':
+                if stoch_signal == 'STRONG_BUY':
+                    score += 4  # Oversold with bullish crossover
+                elif stoch_signal == 'BUY' or crossover == 'bullish':
+                    score += 3
+                elif stoch_zone == 'oversold':
+                    score += 2.5  # Potential reversal zone
+                elif stoch_zone == 'bullish':
+                    score += 2
+                elif stoch_zone != 'overbought':
+                    score += 1
+            else:  # SHORT
+                if stoch_signal == 'STRONG_SELL':
+                    score += 4  # Overbought with bearish crossover
+                elif stoch_signal == 'SELL' or crossover == 'bearish':
+                    score += 3
+                elif stoch_zone == 'overbought':
+                    score += 2.5  # Potential reversal zone
+                elif stoch_zone == 'bearish':
+                    score += 2
+                elif stoch_zone != 'oversold':
+                    score += 1
+
+            # 3. Chaikin Money Flow (4 points) - Volume pressure
+            cmf_data = advanced_data.get('cmf', {})
+            cmf_signal = cmf_data.get('signal', 'NEUTRAL')
+            cmf_pressure = cmf_data.get('pressure', 'balanced')
+            cmf_value = cmf_data.get('cmf', 0)
+
+            if side == 'LONG':
+                if cmf_signal == 'STRONG_BUY' or cmf_pressure == 'strong_buying':
+                    score += 4  # Strong institutional buying
+                elif cmf_signal == 'BUY' or cmf_pressure == 'buying':
+                    score += 3
+                elif cmf_value > 0:
+                    score += 2  # Positive flow
+                else:
+                    score += 1
+            else:  # SHORT
+                if cmf_signal == 'STRONG_SELL' or cmf_pressure == 'strong_selling':
+                    score += 4  # Strong institutional selling
+                elif cmf_signal == 'SELL' or cmf_pressure == 'selling':
+                    score += 3
+                elif cmf_value < 0:
+                    score += 2  # Negative flow
+                else:
+                    score += 1
+
+            # 4. Williams %R (3 points) - Fast momentum
+            wr_data = advanced_data.get('williams_r', {})
+            wr_signal = wr_data.get('signal', 'NEUTRAL')
+            wr_zone = wr_data.get('zone', 'neutral')
+            momentum_shift = wr_data.get('momentum_shift')
+
+            if side == 'LONG':
+                if wr_signal == 'STRONG_BUY' or momentum_shift == 'bullish':
+                    score += 3  # Exiting oversold with momentum
+                elif wr_signal == 'BUY' or wr_zone == 'oversold':
+                    score += 2
+                elif wr_zone == 'bullish':
+                    score += 1.5
+                else:
+                    score += 0.5
+            else:  # SHORT
+                if wr_signal == 'STRONG_SELL' or momentum_shift == 'bearish':
+                    score += 3  # Exiting overbought with momentum
+                elif wr_signal == 'SELL' or wr_zone == 'overbought':
+                    score += 2
+                elif wr_zone == 'bearish':
+                    score += 1.5
+                else:
+                    score += 0.5
+
+            # 5. Fibonacci Confluence (4 points) - Key levels
+            fib_data = advanced_data.get('fibonacci', {})
+            fib_signal = fib_data.get('signal', 'NEUTRAL')
+            fib_level = fib_data.get('current_level')
+            fib_trend = fib_data.get('trend', 'unknown')
+
+            if side == 'LONG' and fib_trend == 'uptrend':
+                if fib_signal == 'STRONG_BUY':
+                    score += 4  # At golden ratio in uptrend
+                elif fib_signal == 'BUY' or fib_level in ['38.2', '50.0', '61.8']:
+                    score += 3  # At key Fib level
+                elif fib_level == '23.6':
+                    score += 2  # Shallow retracement
+                else:
+                    score += 1
+            elif side == 'SHORT' and fib_trend == 'downtrend':
+                if fib_signal == 'STRONG_SELL':
+                    score += 4  # At golden ratio in downtrend
+                elif fib_signal == 'SELL' or fib_level in ['38.2', '50.0', '61.8']:
+                    score += 3  # At key Fib level
+                elif fib_level == '23.6':
+                    score += 2  # Shallow retracement
+                else:
+                    score += 1
+            else:
+                score += 1  # Trend mismatch
+
+            return min(score, max_points)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Advanced indicators scoring error: {e}")
+            return max_points * 0.4
 
     def _score_risk_reward(self, pa_analysis: Dict) -> float:
         """
