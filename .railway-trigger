@@ -1,4 +1,5 @@
-# Force redeploy v4.7.0 - Ultra Professional Analysis - 2 Dec 2025 Mon
+# Force redeploy v4.7.1 - Ultra Professional Analysis FIX - 2 Dec 2025 Mon
+# FIX: Candle requirement check (78+ for v4.7.0 indicators, 50+ for others)
 # 🚀 MAJOR UPGRADE: Ultra Professional Analysis System
 #
 # 🆕 TIER 1 - Derivatives Analysis (10 pts):

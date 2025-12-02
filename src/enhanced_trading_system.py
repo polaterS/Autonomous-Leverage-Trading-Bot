@@ -356,6 +356,7 @@ class EnhancedTradingSystem:
             technical_advanced_data = None
             harmonic_data = None
 
+            # v4.4.0 - v4.6.0 indicators need 50+ candles
             if ohlcv_data and len(ohlcv_data) >= 50:
                 try:
                     enhanced_data = calculate_enhanced_indicators(ohlcv_data)
@@ -380,28 +381,36 @@ class EnhancedTradingSystem:
                     logger.warning(f"⚠️ {symbol}: Institutional indicators failed: {e}")
                     institutional_data = None
 
-                # 🆕 v4.7.0: Calculate ultra professional analysis
-                # (Funding Rate, OI, L/S Ratio, Fear&Greed, CVD, Ichimoku, Liquidations, Harmonic)
+            # 🆕 v4.7.0: Ultra Professional Analysis needs 78+ candles (Ichimoku + harmonics)
+            if ohlcv_data and len(ohlcv_data) >= 78:
                 try:
                     ultra_pro_data = calculate_ultra_professional_analysis(ohlcv_data)
-                    logger.info(f"🚀 {symbol}: Ultra Professional Analysis (v4.7.0) calculated")
 
-                    # Extract component data
-                    derivatives_data = ultra_pro_data.get('derivatives_analysis', {})
-                    technical_advanced_data = ultra_pro_data.get('advanced_analysis', {})
-                    harmonic_data = ultra_pro_data.get('advanced_analysis', {}).get('harmonic_patterns', {})
+                    # Check if calculation succeeded (not error return)
+                    if not ultra_pro_data.get('error'):
+                        logger.info(f"🚀 {symbol}: Ultra Professional Analysis (v4.7.0) calculated")
 
-                    # Log summary
-                    logger.info(f"   💰 Derivatives: Funding={derivatives_data.get('funding_rate', {}).get('signal', 'N/A')}, "
-                               f"OI={derivatives_data.get('open_interest', {}).get('signal', 'N/A')}")
-                    logger.info(f"   ⛩️ Ichimoku: {technical_advanced_data.get('ichimoku', {}).get('signal', 'N/A')}")
-                    logger.info(f"   📊 CVD: {technical_advanced_data.get('cvd', {}).get('signal', 'N/A')}")
-                    logger.info(f"   🦋 Harmonic: {harmonic_data.get('pattern_type', 'None detected')}")
+                        # Extract component data
+                        derivatives_data = ultra_pro_data.get('derivatives_analysis', {})
+                        technical_advanced_data = ultra_pro_data.get('advanced_analysis', {})
+                        harmonic_data = ultra_pro_data.get('advanced_analysis', {}).get('harmonic_patterns', {})
+
+                        # Log summary
+                        logger.info(f"   💰 Derivatives: Funding={derivatives_data.get('funding_rate', {}).get('signal', 'N/A')}, "
+                                   f"OI={derivatives_data.get('open_interest', {}).get('signal', 'N/A')}")
+                        logger.info(f"   ⛩️ Ichimoku: {technical_advanced_data.get('ichimoku', {}).get('signal', 'N/A')}")
+                        logger.info(f"   📊 CVD: {technical_advanced_data.get('cvd', {}).get('signal', 'N/A')}")
+                        logger.info(f"   🦋 Harmonic: {harmonic_data.get('pattern_type', 'None detected')}")
+                    else:
+                        logger.warning(f"⚠️ {symbol}: Ultra Professional Analysis returned error: {ultra_pro_data.get('error')}")
                 except Exception as e:
                     logger.warning(f"⚠️ {symbol}: Ultra Professional Analysis failed: {e}")
                     derivatives_data = None
                     technical_advanced_data = None
                     harmonic_data = None
+            else:
+                if ohlcv_data:
+                    logger.debug(f"⚠️ {symbol}: Only {len(ohlcv_data)} candles, need 78+ for v4.7.0 analysis")
 
             # Score the opportunity with ALL indicator data (v4.4 + v4.5 + v4.6 + v4.7)
             score_result = self.confluence_scorer.score_opportunity(

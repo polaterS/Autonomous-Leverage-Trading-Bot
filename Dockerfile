@@ -1,8 +1,8 @@
-# 🚀 PA-ONLY v4.7.0 - ULTRA PROFESSIONAL ANALYSIS
+# 🚀 PA-ONLY v4.7.1 - ULTRA PROFESSIONAL ANALYSIS (FIXED)
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251202_V470_ULTRA_PROFESSIONAL
+ARG CACHE_BUST=20251202_V471_ULTRA_PRO_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
     echo "🚀 v4.7.0: ULTRA PROFESSIONAL ANALYSIS!" && \
