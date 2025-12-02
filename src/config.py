@@ -224,7 +224,7 @@ class Settings(BaseSettings):
 
     # Confluence Scoring (Quality Filter)
     enable_confluence_filtering: bool = Field(default=True)  # ✅ Filter trades by quality score
-    min_confluence_score: int = Field(default=75, ge=0, le=100)  # 🎯 75+ confluence for higher win rate
+    min_confluence_score: int = Field(default=60, ge=0, le=100)  # 🎯 v4.6.1: 60+ confluence (balanced approach)
     confluence_weights: dict = Field(default={
         'multi_timeframe': 25,
         'volume_profile': 20,

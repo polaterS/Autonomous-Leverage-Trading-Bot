@@ -68,7 +68,8 @@ class ConfluenceScorer:
         }
 
         # Minimum score to trade
-        # 🎯 60+ with MTF+momentum+volume checks for extra safety
+        # 🎯 v4.6.1: 60+ confluence (balanced approach)
+        # NOTE: This is overridden by MIN_CONFLUENCE_SCORE env var in enhanced_trading_system.py
         self.min_score_to_trade = 60
 
         # Confidence thresholds for quality classification
@@ -850,7 +851,7 @@ class ConfluenceScorer:
 
     def _score_institutional_indicators(self, side: str, institutional_data: Optional[Dict]) -> float:
         """
-        🏛️ v4.6.0: Score Institutional Grade Indicators (25 points max)
+        🏛️ v4.6.1: Score Institutional Grade Indicators (25 points max)
 
         Professional-level analysis used by institutional traders:
         1. Market Structure (BOS/CHoCH) - 6 points
@@ -859,14 +860,22 @@ class ConfluenceScorer:
         4. Statistical Edge (Hurst Exponent, Z-Score) - 6 points
 
         These indicators reveal what "smart money" is doing.
+
+        🔧 v4.6.1: Improved fallback (60%) and robust error handling
         """
         max_points = self.weights['institutional']
         score = 0
 
         try:
             if not institutional_data:
-                # No institutional data - give moderate baseline
-                return max_points * 0.4  # 10 points
+                # 🔧 v4.6.1: Increased fallback from 40% to 60% (15 points)
+                logger.debug("⚠️ Institutional data is None - using 60% fallback")
+                return max_points * 0.6  # 15 points (was 10)
+
+            # 🔧 v4.6.1: Check if data has error (insufficient data case)
+            if institutional_data.get('error'):
+                logger.debug(f"⚠️ Institutional data has error: {institutional_data.get('error')} - using 60% fallback")
+                return max_points * 0.6  # 15 points
 
             # === 1. MARKET STRUCTURE (6 points) ===
             # Most important - defines the trend direction
@@ -1046,7 +1055,7 @@ class ConfluenceScorer:
 
         except Exception as e:
             logger.warning(f"⚠️ Institutional indicators scoring error: {e}")
-            return max_points * 0.4
+            return max_points * 0.6  # 🔧 v4.6.1: Increased from 40% to 60%
 
     def _score_risk_reward(self, pa_analysis: Dict) -> float:
         """

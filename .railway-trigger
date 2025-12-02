@@ -1,9 +1,7 @@
-# Force redeploy v4.6.0 - Institutional Grade Indicators - 2 Dec 2025 Mon
-# MAJOR UPDATE: Professional-grade institutional analysis:
-#   - 🏛️ Smart Money Concepts (SMC): Order Blocks, FVG, Liquidity Sweeps
-#   - 📈 Market Structure: BOS (Break of Structure), CHoCH (Change of Character)
-#   - 📊 Wyckoff VSA: Accumulation/Distribution, Climax, Stopping Volume
-#   - 📏 Statistical Edge: Hurst Exponent, Z-Score analysis
-#   - ⏰ Session Analysis: Asian/European/US optimization
-#   - 25 points (25%) of confluence scoring now from institutional analysis
+# Force redeploy v4.6.1 - Balanced Confluence Scoring - 2 Dec 2025 Mon
+# FIXES:
+#   ✅ MIN_CONFLUENCE_SCORE: 75 → 60 (default threshold lowered)
+#   ✅ Institutional fallback: 40% → 60% (15/25 pts instead of 10/25)
+#   ✅ Better error handling in institutional indicators scoring
+# Now trades with 60+ score will be executed (previously required 75+)
 # Instant trading still DISABLED - main loop handles all entries

@@ -1,16 +1,15 @@
-# 🚀 PA-ONLY v4.6.0 - INSTITUTIONAL GRADE INDICATORS
+# 🚀 PA-ONLY v4.6.1 - BALANCED CONFLUENCE SCORING
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251202_V460_INSTITUTIONAL_INDICATORS
+ARG CACHE_BUST=20251202_V461_BALANCED_CONFLUENCE
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🏛️ v4.6.0: INSTITUTIONAL GRADE INDICATORS!" && \
-    echo "   - Smart Money Concepts (Order Blocks, FVG, Liquidity Sweeps)" && \
-    echo "   - Market Structure Analysis (BOS, CHoCH)" && \
-    echo "   - Wyckoff Volume Spread Analysis (VSA)" && \
-    echo "   - Statistical Edge (Hurst Exponent, Z-Score)" && \
-    echo "   - Session Analysis (Asian/European/US)" && \
+    echo "🎯 v4.6.1: BALANCED CONFLUENCE SCORING!" && \
+    echo "   ✅ MIN_CONFLUENCE_SCORE: 75 → 60 (default)" && \
+    echo "   ✅ Institutional fallback: 40% → 60% (15/25 pts)" && \
+    echo "   ✅ Better error handling in institutional scoring" && \
+    echo "   🏛️ Institutional indicators (SMC, Wyckoff, Hurst)" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -31,15 +30,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.6.0
-# Current deployment: 20251202_V460_INSTITUTIONAL_INDICATORS
-# Changes: Added institutional grade indicators for professional analysis
-#   - Smart Money Concepts: Order Blocks, Fair Value Gaps, Liquidity Sweeps
-#   - Market Structure: Break of Structure (BOS), Change of Character (CHoCH)
-#   - Wyckoff VSA: Accumulation/Distribution, Climax, Stopping Volume
-#   - Statistical Edge: Hurst Exponent (trend persistence), Z-Score
-#   - Session Analysis: Asian/European/US session optimization
-#   - 25 points added to confluence scoring for institutional analysis
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.6.1
+# Current deployment: 20251202_V461_BALANCED_CONFLUENCE
+# Changes: Balanced confluence scoring for more trades
+#   ✅ MIN_CONFLUENCE_SCORE: 75 → 60 (default, still configurable via env)
+#   ✅ Institutional fallback: 40% → 60% (15/25 pts when data unavailable)
+#   ✅ Better error handling in institutional indicators scoring
+#   🏛️ All v4.6.0 institutional indicators still active
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
