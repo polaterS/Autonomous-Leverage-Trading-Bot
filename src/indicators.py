@@ -3586,11 +3586,14 @@ def calculate_vwap_advanced(ohlcv: List, include_bands: bool = True) -> Dict[str
         }
 
 
-def calculate_stochastic_rsi(ohlcv: List, rsi_period: int = 14,
-                              stoch_period: int = 14, k_smooth: int = 3,
-                              d_smooth: int = 3) -> Dict[str, Any]:
+def calculate_stochastic_rsi_advanced(ohlcv: List, rsi_period: int = 14,
+                                       stoch_period: int = 14, k_smooth: int = 3,
+                                       d_smooth: int = 3) -> Dict[str, Any]:
     """
     Calculate Stochastic RSI - RSI + Stochastic combined for sensitivity.
+
+    NOTE: This is the v4.5.0 advanced version with detailed analysis.
+    The original calculate_stochastic_rsi() is used by the main indicator system.
 
     Stoch RSI = (RSI - Lowest RSI) / (Highest RSI - Lowest RSI)
 
@@ -4184,7 +4187,7 @@ def calculate_advanced_indicators(ohlcv: List) -> Dict[str, Any]:
     try:
         result = {
             'vwap': calculate_vwap_advanced(ohlcv),
-            'stoch_rsi': calculate_stochastic_rsi(ohlcv),
+            'stoch_rsi': calculate_stochastic_rsi_advanced(ohlcv),
             'williams_r': calculate_williams_r(ohlcv),
             'cmf': calculate_chaikin_money_flow(ohlcv),
             'atr_regime': calculate_atr_volatility_regime(ohlcv),
