@@ -50,7 +50,8 @@ from src.dynamic_position_sizer import DynamicPositionSizer, calculate_position_
 from src.market_regime_detector import get_regime_detector
 # 🆕 v4.4.0: Import enhanced indicators for professional confluence scoring
 # 🆕 v4.5.0: Import advanced indicators (VWAP, StochRSI, CMF, Fibonacci)
-from src.indicators import calculate_enhanced_indicators, calculate_advanced_indicators
+# 🆕 v4.6.0: Import institutional indicators (SMC, Wyckoff VSA, Hurst, Z-Score)
+from src.indicators import calculate_enhanced_indicators, calculate_advanced_indicators, calculate_institutional_indicators
 
 logger = logging.getLogger('trading_bot')
 
@@ -343,6 +344,7 @@ class EnhancedTradingSystem:
             # 🆕 v4.4.0: Calculate enhanced indicators if OHLCV data available
             enhanced_data = None
             advanced_data = None
+            institutional_data = None
 
             if ohlcv_data and len(ohlcv_data) >= 50:
                 try:
@@ -360,7 +362,15 @@ class EnhancedTradingSystem:
                     logger.warning(f"⚠️ {symbol}: Advanced indicators failed: {e}")
                     advanced_data = None
 
-            # Score the opportunity with enhanced + advanced data
+                # 🆕 v4.6.0: Calculate institutional indicators (SMC, Wyckoff, Hurst, Z-Score)
+                try:
+                    institutional_data = calculate_institutional_indicators(ohlcv_data)
+                    logger.info(f"🏛️ {symbol}: Institutional indicators (SMC, Wyckoff, Hurst) calculated")
+                except Exception as e:
+                    logger.warning(f"⚠️ {symbol}: Institutional indicators failed: {e}")
+                    institutional_data = None
+
+            # Score the opportunity with enhanced + advanced + institutional data
             score_result = self.confluence_scorer.score_opportunity(
                 symbol=symbol,
                 side=side,
@@ -369,8 +379,9 @@ class EnhancedTradingSystem:
                 volume_profile=volume_profile,
                 market_regime=market_regime,
                 mtf_data=mtf_data,
-                enhanced_data=enhanced_data,  # v4.4.0: Enhanced indicators
-                advanced_data=advanced_data   # 🆕 v4.5.0: Advanced indicators
+                enhanced_data=enhanced_data,      # v4.4.0: Enhanced indicators
+                advanced_data=advanced_data,      # v4.5.0: Advanced indicators
+                institutional_data=institutional_data  # 🆕 v4.6.0: Institutional indicators
             )
 
             return score_result

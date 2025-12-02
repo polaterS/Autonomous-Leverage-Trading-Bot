@@ -1,15 +1,17 @@
-# 🚀 PA-ONLY v4.5.1 - INSTANT TRADING DISABLED
+# 🚀 PA-ONLY v4.6.0 - INSTITUTIONAL GRADE INDICATORS
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251202_V451_INSTANT_TRADING_DISABLED
+ARG CACHE_BUST=20251202_V460_INSTITUTIONAL_INDICATORS
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🆕 v4.5.1: Instant Trading DISABLED!" && \
-    echo "   - Realtime signals logged but NO trades executed" && \
-    echo "   - Main trading loop handles all trade execution" && \
-    echo "   - Prevents late entry at peaks/bottoms" && \
-    echo "   - All v4.5.0 indicators still active"
+    echo "🏛️ v4.6.0: INSTITUTIONAL GRADE INDICATORS!" && \
+    echo "   - Smart Money Concepts (Order Blocks, FVG, Liquidity Sweeps)" && \
+    echo "   - Market Structure Analysis (BOS, CHoCH)" && \
+    echo "   - Wyckoff Volume Spread Analysis (VSA)" && \
+    echo "   - Statistical Edge (Hurst Exponent, Z-Score)" && \
+    echo "   - Session Analysis (Asian/European/US)" && \
+    echo "   - Instant Trading still DISABLED"
 
 # Set working directory
 WORKDIR /app
@@ -29,13 +31,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.5.1
-# Current deployment: 20251202_V451_INSTANT_TRADING_DISABLED
-# Changes: Disabled instant trading via realtime signal handler
-#   - Realtime signals are logged but NO trades are executed
-#   - Main trading loop handles ALL trade entries
-#   - Prevents entering trades at peaks (LONG) or bottoms (SHORT)
-#   - All v4.5.0 advanced indicators still active
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.6.0
+# Current deployment: 20251202_V460_INSTITUTIONAL_INDICATORS
+# Changes: Added institutional grade indicators for professional analysis
+#   - Smart Money Concepts: Order Blocks, Fair Value Gaps, Liquidity Sweeps
+#   - Market Structure: Break of Structure (BOS), Change of Character (CHoCH)
+#   - Wyckoff VSA: Accumulation/Distribution, Climax, Stopping Volume
+#   - Statistical Edge: Hurst Exponent (trend persistence), Z-Score
+#   - Session Analysis: Asian/European/US session optimization
+#   - 25 points added to confluence scoring for institutional analysis
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

@@ -1,8 +1,9 @@
-# Force redeploy v4.5.1 - Instant Trading DISABLED - 2 Dec 2025 Mon
-# Critical fix:
-#   - 🚫 Realtime instant trading DISABLED
-#   - Realtime signals logged but NO trades executed
-#   - Main trading loop handles ALL trade entries
-#   - Prevents late entry at peaks (LONG) or bottoms (SHORT)
-# v4.5.0 features still active:
-#   - VWAP, StochRSI, Williams %R, CMF, ATR Regime, Fibonacci
+# Force redeploy v4.6.0 - Institutional Grade Indicators - 2 Dec 2025 Mon
+# MAJOR UPDATE: Professional-grade institutional analysis:
+#   - 🏛️ Smart Money Concepts (SMC): Order Blocks, FVG, Liquidity Sweeps
+#   - 📈 Market Structure: BOS (Break of Structure), CHoCH (Change of Character)
+#   - 📊 Wyckoff VSA: Accumulation/Distribution, Climax, Stopping Volume
+#   - 📏 Statistical Edge: Hurst Exponent, Z-Score analysis
+#   - ⏰ Session Analysis: Asian/European/US optimization
+#   - 25 points (25%) of confluence scoring now from institutional analysis
+# Instant trading still DISABLED - main loop handles all entries

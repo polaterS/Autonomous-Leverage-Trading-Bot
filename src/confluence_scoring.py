@@ -53,17 +53,18 @@ class ConfluenceScorer:
 
     def __init__(self):
         # Scoring weights (must sum to 100)
-        # 🆕 v4.5.0: Added advanced professional indicators
+        # 🆕 v4.6.0: Added institutional grade indicators (SMC, Wyckoff, Hurst)
         self.weights = {
-            'multi_timeframe': 12,       # MTF trend alignment
-            'volume_profile': 8,         # VPOC, HVN proximity
-            'indicators': 15,            # RSI, MACD, SuperTrend, etc.
-            'market_regime': 8,          # ADX-based regime
-            'support_resistance': 10,    # S/R quality
+            'multi_timeframe': 10,       # MTF trend alignment
+            'volume_profile': 6,         # VPOC, HVN proximity
+            'indicators': 10,            # RSI, MACD, SuperTrend, etc.
+            'market_regime': 6,          # ADX-based regime
+            'support_resistance': 8,     # S/R quality
             'risk_reward': 5,            # R/R ratio
-            'enhanced_indicators': 12,   # v4.4.0: BB Squeeze, EMA Stack, Divergences
-            'momentum_quality': 10,      # Momentum strength and direction
-            'advanced_indicators': 20    # 🆕 v4.5.0: VWAP, StochRSI, CMF, Fibonacci
+            'enhanced_indicators': 10,   # v4.4.0: BB Squeeze, EMA Stack, Divergences
+            'momentum_quality': 8,       # Momentum strength and direction
+            'advanced_indicators': 12,   # v4.5.0: VWAP, StochRSI, CMF, Fibonacci
+            'institutional': 25          # 🆕 v4.6.0: SMC, Wyckoff VSA, Hurst, Z-Score
         }
 
         # Minimum score to trade
@@ -90,7 +91,8 @@ class ConfluenceScorer:
         market_regime: Dict,
         mtf_data: Optional[Dict] = None,
         enhanced_data: Optional[Dict] = None,  # v4.4.0: Enhanced indicators
-        advanced_data: Optional[Dict] = None   # 🆕 v4.5.0: Advanced indicators
+        advanced_data: Optional[Dict] = None,  # v4.5.0: Advanced indicators
+        institutional_data: Optional[Dict] = None  # 🆕 v4.6.0: Institutional indicators
     ) -> Dict[str, Any]:
         """
         Main scoring method: Evaluate a trading opportunity.
@@ -147,9 +149,13 @@ class ConfluenceScorer:
             momentum_score = self._score_momentum_quality(side, enhanced_data, market_regime)
             component_scores['momentum_quality'] = momentum_score
 
-            # 🆕 9. Advanced Indicators (20 points) - VWAP, StochRSI, CMF, Fib - v4.5.0
+            # 🆕 9. Advanced Indicators (12 points) - VWAP, StochRSI, CMF, Fib - v4.5.0
             advanced_score = self._score_advanced_indicators(side, advanced_data, indicators)
             component_scores['advanced_indicators'] = advanced_score
+
+            # 🆕 10. Institutional Indicators (25 points) - SMC, Wyckoff, Hurst - v4.6.0
+            institutional_score = self._score_institutional_indicators(side, institutional_data)
+            component_scores['institutional'] = institutional_score
 
             # Calculate total score
             total_score = sum(component_scores.values())
@@ -840,6 +846,206 @@ class ConfluenceScorer:
 
         except Exception as e:
             logger.warning(f"⚠️ Advanced indicators scoring error: {e}")
+            return max_points * 0.4
+
+    def _score_institutional_indicators(self, side: str, institutional_data: Optional[Dict]) -> float:
+        """
+        🏛️ v4.6.0: Score Institutional Grade Indicators (25 points max)
+
+        Professional-level analysis used by institutional traders:
+        1. Market Structure (BOS/CHoCH) - 6 points
+        2. Smart Money Concepts (Order Blocks, FVG, Liquidity Sweeps) - 8 points
+        3. Wyckoff VSA (Volume Spread Analysis) - 5 points
+        4. Statistical Edge (Hurst Exponent, Z-Score) - 6 points
+
+        These indicators reveal what "smart money" is doing.
+        """
+        max_points = self.weights['institutional']
+        score = 0
+
+        try:
+            if not institutional_data:
+                # No institutional data - give moderate baseline
+                return max_points * 0.4  # 10 points
+
+            # === 1. MARKET STRUCTURE (6 points) ===
+            # Most important - defines the trend direction
+            market_structure = institutional_data.get('market_structure', {})
+            structure = market_structure.get('structure', 'UNKNOWN')
+            bos = market_structure.get('bos')
+            choch = market_structure.get('choch')
+            ms_signal = market_structure.get('signal', 'NEUTRAL')
+
+            if side == 'LONG':
+                if choch and choch.get('type') == 'BULLISH_CHOCH':
+                    score += 6  # Perfect: trend reversal to bullish
+                elif bos and bos.get('type') == 'BULLISH_BOS':
+                    score += 5  # Great: bullish continuation
+                elif structure == 'BULLISH':
+                    score += 4  # Good: bullish structure
+                elif ms_signal == 'BUY':
+                    score += 3
+                elif structure == 'RANGING':
+                    score += 2  # Neutral
+                else:
+                    score += 1  # Against structure
+            else:  # SHORT
+                if choch and choch.get('type') == 'BEARISH_CHOCH':
+                    score += 6  # Perfect: trend reversal to bearish
+                elif bos and bos.get('type') == 'BEARISH_BOS':
+                    score += 5  # Great: bearish continuation
+                elif structure == 'BEARISH':
+                    score += 4  # Good: bearish structure
+                elif ms_signal == 'SELL':
+                    score += 3
+                elif structure == 'RANGING':
+                    score += 2  # Neutral
+                else:
+                    score += 1  # Against structure
+
+            # === 2. SMART MONEY CONCEPTS (8 points) ===
+            # Order Blocks (3 pts)
+            order_blocks = institutional_data.get('order_blocks', {})
+            ob_signal = order_blocks.get('signal', 'NEUTRAL')
+            nearest_ob = order_blocks.get('nearest_ob')
+
+            if side == 'LONG':
+                if ob_signal == 'BUY' and nearest_ob and nearest_ob.get('type') == 'BULLISH':
+                    score += 3  # Near bullish order block
+                elif ob_signal == 'WATCH_LONG':
+                    score += 2
+                elif nearest_ob and nearest_ob.get('type') == 'BULLISH':
+                    score += 1.5
+                else:
+                    score += 0.5
+            else:  # SHORT
+                if ob_signal == 'SELL' and nearest_ob and nearest_ob.get('type') == 'BEARISH':
+                    score += 3  # Near bearish order block
+                elif ob_signal == 'WATCH_SHORT':
+                    score += 2
+                elif nearest_ob and nearest_ob.get('type') == 'BEARISH':
+                    score += 1.5
+                else:
+                    score += 0.5
+
+            # Fair Value Gaps (2 pts)
+            fvg = institutional_data.get('fair_value_gaps', {})
+            fvg_signal = fvg.get('signal', 'NEUTRAL')
+            nearest_fvg = fvg.get('nearest_fvg')
+
+            if side == 'LONG' and fvg_signal in ['BUY', 'WATCH_LONG']:
+                score += 2  # Bullish FVG nearby
+            elif side == 'SHORT' and fvg_signal in ['SELL', 'WATCH_SHORT']:
+                score += 2  # Bearish FVG nearby
+            elif nearest_fvg:
+                score += 1
+            else:
+                score += 0.5
+
+            # Liquidity Sweeps (3 pts) - VERY strong signal
+            liquidity = institutional_data.get('liquidity_sweeps', {})
+            sweep_detected = liquidity.get('sweep_detected', False)
+            liq_signal = liquidity.get('signal', 'NEUTRAL')
+
+            if sweep_detected:
+                if side == 'LONG' and liq_signal == 'STRONG_BUY':
+                    score += 3  # Just swept lows - strong buy
+                elif side == 'SHORT' and liq_signal == 'STRONG_SELL':
+                    score += 3  # Just swept highs - strong sell
+                elif (side == 'LONG' and 'BULLISH' in str(liquidity.get('recent_sweeps', []))) or \
+                     (side == 'SHORT' and 'BEARISH' in str(liquidity.get('recent_sweeps', []))):
+                    score += 2
+                else:
+                    score += 1  # Sweep detected but direction unclear
+            else:
+                score += 0.5  # No sweep
+
+            # === 3. WYCKOFF VSA (5 points) ===
+            vsa = institutional_data.get('wyckoff_vsa', {})
+            vsa_phase = vsa.get('phase', 'NEUTRAL')
+            vsa_signal = vsa.get('signal', 'NEUTRAL')
+            vsa_patterns = vsa.get('patterns', [])
+
+            if side == 'LONG':
+                if vsa_phase == 'ACCUMULATION':
+                    score += 4  # Smart money accumulating
+                elif vsa_signal in ['STRONG_BUY', 'BUY']:
+                    score += 3
+                elif any(p.get('type') in ['SELLING_CLIMAX', 'STOPPING_VOLUME_DOWN', 'NO_SUPPLY']
+                        for p in vsa_patterns):
+                    score += 2.5
+                elif vsa_phase == 'TRANSITION':
+                    score += 2
+                else:
+                    score += 1
+            else:  # SHORT
+                if vsa_phase == 'DISTRIBUTION':
+                    score += 4  # Smart money distributing
+                elif vsa_signal in ['STRONG_SELL', 'SELL']:
+                    score += 3
+                elif any(p.get('type') in ['BUYING_CLIMAX', 'STOPPING_VOLUME_UP', 'NO_DEMAND']
+                        for p in vsa_patterns):
+                    score += 2.5
+                elif vsa_phase == 'TRANSITION':
+                    score += 2
+                else:
+                    score += 1
+
+            # === 4. STATISTICAL EDGE (6 points) ===
+            # Hurst Exponent (3 pts) - Tells us if market is tradeable
+            hurst = institutional_data.get('hurst', {})
+            hurst_value = hurst.get('hurst', 0.5)
+            hurst_regime = hurst.get('regime', 'RANDOM')
+            hurst_tradeable = hurst.get('tradeable', False)
+
+            if hurst_tradeable:
+                if hurst_regime == 'TRENDING' and hurst_value > 0.6:
+                    score += 3  # Strong trending market - momentum strategies work
+                elif hurst_regime == 'MEAN_REVERTING' and hurst_value < 0.4:
+                    score += 2.5  # Mean reverting - contrarian strategies work
+                else:
+                    score += 2
+            elif hurst_regime == 'RANDOM':
+                score += 1  # Random walk - be cautious
+            else:
+                score += 1.5
+
+            # Z-Score (3 pts) - Statistical deviation from mean
+            zscore_data = institutional_data.get('zscore', {})
+            zscore = zscore_data.get('zscore', 0)
+            deviation = zscore_data.get('deviation', 'NORMAL')
+
+            if side == 'LONG':
+                if zscore < -2.0:
+                    score += 3  # Extremely oversold - high probability bounce
+                elif zscore < -1.5:
+                    score += 2.5
+                elif zscore < -1.0:
+                    score += 2
+                elif zscore < 0:
+                    score += 1.5  # Below mean - slight edge
+                elif zscore > 2.0:
+                    score += 0.5  # Overbought - risky long
+                else:
+                    score += 1
+            else:  # SHORT
+                if zscore > 2.0:
+                    score += 3  # Extremely overbought - high probability drop
+                elif zscore > 1.5:
+                    score += 2.5
+                elif zscore > 1.0:
+                    score += 2
+                elif zscore > 0:
+                    score += 1.5  # Above mean - slight edge
+                elif zscore < -2.0:
+                    score += 0.5  # Oversold - risky short
+                else:
+                    score += 1
+
+            return min(score, max_points)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Institutional indicators scoring error: {e}")
             return max_points * 0.4
 
     def _score_risk_reward(self, pa_analysis: Dict) -> float:
