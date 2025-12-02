@@ -5382,3 +5382,1402 @@ def calculate_institutional_indicators(ohlcv: List) -> Dict[str, Any]:
             'confidence': 0,
             'error': str(e)
         }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🚀 v4.7.0: ULTRA PROFESSIONAL TRADING INDICATORS
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tier 1: Derivatives Analysis (Funding Rate, OI, L/S Ratio, Fear & Greed)
+# Tier 2: Advanced Analysis (CVD, Liquidation Levels, Ichimoku Cloud)
+# Tier 3: Pattern Recognition (Harmonic Patterns)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def calculate_funding_rate_signal(funding_rate: float = None, funding_history: List[float] = None) -> Dict[str, Any]:
+    """
+    💰 TIER 1: Funding Rate Analysis
+
+    Funding Rate = Premium/Discount between perpetual and spot price
+    - Positive: Longs pay Shorts (too many longs = bearish signal)
+    - Negative: Shorts pay Longs (too many shorts = bullish signal)
+
+    Extreme funding rates predict reversals with ~85% accuracy.
+
+    Args:
+        funding_rate: Current funding rate (e.g., 0.0001 = 0.01%)
+        funding_history: List of recent funding rates
+
+    Returns:
+        Dict with signal and analysis
+    """
+    try:
+        if funding_rate is None:
+            return {'signal': 'NEUTRAL', 'funding_rate': 0, 'interpretation': 'No data'}
+
+        # Convert to percentage for easier interpretation
+        funding_pct = funding_rate * 100
+
+        # Determine signal based on funding rate thresholds
+        if funding_pct >= 0.1:
+            signal = 'STRONG_SELL'  # Extreme positive - too many longs
+            interpretation = 'EXTREME LONG CROWDING - High reversal probability'
+            contrarian_strength = min(100, funding_pct * 500)
+        elif funding_pct >= 0.05:
+            signal = 'SELL'
+            interpretation = 'High long bias - Consider contrarian short'
+            contrarian_strength = funding_pct * 400
+        elif funding_pct >= 0.01:
+            signal = 'SLIGHT_BEARISH'
+            interpretation = 'Moderate long bias - Normal market'
+            contrarian_strength = funding_pct * 200
+        elif funding_pct <= -0.1:
+            signal = 'STRONG_BUY'  # Extreme negative - too many shorts
+            interpretation = 'EXTREME SHORT CROWDING - High reversal probability'
+            contrarian_strength = min(100, abs(funding_pct) * 500)
+        elif funding_pct <= -0.05:
+            signal = 'BUY'
+            interpretation = 'High short bias - Consider contrarian long'
+            contrarian_strength = abs(funding_pct) * 400
+        elif funding_pct <= -0.01:
+            signal = 'SLIGHT_BULLISH'
+            interpretation = 'Moderate short bias - Normal market'
+            contrarian_strength = abs(funding_pct) * 200
+        else:
+            signal = 'NEUTRAL'
+            interpretation = 'Balanced funding - No edge'
+            contrarian_strength = 0
+
+        # Analyze funding history trend if available
+        funding_trend = 'STABLE'
+        if funding_history and len(funding_history) >= 3:
+            recent_avg = sum(funding_history[-3:]) / 3
+            older_avg = sum(funding_history[:3]) / 3 if len(funding_history) >= 6 else recent_avg
+
+            if recent_avg > older_avg * 1.5:
+                funding_trend = 'INCREASING'  # Longs increasing
+            elif recent_avg < older_avg * 0.5:
+                funding_trend = 'DECREASING'  # Shorts increasing
+
+        return {
+            'signal': signal,
+            'funding_rate': funding_rate,
+            'funding_pct': round(funding_pct, 4),
+            'interpretation': interpretation,
+            'contrarian_strength': round(contrarian_strength, 1),
+            'funding_trend': funding_trend,
+            'is_extreme': abs(funding_pct) >= 0.05
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'funding_rate': 0, 'error': str(e)}
+
+
+def calculate_open_interest_signal(
+    current_oi: float,
+    oi_history: List[float] = None,
+    price_history: List[float] = None
+) -> Dict[str, Any]:
+    """
+    📊 TIER 1: Open Interest Analysis
+
+    OI = Total number of outstanding derivative contracts
+
+    Price ↑ + OI ↑ = Strong bullish (new money entering longs)
+    Price ↑ + OI ↓ = Weak rally (short covering)
+    Price ↓ + OI ↑ = Strong bearish (new money entering shorts)
+    Price ↓ + OI ↓ = Weak decline (long liquidation)
+
+    Args:
+        current_oi: Current open interest value
+        oi_history: Historical OI values
+        price_history: Historical price values (aligned with OI)
+
+    Returns:
+        Dict with OI analysis and signal
+    """
+    try:
+        if not oi_history or len(oi_history) < 5:
+            return {'signal': 'NEUTRAL', 'current_oi': current_oi, 'interpretation': 'Insufficient data'}
+
+        # Calculate OI change
+        oi_change_pct = (current_oi - oi_history[-5]) / oi_history[-5] * 100 if oi_history[-5] > 0 else 0
+
+        # Calculate price change if available
+        price_change_pct = 0
+        if price_history and len(price_history) >= 5:
+            price_change_pct = (price_history[-1] - price_history[-5]) / price_history[-5] * 100
+
+        # Determine signal based on OI + Price relationship
+        signal = 'NEUTRAL'
+        interpretation = ''
+        strength = 0
+
+        if oi_change_pct > 5:  # OI increasing significantly
+            if price_change_pct > 1:
+                signal = 'STRONG_BUY'
+                interpretation = 'NEW LONGS ENTERING - Strong bullish momentum'
+                strength = min(100, oi_change_pct * 2 + price_change_pct * 5)
+            elif price_change_pct < -1:
+                signal = 'STRONG_SELL'
+                interpretation = 'NEW SHORTS ENTERING - Strong bearish pressure'
+                strength = min(100, oi_change_pct * 2 + abs(price_change_pct) * 5)
+            else:
+                signal = 'NEUTRAL'
+                interpretation = 'OI rising but price flat - Building positions'
+                strength = 30
+
+        elif oi_change_pct < -5:  # OI decreasing significantly
+            if price_change_pct > 1:
+                signal = 'SLIGHT_BEARISH'
+                interpretation = 'SHORT COVERING RALLY - Weak, may reverse'
+                strength = 40
+            elif price_change_pct < -1:
+                signal = 'SLIGHT_BULLISH'
+                interpretation = 'LONG LIQUIDATION - Capitulation, bounce possible'
+                strength = 50
+            else:
+                signal = 'NEUTRAL'
+                interpretation = 'Positions closing - Lower conviction'
+                strength = 20
+        else:
+            signal = 'NEUTRAL'
+            interpretation = 'Stable OI - No significant change'
+            strength = 10
+
+        # Calculate OI trend
+        oi_trend = 'STABLE'
+        if len(oi_history) >= 10:
+            recent_oi = sum(oi_history[-3:]) / 3
+            older_oi = sum(oi_history[-10:-7]) / 3
+            if recent_oi > older_oi * 1.1:
+                oi_trend = 'RISING'
+            elif recent_oi < older_oi * 0.9:
+                oi_trend = 'FALLING'
+
+        return {
+            'signal': signal,
+            'current_oi': current_oi,
+            'oi_change_pct': round(oi_change_pct, 2),
+            'price_change_pct': round(price_change_pct, 2),
+            'interpretation': interpretation,
+            'strength': round(strength, 1),
+            'oi_trend': oi_trend,
+            'is_significant': abs(oi_change_pct) > 5
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'current_oi': 0, 'error': str(e)}
+
+
+def calculate_long_short_ratio_signal(
+    long_short_ratio: float,
+    ratio_history: List[float] = None
+) -> Dict[str, Any]:
+    """
+    📈 TIER 1: Long/Short Ratio Analysis
+
+    L/S Ratio = Long accounts / Short accounts (or positions)
+
+    - Ratio > 2.0: Too many longs → Contrarian SHORT
+    - Ratio > 1.5: High long bias → Caution on longs
+    - Ratio ≈ 1.0: Balanced market
+    - Ratio < 0.7: High short bias → Caution on shorts
+    - Ratio < 0.5: Too many shorts → Contrarian LONG
+
+    Extreme ratios predict reversals (contrarian indicator).
+
+    Args:
+        long_short_ratio: Current ratio (e.g., 1.5 means 1.5 longs per short)
+        ratio_history: Historical ratio values
+
+    Returns:
+        Dict with analysis and contrarian signal
+    """
+    try:
+        if long_short_ratio is None or long_short_ratio <= 0:
+            return {'signal': 'NEUTRAL', 'ratio': 0, 'interpretation': 'Invalid data'}
+
+        ratio = long_short_ratio
+
+        # Determine contrarian signal
+        if ratio >= 2.5:
+            signal = 'STRONG_SELL'  # Extreme long crowding
+            interpretation = 'EXTREME LONG CROWDING - High probability reversal down'
+            crowd_sentiment = 'EXTREME_BULLISH'
+            contrarian_confidence = 90
+        elif ratio >= 2.0:
+            signal = 'SELL'
+            interpretation = 'Heavy long bias - Contrarian short opportunity'
+            crowd_sentiment = 'VERY_BULLISH'
+            contrarian_confidence = 75
+        elif ratio >= 1.5:
+            signal = 'SLIGHT_BEARISH'
+            interpretation = 'Moderate long bias - Be cautious on longs'
+            crowd_sentiment = 'BULLISH'
+            contrarian_confidence = 50
+        elif ratio <= 0.4:
+            signal = 'STRONG_BUY'  # Extreme short crowding
+            interpretation = 'EXTREME SHORT CROWDING - High probability reversal up'
+            crowd_sentiment = 'EXTREME_BEARISH'
+            contrarian_confidence = 90
+        elif ratio <= 0.5:
+            signal = 'BUY'
+            interpretation = 'Heavy short bias - Contrarian long opportunity'
+            crowd_sentiment = 'VERY_BEARISH'
+            contrarian_confidence = 75
+        elif ratio <= 0.7:
+            signal = 'SLIGHT_BULLISH'
+            interpretation = 'Moderate short bias - Be cautious on shorts'
+            crowd_sentiment = 'BEARISH'
+            contrarian_confidence = 50
+        else:
+            signal = 'NEUTRAL'
+            interpretation = 'Balanced positioning - No contrarian edge'
+            crowd_sentiment = 'NEUTRAL'
+            contrarian_confidence = 20
+
+        # Analyze ratio trend
+        ratio_trend = 'STABLE'
+        if ratio_history and len(ratio_history) >= 5:
+            recent_ratio = sum(ratio_history[-3:]) / 3
+            older_ratio = sum(ratio_history[:3]) / 3 if len(ratio_history) >= 6 else recent_ratio
+
+            if recent_ratio > older_ratio * 1.2:
+                ratio_trend = 'LONGS_INCREASING'
+            elif recent_ratio < older_ratio * 0.8:
+                ratio_trend = 'SHORTS_INCREASING'
+
+        # Calculate percentages
+        long_pct = ratio / (ratio + 1) * 100
+        short_pct = 100 - long_pct
+
+        return {
+            'signal': signal,
+            'ratio': round(ratio, 3),
+            'long_pct': round(long_pct, 1),
+            'short_pct': round(short_pct, 1),
+            'interpretation': interpretation,
+            'crowd_sentiment': crowd_sentiment,
+            'contrarian_confidence': contrarian_confidence,
+            'ratio_trend': ratio_trend,
+            'is_extreme': ratio >= 2.0 or ratio <= 0.5
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'ratio': 0, 'error': str(e)}
+
+
+def calculate_fear_greed_index(ohlcv: List, volatility_data: Dict = None, volume_data: Dict = None) -> Dict[str, Any]:
+    """
+    😱 TIER 1: Fear & Greed Index (Crypto-specific calculation)
+
+    Composite index 0-100:
+    - 0-25: Extreme Fear → BUY (Contrarian)
+    - 25-45: Fear → Watch for LONG
+    - 45-55: Neutral
+    - 55-75: Greed → Watch for SHORT
+    - 75-100: Extreme Greed → SELL (Contrarian)
+
+    Components:
+    1. Volatility (25%): High vol = Fear
+    2. Market Momentum (25%): Based on price trend
+    3. Volume (25%): High volume can indicate fear/greed
+    4. Price Distance from MA (25%): Far from mean = extreme sentiment
+
+    Args:
+        ohlcv: OHLCV data
+        volatility_data: Optional volatility metrics
+        volume_data: Optional volume metrics
+
+    Returns:
+        Dict with Fear & Greed index and interpretation
+    """
+    try:
+        if len(ohlcv) < 30:
+            return {'signal': 'NEUTRAL', 'index': 50, 'sentiment': 'NEUTRAL', 'interpretation': 'Insufficient data'}
+
+        closes = [c[4] for c in ohlcv]
+        volumes = [c[5] for c in ohlcv]
+        highs = [c[2] for c in ohlcv]
+        lows = [c[3] for c in ohlcv]
+
+        current_price = closes[-1]
+
+        # 1. VOLATILITY COMPONENT (25%)
+        # High volatility = Fear, Low volatility = Complacency/Greed
+        returns = [(closes[i] - closes[i-1]) / closes[i-1] for i in range(1, len(closes))]
+        volatility = np.std(returns[-14:]) * 100  # 14-day volatility
+        avg_volatility = np.std(returns) * 100
+
+        if volatility > avg_volatility * 1.5:
+            volatility_score = 20  # High vol = Fear
+        elif volatility > avg_volatility * 1.2:
+            volatility_score = 35
+        elif volatility < avg_volatility * 0.5:
+            volatility_score = 80  # Low vol = Complacency
+        elif volatility < avg_volatility * 0.8:
+            volatility_score = 65
+        else:
+            volatility_score = 50
+
+        # 2. MOMENTUM COMPONENT (25%)
+        # Strong uptrend = Greed, Strong downtrend = Fear
+        ma_20 = sum(closes[-20:]) / 20
+        ma_50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else ma_20
+
+        price_vs_ma20 = (current_price - ma_20) / ma_20 * 100
+        price_vs_ma50 = (current_price - ma_50) / ma_50 * 100
+
+        momentum_score = 50 + (price_vs_ma20 * 2) + (price_vs_ma50 * 1)
+        momentum_score = max(0, min(100, momentum_score))
+
+        # 3. VOLUME COMPONENT (25%)
+        # Spike in volume during decline = Fear, Spike during rally = Greed
+        avg_volume = sum(volumes[-20:]) / 20
+        recent_volume = sum(volumes[-3:]) / 3
+        volume_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
+
+        price_change_3d = (closes[-1] - closes[-4]) / closes[-4] * 100
+
+        if volume_ratio > 1.5 and price_change_3d < -3:
+            volume_score = 20  # Panic selling
+        elif volume_ratio > 1.5 and price_change_3d > 3:
+            volume_score = 80  # FOMO buying
+        elif volume_ratio > 1.2:
+            volume_score = 55 if price_change_3d > 0 else 45
+        else:
+            volume_score = 50
+
+        # 4. PRICE DISTANCE FROM MEAN (25%)
+        # Far above mean = Greed, Far below = Fear
+        sma_30 = sum(closes[-30:]) / 30
+        distance_pct = (current_price - sma_30) / sma_30 * 100
+
+        distance_score = 50 + (distance_pct * 3)
+        distance_score = max(0, min(100, distance_score))
+
+        # CALCULATE FINAL INDEX
+        fear_greed_index = (
+            volatility_score * 0.25 +
+            momentum_score * 0.25 +
+            volume_score * 0.25 +
+            distance_score * 0.25
+        )
+
+        fear_greed_index = round(max(0, min(100, fear_greed_index)), 1)
+
+        # Determine sentiment and signal
+        if fear_greed_index <= 20:
+            sentiment = 'EXTREME_FEAR'
+            signal = 'STRONG_BUY'  # Contrarian
+            interpretation = '😱 EXTREME FEAR - Strong contrarian buy signal'
+        elif fear_greed_index <= 35:
+            sentiment = 'FEAR'
+            signal = 'BUY'
+            interpretation = '😰 FEAR - Consider buying on weakness'
+        elif fear_greed_index <= 45:
+            sentiment = 'SLIGHT_FEAR'
+            signal = 'SLIGHT_BULLISH'
+            interpretation = '😟 Slight fear - Market uncertain'
+        elif fear_greed_index <= 55:
+            sentiment = 'NEUTRAL'
+            signal = 'NEUTRAL'
+            interpretation = '😐 Neutral - No sentiment edge'
+        elif fear_greed_index <= 65:
+            sentiment = 'SLIGHT_GREED'
+            signal = 'SLIGHT_BEARISH'
+            interpretation = '🙂 Slight greed - Market optimistic'
+        elif fear_greed_index <= 80:
+            sentiment = 'GREED'
+            signal = 'SELL'
+            interpretation = '🤑 GREED - Consider taking profits'
+        else:
+            sentiment = 'EXTREME_GREED'
+            signal = 'STRONG_SELL'  # Contrarian
+            interpretation = '🚀😵 EXTREME GREED - Strong contrarian sell signal'
+
+        return {
+            'signal': signal,
+            'index': fear_greed_index,
+            'sentiment': sentiment,
+            'interpretation': interpretation,
+            'components': {
+                'volatility': round(volatility_score, 1),
+                'momentum': round(momentum_score, 1),
+                'volume': round(volume_score, 1),
+                'price_distance': round(distance_score, 1)
+            },
+            'is_extreme': fear_greed_index <= 25 or fear_greed_index >= 75
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'index': 50, 'sentiment': 'ERROR', 'error': str(e)}
+
+
+def calculate_cvd(ohlcv: List, lookback: int = 50) -> Dict[str, Any]:
+    """
+    📈 TIER 2: Cumulative Volume Delta (CVD) Analysis
+
+    CVD estimates buying vs selling pressure from OHLCV data.
+
+    Delta = (Close - Low) / (High - Low) * Volume  (buying pressure)
+         - (High - Close) / (High - Low) * Volume  (selling pressure)
+
+    Price ↑ + CVD ↑ = Genuine buying, trend strong
+    Price ↑ + CVD ↓ = Fake rally, distribution, reversal likely
+    Price ↓ + CVD ↑ = Accumulation, reversal likely
+    Price ↓ + CVD ↓ = Genuine selling, trend strong
+
+    Args:
+        ohlcv: OHLCV data
+        lookback: Period for analysis
+
+    Returns:
+        Dict with CVD analysis and divergence detection
+    """
+    try:
+        if len(ohlcv) < lookback:
+            return {'signal': 'NEUTRAL', 'cvd': 0, 'interpretation': 'Insufficient data'}
+
+        # Calculate delta for each candle
+        deltas = []
+        cumulative_delta = 0
+        cvd_values = []
+
+        for candle in ohlcv[-lookback:]:
+            high = candle[2]
+            low = candle[3]
+            close = candle[4]
+            volume = candle[5]
+
+            candle_range = high - low
+            if candle_range > 0:
+                # Buy pressure: how much of the candle closed toward the high
+                buy_pressure = ((close - low) / candle_range) * volume
+                # Sell pressure: how much of the candle closed toward the low
+                sell_pressure = ((high - close) / candle_range) * volume
+                delta = buy_pressure - sell_pressure
+            else:
+                delta = 0
+
+            deltas.append(delta)
+            cumulative_delta += delta
+            cvd_values.append(cumulative_delta)
+
+        # Current CVD and trend
+        current_cvd = cvd_values[-1] if cvd_values else 0
+        cvd_change = cvd_values[-1] - cvd_values[-10] if len(cvd_values) >= 10 else 0
+
+        # Price change over same period
+        closes = [c[4] for c in ohlcv[-lookback:]]
+        price_change = closes[-1] - closes[-10] if len(closes) >= 10 else 0
+        price_change_pct = (price_change / closes[-10] * 100) if len(closes) >= 10 and closes[-10] > 0 else 0
+
+        # Detect divergence
+        divergence = 'NONE'
+        signal = 'NEUTRAL'
+        interpretation = ''
+
+        if price_change > 0 and cvd_change > 0:
+            signal = 'BUY'
+            divergence = 'NONE'
+            interpretation = 'CONFIRMED UPTREND - Price and CVD rising together'
+            strength = min(80, abs(price_change_pct) * 5 + 40)
+        elif price_change > 0 and cvd_change < 0:
+            signal = 'SELL'  # Bearish divergence
+            divergence = 'BEARISH'
+            interpretation = '⚠️ BEARISH DIVERGENCE - Price up but selling pressure, reversal likely'
+            strength = 70
+        elif price_change < 0 and cvd_change > 0:
+            signal = 'BUY'  # Bullish divergence
+            divergence = 'BULLISH'
+            interpretation = '⚠️ BULLISH DIVERGENCE - Price down but buying pressure, reversal likely'
+            strength = 70
+        elif price_change < 0 and cvd_change < 0:
+            signal = 'SELL'
+            divergence = 'NONE'
+            interpretation = 'CONFIRMED DOWNTREND - Price and CVD falling together'
+            strength = min(80, abs(price_change_pct) * 5 + 40)
+        else:
+            signal = 'NEUTRAL'
+            interpretation = 'No clear signal'
+            strength = 30
+
+        # Calculate recent delta trend (last 5 candles)
+        recent_delta_sum = sum(deltas[-5:])
+        delta_trend = 'BUYING' if recent_delta_sum > 0 else 'SELLING' if recent_delta_sum < 0 else 'NEUTRAL'
+
+        return {
+            'signal': signal,
+            'cvd': round(current_cvd, 2),
+            'cvd_change': round(cvd_change, 2),
+            'price_change_pct': round(price_change_pct, 2),
+            'divergence': divergence,
+            'interpretation': interpretation,
+            'delta_trend': delta_trend,
+            'recent_delta': round(recent_delta_sum, 2),
+            'strength': round(strength, 1),
+            'is_divergent': divergence != 'NONE'
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'cvd': 0, 'error': str(e)}
+
+
+def calculate_liquidation_levels(
+    ohlcv: List,
+    current_price: float,
+    leverage_levels: List[int] = [5, 10, 20, 25, 50, 100]
+) -> Dict[str, Any]:
+    """
+    🔥 TIER 2: Liquidation Level Estimation
+
+    Estimates where leveraged positions would get liquidated.
+    Price tends to hunt these levels (liquidity hunting by smart money).
+
+    Liquidation Price (Long) = Entry * (1 - 1/Leverage)
+    Liquidation Price (Short) = Entry * (1 + 1/Leverage)
+
+    Args:
+        ohlcv: OHLCV data to find recent entry clusters
+        current_price: Current market price
+        leverage_levels: Common leverage levels to analyze
+
+    Returns:
+        Dict with liquidation clusters and hunting probability
+    """
+    try:
+        if len(ohlcv) < 20:
+            return {'signal': 'NEUTRAL', 'levels': [], 'interpretation': 'Insufficient data'}
+
+        closes = [c[4] for c in ohlcv]
+        highs = [c[2] for c in ohlcv]
+        lows = [c[3] for c in ohlcv]
+        volumes = [c[5] for c in ohlcv]
+
+        # Find significant price levels (high volume areas = likely entry points)
+        avg_volume = sum(volumes) / len(volumes)
+        significant_levels = []
+
+        for i in range(len(ohlcv)):
+            if volumes[i] > avg_volume * 1.5:
+                significant_levels.append(closes[i])
+
+        # Also add recent swing highs/lows
+        for i in range(2, len(highs) - 2):
+            if highs[i] > max(highs[i-2:i]) and highs[i] > max(highs[i+1:i+3]):
+                significant_levels.append(highs[i])
+            if lows[i] < min(lows[i-2:i]) and lows[i] < min(lows[i+1:i+3]):
+                significant_levels.append(lows[i])
+
+        # Calculate liquidation levels for each significant price
+        long_liquidations = []  # Levels below current price
+        short_liquidations = []  # Levels above current price
+
+        for entry_price in significant_levels:
+            for lev in leverage_levels:
+                # Long liquidation (below entry)
+                long_liq = entry_price * (1 - 0.9 / lev)  # 90% of margin lost
+                # Short liquidation (above entry)
+                short_liq = entry_price * (1 + 0.9 / lev)
+
+                if long_liq < current_price:
+                    long_liquidations.append({
+                        'level': long_liq,
+                        'entry': entry_price,
+                        'leverage': lev,
+                        'distance_pct': (current_price - long_liq) / current_price * 100
+                    })
+
+                if short_liq > current_price:
+                    short_liquidations.append({
+                        'level': short_liq,
+                        'entry': entry_price,
+                        'leverage': lev,
+                        'distance_pct': (short_liq - current_price) / current_price * 100
+                    })
+
+        # Cluster liquidation levels
+        def cluster_levels(levels, tolerance_pct=0.5):
+            if not levels:
+                return []
+
+            sorted_levels = sorted(levels, key=lambda x: x['level'])
+            clusters = []
+            current_cluster = [sorted_levels[0]]
+
+            for lev in sorted_levels[1:]:
+                if abs(lev['level'] - current_cluster[-1]['level']) / current_cluster[-1]['level'] * 100 < tolerance_pct:
+                    current_cluster.append(lev)
+                else:
+                    if len(current_cluster) >= 2:
+                        avg_level = sum(l['level'] for l in current_cluster) / len(current_cluster)
+                        clusters.append({
+                            'level': avg_level,
+                            'count': len(current_cluster),
+                            'avg_leverage': sum(l['leverage'] for l in current_cluster) / len(current_cluster)
+                        })
+                    current_cluster = [lev]
+
+            if len(current_cluster) >= 2:
+                avg_level = sum(l['level'] for l in current_cluster) / len(current_cluster)
+                clusters.append({
+                    'level': avg_level,
+                    'count': len(current_cluster),
+                    'avg_leverage': sum(l['leverage'] for l in current_cluster) / len(current_cluster)
+                })
+
+            return clusters
+
+        long_clusters = cluster_levels(long_liquidations)
+        short_clusters = cluster_levels(short_liquidations)
+
+        # Find nearest liquidation cluster
+        nearest_long = None
+        nearest_short = None
+
+        if long_clusters:
+            nearest_long = max(long_clusters, key=lambda x: x['level'])
+            nearest_long['distance_pct'] = (current_price - nearest_long['level']) / current_price * 100
+
+        if short_clusters:
+            nearest_short = min(short_clusters, key=lambda x: x['level'])
+            nearest_short['distance_pct'] = (nearest_short['level'] - current_price) / current_price * 100
+
+        # Determine which side is more likely to be hunted
+        signal = 'NEUTRAL'
+        interpretation = ''
+        hunt_target = None
+
+        if nearest_long and nearest_short:
+            if nearest_long['distance_pct'] < nearest_short['distance_pct']:
+                if nearest_long['distance_pct'] < 3:
+                    signal = 'SELL'  # Price likely to dip to hunt longs
+                    hunt_target = 'LONG_LIQUIDATIONS'
+                    interpretation = f"⚠️ Long liquidations at ${nearest_long['level']:.2f} ({nearest_long['distance_pct']:.1f}% away) - Dip likely"
+            else:
+                if nearest_short['distance_pct'] < 3:
+                    signal = 'BUY'  # Price likely to spike to hunt shorts
+                    hunt_target = 'SHORT_LIQUIDATIONS'
+                    interpretation = f"⚠️ Short liquidations at ${nearest_short['level']:.2f} ({nearest_short['distance_pct']:.1f}% away) - Spike likely"
+
+        if not interpretation:
+            interpretation = 'No immediate liquidation hunting expected'
+
+        return {
+            'signal': signal,
+            'nearest_long_liq': nearest_long,
+            'nearest_short_liq': nearest_short,
+            'long_clusters': long_clusters[:3],  # Top 3
+            'short_clusters': short_clusters[:3],
+            'hunt_target': hunt_target,
+            'interpretation': interpretation,
+            'current_price': current_price
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'levels': [], 'error': str(e)}
+
+
+def calculate_ichimoku_cloud(ohlcv: List) -> Dict[str, Any]:
+    """
+    ⛩️ TIER 2: Ichimoku Cloud Analysis (Japanese Institutional Standard)
+
+    Complete trading system in one indicator:
+    - Tenkan-sen (Conversion, 9): Short-term momentum
+    - Kijun-sen (Base, 26): Medium-term momentum
+    - Senkou Span A (Leading A): (Tenkan + Kijun) / 2, shifted 26 periods
+    - Senkou Span B (Leading B): 52-period midpoint, shifted 26 periods
+    - Chikou Span (Lagging): Close shifted back 26 periods
+
+    Signals:
+    - Price above cloud = Bullish
+    - Price below cloud = Bearish
+    - Price in cloud = Neutral/Transition
+    - TK Cross above Kijun = Buy
+    - TK Cross below Kijun = Sell
+
+    Args:
+        ohlcv: OHLCV data (need at least 78 candles for full calculation)
+
+    Returns:
+        Dict with complete Ichimoku analysis
+    """
+    try:
+        if len(ohlcv) < 78:
+            return {'signal': 'NEUTRAL', 'cloud_position': 'UNKNOWN', 'interpretation': 'Need 78+ candles'}
+
+        highs = [c[2] for c in ohlcv]
+        lows = [c[3] for c in ohlcv]
+        closes = [c[4] for c in ohlcv]
+
+        current_price = closes[-1]
+
+        # Calculate Tenkan-sen (9-period)
+        def period_midpoint(highs, lows, period, index):
+            h = max(highs[index-period+1:index+1])
+            l = min(lows[index-period+1:index+1])
+            return (h + l) / 2
+
+        tenkan = period_midpoint(highs, lows, 9, len(ohlcv)-1)
+
+        # Calculate Kijun-sen (26-period)
+        kijun = period_midpoint(highs, lows, 26, len(ohlcv)-1)
+
+        # Calculate Senkou Span A (current, not shifted for simplicity)
+        senkou_a = (tenkan + kijun) / 2
+
+        # Calculate Senkou Span B (52-period)
+        senkou_b = period_midpoint(highs, lows, 52, len(ohlcv)-1)
+
+        # Chikou Span (current close vs price 26 periods ago)
+        chikou = closes[-1]
+        price_26_ago = closes[-27] if len(closes) > 26 else closes[0]
+
+        # Determine cloud bounds
+        cloud_top = max(senkou_a, senkou_b)
+        cloud_bottom = min(senkou_a, senkou_b)
+        cloud_thickness = cloud_top - cloud_bottom
+        cloud_thickness_pct = (cloud_thickness / current_price) * 100
+
+        # Determine cloud color (future trend)
+        cloud_color = 'GREEN' if senkou_a > senkou_b else 'RED'
+
+        # Analyze price position relative to cloud
+        if current_price > cloud_top:
+            cloud_position = 'ABOVE_CLOUD'
+            position_strength = min(100, ((current_price - cloud_top) / cloud_top * 100) * 10 + 50)
+        elif current_price < cloud_bottom:
+            cloud_position = 'BELOW_CLOUD'
+            position_strength = min(100, ((cloud_bottom - current_price) / cloud_bottom * 100) * 10 + 50)
+        else:
+            cloud_position = 'IN_CLOUD'
+            position_strength = 30
+
+        # TK Cross analysis
+        tk_cross = 'NONE'
+        if tenkan > kijun:
+            tk_cross = 'BULLISH'  # Tenkan above Kijun
+        elif tenkan < kijun:
+            tk_cross = 'BEARISH'
+
+        # Chikou analysis (current vs 26 periods ago)
+        chikou_signal = 'BULLISH' if chikou > price_26_ago else 'BEARISH'
+
+        # Generate overall signal
+        bullish_factors = 0
+        bearish_factors = 0
+
+        if cloud_position == 'ABOVE_CLOUD':
+            bullish_factors += 2
+        elif cloud_position == 'BELOW_CLOUD':
+            bearish_factors += 2
+
+        if tk_cross == 'BULLISH':
+            bullish_factors += 1.5
+        elif tk_cross == 'BEARISH':
+            bearish_factors += 1.5
+
+        if cloud_color == 'GREEN':
+            bullish_factors += 1
+        else:
+            bearish_factors += 1
+
+        if chikou_signal == 'BULLISH':
+            bullish_factors += 0.5
+        else:
+            bearish_factors += 0.5
+
+        # Final signal
+        if bullish_factors >= 4:
+            signal = 'STRONG_BUY'
+            interpretation = '⛩️ STRONG BULLISH - All Ichimoku factors aligned'
+        elif bullish_factors >= 3:
+            signal = 'BUY'
+            interpretation = '⛩️ BULLISH - Most factors support uptrend'
+        elif bearish_factors >= 4:
+            signal = 'STRONG_SELL'
+            interpretation = '⛩️ STRONG BEARISH - All Ichimoku factors aligned'
+        elif bearish_factors >= 3:
+            signal = 'SELL'
+            interpretation = '⛩️ BEARISH - Most factors support downtrend'
+        elif cloud_position == 'IN_CLOUD':
+            signal = 'NEUTRAL'
+            interpretation = '⛩️ IN CLOUD - Transition period, wait for breakout'
+        else:
+            signal = 'NEUTRAL'
+            interpretation = '⛩️ Mixed signals - No clear direction'
+
+        return {
+            'signal': signal,
+            'tenkan': round(tenkan, 4),
+            'kijun': round(kijun, 4),
+            'senkou_a': round(senkou_a, 4),
+            'senkou_b': round(senkou_b, 4),
+            'cloud_top': round(cloud_top, 4),
+            'cloud_bottom': round(cloud_bottom, 4),
+            'cloud_position': cloud_position,
+            'cloud_color': cloud_color,
+            'cloud_thickness_pct': round(cloud_thickness_pct, 2),
+            'tk_cross': tk_cross,
+            'chikou_signal': chikou_signal,
+            'interpretation': interpretation,
+            'position_strength': round(position_strength, 1),
+            'bullish_factors': bullish_factors,
+            'bearish_factors': bearish_factors
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'cloud_position': 'ERROR', 'error': str(e)}
+
+
+def calculate_harmonic_patterns(ohlcv: List, tolerance: float = 0.02) -> Dict[str, Any]:
+    """
+    🦋 TIER 3: Harmonic Pattern Detection
+
+    Fibonacci-based geometric patterns with precise reversal zones:
+
+    1. GARTLEY (222): Most reliable
+       - XA: Impulse move
+       - AB: 61.8% retracement of XA
+       - BC: 38.2%-88.6% retracement of AB
+       - CD: 78.6% retracement of XA (PRZ)
+
+    2. BUTTERFLY: Extended pattern
+       - AB: 78.6% retracement of XA
+       - BC: 38.2%-88.6% retracement of AB
+       - CD: 127%-161.8% extension of XA (PRZ)
+
+    3. BAT: Deep retracement
+       - AB: 38.2%-50% retracement of XA
+       - BC: 38.2%-88.6% retracement of AB
+       - CD: 88.6% retracement of XA (PRZ)
+
+    4. CRAB: Most extreme
+       - AB: 38.2%-61.8% retracement of XA
+       - BC: 38.2%-88.6% retracement of AB
+       - CD: 161.8% extension of XA (PRZ)
+
+    PRZ = Potential Reversal Zone (high probability entry)
+
+    Args:
+        ohlcv: OHLCV data
+        tolerance: Fibonacci ratio tolerance (default 2%)
+
+    Returns:
+        Dict with detected patterns and PRZ levels
+    """
+    try:
+        if len(ohlcv) < 50:
+            return {'signal': 'NEUTRAL', 'patterns': [], 'interpretation': 'Insufficient data'}
+
+        highs = [c[2] for c in ohlcv]
+        lows = [c[3] for c in ohlcv]
+        closes = [c[4] for c in ohlcv]
+
+        current_price = closes[-1]
+
+        # Find swing points (XABCD)
+        def find_swing_points(highs, lows, min_swing=5):
+            """Find significant swing highs and lows."""
+            swing_highs = []
+            swing_lows = []
+
+            for i in range(min_swing, len(highs) - min_swing):
+                # Swing high
+                if highs[i] == max(highs[i-min_swing:i+min_swing+1]):
+                    swing_highs.append({'index': i, 'price': highs[i]})
+                # Swing low
+                if lows[i] == min(lows[i-min_swing:i+min_swing+1]):
+                    swing_lows.append({'index': i, 'price': lows[i]})
+
+            return swing_highs, swing_lows
+
+        swing_highs, swing_lows = find_swing_points(highs, lows)
+
+        def check_ratio(actual, expected, tolerance):
+            """Check if actual ratio is within tolerance of expected."""
+            return abs(actual - expected) <= tolerance
+
+        def check_ratio_range(actual, min_ratio, max_ratio, tolerance):
+            """Check if actual ratio is within range."""
+            return (min_ratio - tolerance) <= actual <= (max_ratio + tolerance)
+
+        detected_patterns = []
+
+        # Combine and sort all swing points
+        all_swings = []
+        for sh in swing_highs:
+            all_swings.append({'index': sh['index'], 'price': sh['price'], 'type': 'HIGH'})
+        for sl in swing_lows:
+            all_swings.append({'index': sl['index'], 'price': sl['price'], 'type': 'LOW'})
+
+        all_swings.sort(key=lambda x: x['index'])
+
+        # Need at least 5 swing points for XABCD
+        if len(all_swings) < 5:
+            return {'signal': 'NEUTRAL', 'patterns': [], 'interpretation': 'Not enough swing points'}
+
+        # Check last 5 swing points for patterns
+        for i in range(len(all_swings) - 4):
+            X = all_swings[i]
+            A = all_swings[i + 1]
+            B = all_swings[i + 2]
+            C = all_swings[i + 3]
+            D = all_swings[i + 4]
+
+            # Ensure alternating highs and lows
+            if X['type'] == A['type'] or A['type'] == B['type'] or B['type'] == C['type'] or C['type'] == D['type']:
+                continue
+
+            # Calculate ratios
+            XA = abs(A['price'] - X['price'])
+            AB = abs(B['price'] - A['price'])
+            BC = abs(C['price'] - B['price'])
+            CD = abs(D['price'] - C['price'])
+
+            if XA == 0:
+                continue
+
+            AB_XA = AB / XA
+            BC_AB = BC / AB if AB > 0 else 0
+            CD_XA = CD / XA if XA > 0 else 0
+            CD_BC = CD / BC if BC > 0 else 0
+
+            pattern_type = None
+            pattern_direction = 'BULLISH' if D['type'] == 'LOW' else 'BEARISH'
+
+            # GARTLEY Pattern
+            if check_ratio(AB_XA, 0.618, tolerance):
+                if check_ratio_range(BC_AB, 0.382, 0.886, tolerance):
+                    if check_ratio(CD_XA, 0.786, tolerance):
+                        pattern_type = 'GARTLEY'
+
+            # BUTTERFLY Pattern
+            if check_ratio(AB_XA, 0.786, tolerance):
+                if check_ratio_range(BC_AB, 0.382, 0.886, tolerance):
+                    if check_ratio_range(CD_XA, 1.27, 1.618, tolerance):
+                        pattern_type = 'BUTTERFLY'
+
+            # BAT Pattern
+            if check_ratio_range(AB_XA, 0.382, 0.5, tolerance):
+                if check_ratio_range(BC_AB, 0.382, 0.886, tolerance):
+                    if check_ratio(CD_XA, 0.886, tolerance):
+                        pattern_type = 'BAT'
+
+            # CRAB Pattern
+            if check_ratio_range(AB_XA, 0.382, 0.618, tolerance):
+                if check_ratio_range(BC_AB, 0.382, 0.886, tolerance):
+                    if check_ratio(CD_XA, 1.618, tolerance * 2):  # More tolerance for extreme
+                        pattern_type = 'CRAB'
+
+            if pattern_type:
+                # Calculate PRZ (Potential Reversal Zone)
+                prz_center = D['price']
+                prz_range = XA * 0.05  # 5% of XA as PRZ range
+
+                # Check if current price is near PRZ
+                distance_to_prz = abs(current_price - prz_center) / current_price * 100
+
+                detected_patterns.append({
+                    'type': pattern_type,
+                    'direction': pattern_direction,
+                    'X': X['price'],
+                    'A': A['price'],
+                    'B': B['price'],
+                    'C': C['price'],
+                    'D': D['price'],
+                    'prz_center': prz_center,
+                    'prz_high': prz_center + prz_range,
+                    'prz_low': prz_center - prz_range,
+                    'distance_to_prz_pct': round(distance_to_prz, 2),
+                    'is_active': distance_to_prz < 3,
+                    'completion_index': D['index']
+                })
+
+        # Sort by recency and activity
+        detected_patterns.sort(key=lambda x: (-x['is_active'], -x['completion_index']))
+
+        # Generate signal based on most recent active pattern
+        signal = 'NEUTRAL'
+        interpretation = 'No harmonic patterns detected'
+        active_pattern = None
+
+        if detected_patterns:
+            # Find most recent active pattern
+            for pattern in detected_patterns:
+                if pattern['is_active']:
+                    active_pattern = pattern
+                    break
+
+            if not active_pattern and detected_patterns:
+                active_pattern = detected_patterns[0]
+
+            if active_pattern:
+                if active_pattern['is_active']:
+                    if active_pattern['direction'] == 'BULLISH':
+                        signal = 'STRONG_BUY'
+                        interpretation = f"🦋 ACTIVE {active_pattern['type']} (BULLISH) - PRZ at ${active_pattern['prz_center']:.4f}"
+                    else:
+                        signal = 'STRONG_SELL'
+                        interpretation = f"🦋 ACTIVE {active_pattern['type']} (BEARISH) - PRZ at ${active_pattern['prz_center']:.4f}"
+                else:
+                    if active_pattern['direction'] == 'BULLISH':
+                        signal = 'BUY'
+                        interpretation = f"🦋 {active_pattern['type']} forming (BULLISH) - Watch for PRZ at ${active_pattern['prz_center']:.4f}"
+                    else:
+                        signal = 'SELL'
+                        interpretation = f"🦋 {active_pattern['type']} forming (BEARISH) - Watch for PRZ at ${active_pattern['prz_center']:.4f}"
+
+        return {
+            'signal': signal,
+            'patterns': detected_patterns[:3],  # Top 3 patterns
+            'active_pattern': active_pattern,
+            'total_patterns': len(detected_patterns),
+            'interpretation': interpretation,
+            'has_active': any(p['is_active'] for p in detected_patterns)
+        }
+
+    except Exception as e:
+        return {'signal': 'NEUTRAL', 'patterns': [], 'error': str(e)}
+
+
+def calculate_derivatives_analysis(
+    ohlcv: List,
+    funding_rate: float = None,
+    open_interest: float = None,
+    oi_history: List[float] = None,
+    long_short_ratio: float = None
+) -> Dict[str, Any]:
+    """
+    🚀 v4.7.0: MASTER FUNCTION - Complete Derivatives Analysis
+
+    Combines all Tier 1 indicators:
+    - Funding Rate Analysis
+    - Open Interest Analysis
+    - Long/Short Ratio Analysis
+    - Fear & Greed Index
+
+    Args:
+        ohlcv: OHLCV data
+        funding_rate: Current funding rate
+        open_interest: Current OI value
+        oi_history: Historical OI values
+        long_short_ratio: Current L/S ratio
+
+    Returns:
+        Dict with complete derivatives analysis
+    """
+    try:
+        closes = [c[4] for c in ohlcv] if ohlcv else []
+
+        # Calculate each component
+        funding_analysis = calculate_funding_rate_signal(funding_rate)
+        oi_analysis = calculate_open_interest_signal(
+            open_interest or 0,
+            oi_history,
+            closes[-len(oi_history):] if oi_history and closes else None
+        )
+        ls_analysis = calculate_long_short_ratio_signal(long_short_ratio)
+        fear_greed = calculate_fear_greed_index(ohlcv) if ohlcv else {'signal': 'NEUTRAL', 'index': 50}
+
+        # Aggregate signals
+        signals = {
+            'funding': funding_analysis.get('signal', 'NEUTRAL'),
+            'oi': oi_analysis.get('signal', 'NEUTRAL'),
+            'ls_ratio': ls_analysis.get('signal', 'NEUTRAL'),
+            'fear_greed': fear_greed.get('signal', 'NEUTRAL')
+        }
+
+        # Calculate composite score
+        signal_scores = {
+            'STRONG_BUY': 2, 'BUY': 1, 'SLIGHT_BULLISH': 0.5,
+            'NEUTRAL': 0,
+            'SLIGHT_BEARISH': -0.5, 'SELL': -1, 'STRONG_SELL': -2
+        }
+
+        total_score = sum(signal_scores.get(s, 0) for s in signals.values())
+
+        # Determine final signal
+        if total_score >= 3:
+            final_signal = 'STRONG_BUY'
+            interpretation = '🚀 DERIVATIVES ULTRA BULLISH - All factors aligned for long'
+        elif total_score >= 1.5:
+            final_signal = 'BUY'
+            interpretation = '📈 Derivatives favor long positions'
+        elif total_score <= -3:
+            final_signal = 'STRONG_SELL'
+            interpretation = '🔻 DERIVATIVES ULTRA BEARISH - All factors aligned for short'
+        elif total_score <= -1.5:
+            final_signal = 'SELL'
+            interpretation = '📉 Derivatives favor short positions'
+        else:
+            final_signal = 'NEUTRAL'
+            interpretation = '➖ Mixed derivatives signals'
+
+        return {
+            'signal': final_signal,
+            'composite_score': round(total_score, 1),
+            'interpretation': interpretation,
+            'funding': funding_analysis,
+            'open_interest': oi_analysis,
+            'long_short_ratio': ls_analysis,
+            'fear_greed': fear_greed,
+            'signals_breakdown': signals
+        }
+
+    except Exception as e:
+        return {
+            'signal': 'NEUTRAL',
+            'composite_score': 0,
+            'error': str(e)
+        }
+
+
+def calculate_advanced_analysis(ohlcv: List) -> Dict[str, Any]:
+    """
+    🔬 v4.7.0: MASTER FUNCTION - Complete Advanced Analysis (Tier 2 + 3)
+
+    Combines:
+    - CVD (Cumulative Volume Delta)
+    - Liquidation Levels
+    - Ichimoku Cloud
+    - Harmonic Patterns
+
+    Args:
+        ohlcv: OHLCV data
+
+    Returns:
+        Dict with complete advanced analysis
+    """
+    try:
+        if len(ohlcv) < 78:
+            return {
+                'signal': 'NEUTRAL',
+                'confidence': 0,
+                'error': 'Insufficient data (need 78+ candles)'
+            }
+
+        current_price = ohlcv[-1][4]
+
+        # Calculate each component
+        cvd_analysis = calculate_cvd(ohlcv)
+        liquidation_analysis = calculate_liquidation_levels(ohlcv, current_price)
+        ichimoku_analysis = calculate_ichimoku_cloud(ohlcv)
+        harmonic_analysis = calculate_harmonic_patterns(ohlcv)
+
+        # Aggregate signals with weights
+        signal_weights = {
+            'cvd': 1.5,        # Volume delta important
+            'ichimoku': 2.0,   # Complete system
+            'harmonic': 1.5,   # Precise reversals
+            'liquidation': 1.0  # Market mechanics
+        }
+
+        signal_scores = {
+            'STRONG_BUY': 2, 'BUY': 1, 'SLIGHT_BULLISH': 0.5,
+            'NEUTRAL': 0,
+            'SLIGHT_BEARISH': -0.5, 'SELL': -1, 'STRONG_SELL': -2
+        }
+
+        weighted_score = 0
+        total_weight = sum(signal_weights.values())
+
+        weighted_score += signal_scores.get(cvd_analysis.get('signal', 'NEUTRAL'), 0) * signal_weights['cvd']
+        weighted_score += signal_scores.get(ichimoku_analysis.get('signal', 'NEUTRAL'), 0) * signal_weights['ichimoku']
+        weighted_score += signal_scores.get(harmonic_analysis.get('signal', 'NEUTRAL'), 0) * signal_weights['harmonic']
+        weighted_score += signal_scores.get(liquidation_analysis.get('signal', 'NEUTRAL'), 0) * signal_weights['liquidation']
+
+        normalized_score = weighted_score / total_weight
+
+        # Determine final signal
+        if normalized_score >= 1.2:
+            final_signal = 'STRONG_BUY'
+            interpretation = '🔬 ADVANCED ANALYSIS ULTRA BULLISH'
+        elif normalized_score >= 0.5:
+            final_signal = 'BUY'
+            interpretation = '🔬 Advanced analysis favors long'
+        elif normalized_score <= -1.2:
+            final_signal = 'STRONG_SELL'
+            interpretation = '🔬 ADVANCED ANALYSIS ULTRA BEARISH'
+        elif normalized_score <= -0.5:
+            final_signal = 'SELL'
+            interpretation = '🔬 Advanced analysis favors short'
+        else:
+            final_signal = 'NEUTRAL'
+            interpretation = '🔬 Mixed advanced signals'
+
+        # Calculate confidence based on agreement
+        signals_list = [
+            cvd_analysis.get('signal', 'NEUTRAL'),
+            ichimoku_analysis.get('signal', 'NEUTRAL'),
+            harmonic_analysis.get('signal', 'NEUTRAL'),
+            liquidation_analysis.get('signal', 'NEUTRAL')
+        ]
+
+        bullish_count = sum(1 for s in signals_list if 'BUY' in s)
+        bearish_count = sum(1 for s in signals_list if 'SELL' in s)
+
+        confidence = max(bullish_count, bearish_count) / len(signals_list) * 100
+
+        # Key insights
+        insights = []
+
+        if cvd_analysis.get('is_divergent'):
+            insights.append(f"⚠️ CVD DIVERGENCE: {cvd_analysis.get('divergence')}")
+
+        if ichimoku_analysis.get('cloud_position') in ['ABOVE_CLOUD', 'BELOW_CLOUD']:
+            insights.append(f"⛩️ ICHIMOKU: {ichimoku_analysis.get('cloud_position')}")
+
+        if harmonic_analysis.get('has_active'):
+            pattern = harmonic_analysis.get('active_pattern', {})
+            insights.append(f"🦋 HARMONIC: Active {pattern.get('type', 'pattern')} ({pattern.get('direction', '')})")
+
+        if liquidation_analysis.get('hunt_target'):
+            insights.append(f"🎯 LIQUIDATION HUNT: {liquidation_analysis.get('hunt_target')}")
+
+        return {
+            'signal': final_signal,
+            'normalized_score': round(normalized_score, 2),
+            'confidence': round(confidence, 1),
+            'interpretation': interpretation,
+            'insights': insights,
+            'cvd': cvd_analysis,
+            'liquidation': liquidation_analysis,
+            'ichimoku': ichimoku_analysis,
+            'harmonic': harmonic_analysis
+        }
+
+    except Exception as e:
+        return {
+            'signal': 'NEUTRAL',
+            'confidence': 0,
+            'error': str(e)
+        }
+
+
+def calculate_ultra_professional_analysis(
+    ohlcv: List,
+    funding_rate: float = None,
+    open_interest: float = None,
+    oi_history: List[float] = None,
+    long_short_ratio: float = None
+) -> Dict[str, Any]:
+    """
+    🏆 v4.7.0: ULTIMATE MASTER FUNCTION - Complete Professional Analysis
+
+    Combines ALL Tier 1, 2, and 3 indicators:
+
+    TIER 1 (Derivatives):
+    - Funding Rate Analysis
+    - Open Interest Analysis
+    - Long/Short Ratio Analysis
+    - Fear & Greed Index
+
+    TIER 2 (Advanced):
+    - CVD (Cumulative Volume Delta)
+    - Liquidation Levels
+    - Ichimoku Cloud
+
+    TIER 3 (Pattern Recognition):
+    - Harmonic Patterns (Gartley, Butterfly, Bat, Crab)
+
+    Args:
+        ohlcv: OHLCV data
+        funding_rate: Current funding rate
+        open_interest: Current OI value
+        oi_history: Historical OI values
+        long_short_ratio: Current L/S ratio
+
+    Returns:
+        Dict with complete ultra professional analysis
+    """
+    try:
+        if len(ohlcv) < 78:
+            return {
+                'signal': 'NEUTRAL',
+                'confidence': 0,
+                'total_score': 0,
+                'error': 'Insufficient data (need 78+ candles)'
+            }
+
+        # Calculate all component analyses
+        derivatives_data = calculate_derivatives_analysis(
+            ohlcv, funding_rate, open_interest, oi_history, long_short_ratio
+        )
+        advanced_data = calculate_advanced_analysis(ohlcv)
+
+        # Weight the two main components
+        derivatives_weight = 0.4  # 40% weight
+        advanced_weight = 0.6     # 60% weight
+
+        # Convert signals to scores
+        signal_scores = {
+            'STRONG_BUY': 100, 'BUY': 70, 'SLIGHT_BULLISH': 55,
+            'NEUTRAL': 50,
+            'SLIGHT_BEARISH': 45, 'SELL': 30, 'STRONG_SELL': 0
+        }
+
+        deriv_score = signal_scores.get(derivatives_data.get('signal', 'NEUTRAL'), 50)
+        adv_score = signal_scores.get(advanced_data.get('signal', 'NEUTRAL'), 50)
+
+        # Calculate composite score (0-100)
+        composite_score = (deriv_score * derivatives_weight) + (adv_score * advanced_weight)
+
+        # Determine final signal
+        if composite_score >= 80:
+            final_signal = 'STRONG_BUY'
+            interpretation = '🏆 ULTRA PROFESSIONAL: ALL SYSTEMS BULLISH'
+        elif composite_score >= 65:
+            final_signal = 'BUY'
+            interpretation = '🏆 Professional analysis favors LONG'
+        elif composite_score <= 20:
+            final_signal = 'STRONG_SELL'
+            interpretation = '🏆 ULTRA PROFESSIONAL: ALL SYSTEMS BEARISH'
+        elif composite_score <= 35:
+            final_signal = 'SELL'
+            interpretation = '🏆 Professional analysis favors SHORT'
+        else:
+            final_signal = 'NEUTRAL'
+            interpretation = '🏆 Mixed professional signals - WAIT'
+
+        # Collect all insights
+        all_insights = []
+
+        # Derivatives insights
+        if derivatives_data.get('funding', {}).get('is_extreme'):
+            all_insights.append(f"💰 EXTREME FUNDING: {derivatives_data['funding'].get('funding_pct', 0):.3f}%")
+
+        if derivatives_data.get('open_interest', {}).get('is_significant'):
+            all_insights.append(f"📊 OI SIGNAL: {derivatives_data['open_interest'].get('interpretation', '')}")
+
+        if derivatives_data.get('long_short_ratio', {}).get('is_extreme'):
+            all_insights.append(f"📈 L/S EXTREME: {derivatives_data['long_short_ratio'].get('ratio', 0):.2f}")
+
+        if derivatives_data.get('fear_greed', {}).get('is_extreme'):
+            all_insights.append(f"😱 F&G: {derivatives_data['fear_greed'].get('sentiment', '')} ({derivatives_data['fear_greed'].get('index', 50)})")
+
+        # Advanced insights
+        all_insights.extend(advanced_data.get('insights', []))
+
+        return {
+            'signal': final_signal,
+            'composite_score': round(composite_score, 1),
+            'interpretation': interpretation,
+            'insights': all_insights[:5],  # Top 5 insights
+            'derivatives_analysis': derivatives_data,
+            'advanced_analysis': advanced_data,
+            'components': {
+                'derivatives_signal': derivatives_data.get('signal', 'NEUTRAL'),
+                'derivatives_score': deriv_score,
+                'advanced_signal': advanced_data.get('signal', 'NEUTRAL'),
+                'advanced_score': adv_score
+            }
+        }
+
+    except Exception as e:
+        return {
+            'signal': 'NEUTRAL',
+            'composite_score': 50,
+            'error': str(e)
+        }

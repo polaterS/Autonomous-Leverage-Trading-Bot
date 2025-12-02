@@ -51,7 +51,13 @@ from src.market_regime_detector import get_regime_detector
 # 🆕 v4.4.0: Import enhanced indicators for professional confluence scoring
 # 🆕 v4.5.0: Import advanced indicators (VWAP, StochRSI, CMF, Fibonacci)
 # 🆕 v4.6.0: Import institutional indicators (SMC, Wyckoff VSA, Hurst, Z-Score)
-from src.indicators import calculate_enhanced_indicators, calculate_advanced_indicators, calculate_institutional_indicators
+# 🆕 v4.7.0: Import ultra professional analysis (Derivatives, CVD, Ichimoku, Harmonic)
+from src.indicators import (
+    calculate_enhanced_indicators,
+    calculate_advanced_indicators,
+    calculate_institutional_indicators,
+    calculate_ultra_professional_analysis  # 🆕 v4.7.0: All new indicators in one call
+)
 
 logger = logging.getLogger('trading_bot')
 
@@ -345,6 +351,10 @@ class EnhancedTradingSystem:
             enhanced_data = None
             advanced_data = None
             institutional_data = None
+            # 🆕 v4.7.0: Ultra professional analysis data
+            derivatives_data = None
+            technical_advanced_data = None
+            harmonic_data = None
 
             if ohlcv_data and len(ohlcv_data) >= 50:
                 try:
@@ -370,7 +380,30 @@ class EnhancedTradingSystem:
                     logger.warning(f"⚠️ {symbol}: Institutional indicators failed: {e}")
                     institutional_data = None
 
-            # Score the opportunity with enhanced + advanced + institutional data
+                # 🆕 v4.7.0: Calculate ultra professional analysis
+                # (Funding Rate, OI, L/S Ratio, Fear&Greed, CVD, Ichimoku, Liquidations, Harmonic)
+                try:
+                    ultra_pro_data = calculate_ultra_professional_analysis(ohlcv_data)
+                    logger.info(f"🚀 {symbol}: Ultra Professional Analysis (v4.7.0) calculated")
+
+                    # Extract component data
+                    derivatives_data = ultra_pro_data.get('derivatives_analysis', {})
+                    technical_advanced_data = ultra_pro_data.get('advanced_analysis', {})
+                    harmonic_data = ultra_pro_data.get('advanced_analysis', {}).get('harmonic_patterns', {})
+
+                    # Log summary
+                    logger.info(f"   💰 Derivatives: Funding={derivatives_data.get('funding_rate', {}).get('signal', 'N/A')}, "
+                               f"OI={derivatives_data.get('open_interest', {}).get('signal', 'N/A')}")
+                    logger.info(f"   ⛩️ Ichimoku: {technical_advanced_data.get('ichimoku', {}).get('signal', 'N/A')}")
+                    logger.info(f"   📊 CVD: {technical_advanced_data.get('cvd', {}).get('signal', 'N/A')}")
+                    logger.info(f"   🦋 Harmonic: {harmonic_data.get('pattern_type', 'None detected')}")
+                except Exception as e:
+                    logger.warning(f"⚠️ {symbol}: Ultra Professional Analysis failed: {e}")
+                    derivatives_data = None
+                    technical_advanced_data = None
+                    harmonic_data = None
+
+            # Score the opportunity with ALL indicator data (v4.4 + v4.5 + v4.6 + v4.7)
             score_result = self.confluence_scorer.score_opportunity(
                 symbol=symbol,
                 side=side,
@@ -381,7 +414,11 @@ class EnhancedTradingSystem:
                 mtf_data=mtf_data,
                 enhanced_data=enhanced_data,      # v4.4.0: Enhanced indicators
                 advanced_data=advanced_data,      # v4.5.0: Advanced indicators
-                institutional_data=institutional_data  # 🆕 v4.6.0: Institutional indicators
+                institutional_data=institutional_data,  # v4.6.0: Institutional indicators
+                # 🆕 v4.7.0: Ultra Professional Analysis
+                derivatives_data=derivatives_data,           # Funding, OI, L/S Ratio, Fear&Greed
+                technical_advanced_data=technical_advanced_data,  # CVD, Ichimoku, Liquidations
+                harmonic_data=harmonic_data                  # Harmonic Patterns
             )
 
             return score_result

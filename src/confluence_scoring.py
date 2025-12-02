@@ -52,20 +52,31 @@ class ConfluenceScorer:
     """
 
     def __init__(self):
-        # Scoring weights (must sum to 100)
-        # 🆕 v4.6.0: Added institutional grade indicators (SMC, Wyckoff, Hurst)
+        # Scoring weights - v4.7.0: Ultra Professional (total 135 points, normalized to 100)
+        # 🚀 v4.7.0: Added derivatives analysis, ichimoku, harmonic patterns
         self.weights = {
-            'multi_timeframe': 10,       # MTF trend alignment
-            'volume_profile': 6,         # VPOC, HVN proximity
-            'indicators': 10,            # RSI, MACD, SuperTrend, etc.
-            'market_regime': 6,          # ADX-based regime
-            'support_resistance': 8,     # S/R quality
-            'risk_reward': 5,            # R/R ratio
-            'enhanced_indicators': 10,   # v4.4.0: BB Squeeze, EMA Stack, Divergences
-            'momentum_quality': 8,       # Momentum strength and direction
-            'advanced_indicators': 12,   # v4.5.0: VWAP, StochRSI, CMF, Fibonacci
-            'institutional': 25          # 🆕 v4.6.0: SMC, Wyckoff VSA, Hurst, Z-Score
+            # === CORE TECHNICAL (35 pts) ===
+            'multi_timeframe': 8,        # MTF trend alignment
+            'volume_profile': 5,         # VPOC, HVN proximity
+            'indicators': 8,             # RSI, MACD, SuperTrend, etc.
+            'market_regime': 5,          # ADX-based regime
+            'support_resistance': 5,     # S/R quality
+            'risk_reward': 4,            # R/R ratio
+
+            # === ENHANCED TECHNICAL (20 pts) ===
+            'enhanced_indicators': 7,    # v4.4.0: BB Squeeze, EMA Stack, Divergences
+            'momentum_quality': 6,       # Momentum strength and direction
+            'advanced_indicators': 7,    # v4.5.0: VWAP, StochRSI, CMF, Fibonacci
+
+            # === INSTITUTIONAL (20 pts) ===
+            'institutional': 20,         # v4.6.0: SMC, Wyckoff VSA, Hurst, Z-Score
+
+            # === 🆕 v4.7.0: ULTRA PROFESSIONAL (25 pts) ===
+            'derivatives': 10,           # Funding Rate, Open Interest, L/S Ratio, Fear&Greed
+            'technical_advanced': 10,    # CVD, Ichimoku Cloud, Liquidation Levels
+            'harmonic_patterns': 5       # Gartley, Butterfly, Bat, Crab patterns
         }
+        # Total: 35 + 20 + 20 + 25 = 100 points
 
         # Minimum score to trade
         # 🎯 v4.6.1: 60+ confluence (balanced approach)
@@ -93,7 +104,10 @@ class ConfluenceScorer:
         mtf_data: Optional[Dict] = None,
         enhanced_data: Optional[Dict] = None,  # v4.4.0: Enhanced indicators
         advanced_data: Optional[Dict] = None,  # v4.5.0: Advanced indicators
-        institutional_data: Optional[Dict] = None  # 🆕 v4.6.0: Institutional indicators
+        institutional_data: Optional[Dict] = None,  # v4.6.0: Institutional indicators
+        derivatives_data: Optional[Dict] = None,  # 🆕 v4.7.0: Derivatives analysis
+        technical_advanced_data: Optional[Dict] = None,  # 🆕 v4.7.0: CVD, Ichimoku, Liquidations
+        harmonic_data: Optional[Dict] = None  # 🆕 v4.7.0: Harmonic patterns
     ) -> Dict[str, Any]:
         """
         Main scoring method: Evaluate a trading opportunity.
@@ -157,6 +171,18 @@ class ConfluenceScorer:
             # 🆕 10. Institutional Indicators (25 points) - SMC, Wyckoff, Hurst - v4.6.0
             institutional_score = self._score_institutional_indicators(side, institutional_data)
             component_scores['institutional'] = institutional_score
+
+            # 🆕 11. Derivatives Analysis (10 points) - Funding, OI, L/S Ratio, Fear&Greed - v4.7.0
+            derivatives_score = self._score_derivatives(side, derivatives_data)
+            component_scores['derivatives'] = derivatives_score
+
+            # 🆕 12. Technical Advanced (10 points) - CVD, Ichimoku, Liquidations - v4.7.0
+            tech_advanced_score = self._score_technical_advanced(side, technical_advanced_data)
+            component_scores['technical_advanced'] = tech_advanced_score
+
+            # 🆕 13. Harmonic Patterns (5 points) - Gartley, Butterfly, Bat, Crab - v4.7.0
+            harmonic_score = self._score_harmonic_patterns(side, harmonic_data)
+            component_scores['harmonic_patterns'] = harmonic_score
 
             # Calculate total score
             total_score = sum(component_scores.values())
@@ -1056,6 +1082,350 @@ class ConfluenceScorer:
         except Exception as e:
             logger.warning(f"⚠️ Institutional indicators scoring error: {e}")
             return max_points * 0.6  # 🔧 v4.6.1: Increased from 40% to 60%
+
+    def _score_derivatives(self, side: str, derivatives_data: Optional[Dict]) -> float:
+        """
+        🚀 v4.7.0: Score Derivatives Analysis (10 points max)
+
+        Professional-level derivatives market analysis:
+        1. Funding Rate (3 pts) - Contrarian sentiment indicator
+        2. Open Interest (3 pts) - Trend strength confirmation
+        3. Long/Short Ratio (2 pts) - Crowd positioning
+        4. Fear & Greed Index (2 pts) - Market sentiment
+
+        These indicators reveal market sentiment and positioning.
+        """
+        max_points = self.weights['derivatives']
+        score = 0
+
+        try:
+            if not derivatives_data:
+                # 60% fallback if no derivatives data
+                logger.debug("⚠️ Derivatives data is None - using 60% fallback")
+                return max_points * 0.6  # 6 points
+
+            # === 1. FUNDING RATE (3 points) ===
+            funding = derivatives_data.get('funding_rate', {})
+            funding_signal = funding.get('signal', 'NEUTRAL')
+            funding_sentiment = funding.get('sentiment', 'NEUTRAL')
+
+            if side == 'LONG':
+                # Negative funding = good for longs (shorts paying longs)
+                if funding_signal == 'STRONG_BUY':
+                    score += 3  # Very negative funding - bullish
+                elif funding_signal == 'BUY' or funding_sentiment == 'BULLISH':
+                    score += 2.5
+                elif funding_signal == 'NEUTRAL':
+                    score += 1.5
+                elif funding_signal == 'SELL':
+                    score += 0.5  # Positive funding - risky for longs
+                else:
+                    score += 1
+            else:  # SHORT
+                # Positive funding = good for shorts (longs paying shorts)
+                if funding_signal == 'STRONG_SELL':
+                    score += 3  # Very positive funding - bearish
+                elif funding_signal == 'SELL' or funding_sentiment == 'BEARISH':
+                    score += 2.5
+                elif funding_signal == 'NEUTRAL':
+                    score += 1.5
+                elif funding_signal == 'BUY':
+                    score += 0.5  # Negative funding - risky for shorts
+                else:
+                    score += 1
+
+            # === 2. OPEN INTEREST (3 points) ===
+            oi = derivatives_data.get('open_interest', {})
+            oi_signal = oi.get('signal', 'NEUTRAL')
+            oi_trend = oi.get('trend', 'stable')
+            price_oi_divergence = oi.get('price_oi_divergence', False)
+
+            if side == 'LONG':
+                if oi_signal == 'STRONG_BUY':
+                    score += 3  # OI rising with price = strong bullish
+                elif oi_signal == 'BUY':
+                    score += 2.5
+                elif oi_trend == 'increasing' and not price_oi_divergence:
+                    score += 2
+                elif oi_signal == 'NEUTRAL':
+                    score += 1.5
+                else:
+                    score += 0.5
+            else:  # SHORT
+                if oi_signal == 'STRONG_SELL':
+                    score += 3  # OI rising with falling price = strong bearish
+                elif oi_signal == 'SELL':
+                    score += 2.5
+                elif oi_trend == 'increasing' and not price_oi_divergence:
+                    score += 2
+                elif oi_signal == 'NEUTRAL':
+                    score += 1.5
+                else:
+                    score += 0.5
+
+            # === 3. LONG/SHORT RATIO (2 points) ===
+            ls_ratio = derivatives_data.get('long_short_ratio', {})
+            ls_signal = ls_ratio.get('signal', 'NEUTRAL')
+            crowd_position = ls_ratio.get('crowd_position', 'balanced')
+
+            if side == 'LONG':
+                # Contrarian: Too many shorts = bullish
+                if ls_signal == 'STRONG_BUY' or crowd_position == 'extreme_short':
+                    score += 2  # Crowd too short - squeeze potential
+                elif ls_signal == 'BUY' or crowd_position == 'short_heavy':
+                    score += 1.5
+                elif crowd_position == 'balanced':
+                    score += 1
+                else:
+                    score += 0.5  # Crowd too long - risky
+            else:  # SHORT
+                # Contrarian: Too many longs = bearish
+                if ls_signal == 'STRONG_SELL' or crowd_position == 'extreme_long':
+                    score += 2  # Crowd too long - liquidation potential
+                elif ls_signal == 'SELL' or crowd_position == 'long_heavy':
+                    score += 1.5
+                elif crowd_position == 'balanced':
+                    score += 1
+                else:
+                    score += 0.5  # Crowd too short - risky
+
+            # === 4. FEAR & GREED INDEX (2 points) ===
+            fear_greed = derivatives_data.get('fear_greed', {})
+            fg_signal = fear_greed.get('signal', 'NEUTRAL')
+            fg_zone = fear_greed.get('zone', 'neutral')
+            fg_value = fear_greed.get('index', 50)
+
+            if side == 'LONG':
+                # Extreme fear = buy opportunity (contrarian)
+                if fg_zone == 'extreme_fear' or fg_value < 20:
+                    score += 2  # Maximum fear = maximum opportunity
+                elif fg_zone == 'fear' or fg_value < 40:
+                    score += 1.5
+                elif fg_zone == 'neutral':
+                    score += 1
+                elif fg_zone == 'greed':
+                    score += 0.5
+                else:
+                    score += 0.3  # Extreme greed - risky for longs
+            else:  # SHORT
+                # Extreme greed = sell opportunity (contrarian)
+                if fg_zone == 'extreme_greed' or fg_value > 80:
+                    score += 2  # Maximum greed = maximum short opportunity
+                elif fg_zone == 'greed' or fg_value > 60:
+                    score += 1.5
+                elif fg_zone == 'neutral':
+                    score += 1
+                elif fg_zone == 'fear':
+                    score += 0.5
+                else:
+                    score += 0.3  # Extreme fear - risky for shorts
+
+            return min(score, max_points)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Derivatives scoring error: {e}")
+            return max_points * 0.6
+
+    def _score_technical_advanced(self, side: str, technical_data: Optional[Dict]) -> float:
+        """
+        🚀 v4.7.0: Score Technical Advanced Analysis (10 points max)
+
+        Professional-level technical indicators:
+        1. CVD - Cumulative Volume Delta (4 pts) - Buying vs selling pressure
+        2. Ichimoku Cloud (4 pts) - Complete trading system
+        3. Liquidation Levels (2 pts) - Liquidity hunting zones
+
+        These are used by professional futures traders.
+        """
+        max_points = self.weights['technical_advanced']
+        score = 0
+
+        try:
+            if not technical_data:
+                # 60% fallback if no technical data
+                logger.debug("⚠️ Technical advanced data is None - using 60% fallback")
+                return max_points * 0.6  # 6 points
+
+            # === 1. CVD - Cumulative Volume Delta (4 points) ===
+            cvd = technical_data.get('cvd', {})
+            cvd_signal = cvd.get('signal', 'NEUTRAL')
+            cvd_trend = cvd.get('trend', 'neutral')
+            cvd_divergence = cvd.get('divergence', False)
+            divergence_type = cvd.get('divergence_type', '')
+
+            if side == 'LONG':
+                if cvd_signal == 'STRONG_BUY':
+                    score += 4  # Strong buying pressure
+                elif cvd_signal == 'BUY':
+                    score += 3
+                elif cvd_trend == 'bullish':
+                    score += 2.5
+                elif cvd_divergence and 'bullish' in str(divergence_type).lower():
+                    score += 3  # Bullish divergence = hidden strength
+                elif cvd_signal == 'NEUTRAL':
+                    score += 1.5
+                else:
+                    score += 0.5
+            else:  # SHORT
+                if cvd_signal == 'STRONG_SELL':
+                    score += 4  # Strong selling pressure
+                elif cvd_signal == 'SELL':
+                    score += 3
+                elif cvd_trend == 'bearish':
+                    score += 2.5
+                elif cvd_divergence and 'bearish' in str(divergence_type).lower():
+                    score += 3  # Bearish divergence = hidden weakness
+                elif cvd_signal == 'NEUTRAL':
+                    score += 1.5
+                else:
+                    score += 0.5
+
+            # === 2. ICHIMOKU CLOUD (4 points) ===
+            ichimoku = technical_data.get('ichimoku', {})
+            ichi_signal = ichimoku.get('signal', 'NEUTRAL')
+            cloud_position = ichimoku.get('cloud_position', 'in_cloud')
+            tk_cross = ichimoku.get('tk_cross')
+            chikou_position = ichimoku.get('chikou_position', 'neutral')
+
+            if side == 'LONG':
+                if ichi_signal == 'STRONG_BUY':
+                    score += 4  # Above cloud + bullish TK cross + chikou above
+                elif ichi_signal == 'BUY':
+                    score += 3
+                elif cloud_position == 'above_cloud':
+                    score += 2.5  # Price above cloud = bullish
+                elif tk_cross == 'bullish':
+                    score += 2
+                elif cloud_position == 'in_cloud':
+                    score += 1  # Neutral zone
+                else:
+                    score += 0.5
+            else:  # SHORT
+                if ichi_signal == 'STRONG_SELL':
+                    score += 4  # Below cloud + bearish TK cross + chikou below
+                elif ichi_signal == 'SELL':
+                    score += 3
+                elif cloud_position == 'below_cloud':
+                    score += 2.5  # Price below cloud = bearish
+                elif tk_cross == 'bearish':
+                    score += 2
+                elif cloud_position == 'in_cloud':
+                    score += 1  # Neutral zone
+                else:
+                    score += 0.5
+
+            # === 3. LIQUIDATION LEVELS (2 points) ===
+            liquidations = technical_data.get('liquidations', {})
+            liq_signal = liquidations.get('signal', 'NEUTRAL')
+            near_liq_level = liquidations.get('near_liquidation_level', False)
+            liq_direction = liquidations.get('expected_direction', 'neutral')
+
+            if side == 'LONG':
+                if liq_signal == 'BUY' or liq_direction == 'up':
+                    score += 2  # Liquidation hunt expected upward
+                elif near_liq_level and liquidations.get('nearest_liq_type') == 'short':
+                    score += 1.5  # Near short liquidation level
+                elif liq_signal == 'NEUTRAL':
+                    score += 1
+                else:
+                    score += 0.5
+            else:  # SHORT
+                if liq_signal == 'SELL' or liq_direction == 'down':
+                    score += 2  # Liquidation hunt expected downward
+                elif near_liq_level and liquidations.get('nearest_liq_type') == 'long':
+                    score += 1.5  # Near long liquidation level
+                elif liq_signal == 'NEUTRAL':
+                    score += 1
+                else:
+                    score += 0.5
+
+            return min(score, max_points)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Technical advanced scoring error: {e}")
+            return max_points * 0.6
+
+    def _score_harmonic_patterns(self, side: str, harmonic_data: Optional[Dict]) -> float:
+        """
+        🦋 v4.7.0: Score Harmonic Patterns (5 points max)
+
+        Professional geometric patterns with Fibonacci ratios:
+        1. Gartley Pattern (78.6% retracement)
+        2. Butterfly Pattern (127-161.8% extension)
+        3. Bat Pattern (88.6% retracement)
+        4. Crab Pattern (161.8% extension)
+
+        PRZ (Potential Reversal Zone) = High probability entry area.
+        """
+        max_points = self.weights['harmonic_patterns']
+        score = 0
+
+        try:
+            if not harmonic_data:
+                # 60% fallback if no harmonic data
+                logger.debug("⚠️ Harmonic data is None - using 60% fallback")
+                return max_points * 0.6  # 3 points
+
+            # Get harmonic pattern details
+            pattern_detected = harmonic_data.get('pattern_detected', False)
+            pattern_type = harmonic_data.get('pattern_type', 'none')
+            pattern_direction = harmonic_data.get('direction', 'neutral')
+            pattern_quality = harmonic_data.get('quality', 0)  # 0-100
+            in_prz = harmonic_data.get('in_prz', False)
+            prz_distance_pct = harmonic_data.get('prz_distance_pct', 100)
+            harmonic_signal = harmonic_data.get('signal', 'NEUTRAL')
+
+            if not pattern_detected:
+                # No pattern = baseline score
+                return max_points * 0.5  # 2.5 points
+
+            # Base score for pattern detection
+            score += 1
+
+            # Pattern quality bonus (0-2 points)
+            if pattern_quality >= 90:
+                score += 2  # Perfect pattern
+            elif pattern_quality >= 80:
+                score += 1.5  # High quality
+            elif pattern_quality >= 70:
+                score += 1
+            elif pattern_quality >= 60:
+                score += 0.5
+
+            # Direction alignment (0-1.5 points)
+            if side == 'LONG':
+                if pattern_direction == 'bullish':
+                    score += 1.5  # Bullish harmonic for long
+                    if harmonic_signal == 'STRONG_BUY':
+                        score += 0.5  # Bonus for strong signal
+                elif pattern_direction == 'neutral':
+                    score += 0.5
+            else:  # SHORT
+                if pattern_direction == 'bearish':
+                    score += 1.5  # Bearish harmonic for short
+                    if harmonic_signal == 'STRONG_SELL':
+                        score += 0.5  # Bonus for strong signal
+                elif pattern_direction == 'neutral':
+                    score += 0.5
+
+            # PRZ proximity bonus (0-1 point)
+            if in_prz:
+                score += 1  # In the reversal zone
+            elif prz_distance_pct <= 1.0:
+                score += 0.7  # Very close to PRZ
+            elif prz_distance_pct <= 2.0:
+                score += 0.4  # Close to PRZ
+
+            # Pattern type prestige bonus (0-0.5 points)
+            high_quality_patterns = ['crab', 'butterfly', 'gartley', 'bat']
+            if pattern_type.lower() in high_quality_patterns:
+                score += 0.5  # Classic harmonic pattern
+
+            return min(score, max_points)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Harmonic patterns scoring error: {e}")
+            return max_points * 0.6
 
     def _score_risk_reward(self, pa_analysis: Dict) -> float:
         """

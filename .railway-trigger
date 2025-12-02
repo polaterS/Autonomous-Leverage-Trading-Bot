@@ -1,7 +1,24 @@
-# Force redeploy v4.6.1 - Balanced Confluence Scoring - 2 Dec 2025 Mon
-# FIXES:
-#   ✅ MIN_CONFLUENCE_SCORE: 75 → 60 (default threshold lowered)
-#   ✅ Institutional fallback: 40% → 60% (15/25 pts instead of 10/25)
-#   ✅ Better error handling in institutional indicators scoring
-# Now trades with 60+ score will be executed (previously required 75+)
+# Force redeploy v4.7.0 - Ultra Professional Analysis - 2 Dec 2025 Mon
+# 🚀 MAJOR UPGRADE: Ultra Professional Analysis System
+#
+# 🆕 TIER 1 - Derivatives Analysis (10 pts):
+#   💰 Funding Rate - Contrarian sentiment indicator
+#   📊 Open Interest - Trend strength confirmation
+#   📈 Long/Short Ratio - Crowd positioning analysis
+#   😱 Fear & Greed Index - Composite market sentiment
+#
+# 🆕 TIER 2 - Advanced Technical (10 pts):
+#   📉 CVD - Cumulative Volume Delta (buy/sell pressure)
+#   ⛩️ Ichimoku Cloud - Complete Japanese trading system
+#   🔥 Liquidation Levels - Liquidity hunting zones
+#
+# 🆕 TIER 3 - Harmonic Patterns (5 pts):
+#   🦋 Gartley Pattern (78.6% retracement)
+#   🦋 Butterfly Pattern (127-161.8% extension)
+#   🦇 Bat Pattern (88.6% retracement)
+#   🦀 Crab Pattern (161.8% extension)
+#   🎯 PRZ (Potential Reversal Zone) detection
+#
+# ✅ Total Scoring: 100 points across 13 categories
+# 🏛️ All previous indicators (v4.4-v4.6) still active
 # Instant trading still DISABLED - main loop handles all entries
