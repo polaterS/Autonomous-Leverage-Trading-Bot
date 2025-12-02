@@ -3457,9 +3457,12 @@ def calculate_enhanced_indicators(ohlcv: List) -> Dict[str, Any]:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-def calculate_vwap(ohlcv: List, include_bands: bool = True) -> Dict[str, Any]:
+def calculate_vwap_advanced(ohlcv: List, include_bands: bool = True) -> Dict[str, Any]:
     """
     Calculate VWAP (Volume Weighted Average Price) - Institutional Trading Standard.
+
+    NOTE: This is the v4.5.0 advanced version with bands and detailed analysis.
+    The original calculate_vwap() is used by the main indicator system.
 
     VWAP = Σ(Price × Volume) / Σ(Volume)
 
@@ -4180,7 +4183,7 @@ def calculate_advanced_indicators(ohlcv: List) -> Dict[str, Any]:
     """
     try:
         result = {
-            'vwap': calculate_vwap(ohlcv),
+            'vwap': calculate_vwap_advanced(ohlcv),
             'stoch_rsi': calculate_stochastic_rsi(ohlcv),
             'williams_r': calculate_williams_r(ohlcv),
             'cmf': calculate_chaikin_money_flow(ohlcv),
