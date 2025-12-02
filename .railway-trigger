@@ -1,10 +1,8 @@
-# Force redeploy v4.5.0 - Advanced Professional Indicators - 2 Dec 2025 Mon
-# New features:
-#   - VWAP (Volume Weighted Average Price - Institutional Standard)
-#   - Stochastic RSI (Sensitive Momentum with K/D Crossovers)
-#   - Williams %R (Fast Momentum Oscillator)
-#   - Chaikin Money Flow (Volume-weighted Buying/Selling Pressure)
-#   - ATR Volatility Regime (Dynamic Risk Management)
-#   - Fibonacci Confluence (Key Retracement Levels)
-# Previous v4.4.0 features included:
-#   - BB Squeeze, EMA Stack, ADX, RSI/MACD Divergence
+# Force redeploy v4.5.1 - Instant Trading DISABLED - 2 Dec 2025 Mon
+# Critical fix:
+#   - 🚫 Realtime instant trading DISABLED
+#   - Realtime signals logged but NO trades executed
+#   - Main trading loop handles ALL trade entries
+#   - Prevents late entry at peaks (LONG) or bottoms (SHORT)
+# v4.5.0 features still active:
+#   - VWAP, StochRSI, Williams %R, CMF, ATR Regime, Fibonacci

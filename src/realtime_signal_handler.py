@@ -47,6 +47,17 @@ class RealtimeSignalHandler:
         self.settings = get_settings()
         self.is_running = False
 
+        # ═══════════════════════════════════════════════════════════════════════
+        # 🚫 v4.5.1: INSTANT TRADING DISABLED
+        # ═══════════════════════════════════════════════════════════════════════
+        # Reason: Realtime signals tend to enter trades TOO LATE
+        # - By the time signal is detected and validated, price has already peaked (for LONG)
+        #   or bottomed (for SHORT), causing immediate losses
+        # - Main trading loop with proper confluence analysis is more reliable
+        # - Set to True to re-enable instant trading
+        # ═══════════════════════════════════════════════════════════════════════
+        self.ENABLE_INSTANT_TRADES = False  # 🚫 DISABLED - Use main trading loop only
+
         # Track recent executions to prevent duplicates
         self.recent_executions: Dict[str, float] = {}  # symbol -> timestamp
         self.execution_cooldown = 300  # 5 minutes between same-symbol trades
@@ -76,7 +87,15 @@ class RealtimeSignalHandler:
         self.is_running = True
         # Update market trend on startup
         await self._update_market_trend()
-        logger.info("✅ Real-Time Signal Handler started")
+
+        # 🚫 v4.5.1: Log instant trading status
+        if self.ENABLE_INSTANT_TRADES:
+            logger.info("✅ Real-Time Signal Handler started - INSTANT TRADING ENABLED")
+        else:
+            logger.info(
+                "✅ Real-Time Signal Handler started - 🚫 INSTANT TRADING DISABLED | "
+                "Signals will be logged but NO trades will be executed via realtime"
+            )
 
     async def stop(self):
         """Stop the signal handler."""
@@ -166,6 +185,19 @@ class RealtimeSignalHandler:
         strength = signal['strength']
         trigger = signal['trigger']
         price = signal['price']
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # 🚫 v4.5.1: INSTANT TRADING DISABLED CHECK
+        # ═══════════════════════════════════════════════════════════════════════
+        if not self.ENABLE_INSTANT_TRADES:
+            logger.info(
+                f"📡 REALTIME SIGNAL (LOGGED ONLY - NO TRADE): {symbol} {side} | "
+                f"Strength: {strength} | Trigger: {trigger} | "
+                f"Price: ${float(price):.4f} | "
+                f"⚠️ Instant trading DISABLED - signal logged for monitoring only"
+            )
+            return  # 🚫 Do NOT execute trade - just log and return
+        # ═══════════════════════════════════════════════════════════════════════
 
         logger.info(
             f"📡 REALTIME SIGNAL RECEIVED: {symbol} {side} | "
