@@ -48,6 +48,8 @@ from src.dynamic_profit_targets import DynamicProfitTargetCalculator, calculate_
 from src.advanced_trailing_stop import AdvancedTrailingStop, calculate_trailing_stop
 from src.dynamic_position_sizer import DynamicPositionSizer, calculate_position_size
 from src.market_regime_detector import get_regime_detector
+# 🆕 v4.4.0: Import enhanced indicators for professional confluence scoring
+from src.indicators import calculate_enhanced_indicators
 
 logger = logging.getLogger('trading_bot')
 
@@ -137,7 +139,10 @@ class EnhancedTradingSystem:
             # Step 3: Multi-Timeframe Data (if available)
             mtf_data = market_data.get('mtf', None)
 
-            # Step 4: Confluence Scoring
+            # 🆕 v4.4.0: Get OHLCV data for enhanced indicators
+            ohlcv_data = market_data.get('ohlcv_15m', [])
+
+            # Step 4: Confluence Scoring with enhanced indicators
             confluence_result = self._score_confluence(
                 symbol=symbol,
                 side=side,
@@ -145,7 +150,8 @@ class EnhancedTradingSystem:
                 indicators=indicators,
                 volume_profile=volume_profile_data,
                 market_regime=regime_data,
-                mtf_data=mtf_data
+                mtf_data=mtf_data,
+                ohlcv_data=ohlcv_data  # 🆕 v4.4.0: Pass OHLCV for enhanced indicators
             )
 
             # Step 5: Decision - Should we trade?
@@ -318,7 +324,8 @@ class EnhancedTradingSystem:
         indicators: Dict,
         volume_profile: Dict,
         market_regime: Dict,
-        mtf_data: Optional[Dict]
+        mtf_data: Optional[Dict],
+        ohlcv_data: Optional[list] = None  # 🆕 v4.4.0: OHLCV for enhanced indicators
     ) -> Dict:
         """Score confluence of all signals."""
         if not self.enable_confluence_filtering:
@@ -332,7 +339,17 @@ class EnhancedTradingSystem:
             }
 
         try:
-            # Score the opportunity
+            # 🆕 v4.4.0: Calculate enhanced indicators if OHLCV data available
+            enhanced_data = None
+            if ohlcv_data and len(ohlcv_data) >= 50:
+                try:
+                    enhanced_data = calculate_enhanced_indicators(ohlcv_data)
+                    logger.info(f"🔬 {symbol}: Enhanced indicators calculated successfully")
+                except Exception as e:
+                    logger.warning(f"⚠️ {symbol}: Enhanced indicators failed: {e}")
+                    enhanced_data = None
+
+            # Score the opportunity with enhanced data
             score_result = self.confluence_scorer.score_opportunity(
                 symbol=symbol,
                 side=side,
@@ -340,7 +357,8 @@ class EnhancedTradingSystem:
                 indicators=indicators,
                 volume_profile=volume_profile,
                 market_regime=market_regime,
-                mtf_data=mtf_data
+                mtf_data=mtf_data,
+                enhanced_data=enhanced_data  # 🆕 v4.4.0: Pass enhanced indicators
             )
 
             return score_result

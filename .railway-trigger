@@ -1,1 +1,7 @@
-# Force redeploy  1 Ara 2025 Pzt 17:59:32
+# Force redeploy v4.4.0 - Enhanced Confluence Indicators - 2 Dec 2025 Mon
+# New features:
+#   - BB Squeeze (Bollinger Band Squeeze breakout detection)
+#   - EMA Stack (Fibonacci-based EMA trend analysis)
+#   - ADX (Average Directional Index for trend strength)
+#   - Enhanced RSI/MACD Divergence Detection
+#   - Momentum Quality Scoring

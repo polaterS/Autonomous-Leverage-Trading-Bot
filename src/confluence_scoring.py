@@ -53,14 +53,16 @@ class ConfluenceScorer:
 
     def __init__(self):
         # Scoring weights (must sum to 100)
-        # ✅ OPTIMIZED: Reduced strict components, boosted reliable ones
+        # 🆕 v4.4.0: Added enhanced indicators for better confluence
         self.weights = {
-            'multi_timeframe': 20,       # Reduced from 25 (perfect MTF rare in crypto)
-            'volume_profile': 15,        # Reduced from 20 (not every setup at VPOC)
-            'indicators': 25,            # Increased from 20 (more reliable)
-            'market_regime': 15,         # Keep (OK as is)
-            'support_resistance': 15,    # Keep (will soften logic instead)
-            'risk_reward': 10            # Increased from 5 (R/R is critical)
+            'multi_timeframe': 15,       # MTF trend alignment
+            'volume_profile': 10,        # VPOC, HVN proximity
+            'indicators': 20,            # RSI, MACD, SuperTrend, etc.
+            'market_regime': 10,         # ADX-based regime
+            'support_resistance': 12,    # S/R quality
+            'risk_reward': 8,            # R/R ratio
+            'enhanced_indicators': 15,   # 🆕 BB Squeeze, EMA Stack, Divergences
+            'momentum_quality': 10       # 🆕 Momentum strength and direction
         }
 
         # Minimum score to trade
@@ -85,7 +87,8 @@ class ConfluenceScorer:
         indicators: Dict,
         volume_profile: Dict,
         market_regime: Dict,
-        mtf_data: Optional[Dict] = None
+        mtf_data: Optional[Dict] = None,
+        enhanced_data: Optional[Dict] = None  # 🆕 v4.4.0: Enhanced indicators
     ) -> Dict[str, Any]:
         """
         Main scoring method: Evaluate a trading opportunity.
@@ -126,13 +129,21 @@ class ConfluenceScorer:
             regime_score = self._score_market_regime(side, market_regime)
             component_scores['market_regime'] = regime_score
 
-            # 5. Support/Resistance Quality (15 points)
+            # 5. Support/Resistance Quality (12 points)
             sr_score = self._score_support_resistance(side, pa_analysis)
             component_scores['support_resistance'] = sr_score
 
-            # 6. Risk/Reward Ratio (5 points)
+            # 6. Risk/Reward Ratio (8 points)
             rr_score = self._score_risk_reward(pa_analysis)
             component_scores['risk_reward'] = rr_score
+
+            # 🆕 7. Enhanced Indicators (15 points) - BB Squeeze, EMA Stack, Divergences
+            enhanced_score = self._score_enhanced_indicators(side, enhanced_data, indicators)
+            component_scores['enhanced_indicators'] = enhanced_score
+
+            # 🆕 8. Momentum Quality (10 points) - ADX, trend strength
+            momentum_score = self._score_momentum_quality(side, enhanced_data, market_regime)
+            component_scores['momentum_quality'] = momentum_score
 
             # Calculate total score
             total_score = sum(component_scores.values())
@@ -525,9 +536,148 @@ class ConfluenceScorer:
             logger.warning(f" S/R scoring error: {e}")
             return 5  # Default low score on error
 
+    def _score_enhanced_indicators(self, side: str, enhanced_data: Optional[Dict], indicators: Dict) -> float:
+        """
+        🆕 v4.4.0: Score enhanced indicators (15 points max).
+
+        Components:
+        - BB Squeeze (5 pts): Breakout detection
+        - EMA Stack (5 pts): Trend structure
+        - Divergences (5 pts): RSI/MACD divergence
+
+        These are professional-grade signals that significantly improve trade quality.
+        """
+        max_points = self.weights['enhanced_indicators']
+        score = 0
+
+        try:
+            if not enhanced_data:
+                return max_points * 0.4  # 40% fallback if no enhanced data
+
+            # 1. BB Squeeze (5 points) - Breakout detection
+            bb_squeeze = enhanced_data.get('bb_squeeze', {})
+            squeeze_signal = bb_squeeze.get('signal', 'NEUTRAL')
+            squeeze_on = bb_squeeze.get('squeeze_on', False)
+
+            if squeeze_on:
+                # Squeeze is ON = consolidation, wait for breakout
+                score += 2  # Neutral - potential energy building
+            elif squeeze_signal in ['STRONG_BUY', 'BUY'] and side == 'LONG':
+                score += 5  # Bullish breakout confirmed
+            elif squeeze_signal in ['STRONG_SELL', 'SELL'] and side == 'SHORT':
+                score += 5  # Bearish breakout confirmed
+            elif squeeze_signal == 'WAIT':
+                score += 1  # Waiting for direction
+            else:
+                score += 2  # Neutral
+
+            # 2. EMA Stack (5 points) - Trend structure
+            ema_stack = enhanced_data.get('ema_stack', {})
+            stack_type = ema_stack.get('stack_type', 'unknown')
+            stack_score = ema_stack.get('stack_score', 0)
+
+            if stack_type == 'bullish' and side == 'LONG':
+                score += 5  # Perfect bullish stack
+            elif stack_type == 'bearish' and side == 'SHORT':
+                score += 5  # Perfect bearish stack
+            elif stack_type == 'bullish_forming' and side == 'LONG' and stack_score >= 75:
+                score += 4  # Forming bullish
+            elif stack_type == 'bearish_forming' and side == 'SHORT' and stack_score >= 75:
+                score += 4  # Forming bearish
+            elif stack_type == 'tangled':
+                score += 1  # Choppy market
+            else:
+                score += 2  # Neutral
+
+            # 3. Divergences (5 points) - RSI/MACD divergence
+            rsi_div = enhanced_data.get('rsi_divergence', {})
+            macd_div = enhanced_data.get('macd_divergence', {})
+
+            # RSI Divergence
+            if rsi_div.get('has_divergence'):
+                div_type = rsi_div.get('type', '')
+                div_strength = rsi_div.get('strength', 0)
+                if div_type == 'bullish' and side == 'LONG':
+                    score += min(3, 2 + div_strength)  # Up to 3 points
+                elif div_type == 'bearish' and side == 'SHORT':
+                    score += min(3, 2 + div_strength)
+
+            # MACD Divergence (bonus)
+            if macd_div.get('has_divergence'):
+                div_type = macd_div.get('divergence_type', '')
+                if 'bullish' in str(div_type) and side == 'LONG':
+                    score += 2  # Additional confirmation
+                elif 'bearish' in str(div_type) and side == 'SHORT':
+                    score += 2
+
+            return min(score, max_points)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Enhanced indicators scoring error: {e}")
+            return max_points * 0.4
+
+    def _score_momentum_quality(self, side: str, enhanced_data: Optional[Dict], market_regime: Dict) -> float:
+        """
+        🆕 v4.4.0: Score momentum quality (10 points max).
+
+        Components:
+        - ADX trend strength (5 pts)
+        - ADX direction alignment (3 pts)
+        - Momentum direction (2 pts)
+
+        Strong momentum = Higher probability trades.
+        """
+        max_points = self.weights['momentum_quality']
+        score = 0
+
+        try:
+            if not enhanced_data:
+                return max_points * 0.5  # 50% fallback
+
+            # Get ADX data
+            adx_data = enhanced_data.get('adx', {})
+            adx_value = adx_data.get('adx', 20)
+            trend_direction = adx_data.get('trend_direction', 'neutral')
+            trend_strength = adx_data.get('trend_strength', 'weak')
+            adx_trend = adx_data.get('adx_trend', 'flat')
+
+            # 1. ADX Trend Strength (5 points)
+            if trend_strength == 'very_strong' or trend_strength == 'extreme':
+                score += 5
+            elif trend_strength == 'strong':
+                score += 4
+            elif trend_strength == 'emerging':
+                score += 3
+            elif trend_strength == 'weak':
+                score += 1  # Weak trend = low confidence
+
+            # 2. Direction Alignment (3 points)
+            if trend_direction == 'bullish' and side == 'LONG':
+                score += 3  # Trading with trend
+            elif trend_direction == 'bearish' and side == 'SHORT':
+                score += 3  # Trading with trend
+            elif trend_direction == 'neutral':
+                score += 1.5  # No clear direction
+            else:
+                score += 0.5  # Counter-trend (risky)
+
+            # 3. ADX Trend Direction (2 points)
+            if adx_trend == 'rising':
+                score += 2  # Trend strengthening
+            elif adx_trend == 'flat':
+                score += 1  # Stable
+            elif adx_trend == 'falling':
+                score += 0.5  # Trend weakening
+
+            return min(score, max_points)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Momentum quality scoring error: {e}")
+            return max_points * 0.5
+
     def _score_risk_reward(self, pa_analysis: Dict) -> float:
         """
-        Score risk/reward ratio (10 points max - increased from 5).
+        Score risk/reward ratio (8 points max - reduced from 10).
 
         🎯 v4.2.3: SOFTENED - Give moderate score when R/R not calculated
         """

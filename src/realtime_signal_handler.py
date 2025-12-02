@@ -24,6 +24,8 @@ from src.trade_executor import get_trade_executor
 from src.telegram_notifier import get_notifier
 from src.exchange_client import get_exchange_client
 from src.database import get_db_client
+# 🆕 v4.4.0: Import enhanced indicators for professional confluence scoring
+from src.indicators import calculate_enhanced_indicators
 
 logger = setup_logging()
 
@@ -727,12 +729,94 @@ class RealtimeSignalHandler:
         else:
             score += 3
 
+        # ═══════════════════════════════════════════════════════════════════
+        # 🆕 7. ENHANCED INDICATORS (up to 25 points) - v4.4.0
+        # BB Squeeze, EMA Stack, ADX, Divergences
+        # ═══════════════════════════════════════════════════════════════════
+        enhanced_score = 0
+        ohlcv = market_data.get('ohlcv', [])
+
+        if ohlcv and len(ohlcv) >= 50:
+            try:
+                enhanced_data = calculate_enhanced_indicators(ohlcv)
+
+                # BB Squeeze Analysis (up to 8 points)
+                bb_squeeze = enhanced_data.get('bb_squeeze', {})
+                squeeze_signal = bb_squeeze.get('signal', 'NEUTRAL')
+                if squeeze_signal in ['STRONG_BUY', 'BUY'] and side == 'LONG':
+                    enhanced_score += 8
+                elif squeeze_signal in ['STRONG_SELL', 'SELL'] and side == 'SHORT':
+                    enhanced_score += 8
+                elif bb_squeeze.get('squeeze_on', False):
+                    enhanced_score += 3  # Squeeze building - potential
+                else:
+                    enhanced_score += 2
+
+                # EMA Stack Analysis (up to 8 points)
+                ema_stack = enhanced_data.get('ema_stack', {})
+                stack_type = ema_stack.get('stack_type', 'unknown')
+                if stack_type == 'bullish' and side == 'LONG':
+                    enhanced_score += 8
+                elif stack_type == 'bearish' and side == 'SHORT':
+                    enhanced_score += 8
+                elif 'forming' in stack_type and ema_stack.get('stack_score', 0) >= 75:
+                    enhanced_score += 5
+                elif stack_type == 'tangled':
+                    enhanced_score += 1
+                else:
+                    enhanced_score += 2
+
+                # ADX Trend Strength (up to 5 points)
+                adx = enhanced_data.get('adx', {})
+                adx_value = adx.get('adx', 20)
+                trend_direction = adx.get('trend_direction', 'neutral')
+
+                if adx_value >= 25:
+                    if (trend_direction == 'bullish' and side == 'LONG') or \
+                       (trend_direction == 'bearish' and side == 'SHORT'):
+                        enhanced_score += 5  # Strong trend in our direction
+                    else:
+                        enhanced_score += 1  # Counter-trend
+                else:
+                    enhanced_score += 2  # Weak trend
+
+                # Divergence Detection (up to 4 points)
+                rsi_div = enhanced_data.get('rsi_divergence', {})
+                macd_div = enhanced_data.get('macd_divergence', {})
+
+                if rsi_div.get('has_divergence'):
+                    div_type = rsi_div.get('type', '')
+                    if (div_type == 'bullish' and side == 'LONG') or \
+                       (div_type == 'bearish' and side == 'SHORT'):
+                        enhanced_score += 2
+
+                if macd_div.get('has_divergence'):
+                    div_type = macd_div.get('divergence_type', '')
+                    if ('bullish' in str(div_type) and side == 'LONG') or \
+                       ('bearish' in str(div_type) and side == 'SHORT'):
+                        enhanced_score += 2
+
+                logger.info(
+                    f"🔬 Enhanced Indicators: {symbol} | BB: {squeeze_signal} | "
+                    f"EMA: {stack_type} | ADX: {adx_value:.1f} ({trend_direction}) | "
+                    f"Score: +{enhanced_score}"
+                )
+
+            except Exception as e:
+                logger.warning(f"⚠️ Enhanced indicators failed: {e}")
+                enhanced_score = 6  # Fallback
+
+        else:
+            enhanced_score = 6  # No OHLCV data
+
+        score += enhanced_score
+
         final_score = min(100, score)
 
         logger.info(
             f"📊 Confluence Score: {symbol} {side} = {final_score:.1f}/100 | "
             f"MTF: {mtf_score}/20 | RSI: {rsi:.0f} | Vol: {volume_ratio:.1f}x | "
-            f"ATR: {atr_pct:.1f}%"
+            f"ATR: {atr_pct:.1f}% | Enhanced: {enhanced_score}/25"
         )
 
         return final_score

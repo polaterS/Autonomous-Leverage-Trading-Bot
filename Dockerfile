@@ -1,11 +1,15 @@
-# 🚀 PA-ONLY v4.3.1 - MIN_CONFLUENCE_SCORE from ENV
+# 🚀 PA-ONLY v4.4.0 - ENHANCED CONFLUENCE INDICATORS
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251201_V431_CONFLUENCE_FROM_ENV
+ARG CACHE_BUST=20251202_V440_ENHANCED_INDICATORS
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v4.3.1: MIN_CONFLUENCE_SCORE=75 env var now properly used!"
+    echo "🆕 v4.4.0: Enhanced Confluence Indicators!" && \
+    echo "   - BB Squeeze (Bollinger Band Squeeze)" && \
+    echo "   - EMA Stack (Fibonacci-based trend analysis)" && \
+    echo "   - ADX (Average Directional Index)" && \
+    echo "   - RSI/MACD Divergence Detection"
 
 # Set working directory
 WORKDIR /app
@@ -25,9 +29,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.3.1
-# Current deployment: 20251201_V431_CONFLUENCE_FROM_ENV
-# Changes: MIN_CONFLUENCE_SCORE env var (75) now properly read and used
+# 🔥 CACHE BUST MARKER: PA-ONLY v4.4.0
+# Current deployment: 20251202_V440_ENHANCED_INDICATORS
+# Changes: New professional confluence indicators added
+#   - BB Squeeze (Bollinger Band Squeeze breakout detection)
+#   - EMA Stack (Fibonacci-based EMA trend analysis)
+#   - ADX (Average Directional Index for trend strength)
+#   - Enhanced RSI/MACD Divergence Detection
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

@@ -2821,3 +2821,632 @@ def calculate_mfi(ohlcv: List, period: int = 14) -> Dict[str, Any]:
             'buying_pressure': 0.5,
             'error': str(e)
         }
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 🆕 v4.4.0 - NEW PROFESSIONAL INDICATORS FOR CONFLUENCE SCORING
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def calculate_bb_squeeze(ohlcv: List, bb_period: int = 20, bb_std: float = 2.0,
+                         kc_period: int = 20, kc_mult: float = 1.5) -> Dict[str, Any]:
+    """
+    Detect Bollinger Band Squeeze (TTM Squeeze concept).
+
+    SQUEEZE = Low volatility → Breakout imminent!
+    When BB is INSIDE Keltner Channel = Squeeze is ON (consolidation)
+    When BB expands OUTSIDE KC = Squeeze fires (breakout)
+
+    Professional traders use this to:
+    - Identify consolidation periods before big moves
+    - Time entries right before breakouts
+    - Avoid trading during low volatility chop
+
+    Args:
+        ohlcv: List of OHLCV data
+        bb_period: Bollinger Band period (default 20)
+        bb_std: Bollinger Band standard deviation (default 2.0)
+        kc_period: Keltner Channel period (default 20)
+        kc_mult: Keltner Channel ATR multiplier (default 1.5)
+
+    Returns:
+        Dict with squeeze status, momentum, and signal
+    """
+    try:
+        if len(ohlcv) < max(bb_period, kc_period) + 20:
+            return {
+                'squeeze_on': False,
+                'squeeze_off': False,
+                'momentum': 0.0,
+                'momentum_direction': 'neutral',
+                'signal': 'NEUTRAL',
+                'bars_in_squeeze': 0
+            }
+
+        # Extract OHLC data
+        highs = np.array([candle[2] for candle in ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in ohlcv], dtype=float)
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+
+        # Calculate Bollinger Bands
+        bb_sma = pd.Series(closes).rolling(window=bb_period).mean()
+        bb_std_val = pd.Series(closes).rolling(window=bb_period).std()
+        bb_upper = bb_sma + (bb_std * bb_std_val)
+        bb_lower = bb_sma - (bb_std * bb_std_val)
+
+        # Calculate Keltner Channel (using ATR)
+        tr = np.maximum(highs[1:] - lows[1:],
+                       np.maximum(np.abs(highs[1:] - closes[:-1]),
+                                 np.abs(lows[1:] - closes[:-1])))
+        tr = np.insert(tr, 0, highs[0] - lows[0])
+        atr = pd.Series(tr).rolling(window=kc_period).mean()
+
+        kc_middle = pd.Series(closes).rolling(window=kc_period).mean()
+        kc_upper = kc_middle + (kc_mult * atr)
+        kc_lower = kc_middle - (kc_mult * atr)
+
+        # Squeeze detection: BB inside KC = Squeeze ON
+        squeeze_on = (bb_lower.iloc[-1] > kc_lower.iloc[-1]) and (bb_upper.iloc[-1] < kc_upper.iloc[-1])
+        squeeze_off = not squeeze_on
+
+        # Count bars in squeeze
+        bars_in_squeeze = 0
+        for i in range(len(closes) - 1, -1, -1):
+            if pd.notna(bb_lower.iloc[i]) and pd.notna(kc_lower.iloc[i]):
+                if (bb_lower.iloc[i] > kc_lower.iloc[i]) and (bb_upper.iloc[i] < kc_upper.iloc[i]):
+                    bars_in_squeeze += 1
+                else:
+                    break
+
+        # Calculate momentum (Linear Regression of price - average)
+        # Simplified: Use price vs middle band
+        momentum = (closes[-1] - kc_middle.iloc[-1]) / kc_middle.iloc[-1] * 100
+
+        # Momentum direction
+        if len(closes) >= 2:
+            prev_momentum = (closes[-2] - kc_middle.iloc[-2]) / kc_middle.iloc[-2] * 100
+            if momentum > prev_momentum:
+                momentum_direction = 'increasing'
+            elif momentum < prev_momentum:
+                momentum_direction = 'decreasing'
+            else:
+                momentum_direction = 'flat'
+        else:
+            momentum_direction = 'neutral'
+
+        # Signal generation
+        signal = 'NEUTRAL'
+        if squeeze_off and bars_in_squeeze >= 5:
+            # Squeeze just fired after being on for 5+ bars
+            if momentum > 0:
+                signal = 'STRONG_BUY'  # Breakout UP
+            else:
+                signal = 'STRONG_SELL'  # Breakout DOWN
+        elif squeeze_on:
+            signal = 'WAIT'  # Wait for squeeze to fire
+        elif momentum > 0.5:
+            signal = 'BUY'
+        elif momentum < -0.5:
+            signal = 'SELL'
+
+        return {
+            'squeeze_on': squeeze_on,
+            'squeeze_off': squeeze_off,
+            'momentum': float(momentum),
+            'momentum_direction': momentum_direction,
+            'signal': signal,
+            'bars_in_squeeze': bars_in_squeeze,
+            'bb_width_pct': float((bb_upper.iloc[-1] - bb_lower.iloc[-1]) / bb_sma.iloc[-1] * 100),
+            'kc_width_pct': float((kc_upper.iloc[-1] - kc_lower.iloc[-1]) / kc_middle.iloc[-1] * 100)
+        }
+
+    except Exception as e:
+        return {
+            'squeeze_on': False,
+            'squeeze_off': False,
+            'momentum': 0.0,
+            'momentum_direction': 'neutral',
+            'signal': 'NEUTRAL',
+            'bars_in_squeeze': 0,
+            'error': str(e)
+        }
+
+
+def calculate_ema_stack(ohlcv: List, periods: List[int] = None) -> Dict[str, Any]:
+    """
+    Analyze EMA Stack/Fan for trend strength.
+
+    EMA STACK = Multiple EMAs in perfect order
+    - Bullish: EMA8 > EMA21 > EMA34 > EMA55 > EMA89 (all stacked perfectly)
+    - Bearish: EMA8 < EMA21 < EMA34 < EMA55 < EMA89 (inverse stack)
+    - Tangled: EMAs crossing = No clear trend, choppy market
+
+    Professional use:
+    - Perfect stack = Strong trend, ride it with trailing stop
+    - Tangled EMAs = Avoid trading, wait for clarity
+    - Stack forming = Early trend entry opportunity
+
+    Args:
+        ohlcv: List of OHLCV data
+        periods: EMA periods to use (default: [8, 21, 34, 55, 89] - Fibonacci)
+
+    Returns:
+        Dict with stack status, trend strength, and signal
+    """
+    try:
+        if periods is None:
+            periods = [8, 21, 34, 55, 89]  # Fibonacci-based EMAs
+
+        if len(ohlcv) < max(periods) + 10:
+            return {
+                'stack_type': 'unknown',
+                'trend_strength': 0.0,
+                'is_perfect_stack': False,
+                'stack_score': 0,
+                'signal': 'NEUTRAL',
+                'ema_values': {}
+            }
+
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+        current_price = closes[-1]
+
+        # Calculate all EMAs
+        ema_values = {}
+        for period in periods:
+            ema = pd.Series(closes).ewm(span=period, adjust=False).mean()
+            ema_values[f'ema_{period}'] = float(ema.iloc[-1])
+
+        # Check stack order
+        ema_list = [ema_values[f'ema_{p}'] for p in periods]
+
+        # Count correct orderings
+        bullish_order = 0
+        bearish_order = 0
+
+        for i in range(len(ema_list) - 1):
+            if ema_list[i] > ema_list[i + 1]:
+                bullish_order += 1
+            elif ema_list[i] < ema_list[i + 1]:
+                bearish_order += 1
+
+        total_pairs = len(ema_list) - 1
+
+        # Determine stack type
+        if bullish_order == total_pairs:
+            stack_type = 'bullish'
+            is_perfect_stack = True
+            stack_score = 100
+        elif bearish_order == total_pairs:
+            stack_type = 'bearish'
+            is_perfect_stack = True
+            stack_score = 100
+        elif bullish_order > bearish_order:
+            stack_type = 'bullish_forming'
+            is_perfect_stack = False
+            stack_score = int((bullish_order / total_pairs) * 100)
+        elif bearish_order > bullish_order:
+            stack_type = 'bearish_forming'
+            is_perfect_stack = False
+            stack_score = int((bearish_order / total_pairs) * 100)
+        else:
+            stack_type = 'tangled'
+            is_perfect_stack = False
+            stack_score = 0
+
+        # Calculate trend strength (0-100)
+        # Based on: stack quality + price position relative to EMAs
+        above_count = sum(1 for ema in ema_list if current_price > ema)
+        below_count = sum(1 for ema in ema_list if current_price < ema)
+
+        if above_count == len(ema_list):
+            price_position = 'above_all'
+            trend_strength = stack_score * 1.0
+        elif below_count == len(ema_list):
+            price_position = 'below_all'
+            trend_strength = stack_score * 1.0
+        else:
+            price_position = 'mixed'
+            trend_strength = stack_score * 0.7
+
+        # Generate signal
+        if stack_type == 'bullish' and is_perfect_stack:
+            signal = 'STRONG_BUY'
+        elif stack_type == 'bearish' and is_perfect_stack:
+            signal = 'STRONG_SELL'
+        elif stack_type == 'bullish_forming' and stack_score >= 75:
+            signal = 'BUY'
+        elif stack_type == 'bearish_forming' and stack_score >= 75:
+            signal = 'SELL'
+        else:
+            signal = 'NEUTRAL'
+
+        return {
+            'stack_type': stack_type,
+            'trend_strength': float(trend_strength),
+            'is_perfect_stack': is_perfect_stack,
+            'stack_score': stack_score,
+            'signal': signal,
+            'ema_values': ema_values,
+            'price_position': price_position,
+            'bullish_pairs': bullish_order,
+            'bearish_pairs': bearish_order
+        }
+
+    except Exception as e:
+        return {
+            'stack_type': 'unknown',
+            'trend_strength': 0.0,
+            'is_perfect_stack': False,
+            'stack_score': 0,
+            'signal': 'NEUTRAL',
+            'ema_values': {},
+            'error': str(e)
+        }
+
+
+def calculate_adx(ohlcv: List, period: int = 14) -> Dict[str, Any]:
+    """
+    Calculate ADX (Average Directional Index) - THE trend strength indicator.
+
+    ADX measures STRENGTH of trend, not direction!
+    - ADX < 20 = Weak/No trend (ranging market)
+    - ADX 20-25 = Trend emerging
+    - ADX 25-50 = Strong trend
+    - ADX 50-75 = Very strong trend
+    - ADX > 75 = Extremely strong (rare, often exhaustion)
+
+    DI+ and DI- indicate direction:
+    - DI+ > DI- = Bullish
+    - DI- > DI+ = Bearish
+
+    Professional use:
+    - ADX rising = Trend strengthening, hold position
+    - ADX falling = Trend weakening, tighten stops
+    - ADX < 20 = Avoid trend-following strategies
+
+    Args:
+        ohlcv: List of OHLCV data
+        period: ADX period (default 14)
+
+    Returns:
+        Dict with ADX, DI+, DI-, trend info
+    """
+    try:
+        if len(ohlcv) < period * 2 + 10:
+            return {
+                'adx': 20.0,
+                'di_plus': 0.0,
+                'di_minus': 0.0,
+                'trend_strength': 'weak',
+                'trend_direction': 'neutral',
+                'signal': 'NEUTRAL'
+            }
+
+        highs = np.array([candle[2] for candle in ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in ohlcv], dtype=float)
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+
+        # Calculate True Range
+        tr = np.zeros(len(ohlcv))
+        tr[0] = highs[0] - lows[0]
+        for i in range(1, len(ohlcv)):
+            hl = highs[i] - lows[i]
+            hc = abs(highs[i] - closes[i-1])
+            lc = abs(lows[i] - closes[i-1])
+            tr[i] = max(hl, hc, lc)
+
+        # Calculate Directional Movement
+        dm_plus = np.zeros(len(ohlcv))
+        dm_minus = np.zeros(len(ohlcv))
+
+        for i in range(1, len(ohlcv)):
+            up_move = highs[i] - highs[i-1]
+            down_move = lows[i-1] - lows[i]
+
+            if up_move > down_move and up_move > 0:
+                dm_plus[i] = up_move
+            if down_move > up_move and down_move > 0:
+                dm_minus[i] = down_move
+
+        # Smooth the values using Wilder's smoothing
+        atr = pd.Series(tr).rolling(window=period).mean()
+        smooth_dm_plus = pd.Series(dm_plus).rolling(window=period).mean()
+        smooth_dm_minus = pd.Series(dm_minus).rolling(window=period).mean()
+
+        # Calculate DI+ and DI-
+        di_plus = 100 * smooth_dm_plus / (atr + 1e-10)
+        di_minus = 100 * smooth_dm_minus / (atr + 1e-10)
+
+        # Calculate DX
+        dx = 100 * np.abs(di_plus - di_minus) / (di_plus + di_minus + 1e-10)
+
+        # Calculate ADX (smoothed DX)
+        adx = pd.Series(dx).rolling(window=period).mean()
+
+        # Get current values
+        current_adx = float(adx.iloc[-1]) if not np.isnan(adx.iloc[-1]) else 20.0
+        current_di_plus = float(di_plus.iloc[-1]) if not np.isnan(di_plus.iloc[-1]) else 0.0
+        current_di_minus = float(di_minus.iloc[-1]) if not np.isnan(di_minus.iloc[-1]) else 0.0
+
+        # Determine trend strength
+        if current_adx < 20:
+            trend_strength = 'weak'
+        elif current_adx < 25:
+            trend_strength = 'emerging'
+        elif current_adx < 50:
+            trend_strength = 'strong'
+        elif current_adx < 75:
+            trend_strength = 'very_strong'
+        else:
+            trend_strength = 'extreme'
+
+        # Determine trend direction
+        if current_di_plus > current_di_minus:
+            trend_direction = 'bullish'
+        elif current_di_minus > current_di_plus:
+            trend_direction = 'bearish'
+        else:
+            trend_direction = 'neutral'
+
+        # ADX trend (rising or falling)
+        if len(adx) >= 5:
+            adx_slope = (adx.iloc[-1] - adx.iloc[-5]) / 5
+            if adx_slope > 0.5:
+                adx_trend = 'rising'
+            elif adx_slope < -0.5:
+                adx_trend = 'falling'
+            else:
+                adx_trend = 'flat'
+        else:
+            adx_trend = 'unknown'
+
+        # Generate signal
+        signal = 'NEUTRAL'
+        if current_adx >= 25:
+            if trend_direction == 'bullish' and adx_trend != 'falling':
+                signal = 'BUY' if current_adx < 50 else 'STRONG_BUY'
+            elif trend_direction == 'bearish' and adx_trend != 'falling':
+                signal = 'SELL' if current_adx < 50 else 'STRONG_SELL'
+
+        return {
+            'adx': current_adx,
+            'di_plus': current_di_plus,
+            'di_minus': current_di_minus,
+            'trend_strength': trend_strength,
+            'trend_direction': trend_direction,
+            'adx_trend': adx_trend,
+            'signal': signal,
+            'di_diff': current_di_plus - current_di_minus
+        }
+
+    except Exception as e:
+        return {
+            'adx': 20.0,
+            'di_plus': 0.0,
+            'di_minus': 0.0,
+            'trend_strength': 'weak',
+            'trend_direction': 'neutral',
+            'signal': 'NEUTRAL',
+            'error': str(e)
+        }
+
+
+def calculate_macd_divergence(ohlcv: List) -> Dict[str, Any]:
+    """
+    Detect MACD Divergence - Professional reversal indicator.
+
+    MACD Divergence = Price and MACD moving in opposite directions
+    - Bullish Divergence: Price lower low + MACD higher low → Reversal UP
+    - Bearish Divergence: Price higher high + MACD lower high → Reversal DOWN
+    - Hidden Bullish: Price higher low + MACD lower low → Trend continuation UP
+    - Hidden Bearish: Price lower high + MACD higher high → Trend continuation DOWN
+
+    Args:
+        ohlcv: List of OHLCV data
+
+    Returns:
+        Dict with divergence type, strength, and signal
+    """
+    try:
+        if len(ohlcv) < 50:
+            return {
+                'has_divergence': False,
+                'divergence_type': None,
+                'strength': 0.0,
+                'signal': 'NEUTRAL'
+            }
+
+        closes = np.array([candle[4] for candle in ohlcv], dtype=float)
+        lows = np.array([candle[3] for candle in ohlcv], dtype=float)
+        highs = np.array([candle[2] for candle in ohlcv], dtype=float)
+
+        # Calculate MACD
+        ema_12 = pd.Series(closes).ewm(span=12, adjust=False).mean()
+        ema_26 = pd.Series(closes).ewm(span=26, adjust=False).mean()
+        macd_line = ema_12 - ema_26
+        signal_line = macd_line.ewm(span=9, adjust=False).mean()
+        histogram = macd_line - signal_line
+
+        # Find price lows/highs and MACD lows/highs in last 20 bars
+        lookback = min(20, len(closes) - 5)
+        recent_closes = closes[-lookback:]
+        recent_lows = lows[-lookback:]
+        recent_highs = highs[-lookback:]
+        recent_macd = histogram.iloc[-lookback:].values
+
+        # Find swing lows (for bullish divergence)
+        price_lows = []
+        macd_lows = []
+        for i in range(2, len(recent_lows) - 2):
+            if (recent_lows[i] < recent_lows[i-1] and recent_lows[i] < recent_lows[i-2] and
+                recent_lows[i] < recent_lows[i+1] and recent_lows[i] < recent_lows[i+2]):
+                price_lows.append((i, recent_lows[i]))
+                macd_lows.append((i, recent_macd[i]))
+
+        # Find swing highs (for bearish divergence)
+        price_highs = []
+        macd_highs = []
+        for i in range(2, len(recent_highs) - 2):
+            if (recent_highs[i] > recent_highs[i-1] and recent_highs[i] > recent_highs[i-2] and
+                recent_highs[i] > recent_highs[i+1] and recent_highs[i] > recent_highs[i+2]):
+                price_highs.append((i, recent_highs[i]))
+                macd_highs.append((i, recent_macd[i]))
+
+        # Check for BULLISH divergence (price lower low, MACD higher low)
+        if len(price_lows) >= 2 and len(macd_lows) >= 2:
+            last_price_low = price_lows[-1][1]
+            prev_price_low = price_lows[-2][1]
+            last_macd_low = macd_lows[-1][1]
+            prev_macd_low = macd_lows[-2][1]
+
+            if last_price_low < prev_price_low and last_macd_low > prev_macd_low:
+                strength = min(abs(last_macd_low - prev_macd_low) / (abs(prev_macd_low) + 1e-10), 1.0)
+                return {
+                    'has_divergence': True,
+                    'divergence_type': 'bullish',
+                    'strength': float(strength),
+                    'signal': 'STRONG_BUY',
+                    'details': f'Price: {prev_price_low:.4f}→{last_price_low:.4f}, MACD: {prev_macd_low:.4f}→{last_macd_low:.4f}'
+                }
+
+            # Hidden bullish (price higher low, MACD lower low)
+            if last_price_low > prev_price_low and last_macd_low < prev_macd_low:
+                strength = min(abs(last_macd_low - prev_macd_low) / (abs(prev_macd_low) + 1e-10), 1.0) * 0.7
+                return {
+                    'has_divergence': True,
+                    'divergence_type': 'hidden_bullish',
+                    'strength': float(strength),
+                    'signal': 'BUY',
+                    'details': 'Hidden bullish - trend continuation'
+                }
+
+        # Check for BEARISH divergence (price higher high, MACD lower high)
+        if len(price_highs) >= 2 and len(macd_highs) >= 2:
+            last_price_high = price_highs[-1][1]
+            prev_price_high = price_highs[-2][1]
+            last_macd_high = macd_highs[-1][1]
+            prev_macd_high = macd_highs[-2][1]
+
+            if last_price_high > prev_price_high and last_macd_high < prev_macd_high:
+                strength = min(abs(last_macd_high - prev_macd_high) / (abs(prev_macd_high) + 1e-10), 1.0)
+                return {
+                    'has_divergence': True,
+                    'divergence_type': 'bearish',
+                    'strength': float(strength),
+                    'signal': 'STRONG_SELL',
+                    'details': f'Price: {prev_price_high:.4f}→{last_price_high:.4f}, MACD: {prev_macd_high:.4f}→{last_macd_high:.4f}'
+                }
+
+            # Hidden bearish (price lower high, MACD higher high)
+            if last_price_high < prev_price_high and last_macd_high > prev_macd_high:
+                strength = min(abs(last_macd_high - prev_macd_high) / (abs(prev_macd_high) + 1e-10), 1.0) * 0.7
+                return {
+                    'has_divergence': True,
+                    'divergence_type': 'hidden_bearish',
+                    'strength': float(strength),
+                    'signal': 'SELL',
+                    'details': 'Hidden bearish - trend continuation'
+                }
+
+        return {
+            'has_divergence': False,
+            'divergence_type': None,
+            'strength': 0.0,
+            'signal': 'NEUTRAL'
+        }
+
+    except Exception as e:
+        return {
+            'has_divergence': False,
+            'divergence_type': None,
+            'strength': 0.0,
+            'signal': 'NEUTRAL',
+            'error': str(e)
+        }
+
+
+def calculate_enhanced_indicators(ohlcv: List) -> Dict[str, Any]:
+    """
+    Calculate ALL enhanced indicators for confluence scoring.
+
+    This function combines all professional indicators into a single call
+    for efficient use in the confluence scoring system.
+
+    Args:
+        ohlcv: List of OHLCV data
+
+    Returns:
+        Dict with all enhanced indicator values
+    """
+    try:
+        result = {
+            'bb_squeeze': calculate_bb_squeeze(ohlcv),
+            'ema_stack': calculate_ema_stack(ohlcv),
+            'adx': calculate_adx(ohlcv),
+            'macd_divergence': calculate_macd_divergence(ohlcv),
+            'rsi_divergence': detect_divergences(ohlcv),  # Already exists
+        }
+
+        # Add overall confluence signals
+        signals = []
+
+        # BB Squeeze signal
+        if result['bb_squeeze'].get('signal') in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'bb_squeeze', result['bb_squeeze'].get('signal')))
+        elif result['bb_squeeze'].get('signal') in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'bb_squeeze', result['bb_squeeze'].get('signal')))
+
+        # EMA Stack signal
+        if result['ema_stack'].get('signal') in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'ema_stack', result['ema_stack'].get('signal')))
+        elif result['ema_stack'].get('signal') in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'ema_stack', result['ema_stack'].get('signal')))
+
+        # ADX signal
+        if result['adx'].get('signal') in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'adx', result['adx'].get('signal')))
+        elif result['adx'].get('signal') in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'adx', result['adx'].get('signal')))
+
+        # MACD Divergence signal
+        if result['macd_divergence'].get('signal') in ['STRONG_BUY', 'BUY']:
+            signals.append(('bullish', 'macd_div', result['macd_divergence'].get('signal')))
+        elif result['macd_divergence'].get('signal') in ['STRONG_SELL', 'SELL']:
+            signals.append(('bearish', 'macd_div', result['macd_divergence'].get('signal')))
+
+        # RSI Divergence signal
+        if result['rsi_divergence'].get('type') == 'bullish':
+            signals.append(('bullish', 'rsi_div', 'BUY'))
+        elif result['rsi_divergence'].get('type') == 'bearish':
+            signals.append(('bearish', 'rsi_div', 'SELL'))
+
+        # Count signals
+        bullish_count = sum(1 for s in signals if s[0] == 'bullish')
+        bearish_count = sum(1 for s in signals if s[0] == 'bearish')
+
+        result['signal_summary'] = {
+            'bullish_signals': bullish_count,
+            'bearish_signals': bearish_count,
+            'total_signals': len(signals),
+            'signals': signals,
+            'overall_bias': 'bullish' if bullish_count > bearish_count else ('bearish' if bearish_count > bullish_count else 'neutral')
+        }
+
+        return result
+
+    except Exception as e:
+        return {
+            'bb_squeeze': {'signal': 'NEUTRAL'},
+            'ema_stack': {'signal': 'NEUTRAL'},
+            'adx': {'signal': 'NEUTRAL'},
+            'macd_divergence': {'signal': 'NEUTRAL'},
+            'rsi_divergence': {'has_divergence': False},
+            'signal_summary': {
+                'bullish_signals': 0,
+                'bearish_signals': 0,
+                'total_signals': 0,
+                'signals': [],
+                'overall_bias': 'neutral'
+            },
+            'error': str(e)
+        }

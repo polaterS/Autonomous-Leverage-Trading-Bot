@@ -12,7 +12,9 @@
       "Bash(touch:*)",
       "Bash(psql:*)",
       "Bash(docker run:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(py -m pip install:*)",
+      "Bash(py:*)"
     ],
     "deny": [],
     "ask": []
