@@ -1,16 +1,16 @@
-# 🛡️ PA-ONLY v4.7.4 - ORDER FLOW FIX (weighted_imbalance)
+# 🛡️ PA-ONLY v4.7.5 - LOGGER FIX (indicators.py)
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251203_V474_ORDER_FLOW_FIX
+ARG CACHE_BUST=20251203_V475_LOGGER_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.4: ORDER FLOW FIX!" && \
+    echo "🛡️ v4.7.5: LOGGER FIX!" && \
     echo "   🔧 Critical Fix:" && \
-    echo "      ✅ weighted_imbalance now returned in all code paths" && \
-    echo "      ✅ Order book fetch increased to 100 levels" && \
-    echo "      ✅ Debug logging added for troubleshooting" && \
+    echo "      ✅ Added global logger to indicators.py" && \
+    echo "      ✅ Fixes 'name logger is not defined' error" && \
     echo "   🛡️ Previous fixes included:" && \
+    echo "      ✅ v4.7.4: Order flow weighted_imbalance fix" && \
     echo "      ✅ v4.7.3: market_data passed to validate_trade()" && \
     echo "      ✅ v4.7.2: Trailing Stop, Volume STRICT, Portfolio Risk" && \
     echo "   - Instant Trading still DISABLED"
@@ -33,15 +33,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.4
-# Current deployment: 20251203_V474_ORDER_FLOW_FIX
-# Changes: Fixed order flow weighted_imbalance always returning 0
-#   🔧 v4.7.4 Critical Fix:
-#      ✅ indicators.py: Added weighted_imbalance to ALL return paths
-#      ✅ market_scanner.py: Order book fetch increased to 100 levels
-#      ✅ risk_manager.py: Added debug logging for order flow
-#      ✅ This fixes "order flow: 0.0%" always being rejected
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.5
+# Current deployment: 20251203_V475_LOGGER_FIX
+# Changes: Fixed 'name logger is not defined' error in indicators.py
+#   🔧 v4.7.5 Critical Fix:
+#      ✅ indicators.py: Added global logger import
+#      ✅ Fixes crash on order flow analysis
 #   🛡️ Previous fixes included:
+#      ✅ v4.7.4: Order flow weighted_imbalance fix
 #      ✅ v4.7.3: market_data passed to validate_trade()
 #      ✅ v4.7.2: Trailing Stop, Volume STRICT, Portfolio Risk
 COPY . .

@@ -2,7 +2,7 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🛡️ VERSION: 7.4-ORDER-FLOW-FIX (Fixes weighted_imbalance always returning 0)
+🛡️ VERSION: 7.5-LOGGER-FIX (Fixes 'name logger is not defined' in indicators.py)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "7.4-ORDER-FLOW-FIX"
+BOT_VERSION = "7.5-LOGGER-FIX"
 
 # Log deployment version from VERSION file
 try:

@@ -5,8 +5,12 @@ Calculates RSI, MACD, Bollinger Bands, Moving Averages, and other indicators.
 
 import pandas as pd
 import numpy as np
+import logging
 from typing import Dict, List, Any
 from ta import trend, momentum, volatility, volume as vol_indicators
+
+# 🛡️ v4.7.5: Global logger for order flow and other functions
+logger = logging.getLogger('trading_bot')
 
 
 def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
