@@ -101,14 +101,23 @@ class PriceActionAnalyzer:
         self.structure_swing_window = 5  # Smaller window for structure breaks
         self.choch_confirmation_candles = 2  # Candles to confirm CHoCH
 
+        # 🛡️ v4.7.8: OVEREXTENDED & PULLBACK PROTECTION
+        # Prevents entries when market is overextended or in counter-trend pullback
+        self.adx_overextended_threshold = 50  # ADX > 50 = overextended, expect pullback
+        self.sideways_low_volume_threshold = 0.7  # Sideways + volume < 0.7x = NO TRADE
+        self.pullback_detection_window = 5  # Candles to detect pullback
+        self.pullback_retracement_min = 0.236  # Min Fib retracement for pullback (23.6%)
+        self.pullback_retracement_max = 0.618  # Max Fib retracement for pullback (61.8%)
+
         logger.info(
-            f"✅ PriceActionAnalyzer PROFESSIONAL v4.1 initialized:\n"
+            f"✅ PriceActionAnalyzer PROFESSIONAL v4.2 initialized:\n"
             f"   - Min ADX threshold: {self.min_trend_threshold} (professional standard)\n"
             f"   - S/R tolerance: {self.support_resistance_tolerance*100:.1f}% (tightened for quality)\n"
             f"   - Room to target: {self.room_to_opposite_level*100:.1f}% (ensures R/R achievable)\n"
             f"   - Min R/R ratio: {self.min_rr_ratio}:1 (professional standard)\n"
-            f"   - FVG Detection: ENABLED (Fair Value Gap)\n"
-            f"   - Liquidity Sweep: ENABLED (Stop Hunt Protection)\n"
+            f"   - 🛡️ ADX Overextended Filter: >{self.adx_overextended_threshold} = SKIP\n"
+            f"   - 🛡️ Sideways Low Volume Filter: <{self.sideways_low_volume_threshold}x = SKIP\n"
+            f"   - 🛡️ Pullback Detection: {self.pullback_retracement_min*100:.1f}%-{self.pullback_retracement_max*100:.1f}% retracement\n"
             f"   - 🎯 PROFESSIONAL: Quality over quantity"
         )
 
@@ -399,6 +408,158 @@ class PriceActionAnalyzer:
                 fib_levels[f'ext_{level}'] = swing_low - (diff * (level - 1))
 
         return fib_levels
+
+    def detect_pullback(
+        self,
+        df: pd.DataFrame,
+        trend_direction: str,
+        lookback: int = None
+    ) -> Dict[str, Any]:
+        """
+        🛡️ v4.7.8: PULLBACK/RETRACEMENT DETECTION
+
+        Detects if price is in a counter-trend pullback after a strong move.
+        This prevents entering SHORT during bullish retracement or LONG during bearish retracement.
+
+        PULLBACK CHARACTERISTICS:
+        - Price moved strongly in one direction (impulsive move)
+        - Now retracing 23.6% - 61.8% of the move (Fibonacci zones)
+        - Lower volume during pullback (lack of conviction)
+        - Pullback against the main trend direction
+
+        WHY THIS MATTERS:
+        - After strong DOWNTREND: Dead cat bounce = temporary relief rally
+        - After strong UPTREND: Healthy pullback = temporary dip
+        - Entering during pullback = fighting temporary counter-move
+        - Better to wait for pullback completion
+
+        Args:
+            df: OHLCV dataframe
+            trend_direction: 'UPTREND', 'DOWNTREND', or 'SIDEWAYS'
+            lookback: Candles to analyze (default: self.pullback_detection_window)
+
+        Returns:
+            Dict with pullback detection results:
+            - is_pullback: True if currently in pullback
+            - retracement_pct: How much of the move has been retraced (0-1)
+            - pullback_strength: 'WEAK', 'MODERATE', 'STRONG'
+            - volume_confirmation: True if volume is declining (typical pullback)
+            - recommendation: 'WAIT', 'CAUTION', or 'OK'
+        """
+        try:
+            if lookback is None:
+                lookback = self.pullback_detection_window
+
+            result = {
+                'is_pullback': False,
+                'retracement_pct': 0.0,
+                'pullback_strength': 'NONE',
+                'volume_confirmation': False,
+                'recommendation': 'OK',
+                'reason': ''
+            }
+
+            if len(df) < lookback + 10:
+                return result
+
+            # Get recent price action
+            recent_df = df.tail(lookback + 10)
+            current_price = float(df['close'].iloc[-1])
+
+            # Find the impulse move (last significant swing)
+            recent_high = float(recent_df['high'].max())
+            recent_low = float(recent_df['low'].min())
+            high_idx = recent_df['high'].idxmax()
+            low_idx = recent_df['low'].idxmin()
+
+            # Determine impulse direction based on which extreme came first
+            if high_idx < low_idx:
+                # High came first = downward impulse, now potentially bouncing
+                impulse_direction = 'DOWN'
+                impulse_size = recent_high - recent_low
+                retracement = current_price - recent_low
+            else:
+                # Low came first = upward impulse, now potentially pulling back
+                impulse_direction = 'UP'
+                impulse_size = recent_high - recent_low
+                retracement = recent_high - current_price
+
+            # Calculate retracement percentage
+            if impulse_size > 0:
+                retracement_pct = retracement / impulse_size
+            else:
+                retracement_pct = 0.0
+
+            # Check if in pullback zone (23.6% - 61.8% Fibonacci)
+            in_pullback_zone = (
+                self.pullback_retracement_min <= retracement_pct <= self.pullback_retracement_max
+            )
+
+            # Volume analysis: declining volume during pullback is typical
+            avg_volume_impulse = float(recent_df['volume'].iloc[:-lookback].mean())
+            avg_volume_pullback = float(recent_df['volume'].iloc[-lookback:].mean())
+            volume_declining = avg_volume_pullback < avg_volume_impulse * 0.8
+
+            # Determine pullback strength
+            if retracement_pct < 0.236:
+                pullback_strength = 'NONE'
+            elif retracement_pct < 0.382:
+                pullback_strength = 'WEAK'
+            elif retracement_pct < 0.50:
+                pullback_strength = 'MODERATE'
+            elif retracement_pct < 0.618:
+                pullback_strength = 'STRONG'
+            else:
+                pullback_strength = 'DEEP'  # Beyond 61.8% = trend might be reversing
+
+            # Detect counter-trend pullback
+            is_counter_trend_pullback = False
+            reason = ''
+
+            if trend_direction == 'DOWNTREND' and impulse_direction == 'DOWN' and in_pullback_zone:
+                # In downtrend, price bounced from low = dead cat bounce
+                is_counter_trend_pullback = True
+                reason = f"Dead cat bounce detected: {retracement_pct*100:.1f}% retracement from low"
+
+            elif trend_direction == 'UPTREND' and impulse_direction == 'UP' and in_pullback_zone:
+                # In uptrend, price pulled back from high = healthy pullback
+                is_counter_trend_pullback = True
+                reason = f"Pullback in uptrend: {retracement_pct*100:.1f}% retracement from high"
+
+            # Recommendation
+            if is_counter_trend_pullback:
+                if pullback_strength in ['STRONG', 'DEEP']:
+                    recommendation = 'WAIT'  # Strong pullback, wait for completion
+                elif volume_declining:
+                    recommendation = 'CAUTION'  # Typical pullback pattern
+                else:
+                    recommendation = 'CAUTION'
+            else:
+                recommendation = 'OK'
+
+            result.update({
+                'is_pullback': is_counter_trend_pullback,
+                'retracement_pct': retracement_pct,
+                'pullback_strength': pullback_strength,
+                'volume_confirmation': volume_declining,
+                'recommendation': recommendation,
+                'reason': reason,
+                'impulse_direction': impulse_direction,
+                'impulse_size_pct': (impulse_size / recent_low * 100) if recent_low > 0 else 0
+            })
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Pullback detection failed: {e}")
+            return {
+                'is_pullback': False,
+                'retracement_pct': 0.0,
+                'pullback_strength': 'NONE',
+                'volume_confirmation': False,
+                'recommendation': 'OK',
+                'reason': f'Detection failed: {e}'
+            }
 
     def get_psychological_levels(
         self,
@@ -1975,6 +2136,106 @@ class PriceActionAnalyzer:
             result['reason'] = 'ML signal is HOLD'
             return result
 
+        # ═══════════════════════════════════════════════════════════════════════════
+        # 🛡️ v4.7.8: THREE CRITICAL PROTECTION FILTERS
+        # Prevents entries in unfavorable market conditions
+        # ═══════════════════════════════════════════════════════════════════════════
+
+        # Get ADX and volume for filter checks
+        adx = trend.get('adx', 20)
+        vol_ratio = volume.get('surge_ratio', 1.0)
+        trend_direction = trend.get('direction', 'SIDEWAYS')
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # 🛡️ FILTER 1: ADX OVEREXTENDED PROTECTION (ADX > 50)
+        # ═══════════════════════════════════════════════════════════════════════════
+        # When ADX > 50, market is "overextended" - expect mean reversion/pullback
+        # HIGH ADX = Strong trend that's likely exhausted, pullback imminent
+        #
+        # IMX case: ADX was 58 (extremely high) → entered SHORT → price bounced
+        # The strong downtrend was EXHAUSTED, dead cat bounce followed
+        #
+        # RULE: ADX > 50 = NO NEW ENTRIES (wait for pullback completion)
+        # ═══════════════════════════════════════════════════════════════════════════
+        if adx > self.adx_overextended_threshold:
+            result['reason'] = (
+                f'🛡️ ADX OVEREXTENDED ({adx:.1f} > {self.adx_overextended_threshold}) - '
+                f'Market exhausted, expect pullback. Wait for ADX to cool down.'
+            )
+            logger.warning(
+                f"   🛡️ BLOCKED: ADX {adx:.1f} > {self.adx_overextended_threshold} (overextended)\n"
+                f"      Trend is exhausted, high probability of counter-move\n"
+                f"      Wait for ADX to drop below {self.adx_overextended_threshold}"
+            )
+            return result
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # 🛡️ FILTER 2: SIDEWAYS + LOW VOLUME = NO TRADE
+        # ═══════════════════════════════════════════════════════════════════════════
+        # SIDEWAYS market (no clear direction) + LOW volume (no momentum) = WORST combo
+        #
+        # SUI case: SIDEWAYS (ADX 24.6) + Volume 0.7x = No edge, random outcome
+        # Without trend AND without volume, there's no catalyst for movement
+        #
+        # RULE: SIDEWAYS + Volume < 0.7x = NO TRADE
+        # ═══════════════════════════════════════════════════════════════════════════
+        if trend_direction == 'SIDEWAYS' and vol_ratio < self.sideways_low_volume_threshold:
+            result['reason'] = (
+                f'🛡️ SIDEWAYS + LOW VOLUME - No trading edge. '
+                f'Trend: {trend_direction}, Volume: {vol_ratio:.2f}x (need ≥{self.sideways_low_volume_threshold}x)'
+            )
+            logger.warning(
+                f"   🛡️ BLOCKED: SIDEWAYS + Low Volume ({vol_ratio:.2f}x)\n"
+                f"      No clear direction + no momentum = random outcome\n"
+                f"      Wait for volume surge or trend breakout"
+            )
+            return result
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # 🛡️ FILTER 3: PULLBACK/RETRACEMENT DETECTION
+        # ═══════════════════════════════════════════════════════════════════════════
+        # Detects "dead cat bounce" (after downtrend) or "healthy pullback" (after uptrend)
+        # Entering during pullback = fighting temporary counter-move = LOSS
+        #
+        # IMX case: Strong DOWNTREND but price was in 23-61% retracement zone (bounce)
+        # Entering SHORT during the bounce = immediate loss as bounce continues
+        #
+        # RULE: In pullback zone (23.6%-61.8% Fib) with declining volume = WAIT
+        # ═══════════════════════════════════════════════════════════════════════════
+        pullback_analysis = self.detect_pullback(df, trend_direction)
+
+        if pullback_analysis['is_pullback'] and pullback_analysis['recommendation'] == 'WAIT':
+            result['reason'] = (
+                f"🛡️ PULLBACK DETECTED - {pullback_analysis['reason']}. "
+                f"Strength: {pullback_analysis['pullback_strength']}, "
+                f"Retracement: {pullback_analysis['retracement_pct']*100:.1f}%. "
+                f"Wait for pullback completion."
+            )
+            logger.warning(
+                f"   🛡️ BLOCKED: Active pullback detected\n"
+                f"      {pullback_analysis['reason']}\n"
+                f"      Strength: {pullback_analysis['pullback_strength']}\n"
+                f"      Retracement: {pullback_analysis['retracement_pct']*100:.1f}%\n"
+                f"      Volume declining: {pullback_analysis['volume_confirmation']}\n"
+                f"      Wait for pullback to complete before entering"
+            )
+            return result
+
+        # If pullback detected but recommendation is CAUTION (not WAIT), add penalty
+        if pullback_analysis['is_pullback'] and pullback_analysis['recommendation'] == 'CAUTION':
+            confidence_penalty += 20
+            trade_notes.append(
+                f"⚠️ Pullback in progress ({pullback_analysis['retracement_pct']*100:.1f}% retracement) - higher risk"
+            )
+            logger.info(
+                f"   ⚠️ CAUTION: Pullback detected but allowing entry with penalty\n"
+                f"      {pullback_analysis['reason']}"
+            )
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # END OF v4.7.8 PROTECTION FILTERS
+        # ═══════════════════════════════════════════════════════════════════════════
+
         # ✅ OPTION F (2025-11-21 15:00): BTC Correlation Check RESTORED
         # CHANGE: Re-enabled after analyzing commit 370a574 (2025-11-20 12:40)
         # DISCOVERY: Yesterday's 33W/2L (94% win rate) likely had this filter ENABLED
@@ -2026,7 +2287,7 @@ class PriceActionAnalyzer:
 
             # 🎯 v4.2: ADX as CONFIDENCE ADJUSTMENT (not hard block!)
             # LOW ADX = sideways/ranging market = RANGE TRADING opportunities!
-            adx = trend.get('adx', 20)
+            # Note: adx already defined in v4.7.8 filters above
             if adx < 15:  # Very low ADX = strong ranging market
                 confidence_penalty += 20
                 trade_notes.append(f"⚠️ Very low ADX ({adx:.1f}) - strong ranging market")
@@ -2263,7 +2524,7 @@ class PriceActionAnalyzer:
                 trade_notes.append(f"✅ Strong S/R: {total_sr_levels} levels")
 
             # 🎯 v4.2: ADX as CONFIDENCE ADJUSTMENT (not hard block!)
-            adx = trend.get('adx', 20)
+            # Note: adx already defined in v4.7.8 filters above
             if adx < 15:
                 confidence_penalty += 20
                 trade_notes.append(f"⚠️ Very low ADX ({adx:.1f}) - strong ranging market")

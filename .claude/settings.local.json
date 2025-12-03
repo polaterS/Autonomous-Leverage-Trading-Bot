@@ -14,7 +14,8 @@
       "Bash(docker run:*)",
       "Bash(git checkout:*)",
       "Bash(py -m pip install:*)",
-      "Bash(py:*)"
+      "Bash(py:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

@@ -2,7 +2,7 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🛡️ VERSION: 7.7-ORDERBOOK-METHODS (Added fetch_order_book/fetch_trades)
+🛡️ VERSION: 7.8-PROTECTION-FILTERS (ADX>50, Sideways+LowVol, Pullback Detection)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "7.7-ORDERBOOK-METHODS"
+BOT_VERSION = "7.8-PROTECTION-FILTERS"
 
 # Log deployment version from VERSION file
 try:

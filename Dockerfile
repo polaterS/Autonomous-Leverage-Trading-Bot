@@ -1,18 +1,18 @@
-# 🛡️ PA-ONLY v4.7.7 - ORDER BOOK METHODS ADDED
+# 🛡️ PA-ONLY v4.7.8 - THREE PROTECTION FILTERS
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251203_V477_ORDERBOOK_METHODS
+ARG CACHE_BUST=20251203_V478_PROTECTION_FILTERS
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.7: ORDER BOOK METHODS ADDED!" && \
-    echo "   🔧 Fix:" && \
-    echo "      ✅ Added fetch_order_book() to ExchangeClient" && \
-    echo "      ✅ Added fetch_trades() to ExchangeClient" && \
-    echo "      ✅ Order flow analysis now fully functional" && \
+    echo "🛡️ v4.7.8: THREE CRITICAL PROTECTION FILTERS!" && \
+    echo "   🛡️ NEW FILTERS:" && \
+    echo "      ✅ ADX > 50 = OVEREXTENDED (no entry)" && \
+    echo "      ✅ SIDEWAYS + Volume < 0.7x = NO TRADE" && \
+    echo "      ✅ Pullback Detection (23.6%-61.8% Fib)" && \
     echo "   🛡️ Previous fixes:" && \
-    echo "      ✅ v4.7.6: Order flow non-blocking validation" && \
-    echo "      ✅ v4.7.5: Global logger for indicators.py" && \
+    echo "      ✅ v4.7.7: Order book methods added" && \
+    echo "      ✅ v4.7.6: Order flow non-blocking" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -33,16 +33,16 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.7
-# Current deployment: 20251203_V477_ORDERBOOK_METHODS
-# Changes: Added missing order book methods to ExchangeClient
-#   🔧 v4.7.7 Fix:
-#      ✅ Added fetch_order_book() method
-#      ✅ Added fetch_trades() method
-#      ✅ Order flow analysis now works properly
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.8
+# Current deployment: 20251203_V478_PROTECTION_FILTERS
+# Changes: Added 3 critical protection filters to prevent bad entries
+#   🛡️ v4.7.8 PROTECTION FILTERS:
+#      ✅ ADX > 50 = Overextended market (no entry, wait for pullback)
+#      ✅ SIDEWAYS + Volume < 0.7x = No trading edge (skip)
+#      ✅ Pullback Detection (23.6%-61.8% Fib retracement = wait)
 #   🛡️ Previous fixes:
+#      ✅ v4.7.7: Order book methods (fetch_order_book, fetch_trades)
 #      ✅ v4.7.6: Order flow non-blocking validation
-#      ✅ v4.7.5: Global logger for indicators.py
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
