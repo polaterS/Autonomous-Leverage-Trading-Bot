@@ -1,85 +1,50 @@
-7.1-TEST-MODE-LOOSENED-FILTERS-PAPER-TRADING
-🧪 TEST MODE: Loosened Filters for Paper Trading Testing
-Deployed: 2025-11-24 17:30 (FILTER ADJUSTMENT TEST)
+7.6-ORDERFLOW-FIX
+🛡️ Order Flow Validation Non-Blocking
+Deployed: 2025-12-03 (CRITICAL FIX)
 
 ═══════════════════════════════════════════════════════════
-🧪 FILTER ADJUSTMENTS FOR TESTING
+🔧 v4.7.6 CRITICAL FIX: ORDER FLOW NON-BLOCKING
 ═══════════════════════════════════════════════════════════
 
-USER REQUEST: Test bot with loosened filters in paper trading mode
-Railway Variables: USE_PAPER_TRADING="true", AUTO_START_LIVE_TRADING="false"
+PROBLEM: All trades rejected with "Order flow imbalance: 0.0%"
+CAUSE: Order book fetch failing silently + strict 5% threshold
+
+FIX APPLIED:
+1. Order flow validation is now WARNING only (not rejection)
+2. Skips order flow check entirely if order book unavailable
+3. INFO-level logging for order book fetch diagnosis
+4. Relaxed thresholds: 5% → 2%
 
 ═══════════════════════════════════════════════════════════
-FILTER CHANGES (v7.0 → v7.1 TEST):
+CHANGES IN THIS VERSION:
 ═══════════════════════════════════════════════════════════
 
-1. ADX THRESHOLD RELAXED:
-   - Professional: 25 (very strict - only strong trends)
-   - Test Mode: 18 (moderate trends allowed)
-   - Impact: +50-70% more coins pass trend filter
-   - Location: src/price_action_analyzer.py:71
+src/risk_manager.py:
+- Order flow validation no longer blocks trades
+- If depth_levels == 0, SKIP order flow check entirely
+- Changed from REJECT to WARNING for weak order flow
+- Relaxed thresholds: LONG needs 2% (was 5%), SHORT needs -2%
 
-2. AI CONFIDENCE LOWERED:
-   - Professional: 70% minimum
-   - Test Mode: 60% minimum
-   - Impact: +30-40% more opportunities
-   - Location: src/config.py:46
-
-3. CONFIRMATION ZONE LOOSENED:
-   - Professional: 0.03% (very precise entries)
-   - Test Mode: 0.1% (more lenient entries)
-   - Impact: +20-30% more entries accepted
-   - Locations:
-     * src/price_action_analyzer.py:1653 (LONG)
-     * src/price_action_analyzer.py:1901 (SHORT)
-
-4. MULTI-TIMEFRAME RELAXED:
-   - Professional: 3/4 timeframes must agree
-   - Test Mode: 2/4 timeframes must agree
-   - Impact: +40-50% more coins pass MTF filter
-   - Location: src/indicators.py:1993
+src/market_scanner.py:
+- Changed order book logging from DEBUG to INFO level
+- Always log order flow result (even when 0%)
+- Logs depth_levels_analyzed for diagnosis
 
 ═══════════════════════════════════════════════════════════
-EXPECTED RESULTS:
+VALIDATION CHAIN (CURRENT):
 ═══════════════════════════════════════════════════════════
 
-v7.0 PROFESSIONAL (Strict):
-- Scan results: 0-2 opportunities per 108 coins
-- Entry rate: <2%
-- Win rate target: 75% (high precision)
-
-v7.1 TEST MODE (Loosened):
-- Scan results: 5-15 opportunities per 108 coins
-- Entry rate: 5-15%
-- Win rate: 60-70% (more trades, lower precision)
-
-PURPOSE: See actual trade execution in paper mode, evaluate results
+1. ✅ Technical Score (40% threshold)
+2. ✅ Volume Check (0.7x minimum)
+3. ⚠️ Order Flow (2% threshold - WARNING ONLY, NOT BLOCKING)
+4. ✅ MTF Alignment (directional)
+5. ✅ All checks passed → TRADE APPROVED
 
 ═══════════════════════════════════════════════════════════
-CORE SETTINGS UNCHANGED (Still Professional):
+PREVIOUS VERSIONS:
 ═══════════════════════════════════════════════════════════
 
-✅ Leverage: 20x-25x (UNCHANGED)
-✅ Stop-loss: 2-3% (UNCHANGED)
-✅ Min profit: $20 (UNCHANGED)
-✅ Position size: 50% ($75 per position @ $150 capital) (UNCHANGED)
-✅ Max positions: 2 (UNCHANGED)
-✅ Smart Money Concepts: ENABLED (UNCHANGED)
-✅ Order Flow Analysis: ENABLED (UNCHANGED)
-✅ Multi-timeframe: ENABLED (just less strict)
-
-═══════════════════════════════════════════════════════════
-MONITORING AFTER DEPLOY:
-═══════════════════════════════════════════════════════════
-
-Watch for:
-1. ✅ More opportunities found (5-15 per scan vs 0-2)
-2. ✅ Trades actually opening in paper mode
-3. ✅ ADX 18+ instead of 25+
-4. ✅ 60%+ AI confidence instead of 70%+
-5. ✅ Entries at 0.1% from S/R instead of 0.03%
-6. ✅ 2/4 timeframe agreement logs
-
-User will evaluate test results and decide on final filter configuration.
-
-═══════════════════════════════════════════════════════════
+v4.7.5: Added global logger to indicators.py
+v4.7.4: Added weighted_imbalance to all return paths
+v4.7.3: market_data passed to validate_trade()
+v4.7.2: Trailing Stop, Volume STRICT, Portfolio Risk

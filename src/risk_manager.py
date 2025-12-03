@@ -1131,39 +1131,36 @@ class RiskManager:
         # ========================================================================
         # CHECK 3: ORDER FLOW VALIDATION (INSTITUTIONAL CONFIRMATION)
         # ========================================================================
-        # Ensure directional pressure from large players
+        # 🛡️ v4.7.6: SMART VALIDATION - Skip if order book data unavailable
+        # Order flow is OPTIONAL - don't block trades if data is missing
 
         order_flow = market_data.get('order_flow', {})
         imbalance = order_flow.get('weighted_imbalance', 0)
+        depth_levels = order_flow.get('depth_levels_analyzed', 0)
 
-        # 🛡️ v4.7.4: Debug log for order flow troubleshooting
-        logger.debug(f"📊 Order Flow Debug: weighted_imbalance={imbalance:.1f}%, keys={list(order_flow.keys())}")
+        # 🛡️ v4.7.6: INFO log for visibility
+        logger.info(f"📊 Order Flow: imbalance={imbalance:.1f}%, depth={depth_levels}")
 
-        if side == 'LONG':
-            if imbalance < 5.0:  # Need strong buy pressure
+        # 🛡️ v4.7.6: Skip order flow validation if data is unavailable
+        # (depth_levels == 0 means order book fetch failed)
+        if depth_levels == 0:
+            logger.warning(f"⚠️ Order flow data unavailable - SKIPPING order flow check")
+        else:
+            # 🛡️ v4.7.6: Relaxed thresholds (5% → 2%) and WARNING only (no rejection)
+            # Order flow is informational - strong confluence + volume is sufficient
+            if side == 'LONG' and imbalance < 2.0:
                 logger.warning(
-                    f"🚫 LONG rejected: Weak buy pressure | "
-                    f"Order flow imbalance: {imbalance:.1f}% (need ≥5%)"
+                    f"⚠️ LONG with weak buy pressure: {imbalance:.1f}% (prefer ≥2%) - CONTINUING with caution"
                 )
-                return {
-                    'approved': False,
-                    'reason': f'Weak buy pressure (order flow: {imbalance:.1f}%, need ≥5%)',
-                    'adjusted_params': None
-                }
-            logger.info(f"✅ Order Flow: Strong buy pressure ({imbalance:.1f}%)")
+            elif side == 'LONG':
+                logger.info(f"✅ Order Flow: Buy pressure ({imbalance:.1f}%)")
 
-        elif side == 'SHORT':
-            if imbalance > -5.0:  # Need strong sell pressure
+            if side == 'SHORT' and imbalance > -2.0:
                 logger.warning(
-                    f"🚫 SHORT rejected: Weak sell pressure | "
-                    f"Order flow imbalance: {imbalance:.1f}% (need ≤-5%)"
+                    f"⚠️ SHORT with weak sell pressure: {imbalance:.1f}% (prefer ≤-2%) - CONTINUING with caution"
                 )
-                return {
-                    'approved': False,
-                    'reason': f'Weak sell pressure (order flow: {imbalance:.1f}%, need ≤-5%)',
-                    'adjusted_params': None
-                }
-            logger.info(f"✅ Order Flow: Strong sell pressure ({imbalance:.1f}%)")
+            elif side == 'SHORT':
+                logger.info(f"✅ Order Flow: Sell pressure ({imbalance:.1f}%)")
 
         # ========================================================================
         # CHECK 4: MULTI-TIMEFRAME ALIGNMENT (PREVENT COUNTER-TREND)

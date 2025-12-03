@@ -1065,15 +1065,16 @@ class MarketScanner:
                 # 🛡️ v4.7.4: Fetch 100 levels for deep order book analysis
                 order_book = await exchange.fetch_order_book(symbol, limit=100)
                 recent_trades = await exchange.fetch_trades(symbol, limit=50)
-                logger.debug(f"📊 {symbol} Order book fetched: {len(order_book.get('bids', []))} bids, {len(order_book.get('asks', []))} asks")
+                # 🛡️ v4.7.6: INFO level to diagnose order book issues
+                logger.info(f"📊 {symbol} Order book: {len(order_book.get('bids', []))} bids, {len(order_book.get('asks', []))} asks")
             except Exception as e:
-                logger.debug(f"⚠️ {symbol} Order book fetch failed: {e}")
+                # 🛡️ v4.7.6: INFO level to see failures
+                logger.warning(f"⚠️ {symbol} Order book fetch FAILED: {e}")
 
             order_flow = analyze_order_flow(order_book, recent_trades)
 
-            # 🛡️ v4.7.4: Log order flow result for debugging
-            if order_flow.get('weighted_imbalance', 0) != 0:
-                logger.debug(f"📊 {symbol} Order flow: weighted_imbalance={order_flow.get('weighted_imbalance', 0):.1f}%")
+            # 🛡️ v4.7.6: ALWAYS log order flow result (INFO level)
+            logger.info(f"📊 {symbol} Order flow: weighted_imbalance={order_flow.get('weighted_imbalance', 0):.1f}%, depth={order_flow.get('depth_levels_analyzed', 0)}")
 
             # Smart Money Concepts (institutional edge)
             smart_money = detect_smart_money_concepts(ohlcv_4h, current_price)
