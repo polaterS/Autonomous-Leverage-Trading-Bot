@@ -1,0 +1,107 @@
+# ============================================
+# AUTONOMOUS LEVERAGE TRADING BOT - CONFIGURATION
+# ============================================
+# IMPORTANT: Replace all placeholder values with your actual API keys!
+
+# ============================================
+# EXCHANGE CONFIGURATION (BINANCE)
+# ============================================
+# Get your API keys from: https://www.binance.com/en/my/settings/api-management
+BINANCE_API_KEY=ZufKfC3v2CjZDIhx3AcSvgynR0Y9MBGF9gbrRbw8877HXMGQsehTtTTzCLvaN8Hw
+BINANCE_SECRET_KEY=ifUpDOkT9Mz276rA8JfTj0yQPIAcjW9hiDOLxWJLwxc1emWMYcNF8eB8F9VjhWgC
+
+# ============================================
+# AI API KEYS
+# ============================================
+# OpenRouter API (for Qwen3-Max): https://openrouter.ai/
+# Get your API key from: https://openrouter.ai/keys
+# Create account and get free credits to start!
+OPENROUTER_API_KEY=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
+
+# DeepSeek API (Secondary AI Model): https://platform.deepseek.com/
+DEEPSEEK_API_KEY=sk-4b591636c1d74c999a6754170237ca65
+
+# NOTE: Claude and Grok are disabled - using Qwen3-Max + DeepSeek-V3.2 only
+
+# ============================================
+# TELEGRAM NOTIFICATIONS
+# ============================================
+# Create bot: https://t.me/BotFather
+# Get chat ID: https://t.me/userinfobot
+TELEGRAM_BOT_TOKEN=8360346117:AAE8e9iR6IsSNi-nddqBghmKdp42_1_STvI
+TELEGRAM_CHAT_ID=1392205221
+
+# ============================================
+# DATABASE CONFIGURATION
+# ============================================
+# PostgreSQL connection string
+# Format: postgresql://username:password@host:port/database
+# IMPORTANT: Change 'changeme123' to a secure password!
+DATABASE_URL=postgresql://trading_user:changeme123@postgres:5432/trading_bot
+DB_PASSWORD=changeme123
+
+# Redis connection string (for caching)
+REDIS_URL=redis://redis:6379/0
+
+# ============================================
+# TRADING CONFIGURATION
+# ============================================
+# Starting capital in USD
+INITIAL_CAPITAL=100.00
+
+# Maximum leverage (2-5x recommended, 10x max)
+MAX_LEVERAGE=3
+
+# Position size as percentage of capital (0.80 = 80%)
+POSITION_SIZE_PERCENT=0.80
+
+# Stop-loss range (5-10% recommended)
+MIN_STOP_LOSS_PERCENT=0.05
+MAX_STOP_LOSS_PERCENT=0.10
+
+# Minimum profit target in USD
+MIN_PROFIT_USD=2.50
+
+# Minimum AI confidence to execute trade (0.60 = 60%)
+MIN_AI_CONFIDENCE=0.60
+
+# How often to scan markets (in seconds)
+SCAN_INTERVAL_SECONDS=300
+
+# How often to check existing positions (in seconds)
+POSITION_CHECK_SECONDS=60
+
+# ============================================
+# RISK MANAGEMENT
+# ============================================
+# Maximum daily loss as percentage of capital (0.10 = 10%)
+DAILY_LOSS_LIMIT_PERCENT=0.10
+
+# Maximum consecutive losses before circuit breaker activates
+MAX_CONSECUTIVE_LOSSES=3
+
+# ============================================
+# PAPER TRADING MODE
+# ============================================
+# CRITICAL: Keep this TRUE for testing!
+# Set to FALSE only after 4-8 weeks of successful paper trading
+USE_PAPER_TRADING=false
+
+# Auto-start live trading without confirmation (for Docker/automation)
+# Only works when USE_PAPER_TRADING=false
+AUTO_START_LIVE_TRADING=true
+
+# ============================================
+# FEATURE FLAGS
+# ============================================
+# Enable detailed debug logging
+ENABLE_DEBUG_LOGS=false
+
+# ============================================
+# AI CONFIGURATION
+# ============================================
+# AI analysis cache TTL in seconds (300 = 5 minutes)
+AI_CACHE_TTL_SECONDS=300
+
+# AI request timeout in seconds
+AI_TIMEOUT_SECONDS=30

@@ -2,7 +2,7 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🛡️ VERSION: 7.6-ORDERFLOW-FIX (Order flow validation non-blocking)
+🛡️ VERSION: 7.7-ORDERBOOK-METHODS (Added fetch_order_book/fetch_trades)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "7.6-ORDERFLOW-FIX"
+BOT_VERSION = "7.7-ORDERBOOK-METHODS"
 
 # Log deployment version from VERSION file
 try:

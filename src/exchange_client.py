@@ -138,6 +138,46 @@ class ExchangeClient:
             # Return default if not available
             return {'rate': 0.0, 'timestamp': None}
 
+    async def fetch_order_book(self, symbol: str, limit: int = 100) -> Dict[str, Any]:
+        """
+        Fetch order book (market depth) for a symbol.
+
+        🛡️ v4.7.7: Added for order flow analysis
+
+        Args:
+            symbol: Trading pair (e.g., 'BTC/USDT:USDT')
+            limit: Number of price levels to fetch (default 100)
+
+        Returns:
+            Dict with 'bids': [[price, amount], ...], 'asks': [[price, amount], ...]
+        """
+        try:
+            order_book = await self.exchange.fetch_order_book(symbol, limit)
+            return order_book
+        except Exception as e:
+            logger.warning(f"Error fetching order book for {symbol}: {e}")
+            return {'bids': [], 'asks': []}
+
+    async def fetch_trades(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Fetch recent trades for a symbol.
+
+        🛡️ v4.7.7: Added for order flow analysis
+
+        Args:
+            symbol: Trading pair (e.g., 'BTC/USDT:USDT')
+            limit: Number of trades to fetch (default 50)
+
+        Returns:
+            List of trade dicts with 'side', 'amount', 'price', etc.
+        """
+        try:
+            trades = await self.exchange.fetch_trades(symbol, limit=limit)
+            return trades
+        except Exception as e:
+            logger.warning(f"Error fetching trades for {symbol}: {e}")
+            return []
+
     async def fetch_balance(self) -> Decimal:
         """Get current USDT balance."""
         if self.paper_trading:

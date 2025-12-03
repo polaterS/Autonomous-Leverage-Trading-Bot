@@ -1,19 +1,18 @@
-# 🛡️ PA-ONLY v4.7.6 - ORDER FLOW FIX (non-blocking validation)
+# 🛡️ PA-ONLY v4.7.7 - ORDER BOOK METHODS ADDED
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251203_V476_ORDERFLOW_FIX
+ARG CACHE_BUST=20251203_V477_ORDERBOOK_METHODS
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.6: ORDER FLOW NON-BLOCKING!" && \
-    echo "   🔧 Critical Fix:" && \
-    echo "      ✅ Order flow validation now WARNING only (not rejection)" && \
-    echo "      ✅ Skips order flow check if order book unavailable" && \
-    echo "      ✅ Added INFO-level logging for order book diagnosis" && \
-    echo "      ✅ Relaxed thresholds: 5% → 2%" && \
-    echo "   🛡️ Previous fixes included:" && \
+    echo "🛡️ v4.7.7: ORDER BOOK METHODS ADDED!" && \
+    echo "   🔧 Fix:" && \
+    echo "      ✅ Added fetch_order_book() to ExchangeClient" && \
+    echo "      ✅ Added fetch_trades() to ExchangeClient" && \
+    echo "      ✅ Order flow analysis now fully functional" && \
+    echo "   🛡️ Previous fixes:" && \
+    echo "      ✅ v4.7.6: Order flow non-blocking validation" && \
     echo "      ✅ v4.7.5: Global logger for indicators.py" && \
-    echo "      ✅ v4.7.4: Order flow weighted_imbalance in returns" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -34,17 +33,16 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.6
-# Current deployment: 20251203_V476_ORDERFLOW_FIX
-# Changes: Order flow validation now NON-BLOCKING
-#   🔧 v4.7.6 Critical Fix:
-#      ✅ Order flow is now WARNING only (won't block trades)
-#      ✅ Skips validation if order book data unavailable
-#      ✅ INFO-level logging to diagnose order book fetch issues
-#      ✅ Relaxed thresholds: 5% → 2%
-#   🛡️ Previous fixes included:
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.7
+# Current deployment: 20251203_V477_ORDERBOOK_METHODS
+# Changes: Added missing order book methods to ExchangeClient
+#   🔧 v4.7.7 Fix:
+#      ✅ Added fetch_order_book() method
+#      ✅ Added fetch_trades() method
+#      ✅ Order flow analysis now works properly
+#   🛡️ Previous fixes:
+#      ✅ v4.7.6: Order flow non-blocking validation
 #      ✅ v4.7.5: Global logger for indicators.py
-#      ✅ v4.7.4: Order flow weighted_imbalance in returns
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
