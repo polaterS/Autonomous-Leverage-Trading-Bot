@@ -1,5 +1,5 @@
 """
-📈 Trailing Stop-Loss System
+📈 Trailing Stop-Loss System v2.0
 
 Professional trailing stop implementation that locks in profits dynamically.
 Moves stop-loss up/down as price moves in your favor.
@@ -8,6 +8,11 @@ RESEARCH FINDINGS:
 - Fixed stop-loss: Average profit $0.50 (exits too early!)
 - Trailing stop: Average profit $0.65-$0.75 (+30% improvement!)
 - Best trailing distance: 2% (not too tight, not too loose)
+
+v2.0 IMPROVEMENTS (2024-12-03):
+- Added MINIMUM PROFIT THRESHOLD before trailing activates (1% default)
+- Prevents trailing stop from triggering on normal market noise
+- Ensures position has meaningful profit before locking in gains
 
 Expected Impact: +15-25% average profit per winning trade
 """
@@ -24,28 +29,34 @@ class TrailingStop:
     Professional trailing stop-loss manager.
 
     Features:
-    1. Only activates when position is in profit (doesn't trail during drawdown)
+    1. Only activates when position reaches MINIMUM PROFIT THRESHOLD (1% default)
     2. Moves stop-loss to follow price in profitable direction
     3. Configurable trail distance (default: 2%)
     4. Per-position peak price tracking
     5. Prevents giving back too much profit
+    6. v2.0: Won't trail on tiny profits (prevents premature exits)
     """
 
-    def __init__(self, trail_distance_pct: float = 2.0):
+    def __init__(self, trail_distance_pct: float = 2.0, min_profit_to_trail_pct: float = 1.0):
         """
         Initialize trailing stop manager.
 
         Args:
             trail_distance_pct: How far below/above peak to trail stop (default: 2%)
+            min_profit_to_trail_pct: Minimum profit % before trailing activates (default: 1%)
+                                     This prevents trailing on normal market noise.
         """
         self.trail_distance_pct = trail_distance_pct / 100.0  # Convert to decimal
+        self.min_profit_to_trail_pct = min_profit_to_trail_pct / 100.0  # Convert to decimal
 
         # Track peak prices per position
         # Format: {position_id: {'peak_price': Decimal, 'entry_price': Decimal, 'side': 'LONG'/'SHORT'}}
         self.position_peaks: Dict[str, Dict] = {}
 
         logger.info(
-            f"📈 TrailingStop initialized with {trail_distance_pct:.1f}% trail distance"
+            f"📈 TrailingStop v2.0 initialized: "
+            f"{trail_distance_pct:.1f}% trail distance, "
+            f"{min_profit_to_trail_pct:.1f}% min profit threshold"
         )
 
     def register_position(self, position_id: str, entry_price: float, side: str):
@@ -98,20 +109,30 @@ class TrailingStop:
 
         current_price_decimal = Decimal(str(current_price))
 
-        # Check if position is in profit
+        # Calculate current profit percentage
         if side == 'LONG':
-            in_profit = current_price_decimal > entry_price
+            profit_pct = (current_price_decimal - entry_price) / entry_price
             new_peak = current_price_decimal > peak_price
         else:  # SHORT
-            in_profit = current_price_decimal < entry_price
+            profit_pct = (entry_price - current_price_decimal) / entry_price
             new_peak = current_price_decimal < peak_price
 
-        # Activate trailing only when position is in profit
-        if not trailing_active and in_profit:
+        # v2.0: Check if position meets MINIMUM PROFIT THRESHOLD before trailing
+        # This prevents trailing stop from activating on normal market noise
+        meets_min_profit = profit_pct >= Decimal(str(self.min_profit_to_trail_pct))
+
+        # Activate trailing only when position meets minimum profit threshold
+        if not trailing_active and meets_min_profit:
             position_data['trailing_active'] = True
             logger.info(
                 f"✅ Trailing stop ACTIVATED for {position_id} "
-                f"(price moved in profit direction)"
+                f"(profit {float(profit_pct)*100:.2f}% >= {self.min_profit_to_trail_pct*100:.1f}% threshold)"
+            )
+        elif not trailing_active and profit_pct > 0:
+            # Position is in profit but hasn't reached threshold yet - just log
+            logger.debug(
+                f"📊 {position_id} profit {float(profit_pct)*100:.2f}% "
+                f"(waiting for {self.min_profit_to_trail_pct*100:.1f}% to activate trailing)"
             )
 
         # Update peak price if new peak reached
@@ -270,14 +291,15 @@ class TrailingStop:
 _trailing_stop = None
 
 
-def get_trailing_stop(trail_distance_pct: float = 2.0) -> TrailingStop:
+def get_trailing_stop(trail_distance_pct: float = 2.0, min_profit_to_trail_pct: float = 1.0) -> TrailingStop:
     """
     Get or create TrailingStop singleton.
 
     Args:
         trail_distance_pct: Trail distance (default: 2%)
+        min_profit_to_trail_pct: Minimum profit % before trailing activates (default: 1%)
     """
     global _trailing_stop
     if _trailing_stop is None:
-        _trailing_stop = TrailingStop(trail_distance_pct)
+        _trailing_stop = TrailingStop(trail_distance_pct, min_profit_to_trail_pct)
     return _trailing_stop

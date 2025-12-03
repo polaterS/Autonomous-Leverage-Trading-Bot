@@ -238,6 +238,70 @@ class RiskManager:
             # Non-critical: allow trade if correlation check fails
             logger.warning(f"Correlation check failed (allowing trade): {e}")
 
+        # 🎯 v4.7.2: RULE 4C: PORTFOLIO DIRECTION RISK CHECK
+        # Prevent all positions being in the same direction (e.g., all LONG)
+        # This creates massive exposure if market reverses
+        try:
+            if len(active_positions) >= 2:  # Only check if 2+ positions exist
+                long_count = sum(1 for p in active_positions if p.get('side', '').upper() == 'LONG')
+                short_count = sum(1 for p in active_positions if p.get('side', '').upper() == 'SHORT')
+                total_positions = long_count + short_count
+                new_side = trade_params['side'].upper()
+
+                # Calculate what portfolio will look like after this trade
+                if new_side == 'LONG':
+                    new_long_count = long_count + 1
+                    new_short_count = short_count
+                else:
+                    new_long_count = long_count
+                    new_short_count = short_count + 1
+
+                new_total = new_long_count + new_short_count
+
+                # Check if portfolio would become too one-sided (>80% same direction)
+                if new_total >= 3:  # Only enforce when 3+ positions
+                    long_ratio = new_long_count / new_total
+                    short_ratio = new_short_count / new_total
+
+                    if long_ratio > 0.80 and new_side == 'LONG':
+                        logger.warning(
+                            f"🚨 PORTFOLIO DIRECTION RISK: {new_long_count}/{new_total} positions "
+                            f"would be LONG ({long_ratio:.0%}). "
+                            f"Consider a SHORT or wait for existing LONGs to close."
+                        )
+                        return {
+                            'approved': False,
+                            'reason': (
+                                f'Portfolio direction risk: {new_long_count}/{new_total} positions '
+                                f'would be LONG ({long_ratio:.0%}). Max 80% same direction allowed. '
+                                f'Consider SHORT opportunities or wait for LONGs to close.'
+                            ),
+                            'adjusted_params': None
+                        }
+
+                    if short_ratio > 0.80 and new_side == 'SHORT':
+                        logger.warning(
+                            f"🚨 PORTFOLIO DIRECTION RISK: {new_short_count}/{new_total} positions "
+                            f"would be SHORT ({short_ratio:.0%}). "
+                            f"Consider a LONG or wait for existing SHORTs to close."
+                        )
+                        return {
+                            'approved': False,
+                            'reason': (
+                                f'Portfolio direction risk: {new_short_count}/{new_total} positions '
+                                f'would be SHORT ({short_ratio:.0%}). Max 80% same direction allowed. '
+                                f'Consider LONG opportunities or wait for SHORTs to close.'
+                            ),
+                            'adjusted_params': None
+                        }
+
+                    logger.info(
+                        f"✅ Portfolio direction balanced: "
+                        f"LONG {new_long_count} ({long_ratio:.0%}) / SHORT {new_short_count} ({short_ratio:.0%})"
+                    )
+        except Exception as e:
+            logger.warning(f"Portfolio direction check failed (allowing trade): {e}")
+
         # 🔥 RULE 5: Daily loss limit check - ENABLED
         # USER ISSUE: Bot lost $381 in one day without stopping!
         # - Config has daily_loss_limit_percent = 0.10 (10% = $100 for $1000)
@@ -949,9 +1013,18 @@ class RiskManager:
         # Get market data (if provided)
         market_data = trade_params.get('market_data', {})
 
+        # v4.7.2: STRICT MODE - Reject trades without market_data
+        # This prevents volume/order flow validation bypass
         if not market_data:
-            logger.warning(f"⚠️ No market_data provided for technical validation, allowing trade")
-            return {'approved': True, 'reason': 'No market data to validate', 'adjusted_params': trade_params}
+            logger.warning(
+                f"🚫 REJECTED: No market_data for {symbol} - "
+                f"technical validation cannot be bypassed"
+            )
+            return {
+                'approved': False,
+                'reason': 'Missing market_data - technical validation required',
+                'adjusted_params': None
+            }
 
         # ========================================================================
         # CHECK 1: SUPPORT/RESISTANCE DISTANCE (CRITICAL!)
@@ -1007,31 +1080,53 @@ class RiskManager:
                     logger.info(f"✅ S/R Check: {float(distance_to_support):.1f}% to support")
 
         # ========================================================================
-        # CHECK 2: VOLUME CONFIRMATION (HIGH PRIORITY!)
+        # CHECK 2: VOLUME CONFIRMATION (HIGH PRIORITY!) - v4.7.2 STRICT MODE
         # ========================================================================
         # Ensure sufficient volume for reliable price movement
+        # v4.7.2: Now REQUIRES volume data - cannot be bypassed
 
         volume_data = indicators.get('15m', {})
         current_volume = volume_data.get('volume')
         volume_sma = volume_data.get('volume_sma')
 
-        if current_volume and volume_sma:
-            volume_ratio = current_volume / volume_sma
+        # v4.7.2: STRICT - Reject if volume data is missing
+        if not current_volume or not volume_sma:
+            logger.warning(
+                f"🚫 Trade rejected: Missing volume data for {symbol} - "
+                f"volume validation cannot be bypassed"
+            )
+            return {
+                'approved': False,
+                'reason': 'Missing volume data - volume validation required',
+                'adjusted_params': None
+            }
 
-            if volume_ratio < 1.2:  # Need 20%+ above average
-                logger.warning(
-                    f"🚫 Trade rejected: Insufficient volume | "
-                    f"Current: {float(current_volume):.0f} | "
-                    f"Avg: {float(volume_sma):.0f} | "
-                    f"Ratio: {volume_ratio:.2f}x (need ≥1.2x)"
-                )
-                return {
-                    'approved': False,
-                    'reason': f'Insufficient volume ({volume_ratio:.2f}x average, need ≥1.2x)',
-                    'adjusted_params': None
-                }
+        volume_ratio = current_volume / volume_sma
 
+        # v4.7.2: Relaxed threshold from 1.2x to 0.7x for low volatility periods
+        # But still reject very low volume (<0.7x average)
+        MIN_VOLUME_RATIO = 0.7
+
+        if volume_ratio < MIN_VOLUME_RATIO:
+            logger.warning(
+                f"🚫 Trade rejected: Insufficient volume | "
+                f"Current: {float(current_volume):.0f} | "
+                f"Avg: {float(volume_sma):.0f} | "
+                f"Ratio: {volume_ratio:.2f}x (need ≥{MIN_VOLUME_RATIO}x)"
+            )
+            return {
+                'approved': False,
+                'reason': f'Insufficient volume ({volume_ratio:.2f}x average, need ≥{MIN_VOLUME_RATIO}x)',
+                'adjusted_params': None
+            }
+
+        # Log volume status with appropriate emoji
+        if volume_ratio >= 1.5:
+            logger.info(f"✅ Volume Check: STRONG {volume_ratio:.2f}x average")
+        elif volume_ratio >= 1.0:
             logger.info(f"✅ Volume Check: {volume_ratio:.2f}x average")
+        else:
+            logger.info(f"⚠️ Volume Check: LOW {volume_ratio:.2f}x average (but above {MIN_VOLUME_RATIO}x threshold)")
 
         # ========================================================================
         # CHECK 3: ORDER FLOW VALIDATION (INSTITUTIONAL CONFIRMATION)
