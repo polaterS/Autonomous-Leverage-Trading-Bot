@@ -1,24 +1,22 @@
-# 🚀 PA-ONLY v4.7.1 - ULTRA PROFESSIONAL ANALYSIS (FIXED)
+# 🛡️ PA-ONLY v4.7.2 - CRITICAL RISK MANAGEMENT FIXES
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251202_V471_ULTRA_PRO_FIX
+ARG CACHE_BUST=20251203_V472_RISK_MANAGEMENT_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🚀 v4.7.0: ULTRA PROFESSIONAL ANALYSIS!" && \
-    echo "   🆕 TIER 1 - Derivatives Analysis:" && \
-    echo "      💰 Funding Rate (contrarian sentiment)" && \
-    echo "      📊 Open Interest (trend strength)" && \
-    echo "      📈 Long/Short Ratio (crowd positioning)" && \
-    echo "      😱 Fear & Greed Index (market sentiment)" && \
-    echo "   🆕 TIER 2 - Advanced Technical:" && \
-    echo "      📉 CVD - Cumulative Volume Delta (buy/sell pressure)" && \
-    echo "      ⛩️ Ichimoku Cloud (complete trading system)" && \
-    echo "      🔥 Liquidation Levels (liquidity hunting zones)" && \
-    echo "   🆕 TIER 3 - Harmonic Patterns:" && \
-    echo "      🦋 Gartley, Butterfly, Bat, Crab patterns" && \
-    echo "      🎯 PRZ (Potential Reversal Zone) detection" && \
-    echo "   ✅ Scoring: 100 points (13 categories)" && \
+    echo "🛡️ v4.7.2: CRITICAL RISK MANAGEMENT FIXES!" && \
+    echo "   🆕 Trailing Stop v2.0:" && \
+    echo "      ✅ Min 1% profit BEFORE trailing activates" && \
+    echo "      ✅ Prevents premature exits on market noise" && \
+    echo "   🆕 Volume Validation STRICT MODE:" && \
+    echo "      ✅ Volume data REQUIRED (no bypass)" && \
+    echo "      ✅ Min 0.7x average volume threshold" && \
+    echo "   🆕 Portfolio Direction Risk:" && \
+    echo "      ✅ Max 80% positions same direction" && \
+    echo "      ✅ Prevents all-LONG or all-SHORT exposure" && \
+    echo "   🆕 Technical Validation STRICT:" && \
+    echo "      ✅ market_data REQUIRED (no bypass)" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -39,23 +37,24 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔥 CACHE BUST MARKER: PA-ONLY v4.7.0
-# Current deployment: 20251202_V470_ULTRA_PROFESSIONAL
-# Changes: Ultra Professional Analysis System
-#   🆕 TIER 1 - Derivatives Analysis:
-#      💰 Funding Rate (contrarian sentiment indicator)
-#      📊 Open Interest (trend strength confirmation)
-#      📈 Long/Short Ratio (crowd positioning)
-#      😱 Fear & Greed Index (composite market sentiment)
-#   🆕 TIER 2 - Advanced Technical:
-#      📉 CVD - Cumulative Volume Delta (buy/sell pressure divergence)
-#      ⛩️ Ichimoku Cloud (complete Japanese trading system)
-#      🔥 Liquidation Levels (liquidity hunting zones estimation)
-#   🆕 TIER 3 - Harmonic Patterns:
-#      🦋 Gartley, Butterfly, Bat, Crab pattern detection
-#      🎯 PRZ (Potential Reversal Zone) identification
-#   ✅ Scoring: 100 points across 13 categories
-#   🏛️ All previous indicators (v4.4, v4.5, v4.6) still active
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.2
+# Current deployment: 20251203_V472_RISK_MANAGEMENT_FIX
+# Changes: Critical Risk Management Fixes
+#   🆕 Trailing Stop v2.0:
+#      ✅ Min 1% profit threshold before trailing activates
+#      ✅ Prevents premature exits on normal market noise
+#      ✅ Position must reach 1% profit before trailing begins
+#   🆕 Volume Validation STRICT MODE:
+#      ✅ Volume data REQUIRED - cannot be bypassed
+#      ✅ Relaxed threshold from 1.2x to 0.7x for low volatility
+#      ✅ Prevents low-volume trades (e.g., GALA 0.4x)
+#   🆕 Portfolio Direction Risk Check:
+#      ✅ Max 80% positions same direction (LONG or SHORT)
+#      ✅ Prevents 5/5 LONG or 5/5 SHORT scenarios
+#      ✅ Forces diversification, reduces correlation risk
+#   🆕 Technical Validation STRICT:
+#      ✅ market_data REQUIRED - no bypass allowed
+#      ✅ All S/R, volume, order flow checks enforced
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
