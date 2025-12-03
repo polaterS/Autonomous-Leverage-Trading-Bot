@@ -1189,13 +1189,20 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
     """
     try:
         if not order_book or 'bids' not in order_book or 'asks' not in order_book:
+            logger.debug("⚠️ Order flow: No order_book data available")
             return {
                 'imbalance': 0.0,
                 'imbalance_ratio': 1.0,
                 'signal': 'neutral',
                 'large_bid_wall': None,
                 'large_ask_wall': None,
-                'buy_pressure': 0.5
+                'buy_pressure': 0.5,
+                # 🛡️ v4.7.4: Add weighted_imbalance to all returns
+                'weighted_imbalance': 0.0,
+                'weighted_imbalance_ratio': 1.0,
+                'weighted_bid_volume': 0.0,
+                'weighted_ask_volume': 0.0,
+                'depth_levels_analyzed': 0
             }
 
         # 🎯 #3: DEEP ORDER BOOK ANALYSIS (20 → 100 levels)
@@ -1204,13 +1211,20 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
         asks = order_book.get('asks', [])[:100]  # Top 100 asks (was 20)
 
         if not bids or not asks:
+            logger.debug("⚠️ Order flow: Empty bids or asks in order_book")
             return {
                 'imbalance': 0.0,
                 'imbalance_ratio': 1.0,
                 'signal': 'neutral',
                 'large_bid_wall': None,
                 'large_ask_wall': None,
-                'buy_pressure': 0.5
+                'buy_pressure': 0.5,
+                # 🛡️ v4.7.4: Add weighted_imbalance to all returns
+                'weighted_imbalance': 0.0,
+                'weighted_imbalance_ratio': 1.0,
+                'weighted_bid_volume': 0.0,
+                'weighted_ask_volume': 0.0,
+                'depth_levels_analyzed': 0
             }
 
         # 🎯 #3: DEPTH-WEIGHTED VOLUME CALCULATION
@@ -1312,13 +1326,20 @@ def analyze_order_flow(order_book: Dict[str, Any], recent_trades: List[Dict]) ->
         }
 
     except Exception as e:
+        logger.warning(f"⚠️ Order flow analysis failed: {e}")
         return {
             'imbalance': 0.0,
             'imbalance_ratio': 1.0,
             'signal': 'neutral',
             'large_bid_wall': None,
             'large_ask_wall': None,
-            'buy_pressure': 0.5
+            'buy_pressure': 0.5,
+            # 🛡️ v4.7.4: Add weighted_imbalance to exception return
+            'weighted_imbalance': 0.0,
+            'weighted_imbalance_ratio': 1.0,
+            'weighted_bid_volume': 0.0,
+            'weighted_ask_volume': 0.0,
+            'depth_levels_analyzed': 0
         }
 
 

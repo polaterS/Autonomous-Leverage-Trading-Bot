@@ -1136,6 +1136,9 @@ class RiskManager:
         order_flow = market_data.get('order_flow', {})
         imbalance = order_flow.get('weighted_imbalance', 0)
 
+        # 🛡️ v4.7.4: Debug log for order flow troubleshooting
+        logger.debug(f"📊 Order Flow Debug: weighted_imbalance={imbalance:.1f}%, keys={list(order_flow.keys())}")
+
         if side == 'LONG':
             if imbalance < 5.0:  # Need strong buy pressure
                 logger.warning(

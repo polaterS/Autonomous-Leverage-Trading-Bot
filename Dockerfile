@@ -1,18 +1,18 @@
-# 🛡️ PA-ONLY v4.7.3 - MARKET_DATA FIX FOR STRICT MODE
+# 🛡️ PA-ONLY v4.7.4 - ORDER FLOW FIX (weighted_imbalance)
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251203_V473_MARKET_DATA_FIX
+ARG CACHE_BUST=20251203_V474_ORDER_FLOW_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.3: MARKET_DATA FIX FOR STRICT MODE!" && \
+    echo "🛡️ v4.7.4: ORDER FLOW FIX!" && \
     echo "   🔧 Critical Fix:" && \
-    echo "      ✅ market_data now passed to validate_trade()" && \
-    echo "      ✅ Fixed in: market_scanner, realtime_signal_handler, telegram_bot" && \
-    echo "   🛡️ v4.7.2 Features (included):" && \
-    echo "      ✅ Trailing Stop v2.0 (1% min profit threshold)" && \
-    echo "      ✅ Volume Validation STRICT (0.7x threshold)" && \
-    echo "      ✅ Portfolio Direction Risk (max 80% same)" && \
+    echo "      ✅ weighted_imbalance now returned in all code paths" && \
+    echo "      ✅ Order book fetch increased to 100 levels" && \
+    echo "      ✅ Debug logging added for troubleshooting" && \
+    echo "   🛡️ Previous fixes included:" && \
+    echo "      ✅ v4.7.3: market_data passed to validate_trade()" && \
+    echo "      ✅ v4.7.2: Trailing Stop, Volume STRICT, Portfolio Risk" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -33,19 +33,17 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.3
-# Current deployment: 20251203_V473_MARKET_DATA_FIX
-# Changes: Fixed market_data passing to STRICT mode validator
-#   🔧 v4.7.3 Critical Fix:
-#      ✅ market_data now passed to validate_trade() in all callers
-#      ✅ market_scanner.py: Added market_data to trade_params
-#      ✅ realtime_signal_handler.py: Added market_data to trade_params
-#      ✅ telegram_bot.py: Added market_data to trade_params
-#   🛡️ v4.7.2 Features (included):
-#      ✅ Trailing Stop v2.0 (1% min profit threshold)
-#      ✅ Volume Validation STRICT (0.7x threshold required)
-#      ✅ Portfolio Direction Risk (max 80% same direction)
-#      ✅ Technical Validation STRICT (market_data required)
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.4
+# Current deployment: 20251203_V474_ORDER_FLOW_FIX
+# Changes: Fixed order flow weighted_imbalance always returning 0
+#   🔧 v4.7.4 Critical Fix:
+#      ✅ indicators.py: Added weighted_imbalance to ALL return paths
+#      ✅ market_scanner.py: Order book fetch increased to 100 levels
+#      ✅ risk_manager.py: Added debug logging for order flow
+#      ✅ This fixes "order flow: 0.0%" always being rejected
+#   🛡️ Previous fixes included:
+#      ✅ v4.7.3: market_data passed to validate_trade()
+#      ✅ v4.7.2: Trailing Stop, Volume STRICT, Portfolio Risk
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

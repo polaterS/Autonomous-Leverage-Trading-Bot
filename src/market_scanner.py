@@ -1062,12 +1062,18 @@ class MarketScanner:
             order_book = None
             recent_trades = []
             try:
-                order_book = await exchange.fetch_order_book(symbol, limit=20)
+                # 🛡️ v4.7.4: Fetch 100 levels for deep order book analysis
+                order_book = await exchange.fetch_order_book(symbol, limit=100)
                 recent_trades = await exchange.fetch_trades(symbol, limit=50)
-            except:
-                pass
+                logger.debug(f"📊 {symbol} Order book fetched: {len(order_book.get('bids', []))} bids, {len(order_book.get('asks', []))} asks")
+            except Exception as e:
+                logger.debug(f"⚠️ {symbol} Order book fetch failed: {e}")
 
             order_flow = analyze_order_flow(order_book, recent_trades)
+
+            # 🛡️ v4.7.4: Log order flow result for debugging
+            if order_flow.get('weighted_imbalance', 0) != 0:
+                logger.debug(f"📊 {symbol} Order flow: weighted_imbalance={order_flow.get('weighted_imbalance', 0):.1f}%")
 
             # Smart Money Concepts (institutional edge)
             smart_money = detect_smart_money_concepts(ohlcv_4h, current_price)
