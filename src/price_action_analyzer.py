@@ -39,7 +39,7 @@ Expected Impact: +15% win rate, +150% avg R/R ratio, -40% false signals
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from decimal import Decimal
 from datetime import datetime
 import logging
