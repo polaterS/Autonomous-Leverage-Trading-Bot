@@ -2,7 +2,7 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🛡️ VERSION: 7.2-RISK-MANAGEMENT-FIXES (Trailing Stop v2.0 + Volume STRICT + Portfolio Direction)
+🛡️ VERSION: 7.3-MARKET-DATA-FIX (Fixes market_data passing to STRICT validator)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "7.2-RISK-MANAGEMENT-FIXES"
+BOT_VERSION = "7.3-MARKET-DATA-FIX"
 
 # Log deployment version from VERSION file
 try:

@@ -1759,7 +1759,8 @@ class MarketScanner:
             'leverage': analysis['suggested_leverage'],
             'stop_loss_percent': analysis['stop_loss_percent'],
             'current_price': market_data['current_price'],
-            'market_breadth': opportunity.get('market_breadth')  # For market direction filter
+            'market_breadth': opportunity.get('market_breadth'),  # For market direction filter
+            'market_data': market_data  # 🛡️ v4.7.3: Required for STRICT technical validation
         }
 
         # 🔧 FIX #4: Position spacing check (prevent same-minute entries)

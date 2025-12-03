@@ -1,22 +1,18 @@
-# 🛡️ PA-ONLY v4.7.2 - CRITICAL RISK MANAGEMENT FIXES
+# 🛡️ PA-ONLY v4.7.3 - MARKET_DATA FIX FOR STRICT MODE
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251203_V472_RISK_MANAGEMENT_FIX
+ARG CACHE_BUST=20251203_V473_MARKET_DATA_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.2: CRITICAL RISK MANAGEMENT FIXES!" && \
-    echo "   🆕 Trailing Stop v2.0:" && \
-    echo "      ✅ Min 1% profit BEFORE trailing activates" && \
-    echo "      ✅ Prevents premature exits on market noise" && \
-    echo "   🆕 Volume Validation STRICT MODE:" && \
-    echo "      ✅ Volume data REQUIRED (no bypass)" && \
-    echo "      ✅ Min 0.7x average volume threshold" && \
-    echo "   🆕 Portfolio Direction Risk:" && \
-    echo "      ✅ Max 80% positions same direction" && \
-    echo "      ✅ Prevents all-LONG or all-SHORT exposure" && \
-    echo "   🆕 Technical Validation STRICT:" && \
-    echo "      ✅ market_data REQUIRED (no bypass)" && \
+    echo "🛡️ v4.7.3: MARKET_DATA FIX FOR STRICT MODE!" && \
+    echo "   🔧 Critical Fix:" && \
+    echo "      ✅ market_data now passed to validate_trade()" && \
+    echo "      ✅ Fixed in: market_scanner, realtime_signal_handler, telegram_bot" && \
+    echo "   🛡️ v4.7.2 Features (included):" && \
+    echo "      ✅ Trailing Stop v2.0 (1% min profit threshold)" && \
+    echo "      ✅ Volume Validation STRICT (0.7x threshold)" && \
+    echo "      ✅ Portfolio Direction Risk (max 80% same)" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -37,24 +33,19 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.2
-# Current deployment: 20251203_V472_RISK_MANAGEMENT_FIX
-# Changes: Critical Risk Management Fixes
-#   🆕 Trailing Stop v2.0:
-#      ✅ Min 1% profit threshold before trailing activates
-#      ✅ Prevents premature exits on normal market noise
-#      ✅ Position must reach 1% profit before trailing begins
-#   🆕 Volume Validation STRICT MODE:
-#      ✅ Volume data REQUIRED - cannot be bypassed
-#      ✅ Relaxed threshold from 1.2x to 0.7x for low volatility
-#      ✅ Prevents low-volume trades (e.g., GALA 0.4x)
-#   🆕 Portfolio Direction Risk Check:
-#      ✅ Max 80% positions same direction (LONG or SHORT)
-#      ✅ Prevents 5/5 LONG or 5/5 SHORT scenarios
-#      ✅ Forces diversification, reduces correlation risk
-#   🆕 Technical Validation STRICT:
-#      ✅ market_data REQUIRED - no bypass allowed
-#      ✅ All S/R, volume, order flow checks enforced
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.3
+# Current deployment: 20251203_V473_MARKET_DATA_FIX
+# Changes: Fixed market_data passing to STRICT mode validator
+#   🔧 v4.7.3 Critical Fix:
+#      ✅ market_data now passed to validate_trade() in all callers
+#      ✅ market_scanner.py: Added market_data to trade_params
+#      ✅ realtime_signal_handler.py: Added market_data to trade_params
+#      ✅ telegram_bot.py: Added market_data to trade_params
+#   🛡️ v4.7.2 Features (included):
+#      ✅ Trailing Stop v2.0 (1% min profit threshold)
+#      ✅ Volume Validation STRICT (0.7x threshold required)
+#      ✅ Portfolio Direction Risk (max 80% same direction)
+#      ✅ Technical Validation STRICT (market_data required)
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

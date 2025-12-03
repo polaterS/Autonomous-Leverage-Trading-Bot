@@ -2230,7 +2230,8 @@ Coin seçin:
             'side': analysis['side'],
             'leverage': leverage,
             'stop_loss_percent': analysis['stop_loss_percent'],
-            'current_price': market_data['current_price']
+            'current_price': market_data['current_price'],
+            'market_data': market_data  # 🛡️ v4.7.3: Required for STRICT technical validation
         }
 
         validation = await risk_manager.validate_trade(trade_params)

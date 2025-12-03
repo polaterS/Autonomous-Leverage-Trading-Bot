@@ -987,7 +987,8 @@ class RealtimeSignalHandler:
                 'stop_loss_percent': stop_loss_percent,
                 'current_price': current_price,
                 'market_breadth': None,
-                'source': 'REALTIME_INSTANT'
+                'source': 'REALTIME_INSTANT',
+                'market_data': market_data  # 🛡️ v4.7.3: Required for STRICT technical validation
             }
 
             # Validate with risk manager
