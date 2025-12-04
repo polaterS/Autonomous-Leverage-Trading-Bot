@@ -358,19 +358,17 @@ class MarketScanner:
                         if tech_advanced_pct < 40:
                             skip_reason = f"Technical Advanced too weak: {tech_advanced_pct:.0f}% (need 40%+) - CVD/Ichimoku/Liquidations warning"
 
-                        # 🛡️ FILTER 2: Derivatives = 50% exactly (fallback = no real data)
-                        derivatives_score = component_scores.get('derivatives', 0)
-                        derivatives_pct = (derivatives_score / 10) * 100 if derivatives_score else 0
-                        if not skip_reason and derivatives_pct == 50:
-                            skip_reason = f"Derivatives at fallback: {derivatives_pct:.0f}% - No real Funding/OI/L-S data"
+                        # 🛡️ FILTER 2: REMOVED in v4.7.12
+                        # Derivatives = 50% filter was blocking ALL trades because
+                        # Bybit API doesn't provide real Funding/OI/L-S data via OHLCV
+                        # Real derivatives data requires separate API endpoints (future enhancement)
 
-                        # 🛡️ FILTER 3: ATR < 0.3% (very low volatility - can't hit profit targets)
-                        # v4.7.11: Lowered from 0.5% to 0.3% - 0.5% was too strict for neutral market
+                        # 🛡️ FILTER 2: ATR < 0.3% (very low volatility - can't hit profit targets)
                         atr_percent = indicators_15m.get('atr_percent', 1.0)
                         if not skip_reason and atr_percent < 0.3:
                             skip_reason = f"Volatility too low: ATR {atr_percent:.2f}% (need 0.3%+) - Price won't move enough"
 
-                        # 🛡️ FILTER 4: ADX > 40 (trend exhaustion - reversal likely)
+                        # 🛡️ FILTER 3: ADX > 40 (trend exhaustion - reversal likely)
                         adx = indicators_15m.get('adx', 25)
                         if not skip_reason and adx > 40:
                             skip_reason = f"ADX too high: {adx:.1f} (max 40) - Trend exhausted, reversal likely"

@@ -1,24 +1,20 @@
-# Force redeploy v4.7.11 - FILTER DISPLAY FIX - 4 Dec 2025 Wed
-# 🔧 FIX: Filter reason was NOT displayed in Telegram messages
+# Force redeploy v4.7.12 - DERIVATIVES FILTER REMOVED - 4 Dec 2025 Wed
+# ❌ REMOVED: Derivatives = 50% filter was blocking ALL trades
 #
-# 🔧 v4.7.11 FIXES:
-#   ✅ FIX 1: Filter reason now shown in Telegram
-#      - Problem: "Reason: = STRONG SETUP" instead of actual filter reason
-#      - Solution: Check for filter_reason when Quality is FILTERED
-#      - Now shows: "🛡️ FILTER: ATR too low: 0.25% (need 0.3%+)"
+# 🔧 v4.7.12 CHANGE:
+#   ❌ REMOVED: Derivatives = 50% filter
+#      - Problem: Filter was blocking 90%+ of all trades
+#      - Cause: Bybit API doesn't provide Funding/OI/L-S data via OHLCV
+#      - These require separate API endpoints (future enhancement)
+#      - For now, removed this filter to allow trading
 #
-#   ✅ FIX 2: ATR threshold lowered from 0.5% to 0.3%
-#      - Problem: 0.5% was too strict - ALL trades filtered in neutral market
-#      - Solution: Lower to 0.3% to allow more trades
-#
-# 🛡️ ACTIVE FILTERS (5 protection layers):
+# 🛡️ ACTIVE FILTERS (4 protection layers):
 #   ✅ FILTER 1: Technical Advanced < 40% → Skip trade
-#   ✅ FILTER 2: Derivatives = 50% (fallback) → Skip trade
-#   ✅ FILTER 3: ATR < 0.3% → Skip trade (lowered from 0.5%)
-#   ✅ FILTER 4: ADX > 40 → Skip trade
-#   ✅ FILTER 5: Market 80%+ Neutral → Raise min_score to 70
+#   ✅ FILTER 2: ATR < 0.3% → Skip trade (low volatility)
+#   ✅ FILTER 3: ADX > 40 → Skip trade (trend exhaustion)
+#   ✅ FILTER 4: Market 80%+ Neutral → Raise min_score to 70
 #
 # 📊 Previous versions:
-#   - v4.7.10: Quality protection filters (5 filters)
-#   - v4.7.9: Confluence scoring fix
+#   - v4.7.11: Filter reason display fix
+#   - v4.7.10: Quality protection filters
 # Instant trading still DISABLED - main loop handles all entries

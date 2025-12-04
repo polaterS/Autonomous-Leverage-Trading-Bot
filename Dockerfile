@@ -1,20 +1,19 @@
-# 🛡️ PA-ONLY v4.7.11 - FILTER REASON DISPLAY FIX
+# 🛡️ PA-ONLY v4.7.12 - DERIVATIVES FILTER REMOVED
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251204_V4711_FILTER_DISPLAY_FIX
+ARG CACHE_BUST=20251204_V4712_DERIVATIVES_REMOVED
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.11: FILTER REASON DISPLAY FIX!" && \
-    echo "   🔧 FIXES:" && \
-    echo "      ✅ Filter reason now shown in Telegram messages" && \
-    echo "      ✅ ATR threshold lowered: 0.5% → 0.3% (less strict)" && \
-    echo "   🛡️ ACTIVE FILTERS (5 protection layers):" && \
+    echo "🛡️ v4.7.12: DERIVATIVES FILTER REMOVED!" && \
+    echo "   🔧 CHANGE:" && \
+    echo "      ❌ REMOVED: Derivatives = 50% filter (was blocking ALL trades)" && \
+    echo "      📝 Reason: Bybit API doesn't provide Funding/OI/L-S via OHLCV" && \
+    echo "   🛡️ ACTIVE FILTERS (4 protection layers):" && \
     echo "      ✅ FILTER 1: Technical Advanced < 40% → Skip trade" && \
-    echo "      ✅ FILTER 2: Derivatives = 50% (fallback) → Skip trade" && \
-    echo "      ✅ FILTER 3: ATR < 0.3% (low volatility) → Skip trade" && \
-    echo "      ✅ FILTER 4: ADX > 40 (trend exhaustion) → Skip trade" && \
-    echo "      ✅ FILTER 5: Market 80%+ Neutral → Raise min_score to 70" && \
+    echo "      ✅ FILTER 2: ATR < 0.3% (low volatility) → Skip trade" && \
+    echo "      ✅ FILTER 3: ADX > 40 (trend exhaustion) → Skip trade" && \
+    echo "      ✅ FILTER 4: Market 80%+ Neutral → Raise min_score to 70" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -35,21 +34,21 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.11
-# Current deployment: 20251204_V4711_FILTER_DISPLAY_FIX
-# Changes: Fixed filter reason display + adjusted ATR threshold
-#   🔧 v4.7.11 FIXES:
-#      ✅ Filter reason now shown in Telegram (was showing wrong field)
-#      ✅ ATR threshold: 0.5% → 0.3% (0.5% was too strict for neutral market)
-#   🛡️ ACTIVE FILTERS (5 protection layers):
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.12
+# Current deployment: 20251204_V4712_DERIVATIVES_REMOVED
+# Changes: Removed Derivatives = 50% filter (was blocking ALL trades)
+#   🔧 v4.7.12 CHANGE:
+#      ❌ REMOVED: Derivatives = 50% filter
+#      📝 Reason: Bybit API doesn't provide Funding/OI/L-S data via OHLCV
+#      📝 Result: Trades will now go through if other filters pass
+#   🛡️ ACTIVE FILTERS (4 protection layers):
 #      ✅ FILTER 1: Technical Advanced < 40% → Skip
-#      ✅ FILTER 2: Derivatives = 50% (fallback) → Skip
-#      ✅ FILTER 3: ATR < 0.3% → Skip (lowered from 0.5%)
-#      ✅ FILTER 4: ADX > 40 → Skip
-#      ✅ FILTER 5: Market 80%+ Neutral → min_score = 70
+#      ✅ FILTER 2: ATR < 0.3% → Skip
+#      ✅ FILTER 3: ADX > 40 → Skip
+#      ✅ FILTER 4: Market 80%+ Neutral → min_score = 70
 #   📊 Previous fixes:
+#      ✅ v4.7.11: Filter reason display fix
 #      ✅ v4.7.10: Quality protection filters
-#      ✅ v4.7.9: Confluence scoring fix
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
