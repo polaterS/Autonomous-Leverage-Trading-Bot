@@ -364,10 +364,11 @@ class MarketScanner:
                         if not skip_reason and derivatives_pct == 50:
                             skip_reason = f"Derivatives at fallback: {derivatives_pct:.0f}% - No real Funding/OI/L-S data"
 
-                        # 🛡️ FILTER 3: ATR < 0.5% (very low volatility - can't hit profit targets)
+                        # 🛡️ FILTER 3: ATR < 0.3% (very low volatility - can't hit profit targets)
+                        # v4.7.11: Lowered from 0.5% to 0.3% - 0.5% was too strict for neutral market
                         atr_percent = indicators_15m.get('atr_percent', 1.0)
-                        if not skip_reason and atr_percent < 0.5:
-                            skip_reason = f"Volatility too low: ATR {atr_percent:.2f}% (need 0.5%+) - Price won't move enough"
+                        if not skip_reason and atr_percent < 0.3:
+                            skip_reason = f"Volatility too low: ATR {atr_percent:.2f}% (need 0.3%+) - Price won't move enough"
 
                         # 🛡️ FILTER 4: ADX > 40 (trend exhaustion - reversal likely)
                         adx = indicators_15m.get('adx', 25)
@@ -1806,8 +1807,12 @@ class MarketScanner:
                 min_confluence_score = 70
 
         if not confluence['approved'] or confluence['score'] < min_confluence_score:
-            # Support both old ('reason', 'factors') and new ('reasoning', 'component_scores') formats
-            reason_text = confluence.get('reasoning', confluence.get('reason', 'Unknown'))
+            # 🛡️ v4.7.11: Show filter_reason when quality is FILTERED
+            if confluence.get('quality') == 'FILTERED' and confluence.get('filter_reason'):
+                reason_text = f"🛡️ FILTER: {confluence.get('filter_reason')}"
+            else:
+                # Support both old ('reason', 'factors') and new ('reasoning', 'component_scores') formats
+                reason_text = confluence.get('reasoning', confluence.get('reason', 'Unknown'))
 
             logger.warning(
                 f"❌ CONFLUENCE CHECK FAILED ({model_name}): {confluence['score']}/100 (need {min_confluence_score}+)\n"
