@@ -1,25 +1,27 @@
-# Force redeploy v4.7.1 - Ultra Professional Analysis FIX - 2 Dec 2025 Mon
-# FIX: Candle requirement check (78+ for v4.7.0 indicators, 50+ for others)
-# 🚀 MAJOR UPGRADE: Ultra Professional Analysis System
+# Force redeploy v4.7.9 - CONFLUENCE SCORING FIX - 4 Dec 2025 Wed
+# 🔧 BUG FIX: market_scanner.py was NOT passing enhanced indicator parameters
+# 🔧 RESULT: All 13 categories showed 60% fallback instead of real calculated values
 #
-# 🆕 TIER 1 - Derivatives Analysis (10 pts):
-#   💰 Funding Rate - Contrarian sentiment indicator
-#   📊 Open Interest - Trend strength confirmation
-#   📈 Long/Short Ratio - Crowd positioning analysis
-#   😱 Fear & Greed Index - Composite market sentiment
+# 🔧 v4.7.9 FIX DETAILS:
+#   ❌ OLD (BUG): score_opportunity() called with only 7 basic parameters
+#      - enhanced_data, advanced_data, institutional_data = NOT PASSED
+#      - derivatives_data, technical_advanced_data, harmonic_data = NOT PASSED
+#      - All categories fell back to 60% default scores
 #
-# 🆕 TIER 2 - Advanced Technical (10 pts):
-#   📉 CVD - Cumulative Volume Delta (buy/sell pressure)
-#   ⛩️ Ichimoku Cloud - Complete Japanese trading system
-#   🔥 Liquidation Levels - Liquidity hunting zones
+#   ✅ NEW (FIX): Now calculates and passes ALL 13 parameters:
+#      📊 BASIC (7 params): symbol, side, pa_analysis, indicators, volume_profile, market_regime, mtf_data
+#      🔬 v4.4.0 (1 param): enhanced_data (BB Squeeze, EMA Stack, Divergences)
+#      🔬 v4.5.0 (1 param): advanced_data (VWAP, StochRSI, CMF, Fibonacci)
+#      🔬 v4.6.0 (1 param): institutional_data (SMC, Wyckoff VSA, Hurst, Z-Score)
+#      🚀 v4.7.0 (3 params): derivatives_data, technical_advanced_data, harmonic_data
 #
-# 🆕 TIER 3 - Harmonic Patterns (5 pts):
-#   🦋 Gartley Pattern (78.6% retracement)
-#   🦋 Butterfly Pattern (127-161.8% extension)
-#   🦇 Bat Pattern (88.6% retracement)
-#   🦀 Crab Pattern (161.8% extension)
-#   🎯 PRZ (Potential Reversal Zone) detection
+# 🎯 EXPECTED RESULT:
+#   - Categories will show REAL calculated scores (not 60% fallback)
+#   - Better trade filtering based on actual market conditions
+#   - More accurate confluence scoring for entry decisions
 #
-# ✅ Total Scoring: 100 points across 13 categories
-# 🏛️ All previous indicators (v4.4-v4.6) still active
+# ✅ Previous versions:
+#   - v4.7.8: Three protection filters
+#   - v4.7.7: Order book methods
+#   - v4.7.1: Candle requirement fix
 # Instant trading still DISABLED - main loop handles all entries

@@ -272,6 +272,47 @@ class MarketScanner:
                         indicators_dict = market_data.get('indicators', {})
                         indicators_15m = indicators_dict.get('15m', {})
 
+                        # 🔧 v4.7.2 FIX: Calculate enhanced indicators for PROPER scoring!
+                        # Without these, all categories fall back to 60% defaults
+                        ohlcv_data = market_data.get('ohlcv_15m', [])
+
+                        # v4.4.0 - v4.6.0 enhanced indicators (need 50+ candles)
+                        enhanced_data = None
+                        advanced_data = None
+                        institutional_data = None
+
+                        if ohlcv_data and len(ohlcv_data) >= 50:
+                            try:
+                                from src.indicators import (
+                                    calculate_enhanced_indicators,
+                                    calculate_advanced_indicators,
+                                    calculate_institutional_indicators
+                                )
+                                enhanced_data = calculate_enhanced_indicators(ohlcv_data)
+                                advanced_data = calculate_advanced_indicators(ohlcv_data)
+                                institutional_data = calculate_institutional_indicators(ohlcv_data)
+                                logger.debug(f"🔬 {symbol}: Enhanced/Advanced/Institutional indicators calculated")
+                            except Exception as e:
+                                logger.warning(f"⚠️ {symbol}: Enhanced indicators failed: {e}")
+
+                        # v4.7.0 Ultra Professional Analysis (need 78+ candles)
+                        derivatives_data = None
+                        technical_advanced_data = None
+                        harmonic_data = None
+
+                        if ohlcv_data and len(ohlcv_data) >= 78:
+                            try:
+                                from src.indicators import calculate_ultra_professional_analysis
+                                ultra_pro_data = calculate_ultra_professional_analysis(ohlcv_data)
+
+                                if not ultra_pro_data.get('error'):
+                                    derivatives_data = ultra_pro_data.get('derivatives_analysis', {})
+                                    technical_advanced_data = ultra_pro_data.get('advanced_analysis', {})
+                                    harmonic_data = ultra_pro_data.get('advanced_analysis', {}).get('harmonic_patterns', {})
+                                    logger.debug(f"🚀 {symbol}: Ultra Professional Analysis (v4.7.0) calculated")
+                            except Exception as e:
+                                logger.warning(f"⚠️ {symbol}: Ultra Professional Analysis failed: {e}")
+
                         confluence_result = enhanced_system.confluence_scorer.score_opportunity(
                             symbol=symbol,
                             side=side,
@@ -279,7 +320,14 @@ class MarketScanner:
                             indicators=indicators_15m,  # ✅ Use 15m indicators (not multi-timeframe dict)
                             volume_profile=market_data.get('volume_profile', {}),  # ✅ Use real volume profile data
                             market_regime=regime_dict,  # ✅ Use real regime data (converted to dict)
-                            mtf_data=mtf_timeframes  # ✅ Pass timeframes dict (not full mtf object)
+                            mtf_data=mtf_timeframes,  # ✅ Pass timeframes dict (not full mtf object)
+                            # 🔧 v4.7.2 FIX: Pass ALL enhanced indicator parameters!
+                            enhanced_data=enhanced_data,           # v4.4.0: BB Squeeze, EMA Stack, Divergences
+                            advanced_data=advanced_data,           # v4.5.0: VWAP, StochRSI, CMF, Fibonacci
+                            institutional_data=institutional_data, # v4.6.0: SMC, Wyckoff VSA, Hurst, Z-Score
+                            derivatives_data=derivatives_data,     # v4.7.0: Funding, OI, L/S Ratio, Fear&Greed
+                            technical_advanced_data=technical_advanced_data,  # v4.7.0: CVD, Ichimoku, Liquidations
+                            harmonic_data=harmonic_data            # v4.7.0: Harmonic Patterns
                         )
                         confluence = {
                             'score': confluence_result['total_score'],

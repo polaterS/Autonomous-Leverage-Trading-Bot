@@ -1,18 +1,18 @@
-# 🛡️ PA-ONLY v4.7.8 - THREE PROTECTION FILTERS
+# 🔧 PA-ONLY v4.7.9 - CONFLUENCE SCORING FIX
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251203_V478_PROTECTION_FILTERS
+ARG CACHE_BUST=20251204_V479_CONFLUENCE_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.8: THREE CRITICAL PROTECTION FILTERS!" && \
-    echo "   🛡️ NEW FILTERS:" && \
-    echo "      ✅ ADX > 50 = OVEREXTENDED (no entry)" && \
-    echo "      ✅ SIDEWAYS + Volume < 0.7x = NO TRADE" && \
-    echo "      ✅ Pullback Detection (23.6%-61.8% Fib)" && \
+    echo "🔧 v4.7.9: CONFLUENCE SCORING FIX!" && \
+    echo "   🔧 BUG FIX:" && \
+    echo "      ✅ market_scanner.py now calculates ALL enhanced indicators" && \
+    echo "      ✅ Passes enhanced_data, advanced_data, institutional_data" && \
+    echo "      ✅ Passes derivatives_data, technical_advanced_data, harmonic_data" && \
+    echo "      ✅ Categories no longer fallback to 60% defaults" && \
     echo "   🛡️ Previous fixes:" && \
-    echo "      ✅ v4.7.7: Order book methods added" && \
-    echo "      ✅ v4.7.6: Order flow non-blocking" && \
+    echo "      ✅ v4.7.8: Protection filters" && \
     echo "   - Instant Trading still DISABLED"
 
 # Set working directory
@@ -33,16 +33,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.8
-# Current deployment: 20251203_V478_PROTECTION_FILTERS
-# Changes: Added 3 critical protection filters to prevent bad entries
-#   🛡️ v4.7.8 PROTECTION FILTERS:
-#      ✅ ADX > 50 = Overextended market (no entry, wait for pullback)
-#      ✅ SIDEWAYS + Volume < 0.7x = No trading edge (skip)
-#      ✅ Pullback Detection (23.6%-61.8% Fib retracement = wait)
+# 🔧 CACHE BUST MARKER: PA-ONLY v4.7.9
+# Current deployment: 20251204_V479_CONFLUENCE_FIX
+# Changes: Fixed confluence scoring in market_scanner.py
+#   🔧 v4.7.9 CONFLUENCE SCORING FIX:
+#      ✅ BUG: score_opportunity() was called WITHOUT enhanced indicator params
+#      ✅ RESULT: All categories showed 60% fallback instead of real values
+#      ✅ FIX: Now calculates and passes ALL enhanced indicator parameters
+#      ✅ Categories: enhanced_data, advanced_data, institutional_data (v4.4-v4.6)
+#      ✅ Categories: derivatives_data, technical_advanced_data, harmonic_data (v4.7.0)
 #   🛡️ Previous fixes:
-#      ✅ v4.7.7: Order book methods (fetch_order_book, fetch_trades)
-#      ✅ v4.7.6: Order flow non-blocking validation
+#      ✅ v4.7.8: Three protection filters
+#      ✅ v4.7.7: Order book methods
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
