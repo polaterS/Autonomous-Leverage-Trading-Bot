@@ -1,27 +1,34 @@
-# Force redeploy v4.7.9 - CONFLUENCE SCORING FIX - 4 Dec 2025 Wed
-# 🔧 BUG FIX: market_scanner.py was NOT passing enhanced indicator parameters
-# 🔧 RESULT: All 13 categories showed 60% fallback instead of real calculated values
+# Force redeploy v4.7.10 - QUALITY PROTECTION FILTERS - 4 Dec 2025 Wed
+# 🛡️ NEW: 5 Quality Protection Filters to prevent bad trades
 #
-# 🔧 v4.7.9 FIX DETAILS:
-#   ❌ OLD (BUG): score_opportunity() called with only 7 basic parameters
-#      - enhanced_data, advanced_data, institutional_data = NOT PASSED
-#      - derivatives_data, technical_advanced_data, harmonic_data = NOT PASSED
-#      - All categories fell back to 60% default scores
+# 🛡️ v4.7.10 FILTER DETAILS:
+#   ✅ FILTER 1: Technical Advanced < 40% → Skip trade
+#      - CVD, Ichimoku, Liquidations giving warning signals
+#      - When these are weak, trade direction is unreliable
 #
-#   ✅ NEW (FIX): Now calculates and passes ALL 13 parameters:
-#      📊 BASIC (7 params): symbol, side, pa_analysis, indicators, volume_profile, market_regime, mtf_data
-#      🔬 v4.4.0 (1 param): enhanced_data (BB Squeeze, EMA Stack, Divergences)
-#      🔬 v4.5.0 (1 param): advanced_data (VWAP, StochRSI, CMF, Fibonacci)
-#      🔬 v4.6.0 (1 param): institutional_data (SMC, Wyckoff VSA, Hurst, Z-Score)
-#      🚀 v4.7.0 (3 params): derivatives_data, technical_advanced_data, harmonic_data
+#   ✅ FILTER 2: Derivatives = 50% (fallback) → Skip trade
+#      - No real Funding Rate, Open Interest, Long/Short Ratio data
+#      - 50% exactly = fallback value, not real calculation
+#
+#   ✅ FILTER 3: ATR < 0.5% → Skip trade
+#      - Very low volatility environment
+#      - Price won't move enough to hit profit targets
+#
+#   ✅ FILTER 4: ADX > 40 → Skip trade
+#      - Trend is exhausted
+#      - High probability of reversal
+#
+#   ✅ FILTER 5: Market 80%+ Neutral → Raise min_score to 70
+#      - When market is indecisive, require stronger setups
+#      - Normal min_score is 30, raised to 70 in neutral market
 #
 # 🎯 EXPECTED RESULT:
-#   - Categories will show REAL calculated scores (not 60% fallback)
-#   - Better trade filtering based on actual market conditions
-#   - More accurate confluence scoring for entry decisions
+#   - Fewer but higher quality trades
+#   - Trades will have proper market conditions
+#   - Better profit probability due to filtering
 #
-# ✅ Previous versions:
+# 📊 Previous versions:
+#   - v4.7.9: Confluence scoring fix (all 13 categories real values)
 #   - v4.7.8: Three protection filters
 #   - v4.7.7: Order book methods
-#   - v4.7.1: Candle requirement fix
 # Instant trading still DISABLED - main loop handles all entries

@@ -337,6 +337,50 @@ class MarketScanner:
                             'reasoning': confluence_result.get('reasoning', ''),
                             'component_scores': confluence_result.get('component_scores', {})
                         }
+
+                        # ═══════════════════════════════════════════════════════════════════════
+                        # 🛡️ v4.7.10: QUALITY PROTECTION FILTERS
+                        # ═══════════════════════════════════════════════════════════════════════
+                        # These filters prevent low-quality trades that historically lose money
+                        # Based on analysis of losing positions:
+                        # - Technical Advanced < 40% = CVD/Ichimoku/Liquidations warning
+                        # - Derivatives = 50% (fallback) = No real data, skip
+                        # - ATR < 0.5% = No volatility, can't hit profit targets
+                        # - ADX > 40 = Trend exhausted, reversal likely
+                        # ═══════════════════════════════════════════════════════════════════════
+
+                        component_scores = confluence.get('component_scores', {})
+                        skip_reason = None
+
+                        # 🛡️ FILTER 1: Technical Advanced < 40% (CVD, Ichimoku, Liquidations warning)
+                        tech_advanced_score = component_scores.get('technical_advanced', 0)
+                        tech_advanced_pct = (tech_advanced_score / 10) * 100 if tech_advanced_score else 0
+                        if tech_advanced_pct < 40:
+                            skip_reason = f"Technical Advanced too weak: {tech_advanced_pct:.0f}% (need 40%+) - CVD/Ichimoku/Liquidations warning"
+
+                        # 🛡️ FILTER 2: Derivatives = 50% exactly (fallback = no real data)
+                        derivatives_score = component_scores.get('derivatives', 0)
+                        derivatives_pct = (derivatives_score / 10) * 100 if derivatives_score else 0
+                        if not skip_reason and derivatives_pct == 50:
+                            skip_reason = f"Derivatives at fallback: {derivatives_pct:.0f}% - No real Funding/OI/L-S data"
+
+                        # 🛡️ FILTER 3: ATR < 0.5% (very low volatility - can't hit profit targets)
+                        atr_percent = indicators_15m.get('atr_percent', 1.0)
+                        if not skip_reason and atr_percent < 0.5:
+                            skip_reason = f"Volatility too low: ATR {atr_percent:.2f}% (need 0.5%+) - Price won't move enough"
+
+                        # 🛡️ FILTER 4: ADX > 40 (trend exhaustion - reversal likely)
+                        adx = indicators_15m.get('adx', 25)
+                        if not skip_reason and adx > 40:
+                            skip_reason = f"ADX too high: {adx:.1f} (max 40) - Trend exhausted, reversal likely"
+
+                        # Apply filter - mark as not approved with reason
+                        if skip_reason:
+                            logger.warning(f"🛡️ {symbol} QUALITY FILTER: {skip_reason}")
+                            confluence['approved'] = False
+                            confluence['quality'] = 'FILTERED'
+                            confluence['filter_reason'] = skip_reason
+
                         logger.info(
                             f"🎯 {symbol} Enhanced Confluence: {confluence['score']:.1f}/100 "
                             f"({confluence['quality']}) - {confluence['reasoning']}"
@@ -515,6 +559,20 @@ class MarketScanner:
                 # After ML learning phase, we prioritize high-quality setups
                 min_score = 30.0  # Higher quality bar (was 10.0)
                 min_confidence = float(self.settings.min_ai_confidence)
+
+                # ═══════════════════════════════════════════════════════════════════════
+                # 🛡️ v4.7.10 FILTER 5: Market 80%+ Neutral = Reduce trades
+                # ═══════════════════════════════════════════════════════════════════════
+                # When market is 80%+ neutral, there's no clear trend direction.
+                # In this environment, trend-following strategies struggle.
+                # Solution: Be MORE selective - require higher scores
+                # ═══════════════════════════════════════════════════════════════════════
+                if neutral_pct >= 80:
+                    min_score = 70.0  # Raised from 30 to 70 when market is indecisive
+                    logger.warning(
+                        f"🛡️ MARKET NEUTRAL FILTER: {neutral_pct:.0f}% neutral → "
+                        f"Raising min score to {min_score:.0f} (need stronger setups)"
+                    )
 
                 # 🧠 ML PATTERN QUALITY FILTER: Check if trade patterns have good historical WR
                 from src.ml_pattern_learner import get_ml_learner

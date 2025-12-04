@@ -1,17 +1,19 @@
-# 🔧 PA-ONLY v4.7.9 - CONFLUENCE SCORING FIX
+# 🛡️ PA-ONLY v4.7.10 - QUALITY PROTECTION FILTERS
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251204_V479_CONFLUENCE_FIX
+ARG CACHE_BUST=20251204_V4710_QUALITY_FILTERS
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🔧 v4.7.9: CONFLUENCE SCORING FIX!" && \
-    echo "   🔧 BUG FIX:" && \
-    echo "      ✅ market_scanner.py now calculates ALL enhanced indicators" && \
-    echo "      ✅ Passes enhanced_data, advanced_data, institutional_data" && \
-    echo "      ✅ Passes derivatives_data, technical_advanced_data, harmonic_data" && \
-    echo "      ✅ Categories no longer fallback to 60% defaults" && \
-    echo "   🛡️ Previous fixes:" && \
+    echo "🛡️ v4.7.10: QUALITY PROTECTION FILTERS!" && \
+    echo "   🛡️ NEW FILTERS (5 protection layers):" && \
+    echo "      ✅ FILTER 1: Technical Advanced < 40% → Skip trade" && \
+    echo "      ✅ FILTER 2: Derivatives = 50% (fallback) → Skip trade" && \
+    echo "      ✅ FILTER 3: ATR < 0.5% (low volatility) → Skip trade" && \
+    echo "      ✅ FILTER 4: ADX > 40 (trend exhaustion) → Skip trade" && \
+    echo "      ✅ FILTER 5: Market 80%+ Neutral → Raise min_score to 70" && \
+    echo "   📊 Previous fixes:" && \
+    echo "      ✅ v4.7.9: Confluence scoring fix" && \
     echo "      ✅ v4.7.8: Protection filters" && \
     echo "   - Instant Trading still DISABLED"
 
@@ -33,16 +35,17 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔧 CACHE BUST MARKER: PA-ONLY v4.7.9
-# Current deployment: 20251204_V479_CONFLUENCE_FIX
-# Changes: Fixed confluence scoring in market_scanner.py
-#   🔧 v4.7.9 CONFLUENCE SCORING FIX:
-#      ✅ BUG: score_opportunity() was called WITHOUT enhanced indicator params
-#      ✅ RESULT: All categories showed 60% fallback instead of real values
-#      ✅ FIX: Now calculates and passes ALL enhanced indicator parameters
-#      ✅ Categories: enhanced_data, advanced_data, institutional_data (v4.4-v4.6)
-#      ✅ Categories: derivatives_data, technical_advanced_data, harmonic_data (v4.7.0)
-#   🛡️ Previous fixes:
+# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.10
+# Current deployment: 20251204_V4710_QUALITY_FILTERS
+# Changes: Added 5 quality protection filters to prevent bad trades
+#   🛡️ v4.7.10 QUALITY PROTECTION FILTERS:
+#      ✅ FILTER 1: Technical Advanced < 40% → Skip (CVD/Ichimoku/Liquidations warning)
+#      ✅ FILTER 2: Derivatives = 50% (fallback) → Skip (no real Funding/OI/L-S data)
+#      ✅ FILTER 3: ATR < 0.5% → Skip (low volatility, can't hit targets)
+#      ✅ FILTER 4: ADX > 40 → Skip (trend exhaustion, reversal likely)
+#      ✅ FILTER 5: Market 80%+ Neutral → Raise min_score to 70
+#   📊 Previous fixes:
+#      ✅ v4.7.9: Confluence scoring fix (all 13 categories now real values)
 #      ✅ v4.7.8: Three protection filters
 #      ✅ v4.7.7: Order book methods
 COPY . .
