@@ -3773,6 +3773,43 @@ class PriceActionAnalyzer:
                 return result
 
             # ═══════════════════════════════════════════════════════════════
+            # STEP 5.5: RSI DIRECTION FILTER (v5.0.5)
+            # ═══════════════════════════════════════════════════════════════
+            # Prevent entering against extreme RSI (counter-trend danger)
+            #
+            # Logic:
+            # - RSI < 30 (oversold) = Price likely to BOUNCE UP → Don't SHORT!
+            # - RSI > 70 (overbought) = Price likely to DROP DOWN → Don't LONG!
+            #
+            # This prevents trades like APT SHORT at RSI 19 (which lost money)
+            # ═══════════════════════════════════════════════════════════════
+            rsi_value = rsi_conf.get('value', 50)
+
+            if entry_side == 'SHORT' and rsi_value < 30:
+                result['reason'] = f"❌ BLOCK: RSI {rsi_value:.0f} is OVERSOLD - Don't SHORT when price may bounce UP!"
+                logger.warning(f"   🛡️ RSI DIRECTION FILTER: {result['reason']}")
+                result['analysis'] = {
+                    'support_resistance': sr_analysis,
+                    'level_at': best_level.to_dict(),
+                    'entry_side': entry_side,
+                    'confirmations': confirmations,
+                    'rsi_filter': 'oversold_block_short'
+                }
+                return result
+
+            if entry_side == 'LONG' and rsi_value > 70:
+                result['reason'] = f"❌ BLOCK: RSI {rsi_value:.0f} is OVERBOUGHT - Don't LONG when price may drop DOWN!"
+                logger.warning(f"   🛡️ RSI DIRECTION FILTER: {result['reason']}")
+                result['analysis'] = {
+                    'support_resistance': sr_analysis,
+                    'level_at': best_level.to_dict(),
+                    'entry_side': entry_side,
+                    'confirmations': confirmations,
+                    'rsi_filter': 'overbought_block_long'
+                }
+                return result
+
+            # ═══════════════════════════════════════════════════════════════
             # STEP 6: ALL CONFIRMED - Calculate Entry Parameters
             # ═══════════════════════════════════════════════════════════════
             logger.info(f"   ✅ ALL CONFIRMATIONS PASSED!")

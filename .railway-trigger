@@ -1,25 +1,31 @@
-# Force redeploy v5.0.4b - Quality Filter Fix - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Technical Advanced filter was blocking ALL trades!
+# Force redeploy v5.0.5 - RSI Direction Filter - 5 Dec 2025 Thu
+# 🛡️ CRITICAL FIX: Prevent counter-trend entries!
 #
-# 🎯 v5.0.4b FEATURES:
-#   ✅ 2-of-3 confirmation rule (was: ALL 3 required)
-#   ✅ RSI relaxed: 35/65 (was: 30/70 too strict)
-#   ✅ Technical Advanced filter: 10% (was: 40%)
-#   ✅ CVD/Ichimoku/Liquidations now optional
-#   ✅ Price Action based system prioritized
+# 🎯 v5.0.5 FEATURES:
+#   ✅ RSI Direction Filter added
+#   ✅ RSI < 30 (oversold) → Block SHORT
+#   ✅ RSI > 70 (overbought) → Block LONG
+#   ✅ Prevents APT-like losses (SHORT at RSI 19)
 #
 # 🛡️ WHAT HAPPENED:
-#   ❌ v5.0.4: OP/USDT found as valid trade!
-#      • 2-of-3 confirmation PASSED
-#      • Confluence score: 74/100 (good)
-#      • BUT blocked by: Technical Advanced 20% < 40%
+#   ❌ APT/USDT SHORT at RSI 19
+#      • RSI 19 = OVERSOLD = Price likely to bounce UP
+#      • Entering SHORT = Going AGAINST momentum
+#      • Result: Loss
 #
-#   ✅ v5.0.4b: Relaxed Technical Advanced filter
-#      • Only filter if < 10% (complete zeros)
-#      • CVD/Ichimoku/Liquidations are nice-to-have
-#      • Main Price Action signals are priority
+#   ✅ v5.0.5: RSI Direction Filter
+#      • RSI < 30 → Block SHORT (don't short oversold)
+#      • RSI > 70 → Block LONG (don't long overbought)
+#      • Trade WITH momentum, not AGAINST it
+#
+# 📊 Logic:
+#   | RSI Zone    | LONG   | SHORT  |
+#   |-------------|--------|--------|
+#   | <30 oversold| ✅ OK  | ❌ BLOCK|
+#   | 30-70 normal| ✅ OK  | ✅ OK  |
+#   | >70 overbought| ❌ BLOCK| ✅ OK |
 #
 # 📊 Previous versions:
+#   - v5.0.4b: Quality Filter Fix
 #   - v5.0.4: 2-of-3 Confirmation Fix
 #   - v5.0.3: Closed Candle + Stop Hunt Detection
-#   - v5.0.2: Partial TP + Breakeven System

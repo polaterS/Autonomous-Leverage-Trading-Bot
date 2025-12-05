@@ -1,25 +1,24 @@
-# 🎯 LEVEL-BASED TRADING v5.0.4 - 2-of-3 Confirmation Fix
+# 🎯 LEVEL-BASED TRADING v5.0.5 - RSI Direction Filter
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V504B_QUALITY_FILTER_FIX
+ARG CACHE_BUST=20251205_V505_RSI_DIRECTION_FILTER
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.4b: QUALITY FILTER FIX!" && \
-    echo "   🛡️ CRITICAL FIX: Technical Advanced filter was blocking trades!" && \
+    echo "🎯 v5.0.5: RSI DIRECTION FILTER!" && \
+    echo "   🛡️ CRITICAL FIX: Prevent counter-trend entries!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.4b FEATURES:" && \
-    echo "      ✅ 2-of-3 confirmation rule (was: ALL 3 required)" && \
-    echo "      ✅ RSI relaxed: 35/65 (was: 30/70 too strict)" && \
-    echo "      ✅ Technical Advanced filter: 10% (was: 40%)" && \
-    echo "      ✅ CVD/Ichimoku/Liquidations now optional" && \
-    echo "      ✅ Price Action based system prioritized" && \
+    echo "   🆕 v5.0.5 FEATURES:" && \
+    echo "      ✅ RSI Direction Filter added" && \
+    echo "      ✅ RSI < 30 (oversold) → Block SHORT" && \
+    echo "      ✅ RSI > 70 (overbought) → Block LONG" && \
+    echo "      ✅ Prevents APT-like losses (SHORT at RSI 19)" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   🛡️ WHY THIS MATTERS:" && \
-    echo "      ❌ v5.0.4: OP/USDT blocked by Tech Advanced 20% < 40%" && \
-    echo "      ✅ v5.0.4b: Only filter if Tech Advanced < 10%" && \
-    echo "      🎯 Bot will now actually open trades" && \
-    echo "      📈 Still high quality - main confluence 60+ required"
+    echo "      ❌ APT SHORT at RSI 19 = Counter-trend = LOSS" && \
+    echo "      ✅ Now: RSI oversold blocks SHORT entries" && \
+    echo "      ✅ Now: RSI overbought blocks LONG entries" && \
+    echo "      📈 Trade WITH the momentum, not AGAINST it"
 
 # Set working directory
 WORKDIR /app
@@ -39,19 +38,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.4 - 2-of-3 Confirmation Fix
-# Current deployment: 20251205_V504_TWO_OF_THREE_CONFIRMATION
-# Changes: Bot was not opening ANY trades due to ALL 3 confirmation requirement
-#   🛡️ v5.0.4: 2-of-3 Confirmation Fix
-#      ✅ 2-of-3 confirmation rule (was: ALL 3 required - nearly impossible!)
-#      ✅ RSI thresholds relaxed: 35/65 (was: 30/70)
-#      ✅ Any 2 of (Candlestick, Volume, RSI) = ENTRY ALLOWED
-#      ✅ Still high quality - requires 2 confirmations minimum
+# 🎯 CACHE BUST MARKER: v5.0.5 - RSI Direction Filter
+# Current deployment: 20251205_V505_RSI_DIRECTION_FILTER
+# Changes: Prevent counter-trend entries (APT SHORT at RSI 19 = LOSS)
+#   🛡️ v5.0.5: RSI Direction Filter
+#      ✅ RSI < 30 (oversold) → Block SHORT entries
+#      ✅ RSI > 70 (overbought) → Block LONG entries
+#      ✅ Trade WITH momentum, not AGAINST it
 #   📊 Previous versions:
+#      ✅ v5.0.4b: Quality Filter Fix (Tech Advanced 40%→10%)
+#      ✅ v5.0.4: 2-of-3 Confirmation Fix
 #      ✅ v5.0.3: Closed Candle + Stop Hunt Detection
 #      ✅ v5.0.2: Partial TP + Breakeven System
-#      ✅ v5.0.1: /analyze BTC Command
-#      ✅ v5.0.0: Level-Based Trading System (complete redesign)
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
