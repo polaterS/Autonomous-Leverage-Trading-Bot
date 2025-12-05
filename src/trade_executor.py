@@ -123,6 +123,60 @@ class TradeExecutor:
                 f"(moved {float(price_change_pct):+.3f}% from scan - within {float(PRICE_VALIDATION_THRESHOLD):.1f}% threshold)"
             )
 
+            # ====================================================================
+            # 🛡️ v5.0.8: LEVEL PROXIMITY RE-VALIDATION
+            # ====================================================================
+            # PROBLEM: Scan finds signal when price is AT level (%0.5 içinde)
+            #          But by execution time, price may drift AWAY from level!
+            #          Example: BCH scanned at $580 (0.4% from $582.5 resistance)
+            #                   Executed at $578 (0.75% from resistance - TOO FAR!)
+            #
+            # SOLUTION: Re-check S/R level proximity BEFORE execution
+            #           If price moved away from level beyond threshold → SKIP
+            # ====================================================================
+            level_data = trade_params.get('level', {})
+            if level_data and level_data.get('price'):
+                level_price = Decimal(str(level_data['price']))
+                level_type = level_data.get('level_type', 'unknown')
+
+                # Calculate fresh distance to S/R level
+                fresh_distance_pct = abs(fresh_price - level_price) / fresh_price * 100
+
+                # Threshold: 0.5% max distance from S/R level (same as entry threshold)
+                LEVEL_PROXIMITY_THRESHOLD = Decimal("0.5")
+
+                if fresh_distance_pct > LEVEL_PROXIMITY_THRESHOLD:
+                    # Price drifted away from level → Setup no longer valid!
+                    logger.error(
+                        f"❌ LEVEL PROXIMITY RE-VALIDATION FAILED: {symbol} {side}\n"
+                        f"   S/R Level:      ${float(level_price):.4f} ({level_type})\n"
+                        f"   Fresh price:    ${float(fresh_price):.4f}\n"
+                        f"   Distance:       {float(fresh_distance_pct):.2f}%\n"
+                        f"   Threshold:      {float(LEVEL_PROXIMITY_THRESHOLD):.1f}%\n"
+                        f"   ❌ Price drifted away from {level_type} - SKIPPING trade"
+                    )
+
+                    # Send Telegram notification
+                    notifier = get_notifier()
+                    await notifier.send_alert(
+                        'warning',
+                        f"⚠️ <b>Trade Skipped - Price Drifted!</b>\n\n"
+                        f"💎 {symbol} {side}\n"
+                        f"Level: ${float(level_price):.4f} ({level_type})\n"
+                        f"Price: ${float(fresh_price):.4f}\n"
+                        f"Distance: <b>{float(fresh_distance_pct):.2f}%</b> (>{float(LEVEL_PROXIMITY_THRESHOLD):.1f}%)\n\n"
+                        f"🛡️ v5.0.8: Price drifted from level.\n"
+                        f"Waiting for price to return to level..."
+                    )
+
+                    return False
+
+                logger.info(
+                    f"✅ LEVEL PROXIMITY VALIDATED: ${float(fresh_price):.4f} is "
+                    f"{float(fresh_distance_pct):.2f}% from {level_type} ${float(level_price):.4f} "
+                    f"(within {float(LEVEL_PROXIMITY_THRESHOLD):.1f}% threshold)"
+                )
+
         except Exception as price_validation_error:
             logger.error(f"❌ Fresh price validation failed: {price_validation_error}")
             # Don't block trade on technical error, use original price

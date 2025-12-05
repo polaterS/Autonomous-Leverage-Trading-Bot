@@ -1,27 +1,26 @@
-# Force redeploy v5.0.7 - Level Side Check Fix - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Check correct side of S/R level before entry!
+# Force redeploy v5.0.8 - Level Proximity Re-Validation - 5 Dec 2025 Thu
+# 🛡️ CRITICAL FIX: Re-check S/R level proximity BEFORE execution!
 #
-# 🎯 v5.0.7 FEATURES:
-#   ✅ Level side validation added
-#   ✅ Resistance: Price must be AT or BELOW (not above)
-#   ✅ Support: Price must be AT or ABOVE (not below)
-#   ✅ Fixed confirmation display (correct ✓/✗ marks)
+# 🎯 v5.0.8 FEATURES:
+#   ✅ Level proximity re-validation at execution time
+#   ✅ Prevents trade when price drifts away from S/R level
+#   ✅ 0.5% threshold enforced at BOTH scan AND execution
+#   ✅ Telegram notification when trade skipped due to drift
 #
 # 🐛 BUG FIXED:
-#   ❌ BCH SHORT at $578.68 when resistance was $576.61
-#      • Price was ABOVE resistance = resistance BROKEN
-#      • Should NOT short at a broken resistance!
+#   ❌ BCH SHORT at $578.17 when resistance was $582.52
+#      • Scan found signal at $580 (0.4% from resistance) → VALID
+#      • By execution, price drifted to $578.17 (0.75%) → INVALID
+#      • OLD: Only checked if price moved >1% from scan → PASSED
+#      • NEW: Also check if still within 0.5% of S/R level!
 #
 #   ✅ NEW LOGIC:
-#      • For Resistance: current_price <= resistance * 1.001
-#      • For Support: current_price >= support * 0.999
-#      • If price is on wrong side → level is BROKEN → skip!
-#
-# 🔧 Also Fixed:
-#   ❌ OLD: "Conf: Candle ✓ Vol 1.8x ✓ RSI 36 ✓" (all show ✓)
-#   ✅ NEW: "Conf: Candle ✓ Vol 1.8x ✓ RSI 36 ✗" (correct marks)
+#      • Fresh price validation (1% threshold) - existing
+#      • Level proximity re-validation (0.5% threshold) - NEW!
+#      • If price drifted from level → SKIP trade
 #
 # 📊 Previous versions:
+#   - v5.0.7: Level Side Check Fix
 #   - v5.0.6: Skip Balance Check
 #   - v5.0.5: RSI Direction Filter
 #   - v5.0.4b: Quality Filter Fix
