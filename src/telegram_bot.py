@@ -2032,19 +2032,34 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                     return "❌ KÖTÜ - İŞLEM YAPMA", False
 
             # Calculate trade scenarios
+            # 🔧 FIX: Use TARGET 2 for R:R calculation (main profit target)
+            # Target 1 = partial take profit, Target 2 = main target
+
             # LONG scenario (at support)
             long_entry = all_supports[0].get('price', 0) if all_supports else 0
             long_stop = long_entry * 0.995 if long_entry else 0  # 0.5% below support
             long_target1 = all_resistances[0].get('price', 0) if all_resistances else 0
             long_target2 = all_resistances[1].get('price', 0) if len(all_resistances) > 1 else 0
-            long_rr = ((long_target1 - long_entry) / (long_entry - long_stop)) if long_entry and long_stop and long_target1 and (long_entry - long_stop) > 0 else 0
+
+            # Calculate R:R for both targets
+            long_risk = (long_entry - long_stop) if long_entry and long_stop else 0
+            long_rr1 = ((long_target1 - long_entry) / long_risk) if long_risk > 0 and long_target1 else 0
+            long_rr2 = ((long_target2 - long_entry) / long_risk) if long_risk > 0 and long_target2 else 0
+            # 🎯 Use Target 2 R:R as MAIN decision metric (or Target 1 if no Target 2)
+            long_rr = long_rr2 if long_rr2 > 0 else long_rr1
 
             # SHORT scenario (at resistance)
             short_entry = all_resistances[0].get('price', 0) if all_resistances else 0
             short_stop = short_entry * 1.005 if short_entry else 0  # 0.5% above resistance
             short_target1 = all_supports[0].get('price', 0) if all_supports else 0
             short_target2 = all_supports[1].get('price', 0) if len(all_supports) > 1 else 0
-            short_rr = ((short_entry - short_target1) / (short_stop - short_entry)) if short_entry and short_stop and short_target1 and (short_stop - short_entry) > 0 else 0
+
+            # Calculate R:R for both targets
+            short_risk = (short_stop - short_entry) if short_entry and short_stop else 0
+            short_rr1 = ((short_entry - short_target1) / short_risk) if short_risk > 0 and short_target1 else 0
+            short_rr2 = ((short_entry - short_target2) / short_risk) if short_risk > 0 and short_target2 else 0
+            # 🎯 Use Target 2 R:R as MAIN decision metric (or Target 1 if no Target 2)
+            short_rr = short_rr2 if short_rr2 > 0 else short_rr1
 
             # Build message parts for Telegram
             message = f"""
@@ -2082,10 +2097,10 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 <b>📈 LONG SENARYO</b> (Support'ta al):
   Entry: <code>${long_entry:,.2f}</code>
   Stop Loss: <code>${long_stop:,.2f}</code> (-0.5%)
-  Target 1: <code>${long_target1:,.2f}</code> (+{((long_target1-long_entry)/long_entry*100):.1f}%)"""
+  Target 1: <code>${long_target1:,.2f}</code> (+{((long_target1-long_entry)/long_entry*100):.1f}%) R:R={long_rr1:.1f}:1"""
                 if long_target2 > 0:
-                    message += f"\n  Target 2: <code>${long_target2:,.2f}</code> (+{((long_target2-long_entry)/long_entry*100):.1f}%)"
-                message += f"\n  R:R Oranı: <b>{long_rr:.1f}:1</b> {long_rr_quality}"
+                    message += f"\n  <b>Target 2: <code>${long_target2:,.2f}</code></b> (+{((long_target2-long_entry)/long_entry*100):.1f}%) <b>R:R={long_rr2:.1f}:1</b> ← ANA HEDEF"
+                message += f"\n\n  📊 <b>R:R (Target 2): {long_rr:.1f}:1</b> {long_rr_quality}"
                 if not long_rr_ok:
                     message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
                 message += f"""
@@ -2094,7 +2109,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
   □ RSI ≤30 (oversold) - Şimdi: {rsi_value:.0f}
   □ Volume ≥1.5x spike - Şimdi: {vol_ratio:.1f}x
   □ Bullish candle pattern (hammer, engulfing, pin bar)
-  □ R:R ≥1.5 - Şimdi: {long_rr:.1f}
+  □ R:R ≥1.5 (T2 bazlı) - Şimdi: {long_rr:.1f}
 """
 
             # Add SHORT scenario
@@ -2105,10 +2120,10 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 <b>📉 SHORT SENARYO</b> (Resistance'ta sat):
   Entry: <code>${short_entry:,.2f}</code>
   Stop Loss: <code>${short_stop:,.2f}</code> (+0.5%)
-  Target 1: <code>${short_target1:,.2f}</code> (-{((short_entry-short_target1)/short_entry*100):.1f}%)"""
+  Target 1: <code>${short_target1:,.2f}</code> (-{((short_entry-short_target1)/short_entry*100):.1f}%) R:R={short_rr1:.1f}:1"""
                 if short_target2 > 0:
-                    message += f"\n  Target 2: <code>${short_target2:,.2f}</code> (-{((short_entry-short_target2)/short_entry*100):.1f}%)"
-                message += f"\n  R:R Oranı: <b>{short_rr:.1f}:1</b> {short_rr_quality}"
+                    message += f"\n  <b>Target 2: <code>${short_target2:,.2f}</code></b> (-{((short_entry-short_target2)/short_entry*100):.1f}%) <b>R:R={short_rr2:.1f}:1</b> ← ANA HEDEF"
+                message += f"\n\n  📊 <b>R:R (Target 2): {short_rr:.1f}:1</b> {short_rr_quality}"
                 if not short_rr_ok:
                     message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
                 message += f"""
@@ -2117,7 +2132,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
   □ RSI ≥70 (overbought) - Şimdi: {rsi_value:.0f}
   □ Volume ≥1.5x spike - Şimdi: {vol_ratio:.1f}x
   □ Bearish candle pattern (shooting star, engulfing)
-  □ R:R ≥1.5 - Şimdi: {short_rr:.1f}
+  □ R:R ≥1.5 (T2 bazlı) - Şimdi: {short_rr:.1f}
 """
 
             # Final decision with R:R check
