@@ -23,11 +23,17 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
     Returns:
         Dict with all calculated indicators
     """
-    if not ohlcv_data or len(ohlcv_data) < 20:
-        return get_default_indicators()
-
-    # Convert to DataFrame
-    df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    # Handle both list and DataFrame input
+    if isinstance(ohlcv_data, pd.DataFrame):
+        df = ohlcv_data.copy()
+        if df.empty or len(df) < 20:
+            return get_default_indicators()
+    else:
+        # List input
+        if not ohlcv_data or len(ohlcv_data) < 20:
+            return get_default_indicators()
+        # Convert to DataFrame
+        df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
     # Ensure numeric types
     for col in ['open', 'high', 'low', 'close', 'volume']:
