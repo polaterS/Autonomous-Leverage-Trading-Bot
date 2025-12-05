@@ -1,20 +1,24 @@
-# Force redeploy v4.7.12 - DERIVATIVES FILTER REMOVED - 4 Dec 2025 Wed
-# ❌ REMOVED: Derivatives = 50% filter was blocking ALL trades
+# Force redeploy v4.7.13 - ADX FILTER SOURCE FIX - 4 Dec 2025 Wed
+# 🔧 CRITICAL FIX: ADX filter was using wrong data source
 #
-# 🔧 v4.7.12 CHANGE:
-#   ❌ REMOVED: Derivatives = 50% filter
-#      - Problem: Filter was blocking 90%+ of all trades
-#      - Cause: Bybit API doesn't provide Funding/OI/L-S data via OHLCV
-#      - These require separate API endpoints (future enhancement)
-#      - For now, removed this filter to allow trading
+# 🔧 v4.7.13 FIX:
+#   ❌ BUG: ADX filter checked indicators_15m.get('adx', 25)
+#      - indicators_15m often had missing/wrong ADX value
+#      - Defaulted to 25, so ADX > 40 filter never triggered
+#      - JASMY with ADX 41.7 was NOT filtered (should have been!)
+#
+#   ✅ FIX: Now uses analysis['trend']['adx'] from Price Action
+#      - Same ADX value shown in trade message
+#      - JASMY ADX 41.7 > 40 → Will now be FILTERED
+#      - Prevents entering exhausted trends
 #
 # 🛡️ ACTIVE FILTERS (4 protection layers):
 #   ✅ FILTER 1: Technical Advanced < 40% → Skip trade
 #   ✅ FILTER 2: ATR < 0.3% → Skip trade (low volatility)
-#   ✅ FILTER 3: ADX > 40 → Skip trade (trend exhaustion)
+#   ✅ FILTER 3: ADX > 40 (from Price Action) → Skip trade
 #   ✅ FILTER 4: Market 80%+ Neutral → Raise min_score to 70
 #
 # 📊 Previous versions:
+#   - v4.7.12: Derivatives filter removed
 #   - v4.7.11: Filter reason display fix
-#   - v4.7.10: Quality protection filters
 # Instant trading still DISABLED - main loop handles all entries

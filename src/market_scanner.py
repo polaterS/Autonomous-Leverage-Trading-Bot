@@ -369,7 +369,10 @@ class MarketScanner:
                             skip_reason = f"Volatility too low: ATR {atr_percent:.2f}% (need 0.3%+) - Price won't move enough"
 
                         # 🛡️ FILTER 3: ADX > 40 (trend exhaustion - reversal likely)
-                        adx = indicators_15m.get('adx', 25)
+                        # v4.7.13 FIX: Use ADX from Price Action analysis (same as shown in trade)
+                        # Was using indicators_15m which had different/missing ADX value
+                        trend_data = analysis.get('trend', {})
+                        adx = trend_data.get('adx', 25) if isinstance(trend_data, dict) else 25
                         if not skip_reason and adx > 40:
                             skip_reason = f"ADX too high: {adx:.1f} (max 40) - Trend exhausted, reversal likely"
 
