@@ -197,6 +197,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /ws - 🌐 WebSocket feed istatistikleri (API kullanımı)
 /sync - 🔄 Binance ↔ Database pozisyon senkronizasyonu (orphaned position fix)
 /analyze - 📊 Trade history analizi (PNL, win rate, rapid trades)
+/analyze BTC - 🎯 Level-Based S/R analizi (v5.0 - support/resistance, volume, RSI)
 
 <b>Nasıl Çalışır?</b>
 
@@ -1661,11 +1662,20 @@ WebSocket + Cache = ~85% daha az API çağrısı
 
     async def cmd_analyze_trades(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
-        Handle /analyze command - Analyze trade history from Binance.
+        Handle /analyze command - Analyze trade history OR symbol S/R levels.
 
-        Shows realized PNL, rapid trades, win rate, and identifies issues.
+        Usage:
+        - /analyze → Trade history analysis (PNL, win rate, rapid trades)
+        - /analyze BTC → Level-Based Trading System analysis for BTC/USDT
         """
         try:
+            # Check if symbol argument provided
+            if context.args and len(context.args) >= 1:
+                symbol_input = context.args[0].upper()
+                await self.analyze_symbol_levels(update, symbol_input)
+                return
+
+            # No arguments - show trade history analysis
             await update.message.reply_text("📊 <b>Trade history analiz ediliyor...</b>", parse_mode=ParseMode.HTML)
 
             from src.exchange_client import get_exchange_client
@@ -1779,6 +1789,231 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 
         except Exception as e:
             logger.error(f"Error in /analyze command: {e}")
+            await update.message.reply_text(
+                f"❌ <b>ANALİZ HATASI</b>\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def analyze_symbol_levels(self, update: Update, symbol_input: str):
+        """
+        🎯 Level-Based Trading System v5.0 Analysis
+
+        Shows comprehensive S/R analysis including:
+        - Support/Resistance levels from 5 timeframes
+        - Trend lines (ascending/descending)
+        - Volume status and spike detection
+        - RSI value and zone
+        - Candlestick patterns
+        - Entry confirmation status
+        """
+        from src.exchange_client import get_exchange_client
+        from src.price_action_analyzer import PriceActionAnalyzer
+        from src.indicators import calculate_indicators
+
+        await update.message.reply_text(
+            f"🎯 <b>{symbol_input} Level-Based Analiz yapılıyor...</b>",
+            parse_mode=ParseMode.HTML
+        )
+
+        try:
+            # Format symbol
+            if '/' not in symbol_input:
+                symbol = f"{symbol_input}/USDT:USDT"
+            else:
+                symbol = symbol_input
+
+            exchange = await get_exchange_client()
+            pa = PriceActionAnalyzer()
+
+            # Fetch 15m OHLCV data
+            ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='15m', limit=100)
+            if not ohlcv or len(ohlcv) < 50:
+                await update.message.reply_text(
+                    f"❌ {symbol} için yeterli veri bulunamadı.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            import pandas as pd
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+            current_price = df['close'].iloc[-1]
+
+            # Calculate indicators
+            indicators = calculate_indicators(df)
+
+            # Get multi-timeframe S/R analysis
+            sr_analysis = await pa.analyze_multi_timeframe_sr(
+                symbol=symbol,
+                current_price=current_price,
+                exchange=exchange,
+                df_15m=df
+            )
+
+            # Detect trend lines
+            trend_lines = pa.detect_trend_lines(df, min_touches=2)
+            ascending_lines = trend_lines.get('ascending', [])
+            descending_lines = trend_lines.get('descending', [])
+
+            # Get all supports and resistances
+            all_supports = sr_analysis.get('all_supports', [])
+            all_resistances = sr_analysis.get('all_resistances', [])
+
+            # Add trend line levels
+            for tl in ascending_lines:
+                tl.update_current_price(len(df) - 1)
+                tl_level = tl.to_sr_level(current_price)
+                all_supports.append(tl_level.to_dict())
+
+            for tl in descending_lines:
+                tl.update_current_price(len(df) - 1)
+                tl_level = tl.to_sr_level(current_price)
+                all_resistances.append(tl_level.to_dict())
+
+            # Sort by distance to current price
+            for s in all_supports:
+                s['distance_pct'] = abs(s.get('price', 0) - current_price) / current_price * 100
+            for r in all_resistances:
+                r['distance_pct'] = abs(r.get('price', 0) - current_price) / current_price * 100
+
+            all_supports.sort(key=lambda x: x.get('distance_pct', 999))
+            all_resistances.sort(key=lambda x: x.get('distance_pct', 999))
+
+            # Check confirmations for both directions
+            long_conf = pa.entry_confirmation.check_all_confirmations(df, 'LONG', indicators)
+            short_conf = pa.entry_confirmation.check_all_confirmations(df, 'SHORT', indicators)
+
+            # Get volume and RSI info
+            volume_conf = long_conf['confirmations'].get('volume', {})
+            rsi_conf = long_conf['confirmations'].get('rsi', {})
+            candle_long = long_conf['confirmations'].get('candlestick', {})
+            candle_short = short_conf['confirmations'].get('candlestick', {})
+
+            # Build comprehensive message
+            proximity_threshold = 0.5  # 0.5%
+
+            # Check if at any level
+            at_support = any(s.get('distance_pct', 999) <= proximity_threshold for s in all_supports)
+            at_resistance = any(r.get('distance_pct', 999) <= proximity_threshold for r in all_resistances)
+
+            # Volume emoji
+            vol_ratio = volume_conf.get('ratio', 0)
+            vol_emoji = "🔥" if vol_ratio >= 1.5 else "📊"
+            vol_status = "SPIKE!" if vol_ratio >= 1.5 else "Normal"
+
+            # RSI emoji and zone
+            rsi_value = rsi_conf.get('value', 50)
+            rsi_zone = rsi_conf.get('zone', 'neutral')
+            if rsi_zone == 'oversold':
+                rsi_emoji = "🟢"
+            elif rsi_zone == 'overbought':
+                rsi_emoji = "🔴"
+            else:
+                rsi_emoji = "⚪"
+
+            # Entry status
+            if at_support:
+                entry_status = "🟢 SUPPORT SEVİYESİNDE!"
+                entry_direction = "LONG için hazır"
+                conf_check = long_conf
+            elif at_resistance:
+                entry_status = "🔴 RESISTANCE SEVİYESİNDE!"
+                entry_direction = "SHORT için hazır"
+                conf_check = short_conf
+            else:
+                entry_status = "⚪ Seviyeler arası (mid-range)"
+                entry_direction = "Seviye bekle"
+                conf_check = long_conf
+
+            # Format supports (top 5)
+            support_lines = ""
+            for i, s in enumerate(all_supports[:5]):
+                price = s.get('price', 0)
+                dist = s.get('distance_pct', 0)
+                tf = s.get('timeframe', '?')
+                source = s.get('source', 'swing')[:6]
+                at_marker = " ← BURADA!" if dist <= proximity_threshold else ""
+                support_lines += f"  {i+1}. ${price:,.2f} ({tf}, {source}) -{dist:.2f}%{at_marker}\n"
+
+            # Format resistances (top 5)
+            resistance_lines = ""
+            for i, r in enumerate(all_resistances[:5]):
+                price = r.get('price', 0)
+                dist = r.get('distance_pct', 0)
+                tf = r.get('timeframe', '?')
+                source = r.get('source', 'swing')[:6]
+                at_marker = " ← BURADA!" if dist <= proximity_threshold else ""
+                resistance_lines += f"  {i+1}. ${price:,.2f} ({tf}, {source}) +{dist:.2f}%{at_marker}\n"
+
+            # Confirmation checkboxes
+            candle_ok = conf_check['confirmations'].get('candlestick', {}).get('confirmed', False)
+            volume_ok = conf_check['confirmations'].get('volume', {}).get('confirmed', False)
+            rsi_ok = conf_check['confirmations'].get('rsi', {}).get('confirmed', False)
+
+            candle_box = "✅" if candle_ok else "❌"
+            volume_box = "✅" if volume_ok else "❌"
+            rsi_box = "✅" if rsi_ok else "❌"
+
+            all_confirmed = candle_ok and volume_ok and rsi_ok
+
+            # Candlestick patterns found
+            patterns_long = candle_long.get('patterns', [])
+            patterns_short = candle_short.get('patterns', [])
+            patterns_str = ', '.join(patterns_long + patterns_short) if (patterns_long or patterns_short) else "Yok"
+
+            # Build message parts for Telegram
+            message = f"""
+🎯 <b>LEVEL-BASED ANALİZ v5.0</b>
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+<b>📊 {symbol.split('/')[0]}</b> @ <code>${current_price:,.2f}</code>
+
+<b>📍 POZİSYON DURUMU:</b>
+{entry_status}
+{entry_direction}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<b>🟢 SUPPORT SEVİYELERİ</b> (aşağıda):
+{support_lines if support_lines else "  Bulunamadı"}
+<b>🔴 RESISTANCE SEVİYELERİ</b> (yukarıda):
+{resistance_lines if resistance_lines else "  Bulunamadı"}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<b>📈 TREND ÇİZGİLERİ:</b>
+  ↗️ Ascending (Support): {len(ascending_lines)} adet
+  ↘️ Descending (Resist): {len(descending_lines)} adet
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<b>🔍 TEYİT DURUMU</b> (hepsi ✅ olmalı):
+{candle_box} Candlestick Pattern: {patterns_str}
+{volume_box} Volume: {vol_emoji} {vol_ratio:.1f}x ({vol_status})
+{rsi_box} RSI: {rsi_emoji} {rsi_value:.0f} ({rsi_zone})
+
+<b>🎯 GİRİŞ KARARI:</b>
+"""
+            if at_support or at_resistance:
+                if all_confirmed:
+                    message += f"✅ <b>TÜM TEYİTLER TAMAM - GİRİŞ YAPILABİLİR!</b>"
+                else:
+                    missing = conf_check.get('missing', [])
+                    message += f"⏳ Eksik teyitler: {', '.join(missing)}"
+            else:
+                nearest = min(
+                    all_supports[:1] + all_resistances[:1],
+                    key=lambda x: x.get('distance_pct', 999),
+                    default=None
+                )
+                if nearest:
+                    message += f"⏳ En yakın seviye: ${nearest.get('price', 0):,.2f} ({nearest.get('distance_pct', 0):.2f}% uzakta)"
+                else:
+                    message += "⏳ Seviye bulunamadı"
+
+            message += f"\n\n⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}"
+
+            await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            logger.error(f"Error in analyze_symbol_levels: {e}", exc_info=True)
             await update.message.reply_text(
                 f"❌ <b>ANALİZ HATASI</b>\n\n{str(e)}",
                 parse_mode=ParseMode.HTML

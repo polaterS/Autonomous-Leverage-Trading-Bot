@@ -1,31 +1,30 @@
-# 🎯 LEVEL-BASED TRADING v5.0.0 - S/R Entry System
+# 🎯 LEVEL-BASED TRADING v5.0.1 - /analyze BTC Command
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V500_LEVEL_BASED_ENTRY
+ARG CACHE_BUST=20251205_V501_ANALYZE_COMMAND
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.0: LEVEL-BASED TRADING SYSTEM!" && \
-    echo "   🆕 MAJOR RELEASE: Complete Entry System Redesign" && \
+    echo "🎯 v5.0.1: /analyze BTC TELEGRAM COMMAND!" && \
+    echo "   📱 NEW: Enhanced Telegram Analysis Command" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🎯 NEW PHILOSOPHY:" && \
-    echo "      ❌ OLD: Chase trades mid-range, use ML signals" && \
-    echo "      ✅ NEW: Wait at S/R levels, require full confirmation" && \
+    echo "   🆕 v5.0.1 FEATURES:" && \
+    echo "      ✅ /analyze BTC - Show S/R levels, volume, RSI" && \
+    echo "      ✅ All 5 timeframe S/R levels displayed" && \
+    echo "      ✅ Trend line count shown" && \
+    echo "      ✅ Volume spike status (1.5x threshold)" && \
+    echo "      ✅ RSI zone (oversold/overbought)" && \
+    echo "      ✅ Candlestick patterns detected" && \
+    echo "      ✅ Entry confirmation checklist" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 NEW FEATURES:" && \
-    echo "      ✅ 5 Timeframes: 15m, 1h, 4h, Daily, Weekly" && \
-    echo "      ✅ Trend Lines: Ascending/Descending detection" && \
-    echo "      ✅ Level Proximity: Only trade within 0.5% of S/R" && \
-    echo "      ✅ Triple Confirmation: Candle + Volume 1.5x + RSI" && \
-    echo "      ✅ Smart Targets: Next S/R levels as targets" && \
-    echo "   ═══════════════════════════════════════════════════" && \
-    echo "   📊 ENTRY FLOW:" && \
-    echo "      1. Scan 5 timeframes for S/R levels" && \
-    echo "      2. Detect trend lines as dynamic S/R" && \
-    echo "      3. Check: Price at level? (0.5% proximity)" && \
-    echo "      4. At Support → LONG, At Resistance → SHORT" && \
-    echo "      5. Require ALL: Candle ✓ Volume ✓ RSI ✓" && \
-    echo "      6. If ALL pass → ENTER with tight stop"
+    echo "   📊 ANALYZE COMMAND SHOWS:" && \
+    echo "      • Top 5 Support levels (distance %)" && \
+    echo "      • Top 5 Resistance levels (distance %)" && \
+    echo "      • Trend lines (ascending/descending)" && \
+    echo "      • Volume: Current vs 1.5x threshold" && \
+    echo "      • RSI: Value and zone" && \
+    echo "      • Entry status: At level or waiting" && \
+    echo "      • Confirmation checklist: ✅/❌"
 
 # Set working directory
 WORKDIR /app
@@ -45,20 +44,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: LEVEL-BASED v5.0.0
-# Current deployment: 20251205_V500_LEVEL_BASED_ENTRY
-# Changes: Complete entry system redesign - Level-Based Trading
-#   🎯 v5.0.0 MAJOR RELEASE:
-#      ❌ OLD: Chase mid-range prices with ML signals
-#      ✅ NEW: Wait at S/R levels with triple confirmation
-#   🆕 NEW FEATURES:
-#      ✅ 5 Timeframes: 15m, 1h, 4h, Daily, Weekly
-#      ✅ Trend Line Detection: Ascending/Descending support/resistance
-#      ✅ Level Proximity: 0.5% threshold - only trade at levels
-#      ✅ Triple Confirmation: Candlestick + Volume 1.5x + RSI extreme
-#      ✅ Smart Stop Loss: Beyond the S/R level
-#      ✅ Smart Targets: Next S/R levels as profit targets
+# 🎯 CACHE BUST MARKER: v5.0.1 - /analyze BTC Command
+# Current deployment: 20251205_V501_ANALYZE_COMMAND
+# Changes: Enhanced /analyze Telegram command for Level-Based System
+#   📱 v5.0.1: /analyze BTC Command
+#      ✅ /analyze BTC - Show all S/R levels from 5 timeframes
+#      ✅ Volume spike detection (1.5x threshold)
+#      ✅ RSI zone display (oversold/overbought)
+#      ✅ Candlestick pattern detection
+#      ✅ Entry confirmation checklist
+#      ✅ Trend line count display
 #   📊 Previous versions:
+#      ✅ v5.0.0: Level-Based Trading System (complete redesign)
 #      ✅ v4.7.13: ADX filter source fix
 #      ✅ v4.7.12: Derivatives filter removed
 COPY . .

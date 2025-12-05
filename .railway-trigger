@@ -1,42 +1,31 @@
-# Force redeploy v5.0.0 - LEVEL-BASED TRADING SYSTEM - 5 Dec 2025 Thu
-# 🎯 MAJOR RELEASE: Complete Entry System Redesign
+# Force redeploy v5.0.1 - /analyze BTC COMMAND - 5 Dec 2025 Thu
+# 📱 NEW: Enhanced Telegram Analysis Command
 #
-# 🎯 v5.0.0 NEW PHILOSOPHY:
-#   ❌ OLD: Chase mid-range prices, use ML signals
-#   ✅ NEW: Wait at S/R levels, require full confirmation
+# 🎯 v5.0.1 FEATURES:
+#   ✅ /analyze BTC - Show all S/R levels, volume, RSI
+#   ✅ 5 Timeframe S/R levels displayed
+#   ✅ Trend line count shown
+#   ✅ Volume spike status (1.5x threshold)
+#   ✅ RSI zone (oversold/overbought)
+#   ✅ Candlestick patterns detected
+#   ✅ Entry confirmation checklist
 #
-# 🆕 NEW FEATURES:
-#   ✅ 5 Timeframes: 15m, 1h, 4h, Daily, Weekly
-#   ✅ Trend Line Detection: Ascending/Descending lines
-#   ✅ Level Proximity: 0.5% threshold - only trade at levels
-#   ✅ Triple Confirmation System:
-#      - Candlestick pattern (reversal)
-#      - Volume spike (1.5x+ average)
-#      - RSI extreme zone (oversold/overbought)
-#   ✅ Smart Stop Loss: Beyond the S/R level by 0.5%
-#   ✅ Smart Targets: Next S/R levels as profit targets
-#
-# 📊 ENTRY FLOW:
-#   1. Scan 5 timeframes for S/R levels
-#   2. Detect trend lines as dynamic S/R
-#   3. Check: Price at level? (within 0.5%)
-#      - NO → WAIT (don't trade mid-range)
-#      - YES → Continue
-#   4. At Support → LONG signal, At Resistance → SHORT signal
-#   5. Check ALL confirmations:
-#      □ Candlestick pattern ✓
-#      □ Volume 1.5x+ ✓
-#      □ RSI extreme ✓
-#   6. If ALL pass → ENTER with tight stop
+# 📊 ANALYZE COMMAND OUTPUT:
+#   • Top 5 Support levels (with distance %)
+#   • Top 5 Resistance levels (with distance %)
+#   • Trend lines (ascending/descending count)
+#   • Volume: Current ratio vs 1.5x threshold
+#   • RSI: Value and zone status
+#   • Entry status: At level or mid-range
+#   • Confirmation checklist: ✅/❌ for each
 #
 # 🔧 Config Settings:
-#   enable_level_based_trading: True (default)
-#   level_proximity_threshold: 0.5%
+#   proximity_threshold: 0.5%
 #   volume_spike_multiplier: 1.5x
 #   rsi_oversold_threshold: 30
 #   rsi_overbought_threshold: 70
 #
 # 📊 Previous versions:
+#   - v5.0.0: Level-Based Trading System (complete redesign)
 #   - v4.7.13: ADX filter source fix
 #   - v4.7.12: Derivatives filter removed
-#   - v4.7.11: Filter reason display fix
