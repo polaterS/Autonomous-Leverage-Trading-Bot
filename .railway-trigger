@@ -1,31 +1,33 @@
-# Force redeploy v5.0.2 - DataFrame Fix - 5 Dec 2025 Thu
-# 📱 NEW: Enhanced Telegram Analysis Command
+# Force redeploy v5.0.2 - Partial TP + Breakeven - 5 Dec 2025 Thu
+# 💰 NEW: Level-Based Exit Strategy
 #
-# 🎯 v5.0.1 FEATURES:
-#   ✅ /analyze BTC - Show all S/R levels, volume, RSI
-#   ✅ 5 Timeframe S/R levels displayed
-#   ✅ Trend line count shown
-#   ✅ Volume spike status (1.5x threshold)
-#   ✅ RSI zone (oversold/overbought)
-#   ✅ Candlestick patterns detected
-#   ✅ Entry confirmation checklist
+# 🎯 v5.0.2 FEATURES:
+#   ✅ TP1: Close 50% at first S/R level (profit_target_1)
+#   ✅ BREAKEVEN: Move stop-loss to entry price after TP1
+#   ✅ TP2: Close remaining 50% at second S/R level
+#   ✅ Risk-free trading after TP1 hit!
+#   ✅ Binance SL order auto-updated to breakeven
+#   ✅ Database tracks breakeven_active status
+#   ✅ Telegram notifications for each stage
 #
-# 📊 ANALYZE COMMAND OUTPUT:
-#   • Top 5 Support levels (with distance %)
-#   • Top 5 Resistance levels (with distance %)
-#   • Trend lines (ascending/descending count)
-#   • Volume: Current ratio vs 1.5x threshold
-#   • RSI: Value and zone status
-#   • Entry status: At level or mid-range
-#   • Confirmation checklist: ✅/❌ for each
+# 📊 EXECUTION STRATEGY:
+#   1️⃣ Price hits TP1 → Close 50%
+#   2️⃣ Stop moves to Entry (Breakeven)
+#   3️⃣ Trade becomes RISK-FREE!
+#   4️⃣ Price hits TP2 → Close remaining 50%
+#   📈 Maximum profit potential with protected gains
 #
-# 🔧 Config Settings:
-#   proximity_threshold: 0.5%
-#   volume_spike_multiplier: 1.5x
-#   rsi_oversold_threshold: 30
-#   rsi_overbought_threshold: 70
+# 🔧 What happens:
+#   - Position opens with TP1 & TP2 targets
+#   - When price reaches TP1:
+#     • 50% of position closed at profit
+#     • Old stop-loss order cancelled
+#     • New stop-loss placed at entry price
+#     • Trade becomes risk-free!
+#   - When price reaches TP2:
+#     • Remaining 50% closed at full profit
 #
 # 📊 Previous versions:
+#   - v5.0.1: /analyze BTC Command
 #   - v5.0.0: Level-Based Trading System (complete redesign)
 #   - v4.7.13: ADX filter source fix
-#   - v4.7.12: Derivatives filter removed

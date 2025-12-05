@@ -1,30 +1,28 @@
-# 🎯 LEVEL-BASED TRADING v5.0.1 - /analyze BTC Command
+# 🎯 LEVEL-BASED TRADING v5.0.2 - Partial TP + Breakeven
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V501_ANALYZE_COMMAND
+ARG CACHE_BUST=20251205_V502_PARTIAL_TP_BREAKEVEN
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.1: /analyze BTC TELEGRAM COMMAND!" && \
-    echo "   📱 NEW: Enhanced Telegram Analysis Command" && \
+    echo "🎯 v5.0.2: PARTIAL TP + BREAKEVEN SYSTEM!" && \
+    echo "   💰 NEW: Level-Based Exit Strategy" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.1 FEATURES:" && \
-    echo "      ✅ /analyze BTC - Show S/R levels, volume, RSI" && \
-    echo "      ✅ All 5 timeframe S/R levels displayed" && \
-    echo "      ✅ Trend line count shown" && \
-    echo "      ✅ Volume spike status (1.5x threshold)" && \
-    echo "      ✅ RSI zone (oversold/overbought)" && \
-    echo "      ✅ Candlestick patterns detected" && \
-    echo "      ✅ Entry confirmation checklist" && \
+    echo "   🆕 v5.0.2 FEATURES:" && \
+    echo "      ✅ TP1: Close 50% at first S/R level" && \
+    echo "      ✅ BREAKEVEN: Move stop to entry after TP1" && \
+    echo "      ✅ TP2: Close remaining 50% at second S/R" && \
+    echo "      ✅ Risk-free trade after TP1 hit!" && \
+    echo "      ✅ Binance SL order auto-updated to breakeven" && \
+    echo "      ✅ Database tracks breakeven_active status" && \
+    echo "      ✅ Telegram notifications for each stage" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   📊 ANALYZE COMMAND SHOWS:" && \
-    echo "      • Top 5 Support levels (distance %)" && \
-    echo "      • Top 5 Resistance levels (distance %)" && \
-    echo "      • Trend lines (ascending/descending)" && \
-    echo "      • Volume: Current vs 1.5x threshold" && \
-    echo "      • RSI: Value and zone" && \
-    echo "      • Entry status: At level or waiting" && \
-    echo "      • Confirmation checklist: ✅/❌"
+    echo "   📊 EXECUTION STRATEGY:" && \
+    echo "      1️⃣ Price hits TP1 → Close 50%" && \
+    echo "      2️⃣ Stop moves to Entry (Breakeven)" && \
+    echo "      3️⃣ Trade becomes RISK-FREE!" && \
+    echo "      4️⃣ Price hits TP2 → Close remaining 50%" && \
+    echo "      📈 Maximum profit potential with protected gains"
 
 # Set working directory
 WORKDIR /app
@@ -44,20 +42,20 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.1 - /analyze BTC Command
-# Current deployment: 20251205_V501_ANALYZE_COMMAND
-# Changes: Enhanced /analyze Telegram command for Level-Based System
-#   📱 v5.0.1: /analyze BTC Command
-#      ✅ /analyze BTC - Show all S/R levels from 5 timeframes
-#      ✅ Volume spike detection (1.5x threshold)
-#      ✅ RSI zone display (oversold/overbought)
-#      ✅ Candlestick pattern detection
-#      ✅ Entry confirmation checklist
-#      ✅ Trend line count display
+# 🎯 CACHE BUST MARKER: v5.0.2 - Partial TP + Breakeven
+# Current deployment: 20251205_V502_PARTIAL_TP_BREAKEVEN
+# Changes: Level-Based Exit Strategy with Partial TP + Breakeven
+#   💰 v5.0.2: Partial TP + Breakeven System
+#      ✅ TP1: Close 50% at first S/R level (profit_target_1)
+#      ✅ BREAKEVEN: Move stop-loss to entry price after TP1
+#      ✅ TP2: Close remaining 50% at second S/R level
+#      ✅ Risk-free trading after TP1 hit!
+#      ✅ Binance SL order auto-updated to breakeven
+#      ✅ Database tracks breakeven_active status
 #   📊 Previous versions:
+#      ✅ v5.0.1: /analyze BTC Command
 #      ✅ v5.0.0: Level-Based Trading System (complete redesign)
 #      ✅ v4.7.13: ADX filter source fix
-#      ✅ v4.7.12: Derivatives filter removed
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

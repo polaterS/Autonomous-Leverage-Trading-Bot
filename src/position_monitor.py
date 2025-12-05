@@ -374,6 +374,189 @@ class PositionMonitor:
                 return
 
             # ====================================================================
+            # 🎯 LEVEL-BASED PARTIAL TP + BREAKEVEN SYSTEM
+            # ====================================================================
+            # NEW v5.0.2: Level-based exit strategy
+            # - TP1: Close 50% at profit_target_1 (first S/R level)
+            # - BREAKEVEN: Move stop-loss to entry price after TP1 hit
+            # - TP2: Close remaining 50% at profit_target_2 (second S/R level)
+            #
+            # This is SUPERIOR to USD-based partial exits because:
+            # 1. Uses actual S/R levels as targets (market structure)
+            # 2. Breakeven protects profit after TP1 hit (risk-free trade!)
+            # 3. Lets winner run to TP2 without fear of loss
+            # ====================================================================
+            try:
+                profit_target_1 = position.get('profit_target_1')
+                profit_target_2 = position.get('profit_target_2')
+                partial_exit_done = position.get('partial_exit_done', False)
+                breakeven_active = position.get('breakeven_active', False)
+
+                if profit_target_1 and profit_target_2:
+                    profit_target_1 = Decimal(str(profit_target_1))
+                    profit_target_2 = Decimal(str(profit_target_2))
+
+                    # === TP1 CHECK: First partial take-profit (50%) ===
+                    if not partial_exit_done:
+                        tp1_hit = False
+                        if side == 'LONG' and current_price >= profit_target_1:
+                            tp1_hit = True
+                        elif side == 'SHORT' and current_price <= profit_target_1:
+                            tp1_hit = True
+
+                        if tp1_hit:
+                            logger.info(
+                                f"🎯 TP1 HIT! {symbol} reached Target 1: ${float(profit_target_1):.4f}"
+                            )
+
+                            # Close 50% of position
+                            close_success = await executor.close_position_partial(
+                                position,
+                                current_price,
+                                0.50,  # 50% close
+                                f"🎯 TP1 Hit: ${float(profit_target_1):.4f}"
+                            )
+
+                            if close_success:
+                                # 🛡️ UPDATE BINANCE STOP-LOSS ORDER TO BREAKEVEN
+                                # 1. Cancel old stop-loss order
+                                # 2. Create new stop-loss at entry price (breakeven)
+                                try:
+                                    old_sl_order_id = position.get('stop_loss_order_id')
+                                    if old_sl_order_id:
+                                        logger.info(f"🗑️ Cancelling old stop-loss order {old_sl_order_id}...")
+                                        await exchange.cancel_order(old_sl_order_id, symbol)
+                                        logger.info(f"✅ Old stop-loss cancelled")
+
+                                    # Get remaining quantity after partial close
+                                    remaining_position = await db.get_position_by_id(position['id'])
+                                    if remaining_position:
+                                        remaining_qty = Decimal(str(remaining_position['quantity']))
+                                        sl_order_side = 'sell' if side == 'LONG' else 'buy'
+
+                                        # Create new stop-loss at breakeven (entry price)
+                                        logger.info(
+                                            f"🛡️ Creating BREAKEVEN stop-loss @ ${float(entry_price):.4f} "
+                                            f"for {float(remaining_qty):.6f} units..."
+                                        )
+                                        new_sl_order = await exchange.create_stop_loss_order(
+                                            symbol,
+                                            sl_order_side,
+                                            remaining_qty,
+                                            entry_price  # BREAKEVEN = Entry price
+                                        )
+                                        new_sl_order_id = new_sl_order.get('id')
+                                        logger.info(f"✅ Breakeven stop-loss placed: Order ID {new_sl_order_id}")
+
+                                        # Update database with new stop-loss order ID
+                                        async with db.pool.acquire() as conn:
+                                            await conn.execute(
+                                                """
+                                                UPDATE active_position
+                                                SET partial_exit_done = TRUE,
+                                                    breakeven_active = TRUE,
+                                                    stop_loss_price = $1,
+                                                    stop_loss_order_id = $2
+                                                WHERE id = $3
+                                                """,
+                                                entry_price,
+                                                new_sl_order_id,
+                                                position['id']
+                                            )
+                                    else:
+                                        logger.warning("⚠️ Position not found after partial close")
+
+                                except Exception as breakeven_error:
+                                    logger.error(f"❌ Failed to update Binance stop to breakeven: {breakeven_error}")
+                                    # Still update database even if Binance order fails
+                                    async with db.pool.acquire() as conn:
+                                        await conn.execute(
+                                            """
+                                            UPDATE active_position
+                                            SET partial_exit_done = TRUE,
+                                                breakeven_active = TRUE,
+                                                stop_loss_price = entry_price
+                                            WHERE id = $1
+                                            """,
+                                            position['id']
+                                        )
+
+                                # Send breakeven notification
+                                await notifier.send_alert(
+                                    'success',
+                                    f"🎯 <b>TP1 HIT + BREAKEVEN!</b>\n\n"
+                                    f"💎 {symbol} {side}\n"
+                                    f"TP1: ${float(profit_target_1):.4f}\n\n"
+                                    f"✅ <b>%50 pozisyon kapatıldı!</b>\n"
+                                    f"🛡️ <b>Stop → Breakeven'e çekildi!</b>\n"
+                                    f"   Stop: ${float(entry_price):.4f} (Entry)\n\n"
+                                    f"🎯 Sonraki hedef TP2: ${float(profit_target_2):.4f}\n"
+                                    f"💰 Kalan %50 risk-free devam ediyor!"
+                                )
+
+                                logger.info(
+                                    f"✅ TP1 executed: 50% closed, stop moved to breakeven "
+                                    f"(${float(entry_price):.4f})"
+                                )
+
+                                # Reload position data
+                                position = await db.get_position_by_id(position['id'])
+                                if not position:
+                                    return  # Position fully closed
+
+                    # === TP2 CHECK: Final take-profit (remaining 50%) ===
+                    if partial_exit_done:
+                        tp2_hit = False
+                        if side == 'LONG' and current_price >= profit_target_2:
+                            tp2_hit = True
+                        elif side == 'SHORT' and current_price <= profit_target_2:
+                            tp2_hit = True
+
+                        if tp2_hit:
+                            logger.info(
+                                f"🎉 TP2 HIT! {symbol} reached Target 2: ${float(profit_target_2):.4f}"
+                            )
+
+                            # Close remaining position (100% of what's left)
+                            close_reason = (
+                                f"🎉 TP2 Hit: ${float(profit_target_2):.4f} - "
+                                f"Full profit target achieved!"
+                            )
+
+                            await notifier.send_alert(
+                                'success',
+                                f"🎉 <b>TP2 HIT - FULL TARGET!</b>\n\n"
+                                f"💎 {symbol} {side}\n"
+                                f"TP2: ${float(profit_target_2):.4f}\n\n"
+                                f"✅ <b>Kalan %50 kapatıldı!</b>\n"
+                                f"🎉 Tam hedef gerçekleşti!\n\n"
+                                f"📊 Strateji:\n"
+                                f"  TP1: ${float(profit_target_1):.4f} ✅\n"
+                                f"  TP2: ${float(profit_target_2):.4f} ✅"
+                            )
+
+                            await executor.close_position(position, current_price, close_reason)
+                            return
+
+                    # === LOG PROGRESS TOWARDS TARGETS ===
+                    if side == 'LONG':
+                        tp1_distance_pct = ((profit_target_1 - current_price) / current_price) * 100
+                        tp2_distance_pct = ((profit_target_2 - current_price) / current_price) * 100
+                    else:  # SHORT
+                        tp1_distance_pct = ((current_price - profit_target_1) / current_price) * 100
+                        tp2_distance_pct = ((current_price - profit_target_2) / current_price) * 100
+
+                    status = "BREAKEVEN ACTIVE 🛡️" if partial_exit_done else "Watching TP1"
+                    logger.info(
+                        f"🎯 Level Targets: TP1 ${float(profit_target_1):.4f} ({float(tp1_distance_pct):+.2f}%) | "
+                        f"TP2 ${float(profit_target_2):.4f} ({float(tp2_distance_pct):+.2f}%) | "
+                        f"Status: {status}"
+                    )
+
+            except Exception as level_tp_error:
+                logger.warning(f"⚠️ Level-based TP check failed (non-critical): {level_tp_error}")
+
+            # ====================================================================
             # 🛡️ MULTI-LAYER STOP-LOSS CHECKS (Priority: Layer 1 → Layer 3)
             # ====================================================================
 

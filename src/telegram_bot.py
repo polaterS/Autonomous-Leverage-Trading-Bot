@@ -2092,18 +2092,28 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             # Add LONG scenario
             if long_entry > 0 and long_target1 > 0:
                 long_rr_quality, long_rr_ok = get_rr_quality(long_rr)
+                # Calculate potential profits
+                long_tp1_profit_pct = ((long_target1 - long_entry) / long_entry * 100)
+                long_tp2_profit_pct = ((long_target2 - long_entry) / long_entry * 100) if long_target2 else 0
                 message += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>📈 LONG SENARYO</b> (Support'ta al):
   Entry: <code>${long_entry:,.2f}</code>
   Stop Loss: <code>${long_stop:,.2f}</code> (-0.5%)
-  Target 1: <code>${long_target1:,.2f}</code> (+{((long_target1-long_entry)/long_entry*100):.1f}%) R:R={long_rr1:.1f}:1"""
+  Target 1: <code>${long_target1:,.2f}</code> (+{long_tp1_profit_pct:.1f}%) R:R={long_rr1:.1f}:1"""
                 if long_target2 > 0:
-                    message += f"\n  <b>Target 2: <code>${long_target2:,.2f}</code></b> (+{((long_target2-long_entry)/long_entry*100):.1f}%) <b>R:R={long_rr2:.1f}:1</b> ← ANA HEDEF"
+                    message += f"\n  <b>Target 2: <code>${long_target2:,.2f}</code></b> (+{long_tp2_profit_pct:.1f}%) <b>R:R={long_rr2:.1f}:1</b> ← ANA HEDEF"
                 message += f"\n\n  📊 <b>R:R (Target 2): {long_rr:.1f}:1</b> {long_rr_quality}"
                 if not long_rr_ok:
                     message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
+
+                # Add execution strategy
                 message += f"""
+
+<b>📋 EXECUTION PLAN:</b>
+  1️⃣ T1'de %50 kapat → +{long_tp1_profit_pct:.1f}% kar
+  2️⃣ Stop'u Entry'ye çek (Breakeven)
+  3️⃣ T2'de kalan %50 kapat → +{long_tp2_profit_pct:.1f}% kar
 
 <b>🔔 LONG için gerekli teyitler:</b>
   □ RSI ≤30 (oversold) - Şimdi: {rsi_value:.0f}
@@ -2115,18 +2125,28 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             # Add SHORT scenario
             if short_entry > 0 and short_target1 > 0:
                 short_rr_quality, short_rr_ok = get_rr_quality(short_rr)
+                # Calculate potential profits
+                short_tp1_profit_pct = ((short_entry - short_target1) / short_entry * 100)
+                short_tp2_profit_pct = ((short_entry - short_target2) / short_entry * 100) if short_target2 else 0
                 message += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>📉 SHORT SENARYO</b> (Resistance'ta sat):
   Entry: <code>${short_entry:,.2f}</code>
   Stop Loss: <code>${short_stop:,.2f}</code> (+0.5%)
-  Target 1: <code>${short_target1:,.2f}</code> (-{((short_entry-short_target1)/short_entry*100):.1f}%) R:R={short_rr1:.1f}:1"""
+  Target 1: <code>${short_target1:,.2f}</code> (-{short_tp1_profit_pct:.1f}%) R:R={short_rr1:.1f}:1"""
                 if short_target2 > 0:
-                    message += f"\n  <b>Target 2: <code>${short_target2:,.2f}</code></b> (-{((short_entry-short_target2)/short_entry*100):.1f}%) <b>R:R={short_rr2:.1f}:1</b> ← ANA HEDEF"
+                    message += f"\n  <b>Target 2: <code>${short_target2:,.2f}</code></b> (-{short_tp2_profit_pct:.1f}%) <b>R:R={short_rr2:.1f}:1</b> ← ANA HEDEF"
                 message += f"\n\n  📊 <b>R:R (Target 2): {short_rr:.1f}:1</b> {short_rr_quality}"
                 if not short_rr_ok:
                     message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
+
+                # Add execution strategy
                 message += f"""
+
+<b>📋 EXECUTION PLAN:</b>
+  1️⃣ T1'de %50 kapat → +{short_tp1_profit_pct:.1f}% kar
+  2️⃣ Stop'u Entry'ye çek (Breakeven)
+  3️⃣ T2'de kalan %50 kapat → +{short_tp2_profit_pct:.1f}% kar
 
 <b>🔔 SHORT için gerekli teyitler:</b>
   □ RSI ≥70 (overbought) - Şimdi: {rsi_value:.0f}

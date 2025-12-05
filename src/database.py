@@ -155,6 +155,23 @@ class DatabaseClient:
             rows = await conn.fetch("SELECT * FROM active_position ORDER BY entry_time DESC")
             return [dict(row) for row in rows] if rows else []
 
+    async def get_position_by_id(self, position_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific position by ID.
+
+        Args:
+            position_id: Position ID to retrieve
+
+        Returns:
+            Position dict if found, None otherwise
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM active_position WHERE id = $1",
+                position_id
+            )
+            return dict(row) if row else None
+
     async def create_active_position(self, position_data: Dict[str, Any]) -> int:
         """
         Create a new active position (supports multiple concurrent positions).
@@ -214,8 +231,8 @@ class DatabaseClient:
                     min_profit_target_usd, min_profit_price, liquidation_price,
                     exchange_order_id, stop_loss_order_id, ai_model_consensus, ai_confidence, ai_reasoning,
                     entry_snapshot, entry_slippage_percent, entry_fill_time_ms,
-                    profit_target_1, profit_target_2, partial_exit_done, partial_exit_profit
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+                    profit_target_1, profit_target_2, partial_exit_done, partial_exit_profit, breakeven_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
                 RETURNING id
             """,
                 position_data['symbol'],
@@ -241,7 +258,8 @@ class DatabaseClient:
                 position_data.get('profit_target_1'),
                 position_data.get('profit_target_2'),
                 position_data.get('partial_exit_done', False),
-                position_data.get('partial_exit_profit', Decimal("0"))
+                position_data.get('partial_exit_profit', Decimal("0")),
+                position_data.get('breakeven_active', False)
             )
 
         position_id = row['id']
