@@ -1,30 +1,25 @@
-# Force redeploy v5.0.9 - Trendline Price Position Validation - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Validate price position relative to trendline!
+# Force redeploy v5.0.10 - Async Portfolio Updates - 5 Dec 2025 Thu
+# 🔄 Portfolio updates now run in background task!
 #
-# 🎯 v5.0.9 FEATURES:
-#   ✅ Trendline price position validation added
-#   ✅ Ascending line: Price must be AT or ABOVE (not below)
-#   ✅ Descending line: Price must be AT or BELOW (not above)
-#   ✅ Broken trendlines are now skipped
+# 🎯 v5.0.10 FEATURES:
+#   ✅ Portfolio updates run asynchronously (background task)
+#   ✅ 20s interval, independent from main loop
+#   ✅ Updates sent even during market scans
+#   ✅ No more blocking when scan_and_execute() runs
 #
 # 🐛 BUG FIXED:
-#   ❌ BLUR LONG at $0.0353 when ascending trendline was $0.0355
-#      • Price was BELOW the ascending line = support BROKEN!
-#      • Trade logic said "ascending = support = LONG" ALWAYS
-#      • But /analyze correctly showed it as "resistance" (above price)
+#   ❌ OLD: Portfolio update waited for market scan to finish
+#      • Market scan takes 60-120 seconds
+#      • Portfolio update was blocked during this time
+#      • User didn't receive updates during scans
 #
 #   ✅ NEW LOGIC:
-#      • Ascending trendline: current_price >= line_price * 0.999
-#      • Descending trendline: current_price <= line_price * 1.001
-#      • If price on wrong side → trendline BROKEN → skip!
-#
-# 🔧 ROOT CAUSE:
-#   Trade logic classified trendlines by DIRECTION only
-#   /analyze re-classified by PRICE POSITION
-#   Now both use consistent price position validation!
+#      • _portfolio_update_loop() runs as asyncio.create_task()
+#      • Independent from main trading loop
+#      • Sends updates every 20s regardless of scan status
 #
 # 📊 Previous versions:
+#   - v5.0.9: Trendline Price Position Validation
 #   - v5.0.8: Level Proximity Re-Validation
 #   - v5.0.7: Level Side Check Fix
 #   - v5.0.6: Skip Balance Check
-#   - v5.0.5: RSI Direction Filter

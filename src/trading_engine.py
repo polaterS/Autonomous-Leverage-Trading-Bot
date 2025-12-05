@@ -38,6 +38,7 @@ class AutonomousTradingEngine:
         self.last_successful_cycle = None  # Track last successful operation
         self.last_portfolio_update_time = None  # Track last portfolio notification
         self.last_scan_time = None  # Track last market scan time (for 5-minute intervals)
+        self._portfolio_update_task = None  # Background task for async portfolio updates
 
     async def initialize(self):
         """Initialize all components."""
@@ -173,6 +174,41 @@ class AutonomousTradingEngine:
                 logger.error(f"❌ Failed to initialize: {e}")
             raise
 
+    async def _portfolio_update_loop(self):
+        """
+        🔄 ASYNC PORTFOLIO UPDATE TASK
+        Runs independently from the main trading loop.
+        Sends portfolio updates every 20 seconds, even during market scans.
+        """
+        notifier = get_notifier()
+        update_interval = 20  # seconds
+
+        logger.info("📊 Portfolio update background task started (20s interval)")
+
+        while self.is_running:
+            try:
+                # Get active positions
+                db = await get_db_client()
+                positions = await db.get_active_positions()
+
+                if positions:
+                    # Send portfolio update
+                    await notifier.send_multi_position_update(positions)
+                    self.last_portfolio_update_time = datetime.now()
+                    logger.debug(f"📤 Portfolio update sent ({len(positions)} positions)")
+
+                # Wait for next update
+                await asyncio.sleep(update_interval)
+
+            except asyncio.CancelledError:
+                logger.info("📊 Portfolio update task cancelled")
+                break
+            except Exception as e:
+                logger.warning(f"Portfolio update error (non-critical): {e}")
+                await asyncio.sleep(update_interval)
+
+        logger.info("📊 Portfolio update background task stopped")
+
     async def run_forever(self):
         """
         Main infinite loop.
@@ -183,6 +219,9 @@ class AutonomousTradingEngine:
 
         # Send startup notification
         await notifier.send_startup_message()
+
+        # 🔄 Start portfolio update background task (runs independently from main loop)
+        self._portfolio_update_task = asyncio.create_task(self._portfolio_update_loop())
 
         logger.info("=" * 60)
         logger.info("🤖 AUTONOMOUS TRADING ENGINE STARTED")
@@ -230,19 +269,8 @@ class AutonomousTradingEngine:
                     ]
                     await asyncio.gather(*monitor_tasks, return_exceptions=True)
 
-                    # Send consolidated portfolio update every 20 seconds (was 5 minutes)
-                    should_send_portfolio_update = (
-                        self.last_portfolio_update_time is None or
-                        (datetime.now() - self.last_portfolio_update_time).total_seconds() >= 20
-                    )
-
-                    if should_send_portfolio_update:
-                        # Fetch updated positions with latest P&L
-                        updated_positions = await db.get_active_positions()
-                        if updated_positions:
-                            self.last_portfolio_update_time = datetime.now()
-                            await notifier.send_multi_position_update(updated_positions)
-                            logger.info("📤 Sent consolidated portfolio update")
+                    # 📊 Portfolio updates now handled by _portfolio_update_loop() background task
+                    # This runs asynchronously every 20s, even during market scans
 
                 # STEP 2: Check if we can open MORE positions (multi-position strategy)
                 max_positions = self.settings.max_concurrent_positions
@@ -461,6 +489,15 @@ class AutonomousTradingEngine:
         logger.info("Cleaning up...")
 
         try:
+            # Cancel portfolio update background task
+            if self._portfolio_update_task and not self._portfolio_update_task.done():
+                self._portfolio_update_task.cancel()
+                try:
+                    await self._portfolio_update_task
+                except asyncio.CancelledError:
+                    pass
+                logger.info("📊 Portfolio update task cancelled")
+
             # Close exchange connection
             exchange = await get_exchange_client()
             await exchange.close()

@@ -1,23 +1,23 @@
-# 🎯 LEVEL-BASED TRADING v5.0.9 - Trendline Price Position Validation
+# 🎯 LEVEL-BASED TRADING v5.0.10 - Async Portfolio Updates
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V509_TRENDLINE_VALIDATION
+ARG CACHE_BUST=20251205_V5010_ASYNC_PORTFOLIO
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.9: TRENDLINE PRICE POSITION VALIDATION!" && \
-    echo "   🛡️ CRITICAL FIX: Validate price position vs trendline!" && \
+    echo "🎯 v5.0.10: ASYNC PORTFOLIO UPDATES!" && \
+    echo "   🔄 Portfolio updates now run in background task" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.9 FEATURES:" && \
-    echo "      ✅ Trendline price position validation" && \
-    echo "      ✅ Ascending: Price must be AT or ABOVE line" && \
-    echo "      ✅ Descending: Price must be AT or BELOW line" && \
-    echo "      ✅ Broken trendlines now skipped" && \
+    echo "   🆕 v5.0.10 FEATURES:" && \
+    echo "      ✅ Portfolio updates run asynchronously" && \
+    echo "      ✅ 20s interval, independent from main loop" && \
+    echo "      ✅ Updates sent even during market scans" && \
+    echo "      ✅ No more blocking during scan_and_execute()" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🛡️ BUG FIXED:" && \
-    echo "      ❌ OLD: BLUR LONG when price BELOW ascending line" && \
-    echo "      ✅ NEW: Skip broken trendlines, prevent wrong entries" && \
-    echo "      📈 Trade logic now matches /analyze classification"
+    echo "   📊 Previous versions:" && \
+    echo "      ✅ v5.0.9: Trendline Price Position Validation" && \
+    echo "      ✅ v5.0.8: Level Proximity Re-Validation" && \
+    echo "      ✅ v5.0.7: Level Side Check Fix"
 
 # Set working directory
 WORKDIR /app
@@ -37,18 +37,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.9 - Trendline Price Position Validation
-# Current deployment: 20251205_V509_TRENDLINE_VALIDATION
-# Changes: Validate price position relative to trendline before classifying
-#   🛡️ v5.0.9: Trendline Price Position Validation
-#      ✅ Ascending line: Price must be AT or ABOVE (not below)
-#      ✅ Descending line: Price must be AT or BELOW (not above)
-#      ✅ Broken trendlines are now skipped
+# 🎯 CACHE BUST MARKER: v5.0.10 - Async Portfolio Updates
+# Current deployment: 20251205_V5010_ASYNC_PORTFOLIO
+# Changes: Portfolio updates run in background task, independent from main loop
+#   🔄 v5.0.10: Async Portfolio Updates
+#      ✅ Portfolio updates run asynchronously (background task)
+#      ✅ 20s interval, even during market scans
+#      ✅ No more blocking when scan_and_execute() runs
 #   📊 Previous versions:
+#      ✅ v5.0.9: Trendline Price Position Validation
 #      ✅ v5.0.8: Level Proximity Re-Validation
 #      ✅ v5.0.7: Level Side Check Fix
 #      ✅ v5.0.6: Skip Balance Check
-#      ✅ v5.0.5: RSI Direction Filter
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
