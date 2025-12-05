@@ -1923,11 +1923,19 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             candle_short = short_conf['confirmations'].get('candlestick', {})
 
             # Build comprehensive message
-            proximity_threshold = 0.5  # 0.5%
+            # 🔧 FIX: Tighter proximity thresholds
+            AT_LEVEL_THRESHOLD = 0.15  # 0.15% = "BURADA!" (very close)
+            APPROACHING_THRESHOLD = 0.5  # 0.5% = "YAKLAŞIYOR" (watching)
 
-            # Check if at any level
-            at_support = any(s.get('distance_pct', 999) <= proximity_threshold for s in all_supports)
-            at_resistance = any(r.get('distance_pct', 999) <= proximity_threshold for r in all_resistances)
+            # Check proximity to levels
+            nearest_support_dist = all_supports[0].get('distance_pct', 999) if all_supports else 999
+            nearest_resistance_dist = all_resistances[0].get('distance_pct', 999) if all_resistances else 999
+
+            # Determine level status
+            at_support = nearest_support_dist <= AT_LEVEL_THRESHOLD
+            approaching_support = AT_LEVEL_THRESHOLD < nearest_support_dist <= APPROACHING_THRESHOLD
+            at_resistance = nearest_resistance_dist <= AT_LEVEL_THRESHOLD
+            approaching_resistance = AT_LEVEL_THRESHOLD < nearest_resistance_dist <= APPROACHING_THRESHOLD
 
             # Volume emoji
             vol_ratio = volume_conf.get('ratio', 0)
@@ -1944,18 +1952,26 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             else:
                 rsi_emoji = "⚪"
 
-            # Entry status
+            # Entry status with refined thresholds
             if at_support:
-                entry_status = "🟢 SUPPORT SEVİYESİNDE!"
+                entry_status = "🟢 SUPPORT SEVİYESİNDE! (<%0.15)"
                 entry_direction = "LONG için hazır"
                 conf_check = long_conf
             elif at_resistance:
-                entry_status = "🔴 RESISTANCE SEVİYESİNDE!"
+                entry_status = "🔴 RESISTANCE SEVİYESİNDE! (<%0.15)"
                 entry_direction = "SHORT için hazır"
+                conf_check = short_conf
+            elif approaching_support:
+                entry_status = f"🟡 Support'a YAKLAŞIYOR ({nearest_support_dist:.2f}%)"
+                entry_direction = "LONG için hazırlan"
+                conf_check = long_conf
+            elif approaching_resistance:
+                entry_status = f"🟡 Resistance'a YAKLAŞIYOR ({nearest_resistance_dist:.2f}%)"
+                entry_direction = "SHORT için hazırlan"
                 conf_check = short_conf
             else:
                 entry_status = "⚪ Seviyeler arası (mid-range)"
-                entry_direction = "Seviye bekle"
+                entry_direction = "Seviye bekle - İŞLEM YAPMA"
                 conf_check = long_conf
 
             # Format supports (top 5)
@@ -1965,7 +1981,12 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                 dist = s.get('distance_pct', 0)
                 tf = s.get('timeframe', '?')
                 source = s.get('source', 'swing')[:6]
-                at_marker = " ← BURADA!" if dist <= proximity_threshold else ""
+                if dist <= AT_LEVEL_THRESHOLD:
+                    at_marker = " ← BURADA!"
+                elif dist <= APPROACHING_THRESHOLD:
+                    at_marker = " ← yakın"
+                else:
+                    at_marker = ""
                 support_lines += f"  {i+1}. ${price:,.2f} ({tf}, {source}) -{dist:.2f}%{at_marker}\n"
 
             # Format resistances (top 5)
@@ -1975,7 +1996,12 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                 dist = r.get('distance_pct', 0)
                 tf = r.get('timeframe', '?')
                 source = r.get('source', 'swing')[:6]
-                at_marker = " ← BURADA!" if dist <= proximity_threshold else ""
+                if dist <= AT_LEVEL_THRESHOLD:
+                    at_marker = " ← BURADA!"
+                elif dist <= APPROACHING_THRESHOLD:
+                    at_marker = " ← yakın"
+                else:
+                    at_marker = ""
                 resistance_lines += f"  {i+1}. ${price:,.2f} ({tf}, {source}) +{dist:.2f}%{at_marker}\n"
 
             # Confirmation checkboxes
@@ -1993,6 +2019,17 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             patterns_long = candle_long.get('patterns', [])
             patterns_short = candle_short.get('patterns', [])
             patterns_str = ', '.join(patterns_long + patterns_short) if (patterns_long or patterns_short) else "Yok"
+
+            # 🔧 R:R Quality Helper Function
+            def get_rr_quality(rr_ratio):
+                if rr_ratio >= 2.0:
+                    return "✅ Mükemmel", True
+                elif rr_ratio >= 1.5:
+                    return "✅ İyi", True
+                elif rr_ratio >= 1.0:
+                    return "⚠️ Zayıf", False
+                else:
+                    return "❌ KÖTÜ - İŞLEM YAPMA", False
 
             # Calculate trade scenarios
             # LONG scenario (at support)
@@ -2039,6 +2076,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 
             # Add LONG scenario
             if long_entry > 0 and long_target1 > 0:
+                long_rr_quality, long_rr_ok = get_rr_quality(long_rr)
                 message += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>📈 LONG SENARYO</b> (Support'ta al):
@@ -2047,17 +2085,21 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
   Target 1: <code>${long_target1:,.2f}</code> (+{((long_target1-long_entry)/long_entry*100):.1f}%)"""
                 if long_target2 > 0:
                     message += f"\n  Target 2: <code>${long_target2:,.2f}</code> (+{((long_target2-long_entry)/long_entry*100):.1f}%)"
-                message += f"\n  R:R Oranı: <b>{long_rr:.1f}:1</b>"
+                message += f"\n  R:R Oranı: <b>{long_rr:.1f}:1</b> {long_rr_quality}"
+                if not long_rr_ok:
+                    message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
                 message += f"""
 
 <b>🔔 LONG için gerekli teyitler:</b>
   □ RSI ≤30 (oversold) - Şimdi: {rsi_value:.0f}
   □ Volume ≥1.5x spike - Şimdi: {vol_ratio:.1f}x
   □ Bullish candle pattern (hammer, engulfing, pin bar)
+  □ R:R ≥1.5 - Şimdi: {long_rr:.1f}
 """
 
             # Add SHORT scenario
             if short_entry > 0 and short_target1 > 0:
+                short_rr_quality, short_rr_ok = get_rr_quality(short_rr)
                 message += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>📉 SHORT SENARYO</b> (Resistance'ta sat):
@@ -2066,28 +2108,42 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
   Target 1: <code>${short_target1:,.2f}</code> (-{((short_entry-short_target1)/short_entry*100):.1f}%)"""
                 if short_target2 > 0:
                     message += f"\n  Target 2: <code>${short_target2:,.2f}</code> (-{((short_entry-short_target2)/short_entry*100):.1f}%)"
-                message += f"\n  R:R Oranı: <b>{short_rr:.1f}:1</b>"
+                message += f"\n  R:R Oranı: <b>{short_rr:.1f}:1</b> {short_rr_quality}"
+                if not short_rr_ok:
+                    message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
                 message += f"""
 
 <b>🔔 SHORT için gerekli teyitler:</b>
   □ RSI ≥70 (overbought) - Şimdi: {rsi_value:.0f}
   □ Volume ≥1.5x spike - Şimdi: {vol_ratio:.1f}x
   □ Bearish candle pattern (shooting star, engulfing)
+  □ R:R ≥1.5 - Şimdi: {short_rr:.1f}
 """
 
-            # Final decision
+            # Final decision with R:R check
             message += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>🎯 SONUÇ:</b>
 """
+            # Get relevant R:R for decision
+            relevant_rr = long_rr if (at_support or approaching_support) else short_rr
+            relevant_rr_ok = relevant_rr >= 1.5
+
             if at_support or at_resistance:
-                if all_confirmed:
-                    direction = "LONG" if at_support else "SHORT"
-                    entry_p = long_entry if at_support else short_entry
-                    stop_p = long_stop if at_support else short_stop
-                    message += f"✅ <b>TÜM TEYİTLER TAMAM!</b>\n"
+                direction = "LONG" if at_support else "SHORT"
+                entry_p = long_entry if at_support else short_entry
+                stop_p = long_stop if at_support else short_stop
+                rr_val = long_rr if at_support else short_rr
+
+                if all_confirmed and relevant_rr_ok:
+                    message += f"✅ <b>TÜM TEYİTLER + R:R TAMAM!</b>\n"
                     message += f"   {direction} @ ${entry_p:,.2f}\n"
-                    message += f"   Stop: ${stop_p:,.2f}"
+                    message += f"   Stop: ${stop_p:,.2f}\n"
+                    message += f"   R:R: {rr_val:.1f}:1 ✓"
+                elif all_confirmed and not relevant_rr_ok:
+                    message += f"⚠️ <b>Teyitler tamam AMA R:R kötü!</b>\n"
+                    message += f"   R:R {rr_val:.1f}:1 < 1.5 - RİSKLİ!\n"
+                    message += f"   İşlem önerilmez, daha iyi seviye bekle"
                 else:
                     missing = conf_check.get('missing', [])
                     missing_tr = []
@@ -2100,7 +2156,20 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                             missing_tr.append('RSI extreme')
                         else:
                             missing_tr.append(m)
-                    message += f"⏳ Seviyedesin ama eksik: {', '.join(missing_tr)}"
+                    message += f"⏳ Seviyedesin ama eksik:\n"
+                    message += f"   {', '.join(missing_tr)}"
+                    if not relevant_rr_ok:
+                        message += f"\n   ⚠️ Ayrıca R:R {rr_val:.1f}:1 < 1.5"
+
+            elif approaching_support or approaching_resistance:
+                direction = "LONG" if approaching_support else "SHORT"
+                level_p = long_entry if approaching_support else short_entry
+                dist = nearest_support_dist if approaching_support else nearest_resistance_dist
+                message += f"🟡 <b>Seviyeye yaklaşıyorsun!</b>\n"
+                message += f"   {direction} hazırlığı yap\n"
+                message += f"   Seviye: ${level_p:,.2f} ({dist:.2f}% uzakta)\n"
+                message += f"   Teyitleri bekle, henüz işlem YAPMA"
+
             else:
                 nearest = min(
                     all_supports[:1] + all_resistances[:1],
@@ -2108,8 +2177,9 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                     default=None
                 )
                 if nearest:
-                    message += f"⏳ Fiyat seviyelerden uzak\n"
-                    message += f"   En yakın: ${nearest.get('price', 0):,.2f} ({nearest.get('distance_pct', 0):.2f}%)"
+                    message += f"⛔ <b>SEVİYELERDEN UZAK - İŞLEM YAPMA</b>\n"
+                    message += f"   En yakın: ${nearest.get('price', 0):,.2f} ({nearest.get('distance_pct', 0):.2f}%)\n"
+                    message += f"   Fiyat seviyeye gelene kadar bekle"
                 else:
                     message += "⏳ Seviye bulunamadı"
 
