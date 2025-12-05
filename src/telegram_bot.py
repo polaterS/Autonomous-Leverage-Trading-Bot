@@ -1871,14 +1871,46 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                 tl_level = tl.to_sr_level(current_price)
                 all_resistances.append(tl_level.to_dict())
 
-            # Sort by distance to current price
-            for s in all_supports:
-                s['distance_pct'] = abs(s.get('price', 0) - current_price) / current_price * 100
-            for r in all_resistances:
-                r['distance_pct'] = abs(r.get('price', 0) - current_price) / current_price * 100
+            # 🔧 FIX: Filter levels by position relative to current price
+            # Support = price BELOW current (fiyatın ALTINDA)
+            # Resistance = price ABOVE current (fiyatın ÜSTÜNDE)
 
-            all_supports.sort(key=lambda x: x.get('distance_pct', 999))
-            all_resistances.sort(key=lambda x: x.get('distance_pct', 999))
+            # Combine all levels and re-classify based on current price
+            all_levels = []
+            for s in all_supports:
+                s['original_type'] = 'support'
+                all_levels.append(s)
+            for r in all_resistances:
+                r['original_type'] = 'resistance'
+                all_levels.append(r)
+
+            # Re-classify based on current price position
+            actual_supports = []  # Levels BELOW current price
+            actual_resistances = []  # Levels ABOVE current price
+
+            for level in all_levels:
+                price = level.get('price', 0)
+                if price <= 0:
+                    continue
+
+                distance_pct = (price - current_price) / current_price * 100
+                level['distance_pct'] = abs(distance_pct)
+                level['distance_signed'] = distance_pct
+
+                if price < current_price:
+                    # Level is BELOW current price = SUPPORT
+                    actual_supports.append(level)
+                else:
+                    # Level is ABOVE current price = RESISTANCE
+                    actual_resistances.append(level)
+
+            # Sort by distance (closest first)
+            actual_supports.sort(key=lambda x: x.get('distance_pct', 999))
+            actual_resistances.sort(key=lambda x: x.get('distance_pct', 999))
+
+            # Use the corrected lists
+            all_supports = actual_supports
+            all_resistances = actual_resistances
 
             # Check confirmations for both directions
             long_conf = pa.entry_confirmation.check_all_confirmations(df, 'LONG', indicators)
