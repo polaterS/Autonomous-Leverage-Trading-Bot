@@ -221,7 +221,17 @@ class LevelRegistry:
         current_price: float,
         max_distance_pct: float = None
     ) -> List[SRLevel]:
-        """Get levels within threshold of current price"""
+        """
+        Get levels within threshold of current price.
+
+        🔧 v5.0.7 FIX: Check correct side of level!
+        - For RESISTANCE: Price must be AT or BELOW (approaching from below)
+        - For SUPPORT: Price must be AT or ABOVE (approaching from above)
+
+        This prevents false entries like:
+        - SHORT when price is ABOVE resistance (resistance already broken!)
+        - LONG when price is BELOW support (support already broken!)
+        """
         if max_distance_pct is None:
             max_distance_pct = self.at_level_threshold
 
@@ -233,8 +243,28 @@ class LevelRegistry:
             if not level.is_active:
                 continue
             level.update_distance(current_price)
-            if level.distance_pct <= max_distance_pct:
-                near_levels.append(level)
+
+            # Check distance threshold
+            if level.distance_pct > max_distance_pct:
+                continue
+
+            # 🔧 v5.0.7 FIX: Check correct side of level
+            # For RESISTANCE: Price must be at or below the level
+            #   - If price > resistance, the resistance is BROKEN → skip
+            # For SUPPORT: Price must be at or above the level
+            #   - If price < support, the support is BROKEN → skip
+            if level.level_type == 'resistance':
+                # Allow small buffer (0.1%) above resistance for "at level" entries
+                if current_price > level.price * 1.001:
+                    # Price is too far ABOVE resistance - it's broken!
+                    continue
+            elif level.level_type == 'support':
+                # Allow small buffer (0.1%) below support for "at level" entries
+                if current_price < level.price * 0.999:
+                    # Price is too far BELOW support - it's broken!
+                    continue
+
+            near_levels.append(level)
 
         # Sort by distance (closest first)
         near_levels.sort(key=lambda x: x.distance_pct)
@@ -3866,13 +3896,18 @@ class PriceActionAnalyzer:
             # ═══════════════════════════════════════════════════════════════
             # STEP 7: ENTRY APPROVED!
             # ═══════════════════════════════════════════════════════════════
+            # 🔧 v5.0.7 FIX: Show correct ✓/✗ for each confirmation
+            candle_mark = "✓" if candle_conf.get('confirmed') else "✗"
+            volume_mark = "✓" if volume_conf.get('confirmed') else "✗"
+            rsi_mark = "✓" if rsi_conf.get('confirmed') else "✗"
+
             result.update({
                 'should_enter': True,
                 'direction': entry_side,
                 'reason': (
                     f"✅ {entry_side}: At {best_level.level_type} ${best_level.price:.4f} "
                     f"({best_level.timeframe}/{best_level.source}) | "
-                    f"Conf: Candle ✓ Vol {volume_conf.get('ratio', 0):.1f}x ✓ RSI {rsi_conf.get('value', 50):.0f} ✓ | "
+                    f"Conf: Candle {candle_mark} Vol {volume_conf.get('ratio', 0):.1f}x {volume_mark} RSI {rsi_conf.get('value', 50):.0f} {rsi_mark} | "
                     f"R/R {rr_ratio:.1f}"
                 ),
                 'level': best_level.to_dict(),

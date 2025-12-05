@@ -1,32 +1,28 @@
-# Force redeploy v5.0.6 - Skip Balance Check - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Live mode behaves like Paper mode!
+# Force redeploy v5.0.7 - Level Side Check Fix - 5 Dec 2025 Thu
+# 🛡️ CRITICAL FIX: Check correct side of S/R level before entry!
 #
-# 🎯 v5.0.6 FEATURES:
-#   ✅ skip_balance_check config option added
-#   ✅ LIVE mode uses config capital (like PAPER)
-#   ✅ No more Binance balance API calls blocking trades
-#   ✅ Binance will reject if truly insufficient funds
+# 🎯 v5.0.7 FEATURES:
+#   ✅ Level side validation added
+#   ✅ Resistance: Price must be AT or BELOW (not above)
+#   ✅ Support: Price must be AT or ABOVE (not below)
+#   ✅ Fixed confirmation display (correct ✓/✗ marks)
 #
-# 🛡️ WHAT CHANGED:
-#   ❌ OLD: Live mode checked Binance balance before every trade
-#      • Could block trades due to timing/API issues
-#      • Behavior differed from Paper mode
+# 🐛 BUG FIXED:
+#   ❌ BCH SHORT at $578.68 when resistance was $576.61
+#      • Price was ABOVE resistance = resistance BROKEN
+#      • Should NOT short at a broken resistance!
 #
-#   ✅ NEW: Live mode uses config capital (like Paper mode)
-#      • skip_balance_check = True (default)
-#      • Uses current_capital from database/config
-#      • Binance still validates on actual order execution
-#      • Paper and Live behave identically now
+#   ✅ NEW LOGIC:
+#      • For Resistance: current_price <= resistance * 1.001
+#      • For Support: current_price >= support * 0.999
+#      • If price is on wrong side → level is BROKEN → skip!
 #
-# 📊 Files Modified:
-#   - src/config.py: Added skip_balance_check option
-#   - src/trade_executor.py: Use config capital when skip_balance_check=True
-#   - src/trading_engine.py: Skip balance sync at startup
-#   - src/risk_manager.py: Use config capital for position sizing
-#   - src/trade_quality_manager.py: Use config capital for exposure calc
+# 🔧 Also Fixed:
+#   ❌ OLD: "Conf: Candle ✓ Vol 1.8x ✓ RSI 36 ✓" (all show ✓)
+#   ✅ NEW: "Conf: Candle ✓ Vol 1.8x ✓ RSI 36 ✗" (correct marks)
 #
 # 📊 Previous versions:
+#   - v5.0.6: Skip Balance Check
 #   - v5.0.5: RSI Direction Filter
 #   - v5.0.4b: Quality Filter Fix
 #   - v5.0.4: 2-of-3 Confirmation Fix
-#   - v5.0.3: Closed Candle + Stop Hunt Detection
