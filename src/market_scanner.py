@@ -801,7 +801,7 @@ class MarketScanner:
                         indicators_dict = market_data.get('indicators', {})
                         indicators_15m_for_pa = indicators_dict.get('15m', {})
 
-                        if settings.enable_level_based_trading:
+                        if self.settings.enable_level_based_trading:
                             # ═══════════════════════════════════════════════════════════════
                             # 🎯 v5.0: LEVEL-BASED ENTRY SYSTEM
                             # Only enter when price is at S/R level with full confirmation
