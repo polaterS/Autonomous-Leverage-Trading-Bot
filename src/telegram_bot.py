@@ -1994,6 +1994,21 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             patterns_short = candle_short.get('patterns', [])
             patterns_str = ', '.join(patterns_long + patterns_short) if (patterns_long or patterns_short) else "Yok"
 
+            # Calculate trade scenarios
+            # LONG scenario (at support)
+            long_entry = all_supports[0].get('price', 0) if all_supports else 0
+            long_stop = long_entry * 0.995 if long_entry else 0  # 0.5% below support
+            long_target1 = all_resistances[0].get('price', 0) if all_resistances else 0
+            long_target2 = all_resistances[1].get('price', 0) if len(all_resistances) > 1 else 0
+            long_rr = ((long_target1 - long_entry) / (long_entry - long_stop)) if long_entry and long_stop and long_target1 and (long_entry - long_stop) > 0 else 0
+
+            # SHORT scenario (at resistance)
+            short_entry = all_resistances[0].get('price', 0) if all_resistances else 0
+            short_stop = short_entry * 1.005 if short_entry else 0  # 0.5% above resistance
+            short_target1 = all_supports[0].get('price', 0) if all_supports else 0
+            short_target2 = all_supports[1].get('price', 0) if len(all_supports) > 1 else 0
+            short_rr = ((short_entry - short_target1) / (short_stop - short_entry)) if short_entry and short_stop and short_target1 and (short_stop - short_entry) > 0 else 0
+
             # Build message parts for Telegram
             message = f"""
 🎯 <b>LEVEL-BASED ANALİZ v5.0</b>
@@ -2016,19 +2031,76 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
   ↘️ Descending (Resist): {len(descending_lines)} adet
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━
-<b>🔍 TEYİT DURUMU</b> (hepsi ✅ olmalı):
-{candle_box} Candlestick Pattern: {patterns_str}
-{volume_box} Volume: {vol_emoji} {vol_ratio:.1f}x ({vol_status})
+<b>🔍 MEVCUT TEYİT DURUMU:</b>
+{candle_box} Candlestick: {patterns_str}
+{volume_box} Volume: {vol_emoji} {vol_ratio:.1f}x (≥1.5x gerekli)
 {rsi_box} RSI: {rsi_emoji} {rsi_value:.0f} ({rsi_zone})
+"""
 
-<b>🎯 GİRİŞ KARARI:</b>
+            # Add LONG scenario
+            if long_entry > 0 and long_target1 > 0:
+                message += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<b>📈 LONG SENARYO</b> (Support'ta al):
+  Entry: <code>${long_entry:,.2f}</code>
+  Stop Loss: <code>${long_stop:,.2f}</code> (-0.5%)
+  Target 1: <code>${long_target1:,.2f}</code> (+{((long_target1-long_entry)/long_entry*100):.1f}%)"""
+                if long_target2 > 0:
+                    message += f"\n  Target 2: <code>${long_target2:,.2f}</code> (+{((long_target2-long_entry)/long_entry*100):.1f}%)"
+                message += f"\n  R:R Oranı: <b>{long_rr:.1f}:1</b>"
+                message += f"""
+
+<b>🔔 LONG için gerekli teyitler:</b>
+  □ RSI ≤30 (oversold) - Şimdi: {rsi_value:.0f}
+  □ Volume ≥1.5x spike - Şimdi: {vol_ratio:.1f}x
+  □ Bullish candle pattern (hammer, engulfing, pin bar)
+"""
+
+            # Add SHORT scenario
+            if short_entry > 0 and short_target1 > 0:
+                message += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<b>📉 SHORT SENARYO</b> (Resistance'ta sat):
+  Entry: <code>${short_entry:,.2f}</code>
+  Stop Loss: <code>${short_stop:,.2f}</code> (+0.5%)
+  Target 1: <code>${short_target1:,.2f}</code> (-{((short_entry-short_target1)/short_entry*100):.1f}%)"""
+                if short_target2 > 0:
+                    message += f"\n  Target 2: <code>${short_target2:,.2f}</code> (-{((short_entry-short_target2)/short_entry*100):.1f}%)"
+                message += f"\n  R:R Oranı: <b>{short_rr:.1f}:1</b>"
+                message += f"""
+
+<b>🔔 SHORT için gerekli teyitler:</b>
+  □ RSI ≥70 (overbought) - Şimdi: {rsi_value:.0f}
+  □ Volume ≥1.5x spike - Şimdi: {vol_ratio:.1f}x
+  □ Bearish candle pattern (shooting star, engulfing)
+"""
+
+            # Final decision
+            message += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<b>🎯 SONUÇ:</b>
 """
             if at_support or at_resistance:
                 if all_confirmed:
-                    message += f"✅ <b>TÜM TEYİTLER TAMAM - GİRİŞ YAPILABİLİR!</b>"
+                    direction = "LONG" if at_support else "SHORT"
+                    entry_p = long_entry if at_support else short_entry
+                    stop_p = long_stop if at_support else short_stop
+                    message += f"✅ <b>TÜM TEYİTLER TAMAM!</b>\n"
+                    message += f"   {direction} @ ${entry_p:,.2f}\n"
+                    message += f"   Stop: ${stop_p:,.2f}"
                 else:
                     missing = conf_check.get('missing', [])
-                    message += f"⏳ Eksik teyitler: {', '.join(missing)}"
+                    missing_tr = []
+                    for m in missing:
+                        if m == 'candlestick_pattern':
+                            missing_tr.append('Mum formasyonu')
+                        elif m == 'volume_spike':
+                            missing_tr.append('Volume spike')
+                        elif m == 'rsi_extreme':
+                            missing_tr.append('RSI extreme')
+                        else:
+                            missing_tr.append(m)
+                    message += f"⏳ Seviyedesin ama eksik: {', '.join(missing_tr)}"
             else:
                 nearest = min(
                     all_supports[:1] + all_resistances[:1],
@@ -2036,7 +2108,8 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                     default=None
                 )
                 if nearest:
-                    message += f"⏳ En yakın seviye: ${nearest.get('price', 0):,.2f} ({nearest.get('distance_pct', 0):.2f}% uzakta)"
+                    message += f"⏳ Fiyat seviyelerden uzak\n"
+                    message += f"   En yakın: ${nearest.get('price', 0):,.2f} ({nearest.get('distance_pct', 0):.2f}%)"
                 else:
                     message += "⏳ Seviye bulunamadı"
 
