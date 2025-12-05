@@ -73,11 +73,18 @@ async def main():
         logger.critical("🚨 Cannot start bot without security validation")
         sys.exit(1)
 
-    # 🔧 CRITICAL: Run profit target migration (if needed)
+    # 🔧 CRITICAL: Run database migrations (if needed)
     try:
         logger.info("🔧 Checking for required database migrations...")
-        from migrations.add_profit_targets import migrate
-        await migrate()
+
+        # Migration 1: Profit targets
+        from migrations.add_profit_targets import migrate as migrate_profit_targets
+        await migrate_profit_targets()
+
+        # Migration 2: Breakeven column (v5.0.2)
+        from migrations.add_breakeven_column import migrate as migrate_breakeven
+        await migrate_breakeven()
+
         logger.info("✅ Database migrations completed successfully!")
     except Exception as e:
         # If columns already exist, that's fine

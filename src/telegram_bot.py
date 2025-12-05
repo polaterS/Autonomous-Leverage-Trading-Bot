@@ -1840,6 +1840,19 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 
             current_price = df['close'].iloc[-1]
 
+            # 🔧 Helper function to format prices with appropriate decimal places
+            # For crypto: show more decimals for low-priced coins
+            def fmt_price(price):
+                """Format price based on value - more decimals for low prices"""
+                if price >= 1000:
+                    return f"${price:,.2f}"
+                elif price >= 1:
+                    return f"${price:.4f}"
+                elif price >= 0.01:
+                    return f"${price:.5f}"
+                else:
+                    return f"${price:.6f}"
+
             # Calculate indicators
             indicators = calculate_indicators(df)
 
@@ -1987,7 +2000,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                     at_marker = " ← yakın"
                 else:
                     at_marker = ""
-                support_lines += f"  {i+1}. ${price:,.2f} ({tf}, {source}) -{dist:.2f}%{at_marker}\n"
+                support_lines += f"  {i+1}. {fmt_price(price)} ({tf}, {source}) -{dist:.2f}%{at_marker}\n"
 
             # Format resistances (top 5)
             resistance_lines = ""
@@ -2002,7 +2015,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                     at_marker = " ← yakın"
                 else:
                     at_marker = ""
-                resistance_lines += f"  {i+1}. ${price:,.2f} ({tf}, {source}) +{dist:.2f}%{at_marker}\n"
+                resistance_lines += f"  {i+1}. {fmt_price(price)} ({tf}, {source}) +{dist:.2f}%{at_marker}\n"
 
             # Confirmation checkboxes
             candle_ok = conf_check['confirmations'].get('candlestick', {}).get('confirmed', False)
@@ -2066,7 +2079,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 🎯 <b>LEVEL-BASED ANALİZ v5.0</b>
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 
-<b>📊 {symbol.split('/')[0]}</b> @ <code>${current_price:,.2f}</code>
+<b>📊 {symbol.split('/')[0]}</b> @ <code>{fmt_price(current_price)}</code>
 
 <b>📍 POZİSYON DURUMU:</b>
 {entry_status}
@@ -2098,11 +2111,11 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                 message += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>📈 LONG SENARYO</b> (Support'ta al):
-  Entry: <code>${long_entry:,.2f}</code>
-  Stop Loss: <code>${long_stop:,.2f}</code> (-0.5%)
-  Target 1: <code>${long_target1:,.2f}</code> (+{long_tp1_profit_pct:.1f}%) R:R={long_rr1:.1f}:1"""
+  Entry: <code>{fmt_price(long_entry)}</code>
+  Stop Loss: <code>{fmt_price(long_stop)}</code> (-0.5%)
+  Target 1: <code>{fmt_price(long_target1)}</code> (+{long_tp1_profit_pct:.1f}%) R:R={long_rr1:.1f}:1"""
                 if long_target2 > 0:
-                    message += f"\n  <b>Target 2: <code>${long_target2:,.2f}</code></b> (+{long_tp2_profit_pct:.1f}%) <b>R:R={long_rr2:.1f}:1</b> ← ANA HEDEF"
+                    message += f"\n  <b>Target 2: <code>{fmt_price(long_target2)}</code></b> (+{long_tp2_profit_pct:.1f}%) <b>R:R={long_rr2:.1f}:1</b> ← ANA HEDEF"
                 message += f"\n\n  📊 <b>R:R (Target 2): {long_rr:.1f}:1</b> {long_rr_quality}"
                 if not long_rr_ok:
                     message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
@@ -2131,11 +2144,11 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                 message += f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>📉 SHORT SENARYO</b> (Resistance'ta sat):
-  Entry: <code>${short_entry:,.2f}</code>
-  Stop Loss: <code>${short_stop:,.2f}</code> (+0.5%)
-  Target 1: <code>${short_target1:,.2f}</code> (-{short_tp1_profit_pct:.1f}%) R:R={short_rr1:.1f}:1"""
+  Entry: <code>{fmt_price(short_entry)}</code>
+  Stop Loss: <code>{fmt_price(short_stop)}</code> (+0.5%)
+  Target 1: <code>{fmt_price(short_target1)}</code> (-{short_tp1_profit_pct:.1f}%) R:R={short_rr1:.1f}:1"""
                 if short_target2 > 0:
-                    message += f"\n  <b>Target 2: <code>${short_target2:,.2f}</code></b> (-{short_tp2_profit_pct:.1f}%) <b>R:R={short_rr2:.1f}:1</b> ← ANA HEDEF"
+                    message += f"\n  <b>Target 2: <code>{fmt_price(short_target2)}</code></b> (-{short_tp2_profit_pct:.1f}%) <b>R:R={short_rr2:.1f}:1</b> ← ANA HEDEF"
                 message += f"\n\n  📊 <b>R:R (Target 2): {short_rr:.1f}:1</b> {short_rr_quality}"
                 if not short_rr_ok:
                     message += f"\n  ⛔ <b>R:R &lt;1.5 - Bu işlem riskli!</b>"
@@ -2172,8 +2185,8 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 
                 if all_confirmed and relevant_rr_ok:
                     message += f"✅ <b>TÜM TEYİTLER + R:R TAMAM!</b>\n"
-                    message += f"   {direction} @ ${entry_p:,.2f}\n"
-                    message += f"   Stop: ${stop_p:,.2f}\n"
+                    message += f"   {direction} @ {fmt_price(entry_p)}\n"
+                    message += f"   Stop: {fmt_price(stop_p)}\n"
                     message += f"   R:R: {rr_val:.1f}:1 ✓"
                 elif all_confirmed and not relevant_rr_ok:
                     message += f"⚠️ <b>Teyitler tamam AMA R:R kötü!</b>\n"
@@ -2202,7 +2215,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                 dist = nearest_support_dist if approaching_support else nearest_resistance_dist
                 message += f"🟡 <b>Seviyeye yaklaşıyorsun!</b>\n"
                 message += f"   {direction} hazırlığı yap\n"
-                message += f"   Seviye: ${level_p:,.2f} ({dist:.2f}% uzakta)\n"
+                message += f"   Seviye: {fmt_price(level_p)} ({dist:.2f}% uzakta)\n"
                 message += f"   Teyitleri bekle, henüz işlem YAPMA"
 
             else:
@@ -2213,7 +2226,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
                 )
                 if nearest:
                     message += f"⛔ <b>SEVİYELERDEN UZAK - İŞLEM YAPMA</b>\n"
-                    message += f"   En yakın: ${nearest.get('price', 0):,.2f} ({nearest.get('distance_pct', 0):.2f}%)\n"
+                    message += f"   En yakın: {fmt_price(nearest.get('price', 0))} ({nearest.get('distance_pct', 0):.2f}%)\n"
                     message += f"   Fiyat seviyeye gelene kadar bekle"
                 else:
                     message += "⏳ Seviye bulunamadı"
