@@ -300,10 +300,13 @@ class EntryConfirmation:
         self.volume_lookback = 20  # 20-period average
 
         # RSI requirements
-        self.rsi_oversold = 30   # Below = oversold (bullish for LONG)
-        self.rsi_overbought = 70  # Above = overbought (bearish for SHORT)
-        self.rsi_extreme_oversold = 20  # Very oversold = strong signal
-        self.rsi_extreme_overbought = 80  # Very overbought = strong signal
+        # 🔧 v5.0.4 FIX: Relaxed from 30/70 to 35/65 (still meaningful, but achievable)
+        # RSI 30/70 is EXTREME - only happens ~5% of time
+        # RSI 35/65 is STRONG - happens ~15% of time (3x more signals)
+        self.rsi_oversold = 35   # Below = oversold (bullish for LONG) - was 30
+        self.rsi_overbought = 65  # Above = overbought (bearish for SHORT) - was 70
+        self.rsi_extreme_oversold = 25  # Very oversold = strong signal
+        self.rsi_extreme_overbought = 75  # Very overbought = strong signal
 
     def check_all_confirmations(
         self,
@@ -351,18 +354,33 @@ class EntryConfirmation:
         if not rsi_result['confirmed']:
             result['missing'].append('rsi_extreme')
 
-        # All confirmed?
-        result['all_confirmed'] = len(result['missing']) == 0
-
         # Calculate confirmation score (0-100)
         score = 0
+        confirmed_count = 0
         if candle_result['confirmed']:
             score += 40  # Candles most important
+            confirmed_count += 1
         if volume_result['confirmed']:
             score += 30
+            confirmed_count += 1
         if rsi_result['confirmed']:
             score += 30
+            confirmed_count += 1
         result['confirmation_score'] = score
+        result['confirmed_count'] = confirmed_count
+
+        # 🔧 v5.0.4 FIX: 2-of-3 Confirmation Rule
+        # OLD: Required ALL 3 confirmations (almost impossible!)
+        # NEW: 2-of-3 confirmations is enough for entry
+        #
+        # Why 2-of-3 is professional:
+        # - Candlestick + Volume = Price rejection with conviction
+        # - Candlestick + RSI = Reversal pattern at extreme
+        # - Volume + RSI = Smart money accumulation at extreme
+        #
+        # Special case: Strong candlestick pattern alone (score >= 40) with
+        # at least one other confirmation = ENTRY ALLOWED
+        result['all_confirmed'] = confirmed_count >= 2
 
         return result
 
@@ -3743,7 +3761,8 @@ class PriceActionAnalyzer:
 
             if not confirmations['all_confirmed']:
                 missing = confirmations.get('missing', [])
-                result['reason'] = f"❌ WAIT: At {best_level.level_type} but missing: {', '.join(missing)}"
+                confirmed_count = confirmations.get('confirmed_count', 0)
+                result['reason'] = f"❌ WAIT: At {best_level.level_type}, {confirmed_count}/3 confirmations (need 2+). Missing: {', '.join(missing)}"
                 logger.info(f"   {result['reason']}")
                 result['analysis'] = {
                     'support_resistance': sr_analysis,

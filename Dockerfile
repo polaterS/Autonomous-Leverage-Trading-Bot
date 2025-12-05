@@ -1,26 +1,25 @@
-# 🎯 LEVEL-BASED TRADING v5.0.3 - Closed Candle + Stop Hunt Detection
+# 🎯 LEVEL-BASED TRADING v5.0.4 - 2-of-3 Confirmation Fix
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V503_CLOSED_CANDLE_FIX
+ARG CACHE_BUST=20251205_V504_TWO_OF_THREE_CONFIRMATION
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.3: CLOSED CANDLE + STOP HUNT DETECTION!" && \
-    echo "   🛡️ CRITICAL FIX: Professional Entry Timing" && \
+    echo "🎯 v5.0.4: 2-OF-3 CONFIRMATION FIX!" && \
+    echo "   🛡️ CRITICAL FIX: Bot was not opening trades!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.3 FEATURES:" && \
-    echo "      ✅ Pattern detection on CLOSED candle (not forming)" && \
-    echo "      ✅ Stop Hunt Reversal pattern detection" && \
-    echo "      ✅ False breakout protection" && \
-    echo "      ✅ Professional candle close waiting" && \
-    echo "      ✅ Uses iloc[-2] for last CLOSED candle" && \
-    echo "      ✅ Prevents false signals from forming candles" && \
+    echo "   🆕 v5.0.4 FEATURES:" && \
+    echo "      ✅ 2-of-3 confirmation rule (was: ALL 3 required)" && \
+    echo "      ✅ RSI relaxed: 35/65 (was: 30/70 too strict)" && \
+    echo "      ✅ Candlestick + Volume = ENTRY OK" && \
+    echo "      ✅ Candlestick + RSI = ENTRY OK" && \
+    echo "      ✅ Volume + RSI = ENTRY OK" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   🛡️ WHY THIS MATTERS:" && \
-    echo "      ❌ OLD: Used forming candle (could change!)" && \
-    echo "      ✅ NEW: Uses closed candle (final, reliable)" && \
-    echo "      🎯 Stop hunts now trigger entries (not stops)" && \
-    echo "      📈 Reduced false signals significantly"
+    echo "      ❌ OLD: ALL 3 (candle+vol+RSI) = ~0.4% chance!" && \
+    echo "      ✅ NEW: 2-of-3 = ~10-15% chance (realistic)" && \
+    echo "      🎯 Bot will now actually open trades" && \
+    echo "      📈 Still high quality - 2 confirmations minimum"
 
 # Set working directory
 WORKDIR /app
@@ -40,16 +39,16 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.3 - Closed Candle + Stop Hunt
-# Current deployment: 20251205_V503_CLOSED_CANDLE_FIX
-# Changes: Pattern detection now uses CLOSED candle (not forming)
-#   🛡️ v5.0.3: Closed Candle + Stop Hunt Detection
-#      ✅ Pattern detection on CLOSED candle (iloc[-2])
-#      ✅ Stop Hunt Reversal pattern detection
-#      ✅ False breakout protection
-#      ✅ Professional candle close waiting
-#      ✅ Prevents false signals from forming candles
+# 🎯 CACHE BUST MARKER: v5.0.4 - 2-of-3 Confirmation Fix
+# Current deployment: 20251205_V504_TWO_OF_THREE_CONFIRMATION
+# Changes: Bot was not opening ANY trades due to ALL 3 confirmation requirement
+#   🛡️ v5.0.4: 2-of-3 Confirmation Fix
+#      ✅ 2-of-3 confirmation rule (was: ALL 3 required - nearly impossible!)
+#      ✅ RSI thresholds relaxed: 35/65 (was: 30/70)
+#      ✅ Any 2 of (Candlestick, Volume, RSI) = ENTRY ALLOWED
+#      ✅ Still high quality - requires 2 confirmations minimum
 #   📊 Previous versions:
+#      ✅ v5.0.3: Closed Candle + Stop Hunt Detection
 #      ✅ v5.0.2: Partial TP + Breakeven System
 #      ✅ v5.0.1: /analyze BTC Command
 #      ✅ v5.0.0: Level-Based Trading System (complete redesign)
