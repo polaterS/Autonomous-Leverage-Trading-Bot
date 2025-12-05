@@ -197,7 +197,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /ws - 🌐 WebSocket feed istatistikleri (API kullanımı)
 /sync - 🔄 Binance ↔ Database pozisyon senkronizasyonu (orphaned position fix)
 /analyze - 📊 Trade history analizi (PNL, win rate, rapid trades)
-/analyze BTC - 🎯 Level-Based S/R analizi (v5.0 - support/resistance, volume, RSI)
+/analyze [COIN] - 🎯 Level-Based S/R analizi (örn: /analyze BTC, /analyze ETH, /analyze SOL)
 
 <b>Nasıl Çalışır?</b>
 
