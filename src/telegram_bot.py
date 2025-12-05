@@ -1954,11 +1954,11 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 
             # Entry status with refined thresholds
             if at_support:
-                entry_status = "🟢 SUPPORT SEVİYESİNDE! (<%0.15)"
+                entry_status = "🟢 SUPPORT SEVİYESİNDE! (&lt;%0.15)"
                 entry_direction = "LONG için hazır"
                 conf_check = long_conf
             elif at_resistance:
-                entry_status = "🔴 RESISTANCE SEVİYESİNDE! (<%0.15)"
+                entry_status = "🔴 RESISTANCE SEVİYESİNDE! (&lt;%0.15)"
                 entry_direction = "SHORT için hazır"
                 conf_check = short_conf
             elif approaching_support:
