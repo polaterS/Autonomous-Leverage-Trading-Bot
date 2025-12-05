@@ -28,6 +28,8 @@ from decimal import Decimal
 from collections import defaultdict
 import logging
 
+from src.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -200,17 +202,25 @@ class TradeQualityManager:
                     for p in active_positions
                 )
 
-                # ✅ FIXED: Use real exchange balance for exposure calculation
-                try:
-                    from src.exchange_client import get_exchange_client
-                    exchange = await get_exchange_client()  # 🔧 FIX: Await async function!
-                    real_balance = await exchange.fetch_balance()  # This is async
-                    current_capital = float(real_balance)
-                except Exception as balance_err:
-                    logger.warning(f"Could not fetch real balance: {balance_err}, using fallback")
-                    # Fallback to database capital if exchange fetch fails
+                # 🔧 v5.0.6: Use config capital when skip_balance_check is True
+                #    This ensures LIVE mode behaves exactly like PAPER mode
+                settings = get_settings()
+                if settings.skip_balance_check or settings.use_paper_trading:
+                    # Use database/config capital instead of real exchange balance
                     db_config = await db_client.get_trading_config()
-                    current_capital = float(db_config.get('current_capital', 1000.0))
+                    current_capital = float(db_config.get('current_capital', float(settings.initial_capital)))
+                else:
+                    # ✅ FIXED: Use real exchange balance for exposure calculation
+                    try:
+                        from src.exchange_client import get_exchange_client
+                        exchange = await get_exchange_client()  # 🔧 FIX: Await async function!
+                        real_balance = await exchange.fetch_balance()  # This is async
+                        current_capital = float(real_balance)
+                    except Exception as balance_err:
+                        logger.warning(f"Could not fetch real balance: {balance_err}, using fallback")
+                        # Fallback to database capital if exchange fetch fails
+                        db_config = await db_client.get_trading_config()
+                        current_capital = float(db_config.get('current_capital', 1000.0))
 
                 # Calculate exposure ratio
                 portfolio_exposure = total_position_value / current_capital if current_capital > 0 else 0.0

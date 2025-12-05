@@ -99,15 +99,24 @@ class AutonomousTradingEngine:
 
             # 🔥 CRITICAL: Sync database capital with REAL Binance balance
             # This fixes the capital tracking bug that showed wrong values
-            try:
-                real_balance = await self.exchange.fetch_balance()
-                logger.info(f"💰 Real Binance balance: ${real_balance:.2f}")
+            #
+            # 🔧 v5.0.6: Skip if skip_balance_check is enabled
+            #    When skip_balance_check=True, we use config capital (like paper trading)
+            #    This ensures LIVE mode behaves exactly like PAPER mode
+            #
+            if not self.settings.skip_balance_check:
+                try:
+                    real_balance = await self.exchange.fetch_balance()
+                    logger.info(f"💰 Real Binance balance: ${real_balance:.2f}")
 
-                # Update database with real balance
-                await self.db.update_capital(real_balance)
-                logger.info(f"✅ Database capital synced to ${real_balance:.2f}")
-            except Exception as sync_err:
-                logger.warning(f"⚠️ Could not sync capital: {sync_err}")
+                    # Update database with real balance
+                    await self.db.update_capital(real_balance)
+                    logger.info(f"✅ Database capital synced to ${real_balance:.2f}")
+                except Exception as sync_err:
+                    logger.warning(f"⚠️ Could not sync capital: {sync_err}")
+            else:
+                logger.info(f"📝 Balance check SKIPPED (skip_balance_check=True)")
+                logger.info(f"📝 Using config capital: ${self.settings.initial_capital:.2f}")
 
             # 🚀 REAL-TIME TREND DETECTION: Start WebSocket-based instant entry
             if self.settings.enable_realtime_detection:

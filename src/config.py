@@ -55,6 +55,7 @@ class Settings(BaseSettings):
 
     # Feature Flags
     use_paper_trading: bool = Field(default=True)
+    skip_balance_check: bool = Field(default=True)  # 🔥 v5.0.6: Skip Binance balance check in LIVE mode (use config capital like paper trading)
     enable_debug_logs: bool = Field(default=False)
     enable_short_trades: bool = Field(default=True)  # Enable SHORT trades for complete ML learning
     enable_ml_exit: bool = Field(default=False)  # ML exit DISABLED - rely only on stop-loss/take-profit/trailing (USER REQUEST: positions closing too fast)

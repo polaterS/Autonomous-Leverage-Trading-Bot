@@ -672,10 +672,19 @@ class RiskManager:
         """
         db = await get_db_client()
 
-        # 🔥 USE REAL BALANCE FROM EXCHANGE (not database capital)
-        from src.exchange_client import get_exchange_client
-        exchange = get_exchange_client()  # Singleton, not async
-        real_balance = await exchange.fetch_balance()  # This is async
+        # 🔧 v5.0.6: Use config capital when skip_balance_check is True
+        #    This ensures LIVE mode behaves exactly like PAPER mode
+        if self.settings.skip_balance_check or self.settings.use_paper_trading:
+            # Use database/config capital instead of real exchange balance
+            db_config = await db.get_trading_config()
+            real_balance = Decimal(str(db_config.get('current_capital', self.settings.initial_capital)))
+            balance_source = "config (balance check skipped)"
+        else:
+            # 🔥 USE REAL BALANCE FROM EXCHANGE (not database capital)
+            from src.exchange_client import get_exchange_client
+            exchange = get_exchange_client()  # Singleton, not async
+            real_balance = await exchange.fetch_balance()  # This is async
+            balance_source = "Binance exchange"
 
         # Get active positions to calculate how to split balance
         active_positions = await db.get_active_positions()
@@ -689,7 +698,7 @@ class RiskManager:
         base_size_per_position = real_balance / Decimal(str(max_positions))
 
         logger.info(
-            f"💰 Real balance position sizing: "
+            f"💰 Position sizing ({balance_source}): "
             f"Balance: ${float(real_balance):.2f} USDT | "
             f"Max positions: {max_positions} | "
             f"Current positions: {current_position_count} | "

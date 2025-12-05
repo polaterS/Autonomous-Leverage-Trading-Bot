@@ -275,13 +275,20 @@ class TradeExecutor:
 
             # 🔥 CHECK AVAILABLE BALANCE BEFORE OPENING POSITION
             # For PAPER TRADING: Use config capital (from /setcapital command)
-            # For LIVE TRADING: Check actual Binance balance
-            if self.settings.use_paper_trading:
-                # Paper trading uses config capital, not Binance balance
+            # For LIVE TRADING: Check actual Binance balance (unless skip_balance_check is True)
+            #
+            # 🔧 v5.0.6: skip_balance_check option added
+            #    When True: LIVE mode behaves like PAPER mode (uses config capital)
+            #    When False: LIVE mode checks real Binance balance
+            #    Reason: Real balance check can block trades that would succeed
+            #
+            if self.settings.use_paper_trading or self.settings.skip_balance_check:
+                # Paper trading OR skip_balance_check: Use config capital, not Binance balance
                 available_usdt = current_capital
-                logger.info(f"📝 Paper trading - using config capital: ${available_usdt:.2f}")
+                mode_str = "Paper trading" if self.settings.use_paper_trading else "Live (balance check skipped)"
+                logger.info(f"📝 {mode_str} - using config capital: ${available_usdt:.2f}")
             else:
-                # Live trading: Check actual Binance balance
+                # Live trading with balance check: Check actual Binance balance
                 try:
                     available_usdt = await exchange.fetch_balance()
                     logger.info(f"💰 Binance available USDT: ${available_usdt:.2f}")

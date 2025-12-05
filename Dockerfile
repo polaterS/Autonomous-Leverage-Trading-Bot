@@ -1,24 +1,24 @@
-# 🎯 LEVEL-BASED TRADING v5.0.5 - RSI Direction Filter
+# 🎯 LEVEL-BASED TRADING v5.0.6 - Skip Balance Check
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V505_RSI_DIRECTION_FILTER
+ARG CACHE_BUST=20251205_V506_SKIP_BALANCE_CHECK
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.5: RSI DIRECTION FILTER!" && \
-    echo "   🛡️ CRITICAL FIX: Prevent counter-trend entries!" && \
+    echo "🎯 v5.0.6: SKIP BALANCE CHECK!" && \
+    echo "   🛡️ CRITICAL FIX: Live mode behaves like Paper mode!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.5 FEATURES:" && \
-    echo "      ✅ RSI Direction Filter added" && \
-    echo "      ✅ RSI < 30 (oversold) → Block SHORT" && \
-    echo "      ✅ RSI > 70 (overbought) → Block LONG" && \
-    echo "      ✅ Prevents APT-like losses (SHORT at RSI 19)" && \
+    echo "   🆕 v5.0.6 FEATURES:" && \
+    echo "      ✅ skip_balance_check config option added" && \
+    echo "      ✅ LIVE mode uses config capital (like PAPER)" && \
+    echo "      ✅ No more Binance balance API calls blocking trades" && \
+    echo "      ✅ Binance will reject if truly insufficient funds" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   🛡️ WHY THIS MATTERS:" && \
-    echo "      ❌ APT SHORT at RSI 19 = Counter-trend = LOSS" && \
-    echo "      ✅ Now: RSI oversold blocks SHORT entries" && \
-    echo "      ✅ Now: RSI overbought blocks LONG entries" && \
-    echo "      📈 Trade WITH the momentum, not AGAINST it"
+    echo "      ❌ OLD: Balance check could block valid trades" && \
+    echo "      ✅ NEW: Uses config capital, Binance validates" && \
+    echo "      ✅ Paper and Live behave identically now" && \
+    echo "      📈 More consistent trading behavior"
 
 # Set working directory
 WORKDIR /app
@@ -38,18 +38,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.5 - RSI Direction Filter
-# Current deployment: 20251205_V505_RSI_DIRECTION_FILTER
-# Changes: Prevent counter-trend entries (APT SHORT at RSI 19 = LOSS)
-#   🛡️ v5.0.5: RSI Direction Filter
-#      ✅ RSI < 30 (oversold) → Block SHORT entries
-#      ✅ RSI > 70 (overbought) → Block LONG entries
-#      ✅ Trade WITH momentum, not AGAINST it
+# 🎯 CACHE BUST MARKER: v5.0.6 - Skip Balance Check
+# Current deployment: 20251205_V506_SKIP_BALANCE_CHECK
+# Changes: Live mode behaves like Paper mode (no balance check)
+#   🛡️ v5.0.6: Skip Balance Check
+#      ✅ skip_balance_check config option added
+#      ✅ LIVE mode uses config capital (like PAPER)
+#      ✅ Binance validates actual balance on order execution
 #   📊 Previous versions:
+#      ✅ v5.0.5: RSI Direction Filter (block counter-trend)
 #      ✅ v5.0.4b: Quality Filter Fix (Tech Advanced 40%→10%)
 #      ✅ v5.0.4: 2-of-3 Confirmation Fix
 #      ✅ v5.0.3: Closed Candle + Stop Hunt Detection
-#      ✅ v5.0.2: Partial TP + Breakeven System
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

@@ -1,31 +1,32 @@
-# Force redeploy v5.0.5 - RSI Direction Filter - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Prevent counter-trend entries!
+# Force redeploy v5.0.6 - Skip Balance Check - 5 Dec 2025 Thu
+# 🛡️ CRITICAL FIX: Live mode behaves like Paper mode!
 #
-# 🎯 v5.0.5 FEATURES:
-#   ✅ RSI Direction Filter added
-#   ✅ RSI < 30 (oversold) → Block SHORT
-#   ✅ RSI > 70 (overbought) → Block LONG
-#   ✅ Prevents APT-like losses (SHORT at RSI 19)
+# 🎯 v5.0.6 FEATURES:
+#   ✅ skip_balance_check config option added
+#   ✅ LIVE mode uses config capital (like PAPER)
+#   ✅ No more Binance balance API calls blocking trades
+#   ✅ Binance will reject if truly insufficient funds
 #
-# 🛡️ WHAT HAPPENED:
-#   ❌ APT/USDT SHORT at RSI 19
-#      • RSI 19 = OVERSOLD = Price likely to bounce UP
-#      • Entering SHORT = Going AGAINST momentum
-#      • Result: Loss
+# 🛡️ WHAT CHANGED:
+#   ❌ OLD: Live mode checked Binance balance before every trade
+#      • Could block trades due to timing/API issues
+#      • Behavior differed from Paper mode
 #
-#   ✅ v5.0.5: RSI Direction Filter
-#      • RSI < 30 → Block SHORT (don't short oversold)
-#      • RSI > 70 → Block LONG (don't long overbought)
-#      • Trade WITH momentum, not AGAINST it
+#   ✅ NEW: Live mode uses config capital (like Paper mode)
+#      • skip_balance_check = True (default)
+#      • Uses current_capital from database/config
+#      • Binance still validates on actual order execution
+#      • Paper and Live behave identically now
 #
-# 📊 Logic:
-#   | RSI Zone    | LONG   | SHORT  |
-#   |-------------|--------|--------|
-#   | <30 oversold| ✅ OK  | ❌ BLOCK|
-#   | 30-70 normal| ✅ OK  | ✅ OK  |
-#   | >70 overbought| ❌ BLOCK| ✅ OK |
+# 📊 Files Modified:
+#   - src/config.py: Added skip_balance_check option
+#   - src/trade_executor.py: Use config capital when skip_balance_check=True
+#   - src/trading_engine.py: Skip balance sync at startup
+#   - src/risk_manager.py: Use config capital for position sizing
+#   - src/trade_quality_manager.py: Use config capital for exposure calc
 #
 # 📊 Previous versions:
+#   - v5.0.5: RSI Direction Filter
 #   - v5.0.4b: Quality Filter Fix
 #   - v5.0.4: 2-of-3 Confirmation Fix
 #   - v5.0.3: Closed Candle + Stop Hunt Detection
