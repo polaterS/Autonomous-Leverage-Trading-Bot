@@ -796,36 +796,92 @@ class MarketScanner:
                         # For BTC itself, btc_ohlcv will be None (no self-correlation)
                         btc_data_for_check = btc_ohlcv if symbol != 'BTC/USDT:USDT' else None
 
-                        # Analyze price action for BOTH buy and sell opportunities
-                        # (we don't know ML signal yet, so check both directions)
-                        # 🔥 CRITICAL: Pass exchange for multi-timeframe S/R (v4.0 feature)
-                        # 🔥 CRITICAL FIX: await async should_enter_trade_v4_20251122() - RENAMED FOR CACHE BYPASS!
-                        pa_long = await pa_analyzer.should_enter_trade_v4_20251122(
-                            symbol=symbol,
-                            df=df,
-                            ml_signal='BUY',
-                            ml_confidence=50.0,  # Neutral starting point
-                            current_price=current_price,
-                            exchange=exchange,  # 🔥 v4.0: Enable multi-timeframe S/R
-                            btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
-                        )
+                        # 🎯 v5.0: Level-Based Trading System OR Legacy PA Analysis
+                        # Get indicators for confirmation system
+                        indicators_dict = market_data.get('indicators', {})
+                        indicators_15m_for_pa = indicators_dict.get('15m', {})
 
-                        pa_short = await pa_analyzer.should_enter_trade_v4_20251122(
-                            symbol=symbol,
-                            df=df,
-                            ml_signal='SELL',
-                            ml_confidence=50.0,  # Neutral starting point
-                            current_price=current_price,
-                            exchange=exchange,  # 🔥 v4.0: Enable multi-timeframe S/R
-                            btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
-                        )
+                        if settings.enable_level_based_trading:
+                            # ═══════════════════════════════════════════════════════════════
+                            # 🎯 v5.0: LEVEL-BASED ENTRY SYSTEM
+                            # Only enter when price is at S/R level with full confirmation
+                            # ═══════════════════════════════════════════════════════════════
+                            logger.info(f"🎯 {symbol} - Using LEVEL-BASED entry system v5.0")
+
+                            level_entry = await pa_analyzer.should_enter_trade_level_based(
+                                symbol=symbol,
+                                df=df,
+                                current_price=current_price,
+                                exchange=exchange,
+                                indicators=indicators_15m_for_pa
+                            )
+
+                            # Convert level-based result to PA format for compatibility
+                            if level_entry['should_enter']:
+                                direction = level_entry.get('direction', 'LONG')
+                                # Create PA-compatible result
+                                pa_entry = {
+                                    'should_enter': True,
+                                    'reason': level_entry.get('reason', ''),
+                                    'confidence_boost': level_entry.get('confirmations', {}).get('confirmation_score', 50),
+                                    'entry': current_price,
+                                    'stop_loss': level_entry.get('stop_loss', 0),
+                                    'targets': level_entry.get('targets', []),
+                                    'rr_ratio': level_entry.get('rr_ratio', 0),
+                                    'analysis': level_entry.get('analysis', {}),
+                                    'level_based': True,  # Flag for level-based entry
+                                    'level': level_entry.get('level', {})
+                                }
+
+                                if direction == 'LONG':
+                                    pa_long = pa_entry
+                                    pa_short = {'should_enter': False, 'reason': 'Level-based: Direction is LONG', 'confidence_boost': 0}
+                                else:
+                                    pa_short = pa_entry
+                                    pa_long = {'should_enter': False, 'reason': 'Level-based: Direction is SHORT', 'confidence_boost': 0}
+
+                                logger.info(f"✅ {symbol} LEVEL-BASED: {direction} entry approved!")
+                            else:
+                                # No entry - price not at level or missing confirmations
+                                pa_long = {'should_enter': False, 'reason': level_entry.get('reason', 'Not at level'), 'confidence_boost': 0}
+                                pa_short = {'should_enter': False, 'reason': level_entry.get('reason', 'Not at level'), 'confidence_boost': 0}
+                                logger.info(f"❌ {symbol} LEVEL-BASED: {level_entry.get('reason', 'No entry')}")
+
+                        else:
+                            # ═══════════════════════════════════════════════════════════════
+                            # 🔧 LEGACY: Old PA Analysis (ML-driven entries)
+                            # ═══════════════════════════════════════════════════════════════
+                            logger.info(f"📊 {symbol} - Using LEGACY PA analysis (ML-driven)")
+
+                            # Analyze price action for BOTH buy and sell opportunities
+                            # (we don't know ML signal yet, so check both directions)
+                            # 🔥 CRITICAL: Pass exchange for multi-timeframe S/R (v4.0 feature)
+                            pa_long = await pa_analyzer.should_enter_trade_v4_20251122(
+                                symbol=symbol,
+                                df=df,
+                                ml_signal='BUY',
+                                ml_confidence=50.0,  # Neutral starting point
+                                current_price=current_price,
+                                exchange=exchange,  # 🔥 v4.0: Enable multi-timeframe S/R
+                                btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
+                            )
+
+                            pa_short = await pa_analyzer.should_enter_trade_v4_20251122(
+                                symbol=symbol,
+                                df=df,
+                                ml_signal='SELL',
+                                ml_confidence=50.0,  # Neutral starting point
+                                current_price=current_price,
+                                exchange=exchange,  # 🔥 v4.0: Enable multi-timeframe S/R
+                                btc_ohlcv=btc_data_for_check  # 🔧 FIX #3: Shared BTC data (API optimized)
+                            )
 
                         # Store best PA setup for later use
                         # Always log PA analysis results (even if rejected) for transparency
                         logger.info(
                             f"📊 {symbol} PA PRE-ANALYSIS: "
-                            f"LONG={'✅' if pa_long['should_enter'] else '❌'} (+{pa_long['confidence_boost']}%) | "
-                            f"SHORT={'✅' if pa_short['should_enter'] else '❌'} (+{pa_short['confidence_boost']}%)"
+                            f"LONG={'✅' if pa_long['should_enter'] else '❌'} (+{pa_long.get('confidence_boost', 0)}%) | "
+                            f"SHORT={'✅' if pa_short['should_enter'] else '❌'} (+{pa_short.get('confidence_boost', 0)}%)"
                         )
 
                         # 🔍 DEBUG: Log rejection reasons to understand why 0 opportunities found

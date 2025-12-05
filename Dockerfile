@@ -1,21 +1,31 @@
-# 🛡️ PA-ONLY v4.7.13 - ADX FILTER SOURCE FIX
+# 🎯 LEVEL-BASED TRADING v5.0.0 - S/R Entry System
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251204_V4713_ADX_SOURCE_FIX
+ARG CACHE_BUST=20251205_V500_LEVEL_BASED_ENTRY
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v4.7.13: ADX FILTER SOURCE FIX!" && \
-    echo "   🔧 CRITICAL FIX:" && \
-    echo "      ❌ BUG: ADX filter was using indicators_15m (wrong/missing value)" && \
-    echo "      ✅ FIX: Now uses Price Action ADX (same as shown in trade)" && \
-    echo "      📝 Example: JASMY ADX 41.7 will now be correctly filtered" && \
-    echo "   🛡️ ACTIVE FILTERS (4 protection layers):" && \
-    echo "      ✅ FILTER 1: Technical Advanced < 40% → Skip trade" && \
-    echo "      ✅ FILTER 2: ATR < 0.3% (low volatility) → Skip trade" && \
-    echo "      ✅ FILTER 3: ADX > 40 (from Price Action) → Skip trade" && \
-    echo "      ✅ FILTER 4: Market 80%+ Neutral → Raise min_score to 70" && \
-    echo "   - Instant Trading still DISABLED"
+    echo "🎯 v5.0.0: LEVEL-BASED TRADING SYSTEM!" && \
+    echo "   🆕 MAJOR RELEASE: Complete Entry System Redesign" && \
+    echo "   ═══════════════════════════════════════════════════" && \
+    echo "   🎯 NEW PHILOSOPHY:" && \
+    echo "      ❌ OLD: Chase trades mid-range, use ML signals" && \
+    echo "      ✅ NEW: Wait at S/R levels, require full confirmation" && \
+    echo "   ═══════════════════════════════════════════════════" && \
+    echo "   🆕 NEW FEATURES:" && \
+    echo "      ✅ 5 Timeframes: 15m, 1h, 4h, Daily, Weekly" && \
+    echo "      ✅ Trend Lines: Ascending/Descending detection" && \
+    echo "      ✅ Level Proximity: Only trade within 0.5% of S/R" && \
+    echo "      ✅ Triple Confirmation: Candle + Volume 1.5x + RSI" && \
+    echo "      ✅ Smart Targets: Next S/R levels as targets" && \
+    echo "   ═══════════════════════════════════════════════════" && \
+    echo "   📊 ENTRY FLOW:" && \
+    echo "      1. Scan 5 timeframes for S/R levels" && \
+    echo "      2. Detect trend lines as dynamic S/R" && \
+    echo "      3. Check: Price at level? (0.5% proximity)" && \
+    echo "      4. At Support → LONG, At Resistance → SHORT" && \
+    echo "      5. Require ALL: Candle ✓ Volume ✓ RSI ✓" && \
+    echo "      6. If ALL pass → ENTER with tight stop"
 
 # Set working directory
 WORKDIR /app
@@ -35,22 +45,22 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: PA-ONLY v4.7.13
-# Current deployment: 20251204_V4713_ADX_SOURCE_FIX
-# Changes: Fixed ADX filter to use Price Action ADX (not indicators_15m)
-#   🔧 v4.7.13 CRITICAL FIX:
-#      ❌ BUG: ADX filter was checking indicators_15m.get('adx', 25)
-#      ❌ PROBLEM: indicators_15m had wrong/missing ADX (defaulted to 25)
-#      ✅ FIX: Now uses analysis['trend']['adx'] from Price Action
-#      ✅ RESULT: ADX 41.7 trades (like JASMY) will now be filtered
-#   🛡️ ACTIVE FILTERS (4 protection layers):
-#      ✅ FILTER 1: Technical Advanced < 40% → Skip
-#      ✅ FILTER 2: ATR < 0.3% → Skip
-#      ✅ FILTER 3: ADX > 40 (Price Action) → Skip
-#      ✅ FILTER 4: Market 80%+ Neutral → min_score = 70
-#   📊 Previous fixes:
+# 🎯 CACHE BUST MARKER: LEVEL-BASED v5.0.0
+# Current deployment: 20251205_V500_LEVEL_BASED_ENTRY
+# Changes: Complete entry system redesign - Level-Based Trading
+#   🎯 v5.0.0 MAJOR RELEASE:
+#      ❌ OLD: Chase mid-range prices with ML signals
+#      ✅ NEW: Wait at S/R levels with triple confirmation
+#   🆕 NEW FEATURES:
+#      ✅ 5 Timeframes: 15m, 1h, 4h, Daily, Weekly
+#      ✅ Trend Line Detection: Ascending/Descending support/resistance
+#      ✅ Level Proximity: 0.5% threshold - only trade at levels
+#      ✅ Triple Confirmation: Candlestick + Volume 1.5x + RSI extreme
+#      ✅ Smart Stop Loss: Beyond the S/R level
+#      ✅ Smart Targets: Next S/R levels as profit targets
+#   📊 Previous versions:
+#      ✅ v4.7.13: ADX filter source fix
 #      ✅ v4.7.12: Derivatives filter removed
-#      ✅ v4.7.11: Filter reason display fix
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

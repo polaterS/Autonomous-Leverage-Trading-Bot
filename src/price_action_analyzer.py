@@ -42,9 +42,443 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
 from decimal import Decimal
 from datetime import datetime
+from dataclasses import dataclass, field
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🎯 LEVEL-BASED TRADING SYSTEM v5.0 - Data Structures
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class SRLevel:
+    """
+    Enhanced Support/Resistance level with comprehensive metadata.
+    Used for level-based trading where we wait for price to reach key levels.
+    """
+    price: float
+    level_type: str  # 'support' | 'resistance'
+    timeframe: str   # '15m', '1h', '4h', '1d', '1w'
+    source: str      # 'swing', 'psychological', 'vpoc', 'fib', 'trendline'
+
+    # Strength metrics
+    touches: int = 1
+    strength_score: float = 0.0  # 0-100 normalized score
+    priority: int = 1            # Timeframe weight (1w=15, 1d=12, 4h=10, 1h=5, 15m=1)
+
+    # Multi-TF confirmation
+    confirmed_timeframes: List[str] = field(default_factory=list)
+    is_multi_tf_confirmed: bool = False
+
+    # Volume analysis
+    volume_at_level: float = 0.0
+
+    # Status tracking
+    is_active: bool = True
+    last_test_time: Optional[datetime] = None
+
+    # Distance from current price (updated on each check)
+    distance_pct: float = 0.0
+
+    def calculate_strength_score(self) -> float:
+        """Calculate comprehensive strength score 0-100"""
+        score = 0.0
+
+        # Touch count (max 30 points)
+        score += min(self.touches * 7.5, 30)
+
+        # Timeframe priority (max 30 points)
+        tf_weights = {'1w': 30, '1d': 24, '4h': 18, '1h': 12, '15m': 6}
+        score += tf_weights.get(self.timeframe, 6)
+
+        # Multi-TF confirmation (max 20 points)
+        score += len(self.confirmed_timeframes) * 5
+
+        # Source quality (max 20 points)
+        source_weights = {'vpoc': 20, 'psychological': 15, 'swing': 12, 'fib': 10, 'trendline': 10}
+        score += source_weights.get(self.source, 10)
+
+        self.strength_score = min(score, 100)
+        return self.strength_score
+
+    def update_distance(self, current_price: float) -> float:
+        """Update distance percentage from current price"""
+        if current_price > 0:
+            self.distance_pct = abs(current_price - self.price) / current_price
+        return self.distance_pct
+
+    def to_dict(self) -> Dict:
+        """Convert to dictionary for compatibility with existing code"""
+        return {
+            'price': self.price,
+            'type': self.level_type,
+            'timeframe': self.timeframe,
+            'source': self.source,
+            'touches': self.touches,
+            'strength': 'VERY_STRONG' if self.touches >= 4 else 'STRONG' if self.touches >= 3 else 'MODERATE' if self.touches >= 2 else 'WEAK',
+            'strength_score': self.strength_score,
+            'priority': self.priority,
+            'confirmed_timeframes': self.confirmed_timeframes,
+            'multi_timeframe_confirmed': self.is_multi_tf_confirmed,
+            'is_active': self.is_active,
+            'distance_pct': self.distance_pct
+        }
+
+
+@dataclass
+class TrendLine:
+    """
+    Trend line definition for ascending/descending support/resistance.
+    """
+    start_price: float
+    end_price: float
+    start_index: int
+    end_index: int
+    direction: str  # 'ascending' | 'descending'
+    slope: float
+    touches: int = 2  # Minimum 2 for valid trendline
+    timeframe: str = '15m'
+
+    # Current price at line (extrapolated to current candle)
+    current_line_price: float = 0.0
+
+    # Strength based on touches and slope consistency
+    strength: str = 'MODERATE'  # 'STRONG', 'MODERATE', 'WEAK'
+
+    def get_price_at_index(self, index: int) -> float:
+        """Calculate trendline price at given candle index"""
+        return self.start_price + (self.slope * (index - self.start_index))
+
+    def update_current_price(self, current_index: int) -> float:
+        """Update current line price for latest candle"""
+        self.current_line_price = self.get_price_at_index(current_index)
+        return self.current_line_price
+
+    def to_sr_level(self, current_price: float) -> SRLevel:
+        """Convert trend line to SRLevel for unified handling"""
+        level_type = 'support' if self.direction == 'ascending' else 'resistance'
+        return SRLevel(
+            price=self.current_line_price,
+            level_type=level_type,
+            timeframe=self.timeframe,
+            source='trendline',
+            touches=self.touches,
+            priority=5,  # Medium priority for trend lines
+            is_active=True,
+            distance_pct=abs(current_price - self.current_line_price) / current_price if current_price > 0 else 0
+        )
+
+
+@dataclass
+class LevelRegistry:
+    """
+    Central registry for all S/R levels across symbols.
+    Manages level lifecycle, updates, and queries.
+    """
+    levels: Dict[str, List[SRLevel]] = field(default_factory=dict)
+    trend_lines: Dict[str, List[TrendLine]] = field(default_factory=dict)
+
+    # Configuration
+    max_levels_per_symbol: int = 30
+    merge_threshold: float = 0.005  # 0.5% for merging similar levels
+    at_level_threshold: float = 0.005  # 0.5% = "at level" trigger
+
+    def add_level(self, symbol: str, level: SRLevel) -> None:
+        """Add or merge level with existing"""
+        if symbol not in self.levels:
+            self.levels[symbol] = []
+
+        # Check if similar level exists
+        for existing in self.levels[symbol]:
+            if existing.level_type == level.level_type:
+                distance = abs(existing.price - level.price) / existing.price
+                if distance <= self.merge_threshold:
+                    # Merge: keep stronger level, increment touches
+                    existing.touches += level.touches
+                    if level.priority > existing.priority:
+                        existing.priority = level.priority
+                        existing.timeframe = level.timeframe
+                    if level.timeframe not in existing.confirmed_timeframes:
+                        existing.confirmed_timeframes.append(level.timeframe)
+                        existing.is_multi_tf_confirmed = len(existing.confirmed_timeframes) > 1
+                    existing.calculate_strength_score()
+                    return
+
+        # New level
+        level.calculate_strength_score()
+        self.levels[symbol].append(level)
+
+        # Keep only top N levels by strength
+        if len(self.levels[symbol]) > self.max_levels_per_symbol:
+            self.levels[symbol].sort(key=lambda x: x.strength_score, reverse=True)
+            self.levels[symbol] = self.levels[symbol][:self.max_levels_per_symbol]
+
+    def get_levels_near_price(
+        self,
+        symbol: str,
+        current_price: float,
+        max_distance_pct: float = None
+    ) -> List[SRLevel]:
+        """Get levels within threshold of current price"""
+        if max_distance_pct is None:
+            max_distance_pct = self.at_level_threshold
+
+        if symbol not in self.levels:
+            return []
+
+        near_levels = []
+        for level in self.levels[symbol]:
+            if not level.is_active:
+                continue
+            level.update_distance(current_price)
+            if level.distance_pct <= max_distance_pct:
+                near_levels.append(level)
+
+        # Sort by distance (closest first)
+        near_levels.sort(key=lambda x: x.distance_pct)
+        return near_levels
+
+    def get_all_active_levels(
+        self,
+        symbol: str,
+        level_type: Optional[str] = None
+    ) -> List[SRLevel]:
+        """Get all active levels sorted by strength"""
+        if symbol not in self.levels:
+            return []
+
+        active_levels = [l for l in self.levels[symbol] if l.is_active]
+
+        if level_type:
+            active_levels = [l for l in active_levels if l.level_type == level_type]
+
+        # Sort by strength score (strongest first)
+        active_levels.sort(key=lambda x: x.strength_score, reverse=True)
+        return active_levels
+
+    def update_all_distances(self, symbol: str, current_price: float) -> None:
+        """Update distance calculations for all levels"""
+        if symbol not in self.levels:
+            return
+        for level in self.levels[symbol]:
+            level.update_distance(current_price)
+
+    def clear_symbol(self, symbol: str) -> None:
+        """Clear all levels for a symbol"""
+        if symbol in self.levels:
+            self.levels[symbol] = []
+        if symbol in self.trend_lines:
+            self.trend_lines[symbol] = []
+
+
+class EntryConfirmation:
+    """
+    Multi-factor confirmation system for level-based entries.
+
+    REQUIRED for entry (ALL must be true):
+    1. Price at S/R level (within 0.5%) - checked externally
+    2. Candlestick pattern (reversal type)
+    3. Volume spike (above threshold)
+    4. RSI in extreme zone (contextual)
+    """
+
+    def __init__(self):
+        # Candlestick requirements
+        self.bullish_patterns = [
+            'BULLISH_PIN_BAR', 'BULLISH_ENGULFING', 'HAMMER',
+            'DOJI', 'MORNING_STAR', 'BULLISH_HARAMI'
+        ]
+        self.bearish_patterns = [
+            'BEARISH_PIN_BAR', 'BEARISH_ENGULFING', 'SHOOTING_STAR',
+            'DOJI', 'EVENING_STAR', 'BEARISH_HARAMI'
+        ]
+
+        # Volume requirements
+        self.volume_spike_threshold = 1.5  # 1.5x average
+        self.volume_lookback = 20  # 20-period average
+
+        # RSI requirements
+        self.rsi_oversold = 30   # Below = oversold (bullish for LONG)
+        self.rsi_overbought = 70  # Above = overbought (bearish for SHORT)
+        self.rsi_extreme_oversold = 20  # Very oversold = strong signal
+        self.rsi_extreme_overbought = 80  # Very overbought = strong signal
+
+    def check_all_confirmations(
+        self,
+        df: pd.DataFrame,
+        entry_side: str,  # 'LONG' | 'SHORT'
+        indicators: Dict
+    ) -> Dict:
+        """
+        Check ALL confirmation signals.
+
+        Returns:
+            {
+                'all_confirmed': bool,
+                'confirmations': {
+                    'candlestick': {'confirmed': bool, 'patterns': [...], 'score': int},
+                    'volume': {'confirmed': bool, 'ratio': float},
+                    'rsi': {'confirmed': bool, 'value': float, 'zone': str}
+                },
+                'missing': [str],  # List of missing confirmations
+                'confirmation_score': float  # 0-100
+            }
+        """
+        result = {
+            'all_confirmed': False,
+            'confirmations': {},
+            'missing': [],
+            'confirmation_score': 0.0
+        }
+
+        # 1. Candlestick Pattern Check
+        candle_result = self._check_candlestick(df, entry_side)
+        result['confirmations']['candlestick'] = candle_result
+        if not candle_result['confirmed']:
+            result['missing'].append('candlestick_pattern')
+
+        # 2. Volume Spike Check
+        volume_result = self._check_volume_spike(df)
+        result['confirmations']['volume'] = volume_result
+        if not volume_result['confirmed']:
+            result['missing'].append('volume_spike')
+
+        # 3. RSI Extreme Zone Check
+        rsi_result = self._check_rsi_zone(indicators, entry_side)
+        result['confirmations']['rsi'] = rsi_result
+        if not rsi_result['confirmed']:
+            result['missing'].append('rsi_extreme')
+
+        # All confirmed?
+        result['all_confirmed'] = len(result['missing']) == 0
+
+        # Calculate confirmation score (0-100)
+        score = 0
+        if candle_result['confirmed']:
+            score += 40  # Candles most important
+        if volume_result['confirmed']:
+            score += 30
+        if rsi_result['confirmed']:
+            score += 30
+        result['confirmation_score'] = score
+
+        return result
+
+    def _check_candlestick(self, df: pd.DataFrame, side: str) -> Dict:
+        """Check for required candlestick patterns on the last candle"""
+        if df is None or len(df) < 3:
+            return {'confirmed': False, 'patterns': [], 'score': 0}
+
+        found_patterns = []
+
+        # Get last 3 candles for pattern detection
+        last_candle = df.iloc[-1]
+        prev_candle = df.iloc[-2]
+
+        o, h, l, c = last_candle['open'], last_candle['high'], last_candle['low'], last_candle['close']
+        body = abs(c - o)
+        total_range = h - l if h > l else 0.0001
+
+        # Prevent division by zero
+        if total_range == 0:
+            total_range = 0.0001
+
+        body_ratio = body / total_range
+        upper_wick = h - max(o, c)
+        lower_wick = min(o, c) - l
+
+        # ═══════════════════════════════════════════════════════════════
+        # Bullish patterns (for LONG entries)
+        # ═══════════════════════════════════════════════════════════════
+        if side == 'LONG':
+            # Hammer / Bullish Pin Bar: Long lower wick, small body at top
+            if lower_wick > body * 2 and upper_wick < body * 0.5:
+                found_patterns.append('HAMMER')
+
+            # Bullish Engulfing: Current candle engulfs previous bearish candle
+            if c > o and prev_candle['close'] < prev_candle['open']:
+                if c > prev_candle['open'] and o < prev_candle['close']:
+                    found_patterns.append('BULLISH_ENGULFING')
+
+            # Doji: Very small body (indecision, potential reversal)
+            if body_ratio < 0.1:
+                found_patterns.append('DOJI')
+
+            # Bullish Pin Bar: Lower wick > 66% of range
+            if lower_wick / total_range > 0.66:
+                found_patterns.append('BULLISH_PIN_BAR')
+
+        # ═══════════════════════════════════════════════════════════════
+        # Bearish patterns (for SHORT entries)
+        # ═══════════════════════════════════════════════════════════════
+        else:
+            # Shooting Star / Bearish Pin Bar: Long upper wick, small body at bottom
+            if upper_wick > body * 2 and lower_wick < body * 0.5:
+                found_patterns.append('SHOOTING_STAR')
+
+            # Bearish Engulfing: Current candle engulfs previous bullish candle
+            if c < o and prev_candle['close'] > prev_candle['open']:
+                if c < prev_candle['open'] and o > prev_candle['close']:
+                    found_patterns.append('BEARISH_ENGULFING')
+
+            # Doji: Very small body
+            if body_ratio < 0.1:
+                found_patterns.append('DOJI')
+
+            # Bearish Pin Bar: Upper wick > 66% of range
+            if upper_wick / total_range > 0.66:
+                found_patterns.append('BEARISH_PIN_BAR')
+
+        # Score based on pattern quality
+        score = len(found_patterns) * 25  # Each pattern = 25 points
+        score = min(score, 100)
+
+        return {
+            'confirmed': len(found_patterns) > 0,
+            'patterns': found_patterns,
+            'score': score
+        }
+
+    def _check_volume_spike(self, df: pd.DataFrame) -> Dict:
+        """Check for volume above threshold"""
+        if df is None or len(df) < self.volume_lookback + 1:
+            return {'confirmed': False, 'ratio': 0, 'threshold': self.volume_spike_threshold}
+
+        current_volume = df['volume'].iloc[-1]
+        avg_volume = df['volume'].tail(self.volume_lookback + 1).iloc[:-1].mean()
+
+        ratio = current_volume / avg_volume if avg_volume > 0 else 0
+
+        return {
+            'confirmed': ratio >= self.volume_spike_threshold,
+            'ratio': round(ratio, 2),
+            'threshold': self.volume_spike_threshold,
+            'is_strong': ratio >= 2.0  # 2x = very strong
+        }
+
+    def _check_rsi_zone(self, indicators: Dict, side: str) -> Dict:
+        """Check if RSI in appropriate extreme zone"""
+        rsi = indicators.get('rsi', 50)
+
+        if side == 'LONG':
+            # For LONG, want RSI oversold
+            confirmed = rsi <= self.rsi_oversold
+            zone = 'oversold' if rsi <= self.rsi_oversold else 'neutral'
+            is_extreme = rsi <= self.rsi_extreme_oversold
+        else:
+            # For SHORT, want RSI overbought
+            confirmed = rsi >= self.rsi_overbought
+            zone = 'overbought' if rsi >= self.rsi_overbought else 'neutral'
+            is_extreme = rsi >= self.rsi_extreme_overbought
+
+        return {
+            'confirmed': confirmed,
+            'value': round(rsi, 1),
+            'zone': zone,
+            'is_extreme': is_extreme
+        }
 
 
 class PriceActionAnalyzer:
@@ -109,8 +543,17 @@ class PriceActionAnalyzer:
         self.pullback_retracement_min = 0.236  # Min Fib retracement for pullback (23.6%)
         self.pullback_retracement_max = 0.618  # Max Fib retracement for pullback (61.8%)
 
+        # 🎯 v5.0: Level-Based Trading System
+        self.level_registry = LevelRegistry(
+            max_levels_per_symbol=30,
+            merge_threshold=0.005,  # 0.5% merge threshold
+            at_level_threshold=0.005  # 0.5% proximity threshold
+        )
+        self.entry_confirmation = EntryConfirmation()
+        self.level_proximity_threshold = 0.005  # 0.5% - price must be this close to level
+
         logger.info(
-            f"✅ PriceActionAnalyzer PROFESSIONAL v4.2 initialized:\n"
+            f"✅ PriceActionAnalyzer PROFESSIONAL v5.0 initialized:\n"
             f"   - Min ADX threshold: {self.min_trend_threshold} (professional standard)\n"
             f"   - S/R tolerance: {self.support_resistance_tolerance*100:.1f}% (tightened for quality)\n"
             f"   - Room to target: {self.room_to_opposite_level*100:.1f}% (ensures R/R achievable)\n"
@@ -118,7 +561,9 @@ class PriceActionAnalyzer:
             f"   - 🛡️ ADX Overextended Filter: >{self.adx_overextended_threshold} = SKIP\n"
             f"   - 🛡️ Sideways Low Volume Filter: <{self.sideways_low_volume_threshold}x = SKIP\n"
             f"   - 🛡️ Pullback Detection: {self.pullback_retracement_min*100:.1f}%-{self.pullback_retracement_max*100:.1f}% retracement\n"
-            f"   - 🎯 PROFESSIONAL: Quality over quantity"
+            f"   - 🎯 v5.0: LEVEL-BASED TRADING with 5 timeframes\n"
+            f"   - 🎯 Level Proximity: {self.level_proximity_threshold*100:.1f}%\n"
+            f"   - 🎯 Confirmations: Candlestick + Volume 1.5x + RSI Extreme"
         )
 
     def calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
@@ -263,6 +708,237 @@ class PriceActionAnalyzer:
                 swing_lows.append(float(lows[i]))
 
         return swing_lows
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # 🎯 TREND LINE DETECTION v5.0 - Level-Based Trading Enhancement
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    def detect_trend_lines(
+        self,
+        df: pd.DataFrame,
+        min_touches: int = 2,
+        tolerance_pct: float = 0.003,  # 0.3% touch tolerance
+        timeframe: str = '15m'
+    ) -> Dict[str, List[TrendLine]]:
+        """
+        Detect ascending and descending trend lines.
+
+        Algorithm:
+        1. Find swing highs (for descending lines) and swing lows (for ascending lines)
+        2. For each pair of swing points, calculate potential trendline
+        3. Count how many candles touch the line (within tolerance)
+        4. Keep lines with min_touches or more
+        5. Filter overlapping/redundant lines
+
+        Args:
+            df: OHLCV DataFrame
+            min_touches: Minimum touches for valid trendline (default: 2)
+            tolerance_pct: Price tolerance for touch detection (default: 0.3%)
+            timeframe: Timeframe label for the trendline
+
+        Returns:
+            {
+                'ascending': [TrendLine, ...],   # Support trend lines
+                'descending': [TrendLine, ...]   # Resistance trend lines
+            }
+        """
+        ascending_lines = []
+        descending_lines = []
+
+        if df is None or len(df) < 20:
+            return {'ascending': [], 'descending': []}
+
+        try:
+            # Get swing points with indices
+            swing_low_data = self._get_swing_points_with_index(df, 'low', window=5)
+            swing_high_data = self._get_swing_points_with_index(df, 'high', window=5)
+
+            # ═══════════════════════════════════════════════════════════════
+            # ASCENDING (Support) Trend Lines: Connect swing lows
+            # ═══════════════════════════════════════════════════════════════
+            for i in range(len(swing_low_data) - 1):
+                for j in range(i + 1, min(i + 5, len(swing_low_data))):  # Limit combinations
+                    start_idx, start_price = swing_low_data[i]
+                    end_idx, end_price = swing_low_data[j]
+
+                    # Skip if indices are too close
+                    if end_idx - start_idx < 3:
+                        continue
+
+                    # Calculate slope (price change per candle)
+                    slope = (end_price - start_price) / (end_idx - start_idx)
+
+                    # Only ascending (positive slope for support)
+                    if slope <= 0:
+                        continue
+
+                    # Count touches
+                    touches = self._count_line_touches(
+                        df, start_idx, start_price, slope, 'low', tolerance_pct
+                    )
+
+                    if touches >= min_touches:
+                        # Calculate current line price (extrapolated)
+                        current_idx = len(df) - 1
+                        current_line_price = start_price + slope * (current_idx - start_idx)
+
+                        # Determine strength
+                        strength = 'STRONG' if touches >= 3 else 'MODERATE'
+
+                        ascending_lines.append(TrendLine(
+                            start_price=start_price,
+                            end_price=end_price,
+                            start_index=start_idx,
+                            end_index=end_idx,
+                            direction='ascending',
+                            slope=slope,
+                            touches=touches,
+                            timeframe=timeframe,
+                            current_line_price=current_line_price,
+                            strength=strength
+                        ))
+
+            # ═══════════════════════════════════════════════════════════════
+            # DESCENDING (Resistance) Trend Lines: Connect swing highs
+            # ═══════════════════════════════════════════════════════════════
+            for i in range(len(swing_high_data) - 1):
+                for j in range(i + 1, min(i + 5, len(swing_high_data))):
+                    start_idx, start_price = swing_high_data[i]
+                    end_idx, end_price = swing_high_data[j]
+
+                    if end_idx - start_idx < 3:
+                        continue
+
+                    slope = (end_price - start_price) / (end_idx - start_idx)
+
+                    # Only descending (negative slope for resistance)
+                    if slope >= 0:
+                        continue
+
+                    touches = self._count_line_touches(
+                        df, start_idx, start_price, slope, 'high', tolerance_pct
+                    )
+
+                    if touches >= min_touches:
+                        current_idx = len(df) - 1
+                        current_line_price = start_price + slope * (current_idx - start_idx)
+
+                        strength = 'STRONG' if touches >= 3 else 'MODERATE'
+
+                        descending_lines.append(TrendLine(
+                            start_price=start_price,
+                            end_price=end_price,
+                            start_index=start_idx,
+                            end_index=end_idx,
+                            direction='descending',
+                            slope=slope,
+                            touches=touches,
+                            timeframe=timeframe,
+                            current_line_price=current_line_price,
+                            strength=strength
+                        ))
+
+            # Filter best lines (remove overlapping, keep strongest)
+            ascending_lines = self._filter_best_trend_lines(ascending_lines)
+            descending_lines = self._filter_best_trend_lines(descending_lines)
+
+            logger.debug(
+                f"   📈 Trend lines detected: "
+                f"{len(ascending_lines)} ascending, {len(descending_lines)} descending"
+            )
+
+            return {
+                'ascending': ascending_lines,
+                'descending': descending_lines
+            }
+
+        except Exception as e:
+            logger.warning(f"Trend line detection failed: {e}")
+            return {'ascending': [], 'descending': []}
+
+    def _get_swing_points_with_index(
+        self,
+        df: pd.DataFrame,
+        price_col: str,
+        window: int = 5
+    ) -> List[Tuple[int, float]]:
+        """Get swing points with their indices for trend line calculation"""
+        points = []
+
+        for i in range(window, len(df) - window):
+            if price_col == 'low':
+                # Swing low: lower than neighbors
+                is_swing = all(
+                    df[price_col].iloc[i] <= df[price_col].iloc[i - k]
+                    and df[price_col].iloc[i] <= df[price_col].iloc[i + k]
+                    for k in range(1, window + 1)
+                )
+            else:
+                # Swing high: higher than neighbors
+                is_swing = all(
+                    df[price_col].iloc[i] >= df[price_col].iloc[i - k]
+                    and df[price_col].iloc[i] >= df[price_col].iloc[i + k]
+                    for k in range(1, window + 1)
+                )
+
+            if is_swing:
+                points.append((i, float(df[price_col].iloc[i])))
+
+        return points
+
+    def _count_line_touches(
+        self,
+        df: pd.DataFrame,
+        start_idx: int,
+        start_price: float,
+        slope: float,
+        price_col: str,
+        tolerance_pct: float
+    ) -> int:
+        """Count how many candles touch the trend line within tolerance"""
+        touches = 0
+
+        for i in range(start_idx, len(df)):
+            line_price = start_price + slope * (i - start_idx)
+            actual_price = df[price_col].iloc[i]
+
+            if line_price > 0:
+                distance = abs(actual_price - line_price) / line_price
+                if distance <= tolerance_pct:
+                    touches += 1
+
+        return touches
+
+    def _filter_best_trend_lines(
+        self,
+        lines: List[TrendLine],
+        max_lines: int = 3
+    ) -> List[TrendLine]:
+        """Keep only the best trend lines, removing overlapping ones"""
+        if not lines:
+            return []
+
+        # Sort by touches (most touches first)
+        sorted_lines = sorted(lines, key=lambda x: x.touches, reverse=True)
+
+        # Remove overlapping lines (similar current_line_price)
+        filtered = []
+        for line in sorted_lines:
+            is_overlapping = False
+            for existing in filtered:
+                if existing.current_line_price > 0:
+                    overlap = abs(line.current_line_price - existing.current_line_price) / existing.current_line_price
+                    if overlap < 0.01:  # 1% overlap threshold
+                        is_overlapping = True
+                        break
+
+            if not is_overlapping:
+                filtered.append(line)
+
+            if len(filtered) >= max_lines:
+                break
+
+        return filtered
 
     def cluster_levels(self, levels: List[float], tolerance: float = None) -> List[Dict]:
         """
@@ -1724,25 +2400,29 @@ class PriceActionAnalyzer:
         df_15m: Optional[pd.DataFrame] = None
     ) -> Dict:
         """
-        🎯 MULTI-TIMEFRAME S/R ANALYSIS
+        🎯 MULTI-TIMEFRAME S/R ANALYSIS v5.0 - LEVEL-BASED TRADING
 
-        Combine S/R levels from multiple timeframes for comprehensive view.
+        Combine S/R levels from 5 timeframes for comprehensive view.
 
-        TIMEFRAME HIERARCHY:
-        - 4h: Major S/R levels (institutional, swing trading)
+        TIMEFRAME HIERARCHY (v5.0 - Enhanced):
+        - 1w: Weekly S/R levels (institutional, major pivots) - NEW
+        - 1d: Daily S/R levels (swing trading, key levels) - NEW
+        - 4h: Major intraday S/R levels (swing trading)
         - 1h: Intermediate S/R levels (day trading)
         - 15m: Minor S/R levels (scalping, provided as param)
 
-        Why multi-timeframe:
-        - 15m only shows minor swings (last 3-6 hours)
-        - 4h shows major levels (last 2-3 days)
-        - Major levels = stronger, more reliable
-        - Trading at major S/R = higher probability
+        Why 5 timeframes:
+        - Weekly/Daily = strongest institutional levels
+        - 4h = swing trading pivot points
+        - 1h/15m = intraday precision
+        - Higher TF levels = more reliable bounces
 
         Priority:
-        1. 4h levels (highest priority, strongest)
-        2. 1h levels (medium priority, intermediate)
-        3. 15m levels (lowest priority, scalping)
+        1. 1w levels (priority 15, strongest - institutional)
+        2. 1d levels (priority 12, very strong - daily traders)
+        3. 4h levels (priority 10, strong - swing)
+        4. 1h levels (priority 5, medium - day trading)
+        5. 15m levels (priority 1, lowest - scalping)
 
         Args:
             symbol: Trading symbol
@@ -1756,8 +2436,85 @@ class PriceActionAnalyzer:
         try:
             all_support = []
             all_resistance = []
+            timeframes_used = []
 
-            # Priority 1: 4h timeframe (MAJOR levels)
+            # ═══════════════════════════════════════════════════════════════
+            # Priority 0: 1w (Weekly) timeframe - INSTITUTIONAL levels (NEW)
+            # ═══════════════════════════════════════════════════════════════
+            if exchange:
+                try:
+                    logger.info(f"   📊 Fetching Weekly (1w) S/R levels...")
+                    # Fetch 52 candles × 1w = 52 weeks = 1 year of data
+                    ohlcv_1w = await exchange.fetch_ohlcv(symbol, timeframe='1w', limit=52)
+
+                    if ohlcv_1w and len(ohlcv_1w) >= 10:
+                        df_1w = pd.DataFrame(
+                            ohlcv_1w,
+                            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                        )
+
+                        sr_1w = self.analyze_support_resistance(
+                            df_1w,
+                            current_price=current_price,
+                            include_psychological=True  # Weekly gets psychological levels
+                        )
+
+                        for level in sr_1w['support']:
+                            level['timeframe'] = '1w'
+                            level['priority'] = 15  # Highest priority
+                            all_support.append(level)
+
+                        for level in sr_1w['resistance']:
+                            level['timeframe'] = '1w'
+                            level['priority'] = 15
+                            all_resistance.append(level)
+
+                        timeframes_used.append('1w')
+                        logger.info(f"   ✅ 1w S/R: {len(sr_1w['support'])} supports, {len(sr_1w['resistance'])} resistances")
+
+                except Exception as e:
+                    logger.warning(f"Failed to fetch 1w data: {e}")
+
+            # ═══════════════════════════════════════════════════════════════
+            # Priority 1: 1d (Daily) timeframe - KEY levels (NEW)
+            # ═══════════════════════════════════════════════════════════════
+            if exchange:
+                try:
+                    logger.info(f"   📊 Fetching Daily (1d) S/R levels...")
+                    # Fetch 100 candles × 1d = 100 days of data
+                    ohlcv_1d = await exchange.fetch_ohlcv(symbol, timeframe='1d', limit=100)
+
+                    if ohlcv_1d and len(ohlcv_1d) >= 20:
+                        df_1d = pd.DataFrame(
+                            ohlcv_1d,
+                            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                        )
+
+                        sr_1d = self.analyze_support_resistance(
+                            df_1d,
+                            current_price=current_price,
+                            include_psychological=False  # Already from 1w
+                        )
+
+                        for level in sr_1d['support']:
+                            level['timeframe'] = '1d'
+                            level['priority'] = 12  # Very high priority
+                            all_support.append(level)
+
+                        for level in sr_1d['resistance']:
+                            level['timeframe'] = '1d'
+                            level['priority'] = 12
+                            all_resistance.append(level)
+
+                        timeframes_used.append('1d')
+                        logger.info(f"   ✅ 1d S/R: {len(sr_1d['support'])} supports, {len(sr_1d['resistance'])} resistances")
+
+                except Exception as e:
+                    logger.warning(f"Failed to fetch 1d data: {e}")
+
+            # ═══════════════════════════════════════════════════════════════
+            # Priority 2: 4h timeframe (MAJOR intraday levels)
+            # ═══════════════════════════════════════════════════════════════
             if exchange:
                 try:
                     logger.info(f"   📊 Fetching 4h S/R levels...")
@@ -1790,12 +2547,15 @@ class PriceActionAnalyzer:
                             level['priority'] = 10
                             all_resistance.append(level)
 
+                        timeframes_used.append('4h')
                         logger.info(f"   ✅ 4h S/R: {len(sr_4h['support'])} supports, {len(sr_4h['resistance'])} resistances")
 
                 except Exception as e:
                     logger.warning(f"Failed to fetch 4h data: {e}")
 
-            # Priority 2: 1h timeframe (INTERMEDIATE levels)
+            # ═══════════════════════════════════════════════════════════════
+            # Priority 3: 1h timeframe (INTERMEDIATE levels)
+            # ═══════════════════════════════════════════════════════════════
             if exchange:
                 try:
                     logger.info(f"   📊 Fetching 1h S/R levels...")
@@ -1828,12 +2588,15 @@ class PriceActionAnalyzer:
                             level['priority'] = 5
                             all_resistance.append(level)
 
+                        timeframes_used.append('1h')
                         logger.info(f"   ✅ 1h S/R: {len(sr_1h['support'])} supports, {len(sr_1h['resistance'])} resistances")
 
                 except Exception as e:
                     logger.warning(f"Failed to fetch 1h data: {e}")
 
-            # Priority 3: 15m timeframe (MINOR levels - scalping)
+            # ═══════════════════════════════════════════════════════════════
+            # Priority 4: 15m timeframe (MINOR levels - scalping)
+            # ═══════════════════════════════════════════════════════════════
             if df_15m is not None and len(df_15m) >= 20:
                 logger.info(f"   📊 Analyzing 15m S/R levels...")
                 sr_15m = self.analyze_support_resistance(
@@ -1853,9 +2616,12 @@ class PriceActionAnalyzer:
                     level['priority'] = 1
                     all_resistance.append(level)
 
+                timeframes_used.append('15m')
                 logger.info(f"   ✅ 15m S/R: {len(sr_15m['support'])} supports, {len(sr_15m['resistance'])} resistances")
 
+            # ═══════════════════════════════════════════════════════════════
             # Remove duplicate levels (merge if within 0.5%)
+            # ═══════════════════════════════════════════════════════════════
             def merge_duplicate_levels(levels):
                 """Merge levels within 0.5% of each other, keeping highest priority"""
                 if not levels:
@@ -1898,13 +2664,13 @@ class PriceActionAnalyzer:
             logger.info(
                 f"   🎯 Multi-timeframe S/R complete: "
                 f"{len(all_support)} supports, {len(all_resistance)} resistances "
-                f"(after merging duplicates)"
+                f"(from {len(timeframes_used)} timeframes: {timeframes_used})"
             )
 
             return {
                 'support': all_support,
                 'resistance': all_resistance,
-                'timeframes_used': ['4h', '1h', '15m'] if exchange else ['15m']
+                'timeframes_used': timeframes_used
             }
 
         except Exception as e:
@@ -2738,6 +3504,314 @@ class PriceActionAnalyzer:
 
         result['reason'] = f'Unknown ML signal: {ml_signal}'
         return result
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 🎯 v5.0: LEVEL-BASED ENTRY SYSTEM
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def should_enter_trade_level_based(
+        self,
+        symbol: str,
+        df: pd.DataFrame,
+        current_price: float,
+        exchange=None,
+        indicators: Dict = None
+    ) -> Dict:
+        """
+        🎯 LEVEL-BASED ENTRY SYSTEM v5.0
+
+        NEW PHILOSOPHY:
+        - DON'T chase mid-range prices
+        - WAIT for price to reach significant S/R levels
+        - REQUIRE full confirmation (Candlestick + Volume + RSI)
+
+        Entry Logic:
+        1. Get all S/R levels from 5 timeframes (15m, 1h, 4h, 1d, 1w)
+        2. Include trend lines as dynamic S/R
+        3. Check if price is at any level (within 0.5%)
+           - NO → Return 'WAIT' - don't trade mid-range
+           - YES → Continue
+        4. Determine entry side:
+           - At Support → Check for LONG entry
+           - At Resistance → Check for SHORT entry
+        5. Check ALL confirmations:
+           - ✓ Candlestick pattern (reversal)
+           - ✓ Volume spike (1.5x+ average)
+           - ✓ RSI extreme zone (oversold/overbought)
+        6. If ALL pass → ENTER with tight stop beyond level
+
+        Args:
+            symbol: Trading pair (e.g., 'BTC/USDT')
+            df: OHLCV DataFrame (15m)
+            current_price: Current market price
+            exchange: Exchange instance for fetching multi-TF data
+            indicators: Pre-calculated indicators dict
+
+        Returns:
+            {
+                'should_enter': bool,
+                'direction': 'LONG' | 'SHORT' | None,
+                'reason': str,
+                'level': SRLevel or None,
+                'confirmations': {...},
+                'stop_loss': float,
+                'targets': [float],
+                'analysis': {...}
+            }
+        """
+        logger.info("=" * 80)
+        logger.info(f"🎯 LEVEL-BASED ENTRY v5.0: {symbol} @ ${current_price:.4f}")
+        logger.info("=" * 80)
+
+        # Default result - WAIT (no trade)
+        result = {
+            'should_enter': False,
+            'direction': None,
+            'reason': '',
+            'level': None,
+            'confirmations': {},
+            'stop_loss': 0,
+            'targets': [],
+            'rr_ratio': 0,
+            'analysis': {}
+        }
+
+        if indicators is None:
+            indicators = {}
+
+        try:
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 1: Get Multi-Timeframe S/R Levels
+            # ═══════════════════════════════════════════════════════════════
+            sr_analysis = await self.analyze_multi_timeframe_sr(
+                symbol=symbol,
+                current_price=current_price,
+                exchange=exchange,
+                df_15m=df
+            )
+
+            # Get all levels from analysis
+            all_supports = sr_analysis.get('all_supports', [])
+            all_resistances = sr_analysis.get('all_resistances', [])
+
+            logger.info(f"   📊 S/R Levels: {len(all_supports)} supports, {len(all_resistances)} resistances")
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 2: Detect Trend Lines (Dynamic S/R)
+            # ═══════════════════════════════════════════════════════════════
+            trend_lines = self.detect_trend_lines(df, min_touches=2)
+            ascending_lines = trend_lines.get('ascending', [])
+            descending_lines = trend_lines.get('descending', [])
+
+            logger.info(f"   📈 Trend Lines: {len(ascending_lines)} ascending, {len(descending_lines)} descending")
+
+            # Add trend line prices to levels
+            for tl in ascending_lines:
+                tl.update_current_price(len(df) - 1)
+                # Add as support level
+                tl_level = tl.to_sr_level(current_price)
+                all_supports.append(tl_level.to_dict())
+
+            for tl in descending_lines:
+                tl.update_current_price(len(df) - 1)
+                # Add as resistance level
+                tl_level = tl.to_sr_level(current_price)
+                all_resistances.append(tl_level.to_dict())
+
+            # Update level registry
+            self.level_registry.clear_symbol(symbol)
+            for sup in all_supports:
+                sr_level = SRLevel(
+                    price=sup.get('price', 0),
+                    level_type='support',
+                    timeframe=sup.get('timeframe', '15m'),
+                    source=sup.get('source', 'swing'),
+                    touches=sup.get('touches', 1),
+                    priority=sup.get('priority', 1)
+                )
+                sr_level.update_distance(current_price)
+                self.level_registry.add_level(symbol, sr_level)
+
+            for res in all_resistances:
+                sr_level = SRLevel(
+                    price=res.get('price', 0),
+                    level_type='resistance',
+                    timeframe=res.get('timeframe', '15m'),
+                    source=res.get('source', 'swing'),
+                    touches=res.get('touches', 1),
+                    priority=res.get('priority', 1)
+                )
+                sr_level.update_distance(current_price)
+                self.level_registry.add_level(symbol, sr_level)
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 3: Check if Price is at ANY Significant Level
+            # ═══════════════════════════════════════════════════════════════
+            nearby_levels = self.level_registry.get_levels_near_price(
+                symbol=symbol,
+                current_price=current_price,
+                max_distance_pct=self.level_proximity_threshold
+            )
+
+            if not nearby_levels:
+                result['reason'] = f'❌ WAIT: Price not at any S/R level (need within {self.level_proximity_threshold*100:.1f}%)'
+                logger.info(f"   {result['reason']}")
+                result['analysis'] = {
+                    'support_resistance': sr_analysis,
+                    'trend_lines': {
+                        'ascending': [tl.to_sr_level(current_price).to_dict() for tl in ascending_lines],
+                        'descending': [tl.to_sr_level(current_price).to_dict() for tl in descending_lines]
+                    }
+                }
+                return result
+
+            # Sort by priority (higher = more important)
+            nearby_levels.sort(key=lambda x: x.priority, reverse=True)
+            best_level = nearby_levels[0]
+
+            logger.info(
+                f"   ✅ AT LEVEL: {best_level.level_type.upper()} @ ${best_level.price:.4f} "
+                f"({best_level.timeframe}, {best_level.source}, "
+                f"distance: {best_level.distance_pct*100:.2f}%, priority: {best_level.priority})"
+            )
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 4: Determine Entry Direction Based on Level Type
+            # ═══════════════════════════════════════════════════════════════
+            if best_level.level_type == 'support':
+                entry_side = 'LONG'
+                logger.info(f"   📈 Entry Side: LONG (at support)")
+            else:
+                entry_side = 'SHORT'
+                logger.info(f"   📉 Entry Side: SHORT (at resistance)")
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 5: Check ALL Confirmations
+            # ═══════════════════════════════════════════════════════════════
+            confirmations = self.entry_confirmation.check_all_confirmations(
+                df=df,
+                entry_side=entry_side,
+                indicators=indicators
+            )
+
+            result['confirmations'] = confirmations
+
+            # Log confirmation results
+            candle_conf = confirmations['confirmations'].get('candlestick', {})
+            volume_conf = confirmations['confirmations'].get('volume', {})
+            rsi_conf = confirmations['confirmations'].get('rsi', {})
+
+            logger.info(f"   🕯️ Candlestick: {'✓' if candle_conf.get('confirmed') else '✗'} {candle_conf.get('patterns', [])}")
+            logger.info(f"   📊 Volume: {'✓' if volume_conf.get('confirmed') else '✗'} ({volume_conf.get('ratio', 0):.1f}x of {volume_conf.get('threshold', 1.5)}x required)")
+            logger.info(f"   📉 RSI: {'✓' if rsi_conf.get('confirmed') else '✗'} ({rsi_conf.get('value', 50):.0f}, {rsi_conf.get('zone', 'neutral')})")
+            logger.info(f"   🎯 Confirmation Score: {confirmations.get('confirmation_score', 0)}/100")
+
+            if not confirmations['all_confirmed']:
+                missing = confirmations.get('missing', [])
+                result['reason'] = f"❌ WAIT: At {best_level.level_type} but missing: {', '.join(missing)}"
+                logger.info(f"   {result['reason']}")
+                result['analysis'] = {
+                    'support_resistance': sr_analysis,
+                    'level_at': best_level.to_dict(),
+                    'entry_side': entry_side,
+                    'confirmations': confirmations
+                }
+                return result
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 6: ALL CONFIRMED - Calculate Entry Parameters
+            # ═══════════════════════════════════════════════════════════════
+            logger.info(f"   ✅ ALL CONFIRMATIONS PASSED!")
+
+            # Stop Loss: Beyond the level by 0.5%
+            if entry_side == 'LONG':
+                stop_loss = best_level.price * (1 - 0.005)  # 0.5% below support
+            else:
+                stop_loss = best_level.price * (1 + 0.005)  # 0.5% above resistance
+
+            # Targets: Next opposing levels
+            targets = []
+            if entry_side == 'LONG':
+                # Target = next resistance levels
+                resistances = self.level_registry.get_all_active_levels(symbol, 'resistance')
+                resistances.sort(key=lambda x: x.price)
+                for res in resistances:
+                    if res.price > current_price * 1.01:  # At least 1% above
+                        targets.append(res.price)
+                        if len(targets) >= 3:
+                            break
+            else:
+                # Target = next support levels
+                supports = self.level_registry.get_all_active_levels(symbol, 'support')
+                supports.sort(key=lambda x: x.price, reverse=True)
+                for sup in supports:
+                    if sup.price < current_price * 0.99:  # At least 1% below
+                        targets.append(sup.price)
+                        if len(targets) >= 3:
+                            break
+
+            # If no targets found, use default percentage
+            if not targets:
+                if entry_side == 'LONG':
+                    targets = [current_price * 1.02, current_price * 1.04, current_price * 1.06]
+                else:
+                    targets = [current_price * 0.98, current_price * 0.96, current_price * 0.94]
+
+            # Calculate R/R ratio
+            risk = abs(current_price - stop_loss)
+            reward = abs(targets[0] - current_price) if targets else risk * 2
+            rr_ratio = reward / risk if risk > 0 else 0
+
+            logger.info(f"   💰 Stop Loss: ${stop_loss:.4f}")
+            logger.info(f"   🎯 Targets: {[f'${t:.4f}' for t in targets[:3]]}")
+            logger.info(f"   📊 R/R Ratio: {rr_ratio:.2f}")
+
+            # Minimum R/R check
+            if rr_ratio < 1.5:
+                result['reason'] = f"❌ WAIT: R/R too low ({rr_ratio:.2f} < 1.5 required)"
+                logger.info(f"   {result['reason']}")
+                return result
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 7: ENTRY APPROVED!
+            # ═══════════════════════════════════════════════════════════════
+            result.update({
+                'should_enter': True,
+                'direction': entry_side,
+                'reason': (
+                    f"✅ {entry_side}: At {best_level.level_type} ${best_level.price:.4f} "
+                    f"({best_level.timeframe}/{best_level.source}) | "
+                    f"Conf: Candle ✓ Vol {volume_conf.get('ratio', 0):.1f}x ✓ RSI {rsi_conf.get('value', 50):.0f} ✓ | "
+                    f"R/R {rr_ratio:.1f}"
+                ),
+                'level': best_level.to_dict(),
+                'stop_loss': stop_loss,
+                'targets': targets[:3],
+                'rr_ratio': rr_ratio,
+                'analysis': {
+                    'support_resistance': sr_analysis,
+                    'level_at': best_level.to_dict(),
+                    'entry_side': entry_side,
+                    'confirmations': confirmations,
+                    'trend_lines': {
+                        'ascending': [tl.to_sr_level(current_price).to_dict() for tl in ascending_lines],
+                        'descending': [tl.to_sr_level(current_price).to_dict() for tl in descending_lines]
+                    }
+                }
+            })
+
+            logger.info("=" * 80)
+            logger.info(f"🚀 ENTRY APPROVED: {entry_side} {symbol}")
+            logger.info("=" * 80)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Level-based entry check failed for {symbol}: {e}")
+            import traceback
+            traceback.print_exc()
+            result['reason'] = f"Error: {str(e)}"
+            return result
 
 
 # Singleton instance

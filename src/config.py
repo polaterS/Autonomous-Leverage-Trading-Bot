@@ -74,6 +74,14 @@ class Settings(BaseSettings):
     enable_online_learning: bool = Field(default=False)  # Online learning (adaptive ML updates)
     enable_realtime_detection: bool = Field(default=True)  # 🚀 INSTANT ENTRY: WebSocket-based real-time trend detection (< 1 sec entry!)
 
+    # 🎯 v5.0: Level-Based Trading System
+    enable_level_based_trading: bool = Field(default=True)  # 🎯 v5.0: Use S/R level-based entries instead of ML-driven entries
+    level_proximity_threshold: Decimal = Field(default=Decimal("0.005"), gt=0, le=0.05)  # 0.5% proximity to level
+    min_level_touches: int = Field(default=2, ge=1, le=10)  # Minimum touches for valid S/R level
+    rsi_oversold_threshold: int = Field(default=30, ge=1, le=50)  # RSI below = oversold (LONG zone)
+    rsi_overbought_threshold: int = Field(default=70, ge=50, le=99)  # RSI above = overbought (SHORT zone)
+    volume_spike_multiplier: Decimal = Field(default=Decimal("1.5"), gt=1, le=5)  # 1.5x average = volume spike
+
     # Trading Symbols (high liquidity perpetual futures) - 120 coins (USER REQUEST: 100-150)
     trading_symbols: list[str] = Field(default=[
         # Top 10 - Highest Market Cap (Ultra Liquid)

@@ -1,24 +1,42 @@
-# Force redeploy v4.7.13 - ADX FILTER SOURCE FIX - 4 Dec 2025 Wed
-# 🔧 CRITICAL FIX: ADX filter was using wrong data source
+# Force redeploy v5.0.0 - LEVEL-BASED TRADING SYSTEM - 5 Dec 2025 Thu
+# 🎯 MAJOR RELEASE: Complete Entry System Redesign
 #
-# 🔧 v4.7.13 FIX:
-#   ❌ BUG: ADX filter checked indicators_15m.get('adx', 25)
-#      - indicators_15m often had missing/wrong ADX value
-#      - Defaulted to 25, so ADX > 40 filter never triggered
-#      - JASMY with ADX 41.7 was NOT filtered (should have been!)
+# 🎯 v5.0.0 NEW PHILOSOPHY:
+#   ❌ OLD: Chase mid-range prices, use ML signals
+#   ✅ NEW: Wait at S/R levels, require full confirmation
 #
-#   ✅ FIX: Now uses analysis['trend']['adx'] from Price Action
-#      - Same ADX value shown in trade message
-#      - JASMY ADX 41.7 > 40 → Will now be FILTERED
-#      - Prevents entering exhausted trends
+# 🆕 NEW FEATURES:
+#   ✅ 5 Timeframes: 15m, 1h, 4h, Daily, Weekly
+#   ✅ Trend Line Detection: Ascending/Descending lines
+#   ✅ Level Proximity: 0.5% threshold - only trade at levels
+#   ✅ Triple Confirmation System:
+#      - Candlestick pattern (reversal)
+#      - Volume spike (1.5x+ average)
+#      - RSI extreme zone (oversold/overbought)
+#   ✅ Smart Stop Loss: Beyond the S/R level by 0.5%
+#   ✅ Smart Targets: Next S/R levels as profit targets
 #
-# 🛡️ ACTIVE FILTERS (4 protection layers):
-#   ✅ FILTER 1: Technical Advanced < 40% → Skip trade
-#   ✅ FILTER 2: ATR < 0.3% → Skip trade (low volatility)
-#   ✅ FILTER 3: ADX > 40 (from Price Action) → Skip trade
-#   ✅ FILTER 4: Market 80%+ Neutral → Raise min_score to 70
+# 📊 ENTRY FLOW:
+#   1. Scan 5 timeframes for S/R levels
+#   2. Detect trend lines as dynamic S/R
+#   3. Check: Price at level? (within 0.5%)
+#      - NO → WAIT (don't trade mid-range)
+#      - YES → Continue
+#   4. At Support → LONG signal, At Resistance → SHORT signal
+#   5. Check ALL confirmations:
+#      □ Candlestick pattern ✓
+#      □ Volume 1.5x+ ✓
+#      □ RSI extreme ✓
+#   6. If ALL pass → ENTER with tight stop
+#
+# 🔧 Config Settings:
+#   enable_level_based_trading: True (default)
+#   level_proximity_threshold: 0.5%
+#   volume_spike_multiplier: 1.5x
+#   rsi_oversold_threshold: 30
+#   rsi_overbought_threshold: 70
 #
 # 📊 Previous versions:
+#   - v4.7.13: ADX filter source fix
 #   - v4.7.12: Derivatives filter removed
 #   - v4.7.11: Filter reason display fix
-# Instant trading still DISABLED - main loop handles all entries
