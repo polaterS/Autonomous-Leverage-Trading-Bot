@@ -367,15 +367,26 @@ class EntryConfirmation:
         return result
 
     def _check_candlestick(self, df: pd.DataFrame, side: str) -> Dict:
-        """Check for required candlestick patterns on the last candle"""
-        if df is None or len(df) < 3:
+        """
+        Check for required candlestick patterns on the last CLOSED candle.
+
+        🔧 CRITICAL FIX v5.0.3:
+        - OHLCV data from Binance includes the FORMING candle at iloc[-1]
+        - Professional traders wait for candle CLOSE before entering
+        - We now use iloc[-2] (last CLOSED candle) for pattern detection
+        - This prevents false signals from forming candles that change
+        """
+        if df is None or len(df) < 4:
             return {'confirmed': False, 'patterns': [], 'score': 0}
 
         found_patterns = []
 
-        # Get last 3 candles for pattern detection
-        last_candle = df.iloc[-1]
-        prev_candle = df.iloc[-2]
+        # 🔧 FIX: Use CLOSED candles, not FORMING candle!
+        # iloc[-1] = Currently forming candle (changes in real-time) ❌
+        # iloc[-2] = Last CLOSED candle (final, reliable) ✅
+        # iloc[-3] = Previous closed candle (for engulfing comparison)
+        last_candle = df.iloc[-2]   # Last CLOSED candle
+        prev_candle = df.iloc[-3]   # Previous closed candle
 
         o, h, l, c = last_candle['open'], last_candle['high'], last_candle['low'], last_candle['close']
         body = abs(c - o)
@@ -431,14 +442,38 @@ class EntryConfirmation:
             if upper_wick / total_range > 0.66:
                 found_patterns.append('BEARISH_PIN_BAR')
 
+        # 🛡️ STOP HUNT DETECTION (False Breakout Protection)
+        # A stop hunt occurs when price briefly breaks a level, grabs stops, then reverses
+        # This is a BULLISH signal if:
+        # - Low wicked below support but closed ABOVE it
+        # - Shows buying pressure after stop hunt
+        if side == 'LONG':
+            # Check if we have support level context
+            # For now, detect by wick behavior:
+            # If lower wick is significant (>50% of range) AND close is in upper half
+            close_position = (c - l) / total_range if total_range > 0 else 0.5
+            if lower_wick / total_range > 0.5 and close_position > 0.6:
+                found_patterns.append('STOP_HUNT_REVERSAL')
+
+        else:  # SHORT
+            # Stop hunt above resistance - price wicked up but closed down
+            close_position = (h - c) / total_range if total_range > 0 else 0.5
+            if upper_wick / total_range > 0.5 and close_position > 0.6:
+                found_patterns.append('STOP_HUNT_REVERSAL')
+
         # Score based on pattern quality
         score = len(found_patterns) * 25  # Each pattern = 25 points
         score = min(score, 100)
 
+        # Bonus for stop hunt reversal (strongest confirmation)
+        if 'STOP_HUNT_REVERSAL' in found_patterns:
+            score = min(score + 25, 100)
+
         return {
             'confirmed': len(found_patterns) > 0,
             'patterns': found_patterns,
-            'score': score
+            'score': score,
+            'is_stop_hunt': 'STOP_HUNT_REVERSAL' in found_patterns
         }
 
     def _check_volume_spike(self, df: pd.DataFrame) -> Dict:

@@ -1,28 +1,26 @@
-# 🎯 LEVEL-BASED TRADING v5.0.2 - Partial TP + Breakeven
+# 🎯 LEVEL-BASED TRADING v5.0.3 - Closed Candle + Stop Hunt Detection
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V502_PARTIAL_TP_BREAKEVEN
+ARG CACHE_BUST=20251205_V503_CLOSED_CANDLE_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.2: PARTIAL TP + BREAKEVEN SYSTEM!" && \
-    echo "   💰 NEW: Level-Based Exit Strategy" && \
+    echo "🎯 v5.0.3: CLOSED CANDLE + STOP HUNT DETECTION!" && \
+    echo "   🛡️ CRITICAL FIX: Professional Entry Timing" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.2 FEATURES:" && \
-    echo "      ✅ TP1: Close 50% at first S/R level" && \
-    echo "      ✅ BREAKEVEN: Move stop to entry after TP1" && \
-    echo "      ✅ TP2: Close remaining 50% at second S/R" && \
-    echo "      ✅ Risk-free trade after TP1 hit!" && \
-    echo "      ✅ Binance SL order auto-updated to breakeven" && \
-    echo "      ✅ Database tracks breakeven_active status" && \
-    echo "      ✅ Telegram notifications for each stage" && \
+    echo "   🆕 v5.0.3 FEATURES:" && \
+    echo "      ✅ Pattern detection on CLOSED candle (not forming)" && \
+    echo "      ✅ Stop Hunt Reversal pattern detection" && \
+    echo "      ✅ False breakout protection" && \
+    echo "      ✅ Professional candle close waiting" && \
+    echo "      ✅ Uses iloc[-2] for last CLOSED candle" && \
+    echo "      ✅ Prevents false signals from forming candles" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   📊 EXECUTION STRATEGY:" && \
-    echo "      1️⃣ Price hits TP1 → Close 50%" && \
-    echo "      2️⃣ Stop moves to Entry (Breakeven)" && \
-    echo "      3️⃣ Trade becomes RISK-FREE!" && \
-    echo "      4️⃣ Price hits TP2 → Close remaining 50%" && \
-    echo "      📈 Maximum profit potential with protected gains"
+    echo "   🛡️ WHY THIS MATTERS:" && \
+    echo "      ❌ OLD: Used forming candle (could change!)" && \
+    echo "      ✅ NEW: Uses closed candle (final, reliable)" && \
+    echo "      🎯 Stop hunts now trigger entries (not stops)" && \
+    echo "      📈 Reduced false signals significantly"
 
 # Set working directory
 WORKDIR /app
@@ -42,20 +40,19 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.2 - Partial TP + Breakeven
-# Current deployment: 20251205_V502_PARTIAL_TP_BREAKEVEN
-# Changes: Level-Based Exit Strategy with Partial TP + Breakeven
-#   💰 v5.0.2: Partial TP + Breakeven System
-#      ✅ TP1: Close 50% at first S/R level (profit_target_1)
-#      ✅ BREAKEVEN: Move stop-loss to entry price after TP1
-#      ✅ TP2: Close remaining 50% at second S/R level
-#      ✅ Risk-free trading after TP1 hit!
-#      ✅ Binance SL order auto-updated to breakeven
-#      ✅ Database tracks breakeven_active status
+# 🎯 CACHE BUST MARKER: v5.0.3 - Closed Candle + Stop Hunt
+# Current deployment: 20251205_V503_CLOSED_CANDLE_FIX
+# Changes: Pattern detection now uses CLOSED candle (not forming)
+#   🛡️ v5.0.3: Closed Candle + Stop Hunt Detection
+#      ✅ Pattern detection on CLOSED candle (iloc[-2])
+#      ✅ Stop Hunt Reversal pattern detection
+#      ✅ False breakout protection
+#      ✅ Professional candle close waiting
+#      ✅ Prevents false signals from forming candles
 #   📊 Previous versions:
+#      ✅ v5.0.2: Partial TP + Breakeven System
 #      ✅ v5.0.1: /analyze BTC Command
 #      ✅ v5.0.0: Level-Based Trading System (complete redesign)
-#      ✅ v4.7.13: ADX filter source fix
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

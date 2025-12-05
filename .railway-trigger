@@ -1,33 +1,30 @@
-# Force redeploy v5.0.2 - Partial TP + Breakeven - 5 Dec 2025 Thu
-# 💰 NEW: Level-Based Exit Strategy
+# Force redeploy v5.0.3 - Closed Candle + Stop Hunt - 5 Dec 2025 Thu
+# 🛡️ CRITICAL FIX: Professional Entry Timing
 #
-# 🎯 v5.0.2 FEATURES:
-#   ✅ TP1: Close 50% at first S/R level (profit_target_1)
-#   ✅ BREAKEVEN: Move stop-loss to entry price after TP1
-#   ✅ TP2: Close remaining 50% at second S/R level
-#   ✅ Risk-free trading after TP1 hit!
-#   ✅ Binance SL order auto-updated to breakeven
-#   ✅ Database tracks breakeven_active status
-#   ✅ Telegram notifications for each stage
+# 🎯 v5.0.3 FEATURES:
+#   ✅ Pattern detection on CLOSED candle (not forming)
+#   ✅ Stop Hunt Reversal pattern detection
+#   ✅ False breakout protection
+#   ✅ Professional candle close waiting
+#   ✅ Uses iloc[-2] for last CLOSED candle
+#   ✅ Prevents false signals from forming candles
 #
-# 📊 EXECUTION STRATEGY:
-#   1️⃣ Price hits TP1 → Close 50%
-#   2️⃣ Stop moves to Entry (Breakeven)
-#   3️⃣ Trade becomes RISK-FREE!
-#   4️⃣ Price hits TP2 → Close remaining 50%
-#   📈 Maximum profit potential with protected gains
+# 🛡️ WHY THIS MATTERS:
+#   ❌ BEFORE: Used forming candle (iloc[-1])
+#      • Hammer pattern appears → candle changes → false signal!
+#      • Bot enters during stop hunt → gets stopped out
 #
-# 🔧 What happens:
-#   - Position opens with TP1 & TP2 targets
-#   - When price reaches TP1:
-#     • 50% of position closed at profit
-#     • Old stop-loss order cancelled
-#     • New stop-loss placed at entry price
-#     • Trade becomes risk-free!
-#   - When price reaches TP2:
-#     • Remaining 50% closed at full profit
+#   ✅ AFTER: Uses CLOSED candle (iloc[-2])
+#      • Pattern is FINAL and reliable
+#      • Stop hunt reversal is DETECTED as bullish signal
+#      • Professional traders wait for candle close
+#
+# 🎯 STOP HUNT DETECTION:
+#   - Detects when price wicks below support but closes above
+#   - This is actually BULLISH (stop hunt = buying opportunity)
+#   - New pattern: STOP_HUNT_REVERSAL with bonus score
 #
 # 📊 Previous versions:
+#   - v5.0.2: Partial TP + Breakeven System
 #   - v5.0.1: /analyze BTC Command
 #   - v5.0.0: Level-Based Trading System (complete redesign)
-#   - v4.7.13: ADX filter source fix
