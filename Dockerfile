@@ -2,24 +2,24 @@
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V504_TWO_OF_THREE_CONFIRMATION
+ARG CACHE_BUST=20251205_V504B_QUALITY_FILTER_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.4: 2-OF-3 CONFIRMATION FIX!" && \
-    echo "   🛡️ CRITICAL FIX: Bot was not opening trades!" && \
+    echo "🎯 v5.0.4b: QUALITY FILTER FIX!" && \
+    echo "   🛡️ CRITICAL FIX: Technical Advanced filter was blocking trades!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.4 FEATURES:" && \
+    echo "   🆕 v5.0.4b FEATURES:" && \
     echo "      ✅ 2-of-3 confirmation rule (was: ALL 3 required)" && \
     echo "      ✅ RSI relaxed: 35/65 (was: 30/70 too strict)" && \
-    echo "      ✅ Candlestick + Volume = ENTRY OK" && \
-    echo "      ✅ Candlestick + RSI = ENTRY OK" && \
-    echo "      ✅ Volume + RSI = ENTRY OK" && \
+    echo "      ✅ Technical Advanced filter: 10% (was: 40%)" && \
+    echo "      ✅ CVD/Ichimoku/Liquidations now optional" && \
+    echo "      ✅ Price Action based system prioritized" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   🛡️ WHY THIS MATTERS:" && \
-    echo "      ❌ OLD: ALL 3 (candle+vol+RSI) = ~0.4% chance!" && \
-    echo "      ✅ NEW: 2-of-3 = ~10-15% chance (realistic)" && \
+    echo "      ❌ v5.0.4: OP/USDT blocked by Tech Advanced 20% < 40%" && \
+    echo "      ✅ v5.0.4b: Only filter if Tech Advanced < 10%" && \
     echo "      🎯 Bot will now actually open trades" && \
-    echo "      📈 Still high quality - 2 confirmations minimum"
+    echo "      📈 Still high quality - main confluence 60+ required"
 
 # Set working directory
 WORKDIR /app

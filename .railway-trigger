@@ -1,28 +1,25 @@
-# Force redeploy v5.0.4 - 2-of-3 Confirmation Fix - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Bot was NOT opening any trades!
+# Force redeploy v5.0.4b - Quality Filter Fix - 5 Dec 2025 Thu
+# 🛡️ CRITICAL FIX: Technical Advanced filter was blocking ALL trades!
 #
-# 🎯 v5.0.4 FEATURES:
+# 🎯 v5.0.4b FEATURES:
 #   ✅ 2-of-3 confirmation rule (was: ALL 3 required)
 #   ✅ RSI relaxed: 35/65 (was: 30/70 too strict)
-#   ✅ Candlestick + Volume = ENTRY OK
-#   ✅ Candlestick + RSI = ENTRY OK
-#   ✅ Volume + RSI = ENTRY OK
+#   ✅ Technical Advanced filter: 10% (was: 40%)
+#   ✅ CVD/Ichimoku/Liquidations now optional
+#   ✅ Price Action based system prioritized
 #
-# 🛡️ WHY BOT WAS NOT TRADING:
-#   ❌ OLD: Required ALL 3 confirmations simultaneously
-#      • RSI ≤30 OR ≥70: ~5% probability
-#      • Volume ≥1.5x: ~25% probability
-#      • Candlestick pattern: ~15% probability
-#      • ALL 3 TOGETHER: 0.05 × 0.25 × 0.15 = 0.19% !!!
-#      • Result: Nearly ZERO trades for hours!
+# 🛡️ WHAT HAPPENED:
+#   ❌ v5.0.4: OP/USDT found as valid trade!
+#      • 2-of-3 confirmation PASSED
+#      • Confluence score: 74/100 (good)
+#      • BUT blocked by: Technical Advanced 20% < 40%
 #
-#   ✅ NEW: 2-of-3 confirmations sufficient
-#      • Any 2 confirmations = ~10-15% probability
-#      • Bot will now actually trade!
-#      • Still professional quality (2 confirmations minimum)
+#   ✅ v5.0.4b: Relaxed Technical Advanced filter
+#      • Only filter if < 10% (complete zeros)
+#      • CVD/Ichimoku/Liquidations are nice-to-have
+#      • Main Price Action signals are priority
 #
 # 📊 Previous versions:
+#   - v5.0.4: 2-of-3 Confirmation Fix
 #   - v5.0.3: Closed Candle + Stop Hunt Detection
 #   - v5.0.2: Partial TP + Breakeven System
-#   - v5.0.1: /analyze BTC Command
-#   - v5.0.0: Level-Based Trading System (complete redesign)

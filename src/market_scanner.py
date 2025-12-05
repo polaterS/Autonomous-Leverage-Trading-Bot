@@ -352,11 +352,14 @@ class MarketScanner:
                         component_scores = confluence.get('component_scores', {})
                         skip_reason = None
 
-                        # 🛡️ FILTER 1: Technical Advanced < 40% (CVD, Ichimoku, Liquidations warning)
+                        # 🛡️ FILTER 1: Technical Advanced < 10% (CVD, Ichimoku, Liquidations warning)
+                        # v5.0.4 FIX: Relaxed from 40% to 10% - advanced indicators not always available
+                        # These are nice-to-have, not must-have for Price Action based system
+                        # Only filter complete zeros (no data at all)
                         tech_advanced_score = component_scores.get('technical_advanced', 0)
                         tech_advanced_pct = (tech_advanced_score / 10) * 100 if tech_advanced_score else 0
-                        if tech_advanced_pct < 40:
-                            skip_reason = f"Technical Advanced too weak: {tech_advanced_pct:.0f}% (need 40%+) - CVD/Ichimoku/Liquidations warning"
+                        if tech_advanced_pct < 10:
+                            skip_reason = f"Technical Advanced too weak: {tech_advanced_pct:.0f}% (need 10%+) - CVD/Ichimoku/Liquidations warning"
 
                         # 🛡️ FILTER 2: REMOVED in v4.7.12
                         # Derivatives = 50% filter was blocking ALL trades because
