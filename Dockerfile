@@ -1,23 +1,23 @@
-# 🎯 LEVEL-BASED TRADING v5.0.10 - Async Portfolio Updates
+# 🎯 LEVEL-BASED TRADING v5.0.11 - Reliable Exit Price
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V5010_ASYNC_PORTFOLIO
+ARG CACHE_BUST=20251205_V5011_RELIABLE_EXIT_PRICE
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.10: ASYNC PORTFOLIO UPDATES!" && \
-    echo "   🔄 Portfolio updates now run in background task" && \
+    echo "🎯 v5.0.11: RELIABLE EXIT PRICE FIX!" && \
+    echo "   🛡️ CRITICAL: Fix wrong PnL calculation on position close" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.10 FEATURES:" && \
-    echo "      ✅ Portfolio updates run asynchronously" && \
-    echo "      ✅ 20s interval, independent from main loop" && \
-    echo "      ✅ Updates sent even during market scans" && \
-    echo "      ✅ No more blocking during scan_and_execute()" && \
+    echo "   🆕 v5.0.11 FEATURES:" && \
+    echo "      ✅ Reliable exit price detection" && \
+    echo "      ✅ Fresh ticker fallback if order avg is None" && \
+    echo "      ✅ Better precision for low-price coins" && \
+    echo "      ✅ Fixed: Profit target hit but $0 PnL bug" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   📊 Previous versions:" && \
+    echo "      ✅ v5.0.10: Async Portfolio Updates" && \
     echo "      ✅ v5.0.9: Trendline Price Position Validation" && \
-    echo "      ✅ v5.0.8: Level Proximity Re-Validation" && \
-    echo "      ✅ v5.0.7: Level Side Check Fix"
+    echo "      ✅ v5.0.8: Level Proximity Re-Validation"
 
 # Set working directory
 WORKDIR /app
@@ -37,18 +37,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.10 - Async Portfolio Updates
-# Current deployment: 20251205_V5010_ASYNC_PORTFOLIO
-# Changes: Portfolio updates run in background task, independent from main loop
-#   🔄 v5.0.10: Async Portfolio Updates
-#      ✅ Portfolio updates run asynchronously (background task)
-#      ✅ 20s interval, even during market scans
-#      ✅ No more blocking when scan_and_execute() runs
+# 🎯 CACHE BUST MARKER: v5.0.11 - Reliable Exit Price
+# Current deployment: 20251205_V5011_RELIABLE_EXIT_PRICE
+# Changes: Fix wrong PnL calculation when position closes
+#   🛡️ v5.0.11: Reliable Exit Price
+#      ✅ Check close_order.get('average') AND 'price'
+#      ✅ If None/0, fetch fresh ticker from exchange
+#      ✅ Better precision (.8f) for low-price coins
+#      ✅ Fixed: DENT profit target hit but $0 PnL
 #   📊 Previous versions:
+#      ✅ v5.0.10: Async Portfolio Updates
 #      ✅ v5.0.9: Trendline Price Position Validation
 #      ✅ v5.0.8: Level Proximity Re-Validation
-#      ✅ v5.0.7: Level Side Check Fix
-#      ✅ v5.0.6: Skip Balance Check
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

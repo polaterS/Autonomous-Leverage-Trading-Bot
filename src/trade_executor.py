@@ -1054,7 +1054,21 @@ class TradeExecutor:
             exit_fill_time = datetime.now()
             exit_fill_time_ms = int((exit_fill_time - exit_start_time).total_seconds() * 1000)
 
-            exit_price = Decimal(str(close_order.get('average', current_price)))
+            # 🔥 v5.0.11: RELIABLE EXIT PRICE
+            # Problem: close_order.get('average') sometimes returns None in live trading
+            # Result: Fallback to old current_price → wrong PnL calculation
+            # Solution: If average is None/0, fetch fresh ticker price from exchange
+            raw_exit_price = close_order.get('average') or close_order.get('price')
+
+            if raw_exit_price and float(raw_exit_price) > 0:
+                exit_price = Decimal(str(raw_exit_price))
+                logger.info(f"📊 Exit price from order fill: ${exit_price:.8f}")
+            else:
+                # Fallback: Fetch fresh ticker price (more reliable than old current_price)
+                logger.warning(f"⚠️ Order average price not returned, fetching fresh ticker...")
+                ticker = await exchange.fetch_ticker(symbol)
+                exit_price = Decimal(str(ticker.get('last', current_price)))
+                logger.info(f"📊 Exit price from fresh ticker: ${exit_price:.8f}")
 
             # Calculate exit slippage
             exit_slippage_percent = abs((exit_price - current_price) / current_price) * 100
