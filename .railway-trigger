@@ -1,27 +1,30 @@
-# Force redeploy v5.0.8 - Level Proximity Re-Validation - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Re-check S/R level proximity BEFORE execution!
+# Force redeploy v5.0.9 - Trendline Price Position Validation - 5 Dec 2025 Thu
+# 🛡️ CRITICAL FIX: Validate price position relative to trendline!
 #
-# 🎯 v5.0.8 FEATURES:
-#   ✅ Level proximity re-validation at execution time
-#   ✅ Prevents trade when price drifts away from S/R level
-#   ✅ 0.5% threshold enforced at BOTH scan AND execution
-#   ✅ Telegram notification when trade skipped due to drift
+# 🎯 v5.0.9 FEATURES:
+#   ✅ Trendline price position validation added
+#   ✅ Ascending line: Price must be AT or ABOVE (not below)
+#   ✅ Descending line: Price must be AT or BELOW (not above)
+#   ✅ Broken trendlines are now skipped
 #
 # 🐛 BUG FIXED:
-#   ❌ BCH SHORT at $578.17 when resistance was $582.52
-#      • Scan found signal at $580 (0.4% from resistance) → VALID
-#      • By execution, price drifted to $578.17 (0.75%) → INVALID
-#      • OLD: Only checked if price moved >1% from scan → PASSED
-#      • NEW: Also check if still within 0.5% of S/R level!
+#   ❌ BLUR LONG at $0.0353 when ascending trendline was $0.0355
+#      • Price was BELOW the ascending line = support BROKEN!
+#      • Trade logic said "ascending = support = LONG" ALWAYS
+#      • But /analyze correctly showed it as "resistance" (above price)
 #
 #   ✅ NEW LOGIC:
-#      • Fresh price validation (1% threshold) - existing
-#      • Level proximity re-validation (0.5% threshold) - NEW!
-#      • If price drifted from level → SKIP trade
+#      • Ascending trendline: current_price >= line_price * 0.999
+#      • Descending trendline: current_price <= line_price * 1.001
+#      • If price on wrong side → trendline BROKEN → skip!
+#
+# 🔧 ROOT CAUSE:
+#   Trade logic classified trendlines by DIRECTION only
+#   /analyze re-classified by PRICE POSITION
+#   Now both use consistent price position validation!
 #
 # 📊 Previous versions:
+#   - v5.0.8: Level Proximity Re-Validation
 #   - v5.0.7: Level Side Check Fix
 #   - v5.0.6: Skip Balance Check
 #   - v5.0.5: RSI Direction Filter
-#   - v5.0.4b: Quality Filter Fix
-#   - v5.0.4: 2-of-3 Confirmation Fix

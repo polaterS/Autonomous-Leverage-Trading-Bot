@@ -3688,18 +3688,68 @@ class PriceActionAnalyzer:
 
             logger.info(f"   📈 Trend Lines: {len(ascending_lines)} ascending, {len(descending_lines)} descending")
 
-            # Add trend line prices to levels
+            # ═══════════════════════════════════════════════════════════════
+            # 🛡️ v5.0.9: TRENDLINE PRICE POSITION VALIDATION
+            # ═══════════════════════════════════════════════════════════════
+            # PROBLEM: Ascending trendline was ALWAYS classified as "support"
+            #          But if price is BELOW the line, support is BROKEN!
+            #          Example: BLUR LONG at $0.0353 when trendline was $0.0355
+            #                   Price was BELOW ascending line = WRONG entry!
+            #
+            # FIX: Validate price position relative to trendline:
+            #   - Ascending (support): Price must be AT or ABOVE the line
+            #   - Descending (resistance): Price must be AT or BELOW the line
+            #   - If price is on wrong side → trendline is BROKEN → skip!
+            # ═══════════════════════════════════════════════════════════════
+
+            valid_ascending = 0
+            skipped_ascending = 0
             for tl in ascending_lines:
                 tl.update_current_price(len(df) - 1)
-                # Add as support level
                 tl_level = tl.to_sr_level(current_price)
-                all_supports.append(tl_level.to_dict())
+                line_price = tl_level.price
 
+                # 🛡️ v5.0.9: Check if price is AT or ABOVE ascending line
+                # Allow 0.1% buffer below the line for "at level" entries
+                if current_price >= line_price * 0.999:
+                    # Price is at or above ascending line → Valid support
+                    all_supports.append(tl_level.to_dict())
+                    valid_ascending += 1
+                else:
+                    # Price is BELOW ascending line → Support BROKEN!
+                    skipped_ascending += 1
+                    logger.debug(
+                        f"   🛡️ SKIP ascending trendline: Price ${current_price:.4f} is "
+                        f"BELOW line ${line_price:.4f} (support broken)"
+                    )
+
+            valid_descending = 0
+            skipped_descending = 0
             for tl in descending_lines:
                 tl.update_current_price(len(df) - 1)
-                # Add as resistance level
                 tl_level = tl.to_sr_level(current_price)
-                all_resistances.append(tl_level.to_dict())
+                line_price = tl_level.price
+
+                # 🛡️ v5.0.9: Check if price is AT or BELOW descending line
+                # Allow 0.1% buffer above the line for "at level" entries
+                if current_price <= line_price * 1.001:
+                    # Price is at or below descending line → Valid resistance
+                    all_resistances.append(tl_level.to_dict())
+                    valid_descending += 1
+                else:
+                    # Price is ABOVE descending line → Resistance BROKEN!
+                    skipped_descending += 1
+                    logger.debug(
+                        f"   🛡️ SKIP descending trendline: Price ${current_price:.4f} is "
+                        f"ABOVE line ${line_price:.4f} (resistance broken)"
+                    )
+
+            if skipped_ascending > 0 or skipped_descending > 0:
+                logger.info(
+                    f"   🛡️ v5.0.9: Trendline validation - "
+                    f"Valid: {valid_ascending} ascending, {valid_descending} descending | "
+                    f"Skipped (broken): {skipped_ascending} ascending, {skipped_descending} descending"
+                )
 
             # Update level registry
             self.level_registry.clear_symbol(symbol)

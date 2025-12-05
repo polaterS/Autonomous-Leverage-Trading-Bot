@@ -1,23 +1,23 @@
-# 🎯 LEVEL-BASED TRADING v5.0.8 - Level Proximity Re-Validation
+# 🎯 LEVEL-BASED TRADING v5.0.9 - Trendline Price Position Validation
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251205_V508_LEVEL_PROXIMITY_REVALIDATION
+ARG CACHE_BUST=20251205_V509_TRENDLINE_VALIDATION
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.8: LEVEL PROXIMITY RE-VALIDATION!" && \
-    echo "   🛡️ CRITICAL FIX: Re-check S/R level proximity at execution!" && \
+    echo "🎯 v5.0.9: TRENDLINE PRICE POSITION VALIDATION!" && \
+    echo "   🛡️ CRITICAL FIX: Validate price position vs trendline!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.8 FEATURES:" && \
-    echo "      ✅ Level proximity re-validation at execution time" && \
-    echo "      ✅ Prevents trade when price drifts from S/R level" && \
-    echo "      ✅ 0.5% threshold enforced at BOTH scan AND execution" && \
-    echo "      ✅ Telegram notification when trade skipped" && \
+    echo "   🆕 v5.0.9 FEATURES:" && \
+    echo "      ✅ Trendline price position validation" && \
+    echo "      ✅ Ascending: Price must be AT or ABOVE line" && \
+    echo "      ✅ Descending: Price must be AT or BELOW line" && \
+    echo "      ✅ Broken trendlines now skipped" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   🛡️ BUG FIXED:" && \
-    echo "      ❌ OLD: BCH SHORT at 0.75% from resistance (scan=0.4%)" && \
-    echo "      ✅ NEW: Check proximity at execution, skip if drifted" && \
-    echo "      📈 No more mid-range entries after price drift"
+    echo "      ❌ OLD: BLUR LONG when price BELOW ascending line" && \
+    echo "      ✅ NEW: Skip broken trendlines, prevent wrong entries" && \
+    echo "      📈 Trade logic now matches /analyze classification"
 
 # Set working directory
 WORKDIR /app
@@ -37,18 +37,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.8 - Level Proximity Re-Validation
-# Current deployment: 20251205_V508_LEVEL_PROXIMITY_REVALIDATION
-# Changes: Re-check S/R level proximity before trade execution
-#   🛡️ v5.0.8: Level Proximity Re-Validation
-#      ✅ Check distance to S/R level at execution time
-#      ✅ Skip trade if price drifted away (>0.5% from level)
-#      ✅ Telegram notification for skipped trades
+# 🎯 CACHE BUST MARKER: v5.0.9 - Trendline Price Position Validation
+# Current deployment: 20251205_V509_TRENDLINE_VALIDATION
+# Changes: Validate price position relative to trendline before classifying
+#   🛡️ v5.0.9: Trendline Price Position Validation
+#      ✅ Ascending line: Price must be AT or ABOVE (not below)
+#      ✅ Descending line: Price must be AT or BELOW (not above)
+#      ✅ Broken trendlines are now skipped
 #   📊 Previous versions:
+#      ✅ v5.0.8: Level Proximity Re-Validation
 #      ✅ v5.0.7: Level Side Check Fix
-#      ✅ v5.0.6: Skip Balance Check (live = paper behavior)
-#      ✅ v5.0.5: RSI Direction Filter (block counter-trend)
-#      ✅ v5.0.4b: Quality Filter Fix
+#      ✅ v5.0.6: Skip Balance Check
+#      ✅ v5.0.5: RSI Direction Filter
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
