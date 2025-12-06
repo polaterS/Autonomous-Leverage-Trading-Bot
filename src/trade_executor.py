@@ -1054,7 +1054,7 @@ class TradeExecutor:
             exit_fill_time = datetime.now()
             exit_fill_time_ms = int((exit_fill_time - exit_start_time).total_seconds() * 1000)
 
-            # 🔥 v5.0.12: BULLETPROOF EXIT PRICE
+            # 🔥 v5.0.12: BULLETPROOF EXIT PRICE (TRIPLE VERIFICATION)
             # =================================================================
             # PROBLEM (v5.0.11 still had bug):
             #   - DENT/CELO: Profit target hit ($+6) but Gross P&L: $0.00
@@ -1066,11 +1066,12 @@ class TradeExecutor:
             #   - Race condition: order created but not filled yet
             #   - Market order fills instantly but response might be stale
             #
-            # SOLUTION (v5.0.12):
-            #   1. ALWAYS fetch fresh ticker after close order
-            #   2. Compare order fill price with ticker price
+            # SOLUTION (v5.0.12 - TRIPLE VERIFICATION):
+            #   1. Get order fill price from close_order response
+            #   2. ALWAYS fetch fresh ticker (2 attempts with retry)
             #   3. If order price ≈ entry price (within 0.5%), it's WRONG → use ticker
-            #   4. Log detailed debug info to catch future issues
+            #   4. NEVER use stale current_price as fallback
+            #   5. Final sanity check: if exit ≈ entry, send CRITICAL alert
             # =================================================================
 
             entry_price = Decimal(str(position['entry_price']))
@@ -1079,61 +1080,122 @@ class TradeExecutor:
             order_fill_price = close_order.get('average') or close_order.get('price')
             logger.info(f"📊 DEBUG: close_order response: average={close_order.get('average')}, price={close_order.get('price')}")
 
-            # Step 2: ALWAYS fetch fresh ticker (most reliable source)
-            await asyncio.sleep(0.2)  # Wait 200ms for order to settle on exchange
-            ticker = await exchange.fetch_ticker(symbol)
-            ticker_price = Decimal(str(ticker.get('last', 0)))
-            logger.info(f"📊 DEBUG: Fresh ticker price: ${ticker_price:.8f}")
+            # Step 2: ALWAYS fetch fresh ticker (with retry for reliability)
+            await asyncio.sleep(0.3)  # Wait 300ms for order to settle on exchange
+            ticker_price = Decimal("0")
 
-            # Step 3: Determine best exit price
+            for ticker_attempt in range(3):  # Try 3 times
+                try:
+                    ticker = await exchange.fetch_ticker(symbol)
+                    ticker_price = Decimal(str(ticker.get('last', 0)))
+                    if ticker_price > 0:
+                        logger.info(f"📊 DEBUG: Fresh ticker price (attempt {ticker_attempt+1}): ${ticker_price:.8f}")
+                        break
+                    else:
+                        logger.warning(f"⚠️ Ticker attempt {ticker_attempt+1} returned 0, retrying...")
+                        await asyncio.sleep(0.2)
+                except Exception as ticker_err:
+                    logger.error(f"❌ Ticker fetch attempt {ticker_attempt+1} failed: {ticker_err}")
+                    await asyncio.sleep(0.2)
+
+            # Step 3: Determine best exit price with TRIPLE VERIFICATION
+            order_price = Decimal("0")
             if order_fill_price and float(order_fill_price) > 0:
                 order_price = Decimal(str(order_fill_price))
 
-                # Check if order price is suspiciously close to entry price (bug indicator!)
-                order_vs_entry_pct = abs((order_price - entry_price) / entry_price) * 100
-                ticker_vs_entry_pct = abs((ticker_price - entry_price) / entry_price) * 100 if ticker_price > 0 else 0
+            # Calculate distances from entry
+            order_vs_entry_pct = abs((order_price - entry_price) / entry_price) * 100 if order_price > 0 else 999
+            ticker_vs_entry_pct = abs((ticker_price - entry_price) / entry_price) * 100 if ticker_price > 0 else 999
 
-                logger.info(
-                    f"📊 Price comparison: "
-                    f"Order=${order_price:.8f} ({order_vs_entry_pct:.3f}% from entry), "
-                    f"Ticker=${ticker_price:.8f} ({ticker_vs_entry_pct:.3f}% from entry)"
+            logger.info(
+                f"📊 Price comparison: "
+                f"Order=${order_price:.8f} ({order_vs_entry_pct:.3f}% from entry), "
+                f"Ticker=${ticker_price:.8f} ({ticker_vs_entry_pct:.3f}% from entry)"
+            )
+
+            # DECISION LOGIC: Pick the price that is FURTHEST from entry
+            # (Because we're closing at profit, exit should differ from entry!)
+            if order_vs_entry_pct < 0.5 and ticker_vs_entry_pct < 0.5:
+                # 🚨 BOTH prices are close to entry - CRITICAL BUG SCENARIO!
+                logger.critical(
+                    f"🚨 CRITICAL: Both order and ticker prices are close to entry! "
+                    f"Order: ${order_price:.8f} ({order_vs_entry_pct:.3f}%), "
+                    f"Ticker: ${ticker_price:.8f} ({ticker_vs_entry_pct:.3f}%), "
+                    f"Entry: ${entry_price:.8f}"
                 )
 
-                # 🔥 BUG DETECTION: If order price is within 0.5% of entry, it's probably WRONG!
-                # Real exit should differ from entry (that's why we're taking profit!)
-                if order_vs_entry_pct < 0.5:
-                    logger.warning(
-                        f"⚠️ BUG DETECTED: Order fill price ${order_price:.8f} is too close to entry ${entry_price:.8f} "
-                        f"({order_vs_entry_pct:.3f}%). This is likely Binance returning entry price instead of fill price!"
-                    )
-
-                    # Use ticker price if it's different enough from entry
-                    if ticker_vs_entry_pct >= 0.1 and ticker_price > 0:
-                        exit_price = ticker_price
-                        logger.info(f"📊 Using TICKER price (order price was buggy): ${exit_price:.8f}")
-                    else:
-                        # Both prices are close to entry - this shouldn't happen if profit target hit
-                        # Use ticker anyway as it's more reliable than order response
-                        exit_price = ticker_price if ticker_price > 0 else order_price
-                        logger.warning(
-                            f"⚠️ Both prices close to entry! Using ticker=${ticker_price:.8f}. "
-                            f"If PnL is still wrong, check if profit target detection was accurate."
-                        )
-                else:
-                    # Order price looks reasonable - use it
-                    exit_price = order_price
-                    logger.info(f"📊 Exit price from order fill: ${exit_price:.8f}")
-            else:
-                # No order fill price - use ticker
-                if ticker_price > 0:
+                # Use whichever is further from entry, or ticker if equal
+                if ticker_vs_entry_pct > order_vs_entry_pct and ticker_price > 0:
                     exit_price = ticker_price
-                    logger.info(f"📊 Exit price from fresh ticker (no order fill price): ${exit_price:.8f}")
+                    logger.warning(f"📊 Using TICKER (slightly further from entry): ${exit_price:.8f}")
+                elif order_price > 0:
+                    exit_price = order_price
+                    logger.warning(f"📊 Using ORDER (slightly further from entry): ${exit_price:.8f}")
                 else:
-                    # Last resort: fetch another ticker
-                    logger.warning(f"⚠️ No valid price found! Fetching ticker again...")
-                    ticker2 = await exchange.fetch_ticker(symbol)
-                    exit_price = Decimal(str(ticker2.get('last', current_price)))
-                    logger.info(f"📊 Exit price from retry ticker: ${exit_price:.8f}")
+                    # Last resort: try one more ticker fetch
+                    logger.warning(f"⚠️ EMERGENCY: Fetching ticker one more time...")
+                    try:
+                        await asyncio.sleep(0.5)
+                        emergency_ticker = await exchange.fetch_ticker(symbol)
+                        exit_price = Decimal(str(emergency_ticker.get('last', 0)))
+                        if exit_price == 0:
+                            exit_price = entry_price  # Worst case - will have 0 PnL but won't crash
+                        logger.warning(f"📊 Using EMERGENCY ticker: ${exit_price:.8f}")
+                    except Exception as emerg_err:
+                        logger.critical(f"🚨 EMERGENCY ticker fetch failed: {emerg_err}")
+                        exit_price = ticker_price if ticker_price > 0 else order_price if order_price > 0 else entry_price
+
+                # Send Telegram alert about this critical situation
+                await notifier.send_alert(
+                    'critical',
+                    f"🚨 <b>EXIT PRICE WARNING!</b>\n\n"
+                    f"Both order and ticker prices are close to entry!\n"
+                    f"This may result in incorrect PnL calculation.\n\n"
+                    f"Symbol: {symbol}\n"
+                    f"Entry: ${float(entry_price):.6f}\n"
+                    f"Order price: ${float(order_price):.6f}\n"
+                    f"Ticker price: ${float(ticker_price):.6f}\n"
+                    f"Using: ${float(exit_price):.6f}\n\n"
+                    f"⚠️ Please verify PnL manually!"
+                )
+
+            elif order_vs_entry_pct < 0.5:
+                # Order price is buggy, use ticker
+                logger.warning(
+                    f"⚠️ BUG DETECTED: Order fill price ${order_price:.8f} is too close to entry ${entry_price:.8f} "
+                    f"({order_vs_entry_pct:.3f}%). Using ticker instead!"
+                )
+                exit_price = ticker_price if ticker_price > 0 else order_price
+                logger.info(f"📊 Using TICKER price (order price was buggy): ${exit_price:.8f}")
+
+            elif ticker_vs_entry_pct < 0.5 and order_vs_entry_pct >= 0.5:
+                # Ticker is stale but order is good - use order
+                logger.info(f"📊 Using ORDER price (ticker was stale): ${order_price:.8f}")
+                exit_price = order_price
+
+            elif order_price > 0 and order_vs_entry_pct >= 0.5:
+                # Order price looks reasonable - use it
+                exit_price = order_price
+                logger.info(f"📊 Exit price from order fill: ${exit_price:.8f}")
+
+            elif ticker_price > 0:
+                # No valid order price, use ticker
+                exit_price = ticker_price
+                logger.info(f"📊 Exit price from ticker (no valid order price): ${exit_price:.8f}")
+
+            else:
+                # ABSOLUTE LAST RESORT - this should NEVER happen
+                logger.critical(f"🚨 CRITICAL: No valid exit price found! Using entry price (PnL will be $0)")
+                exit_price = entry_price
+                await notifier.send_alert(
+                    'critical',
+                    f"🚨 <b>CRITICAL: NO VALID EXIT PRICE!</b>\n\n"
+                    f"Symbol: {symbol}\n"
+                    f"Entry: ${float(entry_price):.6f}\n\n"
+                    f"Both order and ticker returned invalid prices.\n"
+                    f"PnL will be calculated as $0.00!\n\n"
+                    f"⚠️ Please check Railway logs immediately!"
+                )
 
             # Final sanity check and log
             final_vs_entry_pct = abs((exit_price - entry_price) / entry_price) * 100
@@ -1141,6 +1203,24 @@ class TradeExecutor:
                 f"✅ FINAL EXIT PRICE: ${exit_price:.8f} "
                 f"(Entry: ${entry_price:.8f}, Diff: {final_vs_entry_pct:.3f}%)"
             )
+
+            # 🚨 FINAL SANITY CHECK: If exit ≈ entry despite profit target hit, something is WRONG
+            if final_vs_entry_pct < 0.3 and "profit" in close_reason.lower():
+                logger.critical(
+                    f"🚨 SANITY CHECK FAILED: Profit target hit but exit price = entry price! "
+                    f"Entry: ${entry_price:.8f}, Exit: ${exit_price:.8f}, Diff: {final_vs_entry_pct:.3f}%"
+                )
+                await notifier.send_alert(
+                    'critical',
+                    f"🚨 <b>PNL BUG DETECTED!</b>\n\n"
+                    f"Profit target was hit but exit price = entry price!\n\n"
+                    f"Symbol: {symbol}\n"
+                    f"Entry: ${float(entry_price):.6f}\n"
+                    f"Exit: ${float(exit_price):.6f}\n"
+                    f"Diff: {final_vs_entry_pct:.3f}%\n\n"
+                    f"⚠️ PnL calculation may be WRONG!\n"
+                    f"Please verify your actual Binance balance."
+                )
 
             # Calculate exit slippage
             exit_slippage_percent = abs((exit_price - current_price) / current_price) * 100
