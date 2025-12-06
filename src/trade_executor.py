@@ -1054,21 +1054,93 @@ class TradeExecutor:
             exit_fill_time = datetime.now()
             exit_fill_time_ms = int((exit_fill_time - exit_start_time).total_seconds() * 1000)
 
-            # 🔥 v5.0.11: RELIABLE EXIT PRICE
-            # Problem: close_order.get('average') sometimes returns None in live trading
-            # Result: Fallback to old current_price → wrong PnL calculation
-            # Solution: If average is None/0, fetch fresh ticker price from exchange
-            raw_exit_price = close_order.get('average') or close_order.get('price')
+            # 🔥 v5.0.12: BULLETPROOF EXIT PRICE
+            # =================================================================
+            # PROBLEM (v5.0.11 still had bug):
+            #   - DENT/CELO: Profit target hit ($+6) but Gross P&L: $0.00
+            #   - close_order.get('average') sometimes returns ENTRY price!
+            #   - Result: exit_price = entry_price → price_change = 0 → PnL = $0
+            #
+            # ROOT CAUSE:
+            #   - Binance might return order's requested price, not fill price
+            #   - Race condition: order created but not filled yet
+            #   - Market order fills instantly but response might be stale
+            #
+            # SOLUTION (v5.0.12):
+            #   1. ALWAYS fetch fresh ticker after close order
+            #   2. Compare order fill price with ticker price
+            #   3. If order price ≈ entry price (within 0.5%), it's WRONG → use ticker
+            #   4. Log detailed debug info to catch future issues
+            # =================================================================
 
-            if raw_exit_price and float(raw_exit_price) > 0:
-                exit_price = Decimal(str(raw_exit_price))
-                logger.info(f"📊 Exit price from order fill: ${exit_price:.8f}")
+            entry_price = Decimal(str(position['entry_price']))
+
+            # Step 1: Get order fill price (might be wrong!)
+            order_fill_price = close_order.get('average') or close_order.get('price')
+            logger.info(f"📊 DEBUG: close_order response: average={close_order.get('average')}, price={close_order.get('price')}")
+
+            # Step 2: ALWAYS fetch fresh ticker (most reliable source)
+            await asyncio.sleep(0.2)  # Wait 200ms for order to settle on exchange
+            ticker = await exchange.fetch_ticker(symbol)
+            ticker_price = Decimal(str(ticker.get('last', 0)))
+            logger.info(f"📊 DEBUG: Fresh ticker price: ${ticker_price:.8f}")
+
+            # Step 3: Determine best exit price
+            if order_fill_price and float(order_fill_price) > 0:
+                order_price = Decimal(str(order_fill_price))
+
+                # Check if order price is suspiciously close to entry price (bug indicator!)
+                order_vs_entry_pct = abs((order_price - entry_price) / entry_price) * 100
+                ticker_vs_entry_pct = abs((ticker_price - entry_price) / entry_price) * 100 if ticker_price > 0 else 0
+
+                logger.info(
+                    f"📊 Price comparison: "
+                    f"Order=${order_price:.8f} ({order_vs_entry_pct:.3f}% from entry), "
+                    f"Ticker=${ticker_price:.8f} ({ticker_vs_entry_pct:.3f}% from entry)"
+                )
+
+                # 🔥 BUG DETECTION: If order price is within 0.5% of entry, it's probably WRONG!
+                # Real exit should differ from entry (that's why we're taking profit!)
+                if order_vs_entry_pct < 0.5:
+                    logger.warning(
+                        f"⚠️ BUG DETECTED: Order fill price ${order_price:.8f} is too close to entry ${entry_price:.8f} "
+                        f"({order_vs_entry_pct:.3f}%). This is likely Binance returning entry price instead of fill price!"
+                    )
+
+                    # Use ticker price if it's different enough from entry
+                    if ticker_vs_entry_pct >= 0.1 and ticker_price > 0:
+                        exit_price = ticker_price
+                        logger.info(f"📊 Using TICKER price (order price was buggy): ${exit_price:.8f}")
+                    else:
+                        # Both prices are close to entry - this shouldn't happen if profit target hit
+                        # Use ticker anyway as it's more reliable than order response
+                        exit_price = ticker_price if ticker_price > 0 else order_price
+                        logger.warning(
+                            f"⚠️ Both prices close to entry! Using ticker=${ticker_price:.8f}. "
+                            f"If PnL is still wrong, check if profit target detection was accurate."
+                        )
+                else:
+                    # Order price looks reasonable - use it
+                    exit_price = order_price
+                    logger.info(f"📊 Exit price from order fill: ${exit_price:.8f}")
             else:
-                # Fallback: Fetch fresh ticker price (more reliable than old current_price)
-                logger.warning(f"⚠️ Order average price not returned, fetching fresh ticker...")
-                ticker = await exchange.fetch_ticker(symbol)
-                exit_price = Decimal(str(ticker.get('last', current_price)))
-                logger.info(f"📊 Exit price from fresh ticker: ${exit_price:.8f}")
+                # No order fill price - use ticker
+                if ticker_price > 0:
+                    exit_price = ticker_price
+                    logger.info(f"📊 Exit price from fresh ticker (no order fill price): ${exit_price:.8f}")
+                else:
+                    # Last resort: fetch another ticker
+                    logger.warning(f"⚠️ No valid price found! Fetching ticker again...")
+                    ticker2 = await exchange.fetch_ticker(symbol)
+                    exit_price = Decimal(str(ticker2.get('last', current_price)))
+                    logger.info(f"📊 Exit price from retry ticker: ${exit_price:.8f}")
+
+            # Final sanity check and log
+            final_vs_entry_pct = abs((exit_price - entry_price) / entry_price) * 100
+            logger.info(
+                f"✅ FINAL EXIT PRICE: ${exit_price:.8f} "
+                f"(Entry: ${entry_price:.8f}, Diff: {final_vs_entry_pct:.3f}%)"
+            )
 
             # Calculate exit slippage
             exit_slippage_percent = abs((exit_price - current_price) / current_price) * 100
@@ -1086,7 +1158,7 @@ class TradeExecutor:
             #
             # NEW (CORRECT): realized_pnl = position_value * price_change_pct
             #   → $1000 × 1.2% = $12 (correct!)
-            entry_price = Decimal(str(position['entry_price']))
+            # Note: entry_price already defined above in v5.0.12 exit price fix
             leverage = position['leverage']
             position_value = Decimal(str(position['position_value_usd']))
 

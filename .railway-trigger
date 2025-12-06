@@ -1,25 +1,27 @@
-# Force redeploy v5.0.11 - Reliable Exit Price - 5 Dec 2025 Thu
-# 🛡️ CRITICAL FIX: Wrong PnL calculation on position close!
+# Force redeploy v5.0.12 - Bulletproof Exit Price - 6 Dec 2025 Fri
+# 🛡️ CRITICAL FIX: v5.0.11 STILL HAD BUG - CELO profit lost!
 #
-# 🎯 v5.0.11 FEATURES:
-#   ✅ Reliable exit price detection
-#   ✅ Check both close_order.get('average') AND 'price'
-#   ✅ If None/0, fetch fresh ticker from exchange
-#   ✅ Better precision (.8f) for low-price coins like DENT
+# 🎯 v5.0.12 FEATURES:
+#   ✅ ALWAYS fetch fresh ticker after close order (200ms wait)
+#   ✅ Detect if order fill price = entry price (BUG INDICATOR!)
+#   ✅ If order price within 0.5% of entry → use ticker instead
+#   ✅ Detailed debug logging for all price sources
+#   ✅ Compare order price vs ticker price and pick best one
 #
-# 🐛 BUG FIXED:
-#   ❌ DENT LONG: Profit target hit $+6.88
+# 🐛 BUG ANALYSIS (v5.0.11 failure):
+#   ❌ CELO LONG: Profit target hit $+6.06
 #      • Position closed with Gross P&L: $0.00, Net P&L: -$1.00
-#      • close_order.get('average') returned None
-#      • Fallback to old current_price (≈entry_price)
-#      • Result: 0% price change → $0 PnL
+#      • Entry: $0.1650, Exit: $0.1650 (SAME!)
+#      • close_order.get('average') returned ENTRY PRICE, not fill price
+#      • v5.0.11 didn't detect this bug case
 #
-#   ✅ NEW LOGIC:
-#      • raw_exit_price = close_order.get('average') or close_order.get('price')
-#      • If None/0 → fetch fresh ticker price
-#      • Log: "Exit price from order fill" or "Exit price from fresh ticker"
+#   ✅ v5.0.12 FIX:
+#      • ALWAYS fetch fresh ticker after order
+#      • If order_price within 0.5% of entry_price → BUG DETECTED
+#      • Use ticker_price instead of buggy order_price
+#      • Log: "BUG DETECTED: Order fill price too close to entry"
 #
 # 📊 Previous versions:
+#   - v5.0.11: Reliable Exit Price (STILL BUGGY!)
 #   - v5.0.10: Async Portfolio Updates
 #   - v5.0.9: Trendline Price Position Validation
-#   - v5.0.8: Level Proximity Re-Validation
