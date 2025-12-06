@@ -313,12 +313,13 @@ class PositionMonitor:
                 LAYER1_STOP_PRICE = entry_price * (1 + config_stop_loss_pct / 100)
                 layer1_triggered = current_price >= LAYER1_STOP_PRICE
 
-            # 🛡️ LAYER 2: Dollar-based loss limit (MODERATE)
-            # 🔥 FIX: Use MARGIN-based loss limit, not position value!
-            # For $50 margin × 20x = $1000 position, we want $5-15 loss limit (not $50!)
-            # Formula: margin × 20% = max $10-15 loss on $50 margin
+            # 🛡️ LAYER 2: Dollar-based loss limit (TIGHT - USER REQUEST)
+            # 🔥 USER REQUEST: "20 dolar kayıp olunca pozisyonu kapatıyor, 5-6 dolar olsun"
+            # Formula: margin × 6% = $6 loss on $100 margin
+            # For $100 margin × 5x = $500 position: max loss = $6
+            # For $50 margin × 10x = $500 position: max loss = $3
             margin_used = position_value / leverage if leverage > 0 else position_value
-            LAYER2_LOSS_LIMIT_USD = margin_used * Decimal("0.25")  # 25% of margin = ~$12.50 on $50 margin
+            LAYER2_LOSS_LIMIT_USD = margin_used * Decimal("0.06")  # 6% of margin = ~$6 on $100 margin
             layer2_triggered = unrealized_pnl <= -LAYER2_LOSS_LIMIT_USD
 
             # 🛡️ LAYER 3: ROI-based emergency stop (WIDE - CATASTROPHIC PROTECTION)
