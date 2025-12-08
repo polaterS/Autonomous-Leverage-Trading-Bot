@@ -1,22 +1,22 @@
-# 🎯 LEVEL-BASED TRADING v5.0.15 - Balanced Settings
+# 🚫 LOW LIQUIDITY BLACKLIST v5.0.16
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251208_V5015_BALANCED_SETTINGS
+ARG CACHE_BUST=20251208_V5016_BLACKLIST
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.15: BALANCED STOP-LOSS + 2/3 CONFIRMATION!" && \
-    echo "   📊 Based on user feedback: 85% win rate before tight SL" && \
+    echo "🚫 v5.0.16: LOW LIQUIDITY COIN BLACKLIST!" && \
+    echo "   📊 User request: Block HOT, SLP, ONT, FLOW etc." && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.15 FEATURES:" && \
-    echo "      ✅ Stop-loss: 1.2% = ~\$12 max loss (was 0.8%)" && \
-    echo "      ✅ 2/3 confirmations (was 3/3 - too strict!)" && \
-    echo "      ✅ TREND + ADX filters still active!" && \
-    echo "      ✅ + v5.0.14 ghost exit price fix" && \
+    echo "   🆕 v5.0.16 FEATURES:" && \
+    echo "      🚫 35+ low liquidity coins BLACKLISTED" && \
+    echo "      🚫 HOT, SLP, ONT, FLOW (user identified)" && \
+    echo "      🚫 SHIB, PEPE, FLOKI, BONK (meme coins)" && \
+    echo "      🚫 LUNC, BTTC, WIN, NFT (very low price)" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   📊 Previous versions:" && \
-    echo "      ✅ v5.0.14: Ghost Exit Price Fix" && \
-    echo "      ✅ v5.0.13: Protection Filters"
+    echo "      ✅ v5.0.15: Balanced Settings" && \
+    echo "      ✅ v5.0.14: Ghost Exit Price Fix"
 
 # Set working directory
 WORKDIR /app
@@ -36,18 +36,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.15 - Balanced Settings
-# Current deployment: 20251208_V5015_BALANCED_SETTINGS
-# Changes: User feedback - 85% win rate before tight stop-loss!
-#   🎯 v5.0.15: Balanced Stop-Loss + 2/3 Confirmations
-#      ✅ Stop-loss: 0.8% → 1.2% = ~$12 max loss (room to breathe!)
-#      ✅ Confirmations: 3/3 → 2/3 (3/3 too strict to find trades)
-#      ✅ TREND + ADX filters still active for quality entries
-#      ✅ + v5.0.14 ghost exit price fix included
+# 🚫 CACHE BUST MARKER: v5.0.16 - Low Liquidity Blacklist
+# Current deployment: 20251208_V5016_BLACKLIST
+# Changes: User request - block HOT, SLP, ONT, FLOW and similar coins
+#   🚫 v5.0.16: Low Liquidity Coin Blacklist
+#      🚫 35+ coins blacklisted (unreliable candle patterns)
+#      🚫 HOT, SLP, ONT, FLOW (user identified after losses)
+#      🚫 SHIB, PEPE, FLOKI, BONK (meme coins)
+#      🚫 LUNC, BTTC, WIN, NFT (very low price < $0.01)
 #   📊 Previous versions:
+#      ✅ v5.0.15: Balanced Settings
 #      ✅ v5.0.14: Ghost Exit Price Fix
 #      ✅ v5.0.13: Protection Filters
-#      ✅ v5.0.12: Bulletproof Exit Price
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

@@ -1,30 +1,30 @@
-# Force redeploy v5.0.15 - Balanced Settings - 8 Dec 2025 Sun
-# 🎯 Based on user feedback: 85% win rate before tight stop-loss!
+# Force redeploy v5.0.16 - Low Liquidity Blacklist - 8 Dec 2025 Sun
+# 🚫 User request: Block HOT, SLP, ONT, FLOW and similar coins
 #
-# 🎯 v5.0.15 CHANGES:
+# 🎯 v5.0.16 CHANGES:
 #
-#   1. STOP-LOSS: 0.8% → 1.2%
-#      - Old: $8 max loss (too tight!)
-#      - New: $12 max loss (room to breathe)
-#      - Positions need time to develop
+#   1. BLACKLIST: +35 low liquidity coins added
+#      - HOT, SLP, ONT, FLOW (user identified)
+#      - SHIB, PEPE, FLOKI, BONK (meme coins)
+#      - LUNC, BTTC, WIN, NFT (very low price)
+#      - SPELL, REEF, DENT, ANKR (manipulation prone)
+#      - And 20+ more problematic coins
 #
-#   2. CONFIRMATIONS: 3/3 → 2/3
-#      - 3/3 probability: ~1-3% (almost never!)
-#      - 2/3 probability: ~10-20% (achievable)
-#      - TREND + ADX filters still protect quality
-#
-# 📊 User data analysis:
-#   ✅ Before $6 SL: 85% win rate (11/13 trades)
-#   ❌ After $6 SL: 0% win rate (0/6 trades)
-#   → Positions closed before developing!
+#   2. REASON: Unreliable candle patterns
+#      - Very low prices ($0.0005 etc)
+#      - Low liquidity = easy manipulation
+#      - Noisy charts = bad TA signals
+#      - HOT caused -$5.41 loss today
 #
 # 🛡️ PROTECTION STILL ACTIVE:
-#   ✅ TREND DIRECTION FILTER (no counter-trend!)
-#   ✅ ADX MOMENTUM FILTER (skip if ADX > 50)
-#   ✅ RSI DIRECTION FILTER
-#   ✅ Ghost exit price fix (v5.0.14)
+#   ✅ TREND DIRECTION FILTER
+#   ✅ ADX MOMENTUM FILTER
+#   ✅ 2/3 Confirmations
+#   ✅ 1.2% Stop-Loss (~$12)
+#   ✅ Ghost exit price fix
 #
 # 📊 Previous versions:
+#   - v5.0.15: Balanced Settings (1.2% SL, 2/3 conf)
 #   - v5.0.14: Ghost Exit Price Fix
 #   - v5.0.13: Protection Filters
-#   - v5.0.12: Bulletproof Exit Price
+

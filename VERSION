@@ -1,65 +1,68 @@
-5.0.15-BALANCED-SETTINGS
-🎯 Balanced Stop-Loss + 2/3 Confirmations
+5.0.16-LOW-LIQUIDITY-BLACKLIST
+🚫 Blacklisted 35+ Low Liquidity Coins
 Deployed: 2025-12-08
 
 ═══════════════════════════════════════════════════════════
-🎯 v5.0.15: BALANCED SETTINGS - Based on User Feedback!
+🚫 v5.0.16: LOW LIQUIDITY COIN BLACKLIST
 ═══════════════════════════════════════════════════════════
 
-USER FEEDBACK:
-- Before $6 stop-loss: 85% win rate (11/13 trades) ✓
-- After $6 stop-loss: 0% win rate (0/6 trades) ✗
-- Positions need ROOM TO BREATHE!
-- 3/3 confirmation too strict - hard to find trades!
+USER REQUEST:
+- HOT caused -$5.41 loss (unreliable candles)
+- SLP, ONT, FLOW also problematic
+- "Bu coinlerden zarar etmek istemiyorum!"
 
 ═══════════════════════════════════════════════════════════
-CHANGES:
+BLACKLISTED COINS (35+):
 ═══════════════════════════════════════════════════════════
 
-1. STOP-LOSS: 0.8% → 1.2%
-   - Old: $8 max loss (too tight, positions closed early!)
-   - New: $12 max loss (gives position time to develop)
-   - Still better than $20 losses from before
+User-identified:
+  🚫 HOT  - Holo ($0.0005, gürültülü mumlar)
+  🚫 SLP  - Smooth Love Potion ($0.0009)
+  🚫 ONT  - Ontology (düşük likidite)
+  🚫 FLOW - Flow (düşük likidite)
 
-2. CONFIRMATIONS: 3/3 → 2/3
-   - Old: ALL 3 required (candlestick + volume + RSI)
-   - New: 2-of-3 required (more achievable)
-   - 3/3 probability: ~1-3% (almost never happens!)
-   - 2/3 probability: ~10-20% (reasonable)
+Meme coins (manipulation risk):
+  🚫 SHIB, PEPE, FLOKI, BONK, DOGS, NOT, NEIRO
 
-═══════════════════════════════════════════════════════════
-PROTECTION STILL ACTIVE:
-═══════════════════════════════════════════════════════════
+Very low price (< $0.01):
+  🚫 LUNC, BTTC, WIN, NFT, 1000SATS
 
-✅ TREND DIRECTION FILTER
-   - BLOCKS LONG in STRONG_DOWNTREND
-   - BLOCKS SHORT in STRONG_UPTREND
+Low liquidity / manipulation prone:
+  🚫 SPELL, REEF, DENT, SC, ANKR, PEOPLE, JASMY
+  🚫 ACH, CTXC, KEY, STMX, OGN, CELR, CKB, BICO
 
-✅ ADX MOMENTUM FILTER
-   - SKIP all trades when ADX > 50
-
-✅ RSI DIRECTION FILTER
-   - No SHORT when RSI < 30 (oversold)
-   - No LONG when RSI > 70 (overbought)
-
-✅ GHOST EXIT PRICE FIX (v5.0.14)
-   - Fetches real exit price from Binance trades
-   - Proper PnL calculation
+Dead / unreliable:
+  🚫 LUNA, UST, USTC
 
 ═══════════════════════════════════════════════════════════
-EXPECTED RESULTS:
+WHY BLACKLIST?
 ═══════════════════════════════════════════════════════════
 
-- More trades (2/3 easier than 3/3)
-- Higher win rate (trend+ADX filters)
-- Positions have room to develop ($12 vs $8)
-- Still protected from big losses ($12 vs $20)
+1. Very low prices = noisy candle patterns
+2. Low liquidity = easy manipulation by whales
+3. Technical analysis unreliable
+4. Wide spreads = worse fills
+5. Today's HOT loss proves the point
+
+═══════════════════════════════════════════════════════════
+TODAY'S PERFORMANCE (before blacklist):
+═══════════════════════════════════════════════════════════
+
+Win Rate: 80% (8/10 trades)
+Net Profit: +$14.32
+
+Losses:
+  ❌ GMX: -$4.99 (normal loss)
+  ❌ HOT: -$5.41 (low liquidity coin!)
+
+After blacklist: These coins will NEVER be traded again.
 
 ═══════════════════════════════════════════════════════════
 PREVIOUS VERSIONS:
 ═══════════════════════════════════════════════════════════
 
+v5.0.15: Balanced Settings (1.2% SL, 2/3 confirmations)
 v5.0.14: Ghost Exit Price Fix
 v5.0.13: Protection Filters (Trend + ADX)
 v5.0.12: Bulletproof Exit Price
-v5.0.11: Reliable Exit Price
+

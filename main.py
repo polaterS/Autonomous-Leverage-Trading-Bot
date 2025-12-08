@@ -2,11 +2,11 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🎯 VERSION: 5.0.15-BALANCED-SETTINGS
-   - Stop-loss: 1.2% = ~$12 max loss (was 0.8% = $8)
-   - Confirmations: 2/3 (was 3/3 - too strict!)
-   - TREND + ADX filters still active
-   - + Ghost exit price fix included
+🚫 VERSION: 5.0.16-LOW-LIQUIDITY-BLACKLIST
+   - 35+ low liquidity coins BLACKLISTED
+   - HOT, SLP, ONT, FLOW (user identified)
+   - SHIB, PEPE, FLOKI, BONK (meme coins)
+   - + All v5.0.15 features included
 """
 
 import asyncio
@@ -21,7 +21,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "5.0.15-BALANCED-SETTINGS"
+BOT_VERSION = "5.0.16-LOW-LIQUIDITY-BLACKLIST"
 
 # Log deployment version from VERSION file
 try:

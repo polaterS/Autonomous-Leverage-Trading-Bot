@@ -33,10 +33,58 @@ class SymbolBlacklist:
     def __init__(self, blacklist_file: str = "data/symbol_blacklist.json"):
         self.blacklist_file = Path(blacklist_file)
 
-        # 🚫 PERMANENT BLACKLIST: Exchange restrictions (Binance won't allow positions)
+        # 🚫 PERMANENT BLACKLIST: Exchange restrictions + Low liquidity coins
         self.permanent_blacklist: Set[str] = {
+            # Exchange restrictions (Binance won't allow positions)
             'FTM/USDT:USDT',  # Binance: Invalid symbol status
             'MKR/USDT:USDT',  # Binance: Invalid symbol status
+
+            # ═══════════════════════════════════════════════════════════════
+            # 🚫 LOW LIQUIDITY / LOW PRICE COINS - Unreliable candle patterns
+            # Added: 2025-12-08 (User request after HOT loss)
+            # ═══════════════════════════════════════════════════════════════
+
+            # User-identified problematic coins
+            'HOT/USDT:USDT',   # Holo - $0.0005, gürültülü mumlar, -$5.41 kayıp
+            'SLP/USDT:USDT',   # Smooth Love Potion - $0.0009, düşük fiyat
+            'ONT/USDT:USDT',   # Ontology - düşük likidite, belirsiz mumlar
+            'FLOW/USDT:USDT',  # Flow - düşük likidite
+
+            # Similar low-price coins (< $0.01)
+            'SHIB/USDT:USDT',  # Shiba Inu - meme coin, manipülasyon riski
+            'PEPE/USDT:USDT',  # Pepe - meme coin, çok volatil
+            'FLOKI/USDT:USDT', # Floki - meme coin
+            'LUNC/USDT:USDT',  # Luna Classic - çok düşük fiyat
+            'BTTC/USDT:USDT',  # BitTorrent - çok düşük fiyat
+            'WIN/USDT:USDT',   # WINkLink - çok düşük fiyat
+            'NFT/USDT:USDT',   # APENFT - çok düşük fiyat
+            'BONK/USDT:USDT',  # Bonk - meme coin
+            '1000SATS/USDT:USDT',  # 1000SATS - düşük fiyat
+            'DOGS/USDT:USDT',  # Dogs - meme coin
+            'NOT/USDT:USDT',   # Notcoin - meme coin
+            'NEIRO/USDT:USDT', # Neiro - meme coin
+
+            # Low liquidity / manipulation prone
+            'SPELL/USDT:USDT', # Spell - düşük likidite
+            'REEF/USDT:USDT',  # Reef - düşük likidite
+            'DENT/USDT:USDT',  # Dent - düşük fiyat, daha önce sorun yaşandı
+            'SC/USDT:USDT',    # Siacoin - düşük fiyat
+            'ANKR/USDT:USDT',  # Ankr - düşük fiyat
+            'PEOPLE/USDT:USDT', # People - düşük likidite
+            'JASMY/USDT:USDT', # Jasmy - düşük fiyat
+            'ACH/USDT:USDT',   # Alchemy Pay - düşük likidite
+            'CTXC/USDT:USDT',  # Cortex - düşük likidite
+            'KEY/USDT:USDT',   # SelfKey - düşük likidite
+            'STMX/USDT:USDT',  # StormX - düşük likidite
+            'OGN/USDT:USDT',   # Origin - düşük likidite
+            'CELR/USDT:USDT',  # Celer - düşük fiyat
+            'CKB/USDT:USDT',   # Nervos - düşük fiyat
+            'BICO/USDT:USDT',  # Biconomy - düşük likidite
+
+            # Very volatile / unreliable
+            'LUNA/USDT:USDT',  # Luna 2.0 - güvenilmez
+            'UST/USDT:USDT',   # UST - ölü coin
+            'USTC/USDT:USDT',  # USTC - ölü coin
         }
 
         # ⏰ TEMPORARY BLACKLIST: Recent failures (auto-expires after 24 hours)
