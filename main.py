@@ -2,10 +2,11 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🔥 VERSION: 5.0.14-GHOST-EXIT-FIX
-   - Ghost positions now fetch REAL exit price from Binance trades
-   - Proper PnL calculation before removing position
-   - + All v5.0.13 protection filters included
+🎯 VERSION: 5.0.15-BALANCED-SETTINGS
+   - Stop-loss: 1.2% = ~$12 max loss (was 0.8% = $8)
+   - Confirmations: 2/3 (was 3/3 - too strict!)
+   - TREND + ADX filters still active
+   - + Ghost exit price fix included
 """
 
 import asyncio
@@ -20,7 +21,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "5.0.14-GHOST-EXIT-FIX"
+BOT_VERSION = "5.0.15-BALANCED-SETTINGS"
 
 # Log deployment version from VERSION file
 try:

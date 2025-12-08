@@ -399,22 +399,26 @@ class EntryConfirmation:
         result['confirmation_score'] = score
         result['confirmed_count'] = confirmed_count
 
-        # 🔧 v5.0.13 FIX: ALL 3 Confirmations Required
-        # OLD v5.0.4: 2-of-3 confirmations (too many losing trades!)
-        # NEW v5.0.13: ALL 3 confirmations required for entry
+        # 🔧 v5.0.15 FIX: 2-of-3 Confirmations WITH Protection Filters
         #
-        # Why we reverted to 3/3:
-        # - User had 6 consecutive losing trades with 2/3 rule
-        # - 2/3 allowed too many low-quality entries
-        # - S/R level + ALL confirmations = much higher win rate
+        # HISTORY:
+        # - v5.0.4: 2/3 confirmations (6 losing trades - no trend filter!)
+        # - v5.0.13: 3/3 confirmations (too strict - hard to find trades!)
         #
-        # Required for entry:
-        # 1. ✓ Candlestick pattern (reversal at level)
-        # 2. ✓ Volume spike (conviction/participation)
-        # 3. ✓ RSI in extreme zone (oversold/overbought)
+        # NEW v5.0.15: 2/3 confirmations + TREND + ADX filters
         #
-        # This is more selective but higher quality
-        result['all_confirmed'] = confirmed_count >= 3  # ALL 3 required!
+        # Why 2/3 works NOW:
+        # - v5.0.13 added TREND DIRECTION FILTER (no counter-trend!)
+        # - v5.0.13 added ADX MOMENTUM FILTER (skip if ADX > 50)
+        # - These filters prevent the BAD entries that caused losses
+        # - 2/3 confirmations still provide quality signal
+        #
+        # Probability analysis:
+        # - 3/3 together: ~1-3% (almost never happens!)
+        # - 2/3 together: ~10-20% (reasonable opportunity rate)
+        #
+        # The REAL protection comes from trend+ADX filters, not 3/3 confirmations
+        result['all_confirmed'] = confirmed_count >= 2  # 2/3 with trend+ADX protection!
 
         return result
 
@@ -3846,7 +3850,7 @@ class PriceActionAnalyzer:
             if not confirmations['all_confirmed']:
                 missing = confirmations.get('missing', [])
                 confirmed_count = confirmations.get('confirmed_count', 0)
-                result['reason'] = f"❌ WAIT: At {best_level.level_type}, {confirmed_count}/3 confirmations (need ALL 3). Missing: {', '.join(missing)}"
+                result['reason'] = f"❌ WAIT: At {best_level.level_type}, {confirmed_count}/3 confirmations (need 2+). Missing: {', '.join(missing)}"
                 logger.info(f"   {result['reason']}")
                 result['analysis'] = {
                     'support_resistance': sr_analysis,

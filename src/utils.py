@@ -184,27 +184,30 @@ def calculate_stop_loss_price(
         max_usd_loss_percent = stop_loss_percent / 100  # e.g., 0.02 for 2%
         price_move_percent = max_usd_loss_percent / Decimal(str(leverage))
 
-        # 🔥🔥🔥 CRITICAL FIX v3 (2025-12): Tighter stop-loss for ~$6-8 max loss!
+        # 🔥🔥🔥 CRITICAL FIX v4 (2025-12): Balanced stop-loss for ~$12 max loss
         #
-        # PROBLEM (v2): MIN_PRICE_MOVE_PERCENT = 2% caused $20+ losses!
-        # - $100 margin × 10x leverage = $1000 position
-        # - 2% price move = $20 loss (way over $6 target!)
+        # HISTORY:
+        # - v2: 2% = $20 loss (too wide, big losses)
+        # - v3: 0.8% = $8 loss (too tight, positions closed before developing!)
         #
-        # SOLUTION (v3): Reduce to 0.8% price move
-        # - $1000 position × 0.8% = $8 max loss ✓
-        # - Buffer for slippage (0.1-0.2%) and spread (0.1-0.2%)
-        # - 0.8% is 3x normal spread = safe buffer
+        # USER FEEDBACK:
+        # - Before $6 stop-loss: 85% win rate (11/13 trades)
+        # - After $6 stop-loss: 0% win rate (0/6 trades)
+        # - Positions need ROOM TO BREATHE!
+        #
+        # SOLUTION (v4): 1.2% price move = ~$12 max loss
+        # - Gives position time to develop
+        # - Still much better than $20 losses
+        # - Combined with TREND + ADX filters for quality entries
         #
         # With different leverage:
-        # - 10x leverage, $100 margin: 0.8% move = $8 loss
-        # - 15x leverage, $66 margin: 0.8% move = $8 loss
-        # - 20x leverage, $50 margin: 0.8% move = $8 loss
-        #
-        # This matches LAYER2 position_monitor check (~$6) with buffer
-        MIN_PRICE_MOVE_PERCENT = Decimal("0.008")  # 0.8% = ~$8 max loss on $1000 position
+        # - 10x leverage, $100 margin: 1.2% move = $12 loss
+        # - 15x leverage, $66 margin: 1.2% move = $12 loss
+        # - 20x leverage, $50 margin: 1.2% move = $12 loss
+        MIN_PRICE_MOVE_PERCENT = Decimal("0.012")  # 1.2% = ~$12 max loss on $1000 position
 
         logger = logging.getLogger('trading_bot')
-        logger.info(f"🛡️ SL FIX v3 ACTIVE: Min price move = {float(MIN_PRICE_MOVE_PERCENT)*100:.2f}% (target: $6-8 max loss)")
+        logger.info(f"🛡️ SL FIX v4 ACTIVE: Min price move = {float(MIN_PRICE_MOVE_PERCENT)*100:.2f}% (target: ~$12 max loss)")
 
         if price_move_percent < MIN_PRICE_MOVE_PERCENT:
             logger.warning(

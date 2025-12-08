@@ -1,33 +1,30 @@
-# Force redeploy v5.0.14 - Ghost Exit Price Fix - 8 Dec 2025 Sun
-# 🔥 CRITICAL FIX: CELO/DENT Entry=Exit $0 PnL bug!
+# Force redeploy v5.0.15 - Balanced Settings - 8 Dec 2025 Sun
+# 🎯 Based on user feedback: 85% win rate before tight stop-loss!
 #
-# 🎯 v5.0.14 FEATURES:
-#   ✅ Ghost positions now fetch REAL exit price from Binance trades
-#   ✅ Proper PnL calculation before removing position
-#   ✅ Records trade history with correct exit price
+# 🎯 v5.0.15 CHANGES:
 #
-# 🐛 BUG ANALYSIS:
-#   ❌ CELO: Entry $0.169 = Exit $0.169 → $0 PnL (wrong!)
-#   ❌ DENT: Entry $0.000235 = Exit $0.000235 → $0 PnL (wrong!)
+#   1. STOP-LOSS: 0.8% → 1.2%
+#      - Old: $8 max loss (too tight!)
+#      - New: $12 max loss (room to breathe)
+#      - Positions need time to develop
 #
-#   ROOT CAUSE:
-#   - When Binance SL/TP order closes position → "ghost" detected
-#   - Ghost was just DELETED from DB without recording exit price
-#   - Exit price was NEVER fetched from Binance trades!
+#   2. CONFIRMATIONS: 3/3 → 2/3
+#      - 3/3 probability: ~1-3% (almost never!)
+#      - 2/3 probability: ~10-20% (achievable)
+#      - TREND + ADX filters still protect quality
 #
-#   FIX:
-#   - Fetch recent trades from Binance (fetch_my_trades)
-#   - Find actual closing trade (SELL for LONG, BUY for SHORT)
-#   - Get real exit price and calculate proper PnL
-#   - Record in trade_history BEFORE removing
+# 📊 User data analysis:
+#   ✅ Before $6 SL: 85% win rate (11/13 trades)
+#   ❌ After $6 SL: 0% win rate (0/6 trades)
+#   → Positions closed before developing!
 #
-# 📊 Includes v5.0.13 protection filters:
-#   ✅ TREND DIRECTION FILTER
+# 🛡️ PROTECTION STILL ACTIVE:
+#   ✅ TREND DIRECTION FILTER (no counter-trend!)
 #   ✅ ADX MOMENTUM FILTER (skip if ADX > 50)
-#   ✅ ALL 3 confirmations required
-#   ✅ Tighter stop-loss: 0.8%
+#   ✅ RSI DIRECTION FILTER
+#   ✅ Ghost exit price fix (v5.0.14)
 #
 # 📊 Previous versions:
-#   - v5.0.13: Critical Protection Filters
+#   - v5.0.14: Ghost Exit Price Fix
+#   - v5.0.13: Protection Filters
 #   - v5.0.12: Bulletproof Exit Price
-#   - v5.0.11: Reliable Exit Price
