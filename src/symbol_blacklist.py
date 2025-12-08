@@ -89,6 +89,88 @@ class SymbolBlacklist:
             'ONE/USDT:USDT',   # Harmony - kullanıcı talebi, güvenilmez
             'ALICE/USDT:USDT', # MyNeighborAlice - kullanıcı talebi, düşük likidite
 
+            # ═══════════════════════════════════════════════════════════════
+            # 🎮 DEAD GAMING/METAVERSE TOKENS - hype bitti, likidite düştü
+            # ═══════════════════════════════════════════════════════════════
+            'TLM/USDT:USDT',   # Alien Worlds - ölü oyun
+            'VOXEL/USDT:USDT', # Voxies - düşük likidite
+            'DAR/USDT:USDT',   # Mines of Dalarnia - ölü
+            'LOKA/USDT:USDT',  # League of Kingdoms - düşük likidite
+            'HIGH/USDT:USDT',  # Highstreet - düşük likidite
+            'BURGER/USDT:USDT', # BurgerSwap - ölü
+            'SFP/USDT:USDT',   # SafePal - düşük likidite
+            'RARE/USDT:USDT',  # SuperRare - düşük likidite
+            'GHST/USDT:USDT',  # Aavegotchi - düşük likidite
+            'ILV/USDT:USDT',   # Illuvium - düşük likidite
+            'YGG/USDT:USDT',   # Yield Guild - düşük likidite
+            'MAGIC/USDT:USDT', # Magic - düşük likidite
+            'GMT/USDT:USDT',   # StepN - hype bitti
+            'GST/USDT:USDT',   # StepN GST - çok ölü
+
+            # ═══════════════════════════════════════════════════════════════
+            # ⚽ FAN TOKENS - Çok manipüle, maç sonuçlarına göre pump/dump
+            # ═══════════════════════════════════════════════════════════════
+            'SANTOS/USDT:USDT', # Santos FC
+            'LAZIO/USDT:USDT',  # Lazio
+            'PORTO/USDT:USDT',  # Porto
+            'JUV/USDT:USDT',    # Juventus
+            'PSG/USDT:USDT',    # Paris Saint-Germain
+            'ATM/USDT:USDT',    # Atletico Madrid
+            'ASR/USDT:USDT',    # AS Roma
+            'OG/USDT:USDT',     # OG Esports
+            'CITY/USDT:USDT',   # Manchester City
+            'BAR/USDT:USDT',    # Barcelona
+            'ACM/USDT:USDT',    # AC Milan
+            'ALPINE/USDT:USDT', # Alpine F1
+
+            # ═══════════════════════════════════════════════════════════════
+            # 💀 OLD DEFI - Eskimiş, likidite çekilmiş
+            # ═══════════════════════════════════════════════════════════════
+            'ALPHA/USDT:USDT', # Alpha Finance - düşük likidite
+            'BADGER/USDT:USDT', # Badger - düşük likidite
+            'DODO/USDT:USDT',  # DODO - düşük likidite
+            'UNFI/USDT:USDT',  # Unifi - düşük likidite
+            'POND/USDT:USDT',  # Marlin - düşük likidite
+            'PROM/USDT:USDT',  # Prometeus - düşük likidite
+            'TRU/USDT:USDT',   # TrueFi - düşük likidite
+            'LINA/USDT:USDT',  # Linear - düşük likidite
+            'FIDA/USDT:USDT',  # Bonfida - düşük likidite
+            'FORTH/USDT:USDT', # Ampleforth - düşük likidite
+            'BOND/USDT:USDT',  # BarnBridge - düşük likidite
+            'KP3R/USDT:USDT',  # Keep3r - düşük likidite
+            'ALPACA/USDT:USDT', # Alpaca - düşük likidite
+            'TKO/USDT:USDT',   # Tokocrypto - düşük likidite
+            'EPS/USDT:USDT',   # Ellipsis - düşük likidite
+            'LIT/USDT:USDT',   # Litentry - düşük likidite
+            'IDEX/USDT:USDT',  # IDEX - düşük likidite
+            'WING/USDT:USDT',  # Wing - düşük likidite
+            'DF/USDT:USDT',    # dForce - düşük likidite
+            'AUTO/USDT:USDT',  # Auto - düşük likidite
+
+            # ═══════════════════════════════════════════════════════════════
+            # 📉 CHOPPY PRICE ACTION - Gürültülü, tek tek giden mumlar
+            # ═══════════════════════════════════════════════════════════════
+            'COTI/USDT:USDT',  # COTI - çok choppy
+            'CTSI/USDT:USDT',  # Cartesi - düşük likidite
+            'BAND/USDT:USDT',  # Band - güvenilmez mumlar
+            'RLC/USDT:USDT',   # iExec - düşük likidite
+            'NKN/USDT:USDT',   # NKN - düşük likidite
+            'AUDIO/USDT:USDT', # Audius - düşük likidite
+            'RAD/USDT:USDT',   # Radicle - düşük likidite
+            'BETA/USDT:USDT',  # Beta Finance - düşük likidite
+            'CHESS/USDT:USDT', # Tranchess - düşük likidite
+            'ADX/USDT:USDT',   # AdEx - düşük likidite
+            'SUPER/USDT:USDT', # SuperFarm - düşük likidite
+            'TVK/USDT:USDT',   # Terra Virtua - düşük likidite
+            'PUNDIX/USDT:USDT', # Pundi X - düşük likidite
+            'MLN/USDT:USDT',   # Enzyme - düşük likidite
+            'PERP/USDT:USDT',  # Perpetual - düşük likidite
+            'KNC/USDT:USDT',   # Kyber - choppy
+            'BAL/USDT:USDT',   # Balancer - düşük likidite
+            'LRC/USDT:USDT',   # Loopring - choppy olabiliyor
+            'ENJ/USDT:USDT',   # Enjin - choppy
+            'CHZ/USDT:USDT',   # Chiliz - fan token ilişkili, volatil
+
             # Very volatile / unreliable
             'LUNA/USDT:USDT',  # Luna 2.0 - güvenilmez
             'UST/USDT:USDT',   # UST - ölü coin
