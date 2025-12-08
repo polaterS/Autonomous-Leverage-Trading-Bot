@@ -2,7 +2,11 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🛡️ VERSION: 7.8-PROTECTION-FILTERS (ADX>50, Sideways+LowVol, Pullback Detection)
+🛡️ VERSION: 5.0.13-CRITICAL-PROTECTION
+   - TREND DIRECTION FILTER (no counter-trend!)
+   - ADX MOMENTUM FILTER (skip if ADX > 50)
+   - ALL 3 confirmations required (was 2/3)
+   - Tighter stop-loss: 0.8% = ~$8 max loss
 """
 
 import asyncio
@@ -17,7 +21,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "7.8-PROTECTION-FILTERS"
+BOT_VERSION = "5.0.13-CRITICAL-PROTECTION"
 
 # Log deployment version from VERSION file
 try:

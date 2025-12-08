@@ -1,24 +1,23 @@
-# 🎯 LEVEL-BASED TRADING v5.0.12 - Bulletproof Exit Price
+# 🛡️ LEVEL-BASED TRADING v5.0.13 - Critical Protection Filters
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251206_V5012_BULLETPROOF_EXIT_PRICE
+ARG CACHE_BUST=20251208_V5013_CRITICAL_PROTECTION
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🎯 v5.0.12: BULLETPROOF EXIT PRICE FIX!" && \
-    echo "   🛡️ CRITICAL: v5.0.11 still had bug - CELO profit lost!" && \
+    echo "🛡️ v5.0.13: CRITICAL PROTECTION FILTERS!" && \
+    echo "   🔥 FIX: 6 consecutive losing trades!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.12 FEATURES:" && \
-    echo "      ✅ ALWAYS fetch fresh ticker after close order" && \
-    echo "      ✅ Detect if order price = entry price (BUG!)" && \
-    echo "      ✅ Use ticker if order price within 0.5% of entry" && \
-    echo "      ✅ Detailed debug logging for price sources" && \
-    echo "      ✅ 200ms wait for order to settle before ticker" && \
+    echo "   🆕 v5.0.13 FEATURES:" && \
+    echo "      ✅ TREND DIRECTION FILTER (no counter-trend!)" && \
+    echo "      ✅ ADX MOMENTUM FILTER (skip if ADX > 50)" && \
+    echo "      ✅ ALL 3 confirmations required (was 2/3)" && \
+    echo "      ✅ Tighter stop-loss: 0.8% = ~$8 max loss" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   📊 Previous versions:" && \
-    echo "      ✅ v5.0.11: Reliable Exit Price (still buggy)" && \
-    echo "      ✅ v5.0.10: Async Portfolio Updates" && \
-    echo "      ✅ v5.0.9: Trendline Price Position Validation"
+    echo "      ✅ v5.0.12: Bulletproof Exit Price" && \
+    echo "      ✅ v5.0.11: Reliable Exit Price" && \
+    echo "      ✅ v5.0.10: Async Portfolio Updates"
 
 # Set working directory
 WORKDIR /app
@@ -38,19 +37,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🎯 CACHE BUST MARKER: v5.0.12 - Bulletproof Exit Price
-# Current deployment: 20251206_V5012_BULLETPROOF_EXIT_PRICE
-# Changes: v5.0.11 still buggy - CELO profit lost!
-#   🛡️ v5.0.12: Bulletproof Exit Price
-#      ✅ ALWAYS fetch fresh ticker after close order
-#      ✅ Detect buggy order price (= entry price)
-#      ✅ Use ticker if order price within 0.5% of entry
-#      ✅ 200ms wait for order to settle before ticker
-#      ✅ Detailed debug logging for troubleshooting
+# 🛡️ CACHE BUST MARKER: v5.0.13 - Critical Protection Filters
+# Current deployment: 20251208_V5013_CRITICAL_PROTECTION
+# Changes: 6 consecutive losing trades - need protection filters!
+#   🛡️ v5.0.13: Critical Protection Filters
+#      ✅ TREND DIRECTION FILTER (no counter-trend trades!)
+#      ✅ ADX MOMENTUM FILTER (skip if ADX > 50)
+#      ✅ ALL 3 confirmations required (was 2/3)
+#      ✅ Tighter stop-loss: 0.8% = ~$8 max loss
 #   📊 Previous versions:
-#      ✅ v5.0.11: Reliable Exit Price (still buggy!)
+#      ✅ v5.0.12: Bulletproof Exit Price
+#      ✅ v5.0.11: Reliable Exit Price
 #      ✅ v5.0.10: Async Portfolio Updates
-#      ✅ v5.0.9: Trendline Price Position Validation
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

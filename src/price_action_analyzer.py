@@ -399,18 +399,22 @@ class EntryConfirmation:
         result['confirmation_score'] = score
         result['confirmed_count'] = confirmed_count
 
-        # 🔧 v5.0.4 FIX: 2-of-3 Confirmation Rule
-        # OLD: Required ALL 3 confirmations (almost impossible!)
-        # NEW: 2-of-3 confirmations is enough for entry
+        # 🔧 v5.0.13 FIX: ALL 3 Confirmations Required
+        # OLD v5.0.4: 2-of-3 confirmations (too many losing trades!)
+        # NEW v5.0.13: ALL 3 confirmations required for entry
         #
-        # Why 2-of-3 is professional:
-        # - Candlestick + Volume = Price rejection with conviction
-        # - Candlestick + RSI = Reversal pattern at extreme
-        # - Volume + RSI = Smart money accumulation at extreme
+        # Why we reverted to 3/3:
+        # - User had 6 consecutive losing trades with 2/3 rule
+        # - 2/3 allowed too many low-quality entries
+        # - S/R level + ALL confirmations = much higher win rate
         #
-        # Special case: Strong candlestick pattern alone (score >= 40) with
-        # at least one other confirmation = ENTRY ALLOWED
-        result['all_confirmed'] = confirmed_count >= 2
+        # Required for entry:
+        # 1. ✓ Candlestick pattern (reversal at level)
+        # 2. ✓ Volume spike (conviction/participation)
+        # 3. ✓ RSI in extreme zone (oversold/overbought)
+        #
+        # This is more selective but higher quality
+        result['all_confirmed'] = confirmed_count >= 3  # ALL 3 required!
 
         return result
 
@@ -3842,7 +3846,7 @@ class PriceActionAnalyzer:
             if not confirmations['all_confirmed']:
                 missing = confirmations.get('missing', [])
                 confirmed_count = confirmations.get('confirmed_count', 0)
-                result['reason'] = f"❌ WAIT: At {best_level.level_type}, {confirmed_count}/3 confirmations (need 2+). Missing: {', '.join(missing)}"
+                result['reason'] = f"❌ WAIT: At {best_level.level_type}, {confirmed_count}/3 confirmations (need ALL 3). Missing: {', '.join(missing)}"
                 logger.info(f"   {result['reason']}")
                 result['analysis'] = {
                     'support_resistance': sr_analysis,
@@ -3886,6 +3890,113 @@ class PriceActionAnalyzer:
                     'entry_side': entry_side,
                     'confirmations': confirmations,
                     'rsi_filter': 'overbought_block_long'
+                }
+                return result
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 5.6: TREND DIRECTION FILTER (v5.0.13)
+            # ═══════════════════════════════════════════════════════════════
+            # CRITICAL: Don't trade AGAINST the trend!
+            #
+            # Problem: All 6 recent trades were losses because we entered at S/R
+            #          levels but AGAINST the prevailing trend. When trend is
+            #          strong, S/R levels GET BROKEN!
+            #
+            # Logic:
+            # - UPTREND (higher highs, higher lows) → Only LONG allowed
+            # - DOWNTREND (lower highs, lower lows) → Only SHORT allowed
+            # - SIDEWAYS → Both allowed (true S/R bounces)
+            #
+            # How we detect trend:
+            # - Price vs EMA20/EMA50
+            # - ADX direction (+DI vs -DI)
+            # - Recent swing structure
+            # ═══════════════════════════════════════════════════════════════
+
+            # Get trend from indicators
+            adx = indicators.get('adx', 25)
+            plus_di = indicators.get('plus_di', 25)
+            minus_di = indicators.get('minus_di', 25)
+            ema_20 = indicators.get('ema_20', current_price)
+            ema_50 = indicators.get('ema_50', current_price)
+
+            # Determine trend direction
+            trend_direction = 'SIDEWAYS'
+            trend_strength = 'WEAK'
+
+            # ADX-based trend detection
+            if adx > 25:  # Trending market
+                if plus_di > minus_di:
+                    trend_direction = 'UPTREND'
+                else:
+                    trend_direction = 'DOWNTREND'
+
+                if adx > 40:
+                    trend_strength = 'STRONG'
+                elif adx > 30:
+                    trend_strength = 'MODERATE'
+                else:
+                    trend_strength = 'WEAK'
+
+            # EMA confirmation
+            ema_bullish = current_price > ema_20 > ema_50
+            ema_bearish = current_price < ema_20 < ema_50
+
+            # Combined trend assessment
+            if trend_direction == 'UPTREND' and ema_bullish:
+                trend_confirmed = 'STRONG_UPTREND'
+            elif trend_direction == 'DOWNTREND' and ema_bearish:
+                trend_confirmed = 'STRONG_DOWNTREND'
+            else:
+                trend_confirmed = trend_direction
+
+            logger.info(f"   📈 Trend Analysis: {trend_confirmed} (ADX: {adx:.1f}, +DI: {plus_di:.1f}, -DI: {minus_di:.1f})")
+
+            # 🛡️ BLOCK COUNTER-TREND TRADES
+            if entry_side == 'LONG' and trend_confirmed == 'STRONG_DOWNTREND':
+                result['reason'] = f"❌ BLOCK: STRONG DOWNTREND - Don't LONG against the trend! (ADX: {adx:.1f})"
+                logger.warning(f"   🛡️ TREND FILTER: {result['reason']}")
+                result['analysis'] = {
+                    'support_resistance': sr_analysis,
+                    'level_at': best_level.to_dict(),
+                    'entry_side': entry_side,
+                    'confirmations': confirmations,
+                    'trend_filter': 'downtrend_block_long',
+                    'trend': {'direction': trend_confirmed, 'adx': adx}
+                }
+                return result
+
+            if entry_side == 'SHORT' and trend_confirmed == 'STRONG_UPTREND':
+                result['reason'] = f"❌ BLOCK: STRONG UPTREND - Don't SHORT against the trend! (ADX: {adx:.1f})"
+                logger.warning(f"   🛡️ TREND FILTER: {result['reason']}")
+                result['analysis'] = {
+                    'support_resistance': sr_analysis,
+                    'level_at': best_level.to_dict(),
+                    'entry_side': entry_side,
+                    'confirmations': confirmations,
+                    'trend_filter': 'uptrend_block_short',
+                    'trend': {'direction': trend_confirmed, 'adx': adx}
+                }
+                return result
+
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 5.7: ADX MOMENTUM FILTER (v5.0.13)
+            # ═══════════════════════════════════════════════════════════════
+            # When ADX > 50, momentum is EXTREMELY strong
+            # S/R levels typically get BROKEN in such conditions
+            # SKIP all trades when ADX > 50
+            # ═══════════════════════════════════════════════════════════════
+
+            if adx > 50:
+                result['reason'] = f"❌ BLOCK: ADX {adx:.1f} > 50 = EXTREME momentum - S/R levels likely to break!"
+                logger.warning(f"   🛡️ ADX FILTER: {result['reason']}")
+                result['analysis'] = {
+                    'support_resistance': sr_analysis,
+                    'level_at': best_level.to_dict(),
+                    'entry_side': entry_side,
+                    'confirmations': confirmations,
+                    'adx_filter': 'extreme_momentum_skip',
+                    'adx': adx
                 }
                 return result
 

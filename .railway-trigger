@@ -1,27 +1,25 @@
-# Force redeploy v5.0.12 - Bulletproof Exit Price - 6 Dec 2025 Fri
-# 🛡️ CRITICAL FIX: v5.0.11 STILL HAD BUG - CELO profit lost!
+# Force redeploy v5.0.13 - Critical Protection Filters - 8 Dec 2025 Sun
+# 🛡️ CRITICAL FIX: 6 consecutive losing trades!
 #
-# 🎯 v5.0.12 FEATURES:
-#   ✅ ALWAYS fetch fresh ticker after close order (200ms wait)
-#   ✅ Detect if order fill price = entry price (BUG INDICATOR!)
-#   ✅ If order price within 0.5% of entry → use ticker instead
-#   ✅ Detailed debug logging for all price sources
-#   ✅ Compare order price vs ticker price and pick best one
+# 🎯 v5.0.13 FEATURES:
+#   ✅ TREND DIRECTION FILTER - block counter-trend trades!
+#      - STRONG_DOWNTREND → block LONG
+#      - STRONG_UPTREND → block SHORT
+#   ✅ ADX MOMENTUM FILTER - skip when ADX > 50 (extreme momentum)
+#   ✅ ALL 3 confirmations required (was 2/3)
+#   ✅ Tighter stop-loss: 0.8% = ~$8 max loss (was 2% = $20!)
 #
-# 🐛 BUG ANALYSIS (v5.0.11 failure):
-#   ❌ CELO LONG: Profit target hit $+6.06
-#      • Position closed with Gross P&L: $0.00, Net P&L: -$1.00
-#      • Entry: $0.1650, Exit: $0.1650 (SAME!)
-#      • close_order.get('average') returned ENTRY PRICE, not fill price
-#      • v5.0.11 didn't detect this bug case
+# 🐛 BUG ANALYSIS (6 losses):
+#   ❌ SEI: -$7.74, BAND: -$6.47, BCH: -$6.37
+#   ❌ ATOM: -$5.65, ONT: -$7.81, WLD: -$1.41
 #
-#   ✅ v5.0.12 FIX:
-#      • ALWAYS fetch fresh ticker after order
-#      • If order_price within 0.5% of entry_price → BUG DETECTED
-#      • Use ticker_price instead of buggy order_price
-#      • Log: "BUG DETECTED: Order fill price too close to entry"
+#   ROOT CAUSES:
+#   1. No trend filter → entered against strong trends!
+#   2. No ADX filter → momentum broke S/R levels
+#   3. 2/3 confirmation rule too lenient
+#   4. Stop-loss too wide (2% = $20 loss!)
 #
 # 📊 Previous versions:
-#   - v5.0.11: Reliable Exit Price (STILL BUGGY!)
+#   - v5.0.12: Bulletproof Exit Price
+#   - v5.0.11: Reliable Exit Price
 #   - v5.0.10: Async Portfolio Updates
-#   - v5.0.9: Trendline Price Position Validation
