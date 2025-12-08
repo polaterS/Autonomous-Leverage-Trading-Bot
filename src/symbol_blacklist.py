@@ -81,6 +81,14 @@ class SymbolBlacklist:
             'CKB/USDT:USDT',   # Nervos - düşük fiyat
             'BICO/USDT:USDT',  # Biconomy - düşük likidite
 
+            # User-requested additions (2025-12-08 batch 2)
+            'SEI/USDT:USDT',   # Sei - kullanıcı talebi, güvenilmez mumlar
+            'ZRX/USDT:USDT',   # 0x - kullanıcı talebi, düşük likidite
+            'CELO/USDT:USDT',  # Celo - kullanıcı talebi, daha önce sorun yaşandı
+            'C98/USDT:USDT',   # Coin98 - kullanıcı talebi, düşük likidite
+            'ONE/USDT:USDT',   # Harmony - kullanıcı talebi, güvenilmez
+            'ALICE/USDT:USDT', # MyNeighborAlice - kullanıcı talebi, düşük likidite
+
             # Very volatile / unreliable
             'LUNA/USDT:USDT',  # Luna 2.0 - güvenilmez
             'UST/USDT:USDT',   # UST - ölü coin
