@@ -101,9 +101,25 @@ class MarketScanner:
 
         await notifier.send_alert('info', '🔍 Market scan started...')
 
+        # 🚫 BLACKLIST FILTER: Skip blacklisted symbols BEFORE scanning (saves time!)
+        from src.symbol_blacklist import get_symbol_blacklist
+        blacklist = get_symbol_blacklist()
+
+        symbols_to_scan = []
+        skipped_blacklist = 0
+        for symbol in self.symbols:
+            is_blocked, reason = blacklist.is_blacklisted(symbol)
+            if is_blocked:
+                skipped_blacklist += 1
+                continue
+            symbols_to_scan.append(symbol)
+
+        if skipped_blacklist > 0:
+            logger.info(f"🚫 Skipped {skipped_blacklist} blacklisted symbols (not scanning)")
+
         all_analyses = []  # Collect ALL individual analyses
         telegram_bot = await get_telegram_bot()
-        total_symbols = len(self.symbols)
+        total_symbols = len(symbols_to_scan)
         scanned = 0
 
         # Market breadth counters
@@ -129,10 +145,10 @@ class MarketScanner:
         # Note: First scan uses NEUTRAL, then we'll calculate actual sentiment
         scan_tasks = [
             self._scan_symbol_parallel(symbol, semaphore, "NEUTRAL", btc_ohlcv)  # Pass shared BTC data
-            for symbol in self.symbols
+            for symbol in symbols_to_scan  # 🚫 Use filtered list (blacklist removed)
         ]
 
-        logger.info(f"⚡ Starting PARALLEL scan of {total_symbols} symbols (max 10 concurrent)...")
+        logger.info(f"⚡ Starting PARALLEL scan of {total_symbols} symbols (max 10 concurrent, {skipped_blacklist} blacklisted skipped)...")
         scan_results = await asyncio.gather(*scan_tasks, return_exceptions=True)
 
         # Process results
