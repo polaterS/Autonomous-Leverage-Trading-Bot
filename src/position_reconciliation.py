@@ -196,8 +196,91 @@ class PositionReconciliationSystem:
                             f"⚠️ Failed to cancel orders for ghost {symbol}: {orders_err}"
                         )
 
-                    # NOW remove ghost position from database (after orders cleaned)
-                    await db.remove_active_position(ghost['id'])
+                    # 🔥 v5.0.14 FIX: GET REAL EXIT PRICE FROM BINANCE BEFORE REMOVING!
+                    # ================================================================
+                    # CRITICAL BUG: Ghost positions were removed without recording exit price
+                    # Result: Entry = Exit = $0 PnL (even when position made profit!)
+                    #
+                    # FIX: Fetch recent trades from Binance to find actual close price
+                    # ================================================================
+                    exit_price = None
+                    try:
+                        logger.info(f"📊 Fetching actual exit price from Binance trades for {symbol}...")
+
+                        # Fetch recent trades for this symbol
+                        recent_trades = await exchange.exchange.fetch_my_trades(symbol, limit=10)
+
+                        if recent_trades:
+                            # Find the most recent trade that closed this position
+                            # For LONG, closing trade is SELL; for SHORT, closing trade is BUY
+                            close_side = 'sell' if ghost['side'] == 'LONG' else 'buy'
+
+                            # Find closing trade (most recent matching side)
+                            for trade in reversed(recent_trades):
+                                trade_side = trade.get('side', '').lower()
+                                if trade_side == close_side:
+                                    exit_price = Decimal(str(trade.get('price', 0)))
+                                    logger.info(f"✅ Found exit trade: {trade_side} @ ${exit_price:.8f}")
+                                    break
+
+                        if not exit_price or exit_price == 0:
+                            # Fallback: Use current ticker price
+                            logger.warning(f"⚠️ No closing trade found, fetching current price as fallback...")
+                            ticker = await exchange.fetch_ticker(symbol)
+                            exit_price = Decimal(str(ticker.get('last', 0)))
+                            logger.info(f"📊 Using current price as exit: ${exit_price:.8f}")
+
+                    except Exception as trade_err:
+                        logger.error(f"❌ Failed to fetch exit price for ghost {symbol}: {trade_err}")
+                        # Use entry price as fallback (will show $0 PnL, but at least won't crash)
+                        exit_price = Decimal(str(ghost.get('entry_price', 0)))
+
+                    # Calculate proper PnL
+                    entry_price = Decimal(str(ghost.get('entry_price', 0)))
+                    quantity = Decimal(str(ghost.get('quantity', 0)))
+                    leverage = int(ghost.get('leverage', 10))
+
+                    if entry_price > 0 and exit_price > 0 and quantity > 0:
+                        # Calculate price change
+                        if ghost['side'] == 'LONG':
+                            price_change_pct = (exit_price - entry_price) / entry_price
+                        else:  # SHORT
+                            price_change_pct = (entry_price - exit_price) / entry_price
+
+                        # Calculate position value and PnL
+                        position_value = quantity * entry_price
+                        gross_pnl = position_value * price_change_pct * leverage
+                        fee_estimate = position_value * Decimal("0.0008")  # ~0.08% total fees
+                        net_pnl = gross_pnl - fee_estimate
+
+                        logger.info(
+                            f"📊 Ghost {symbol} PnL calculation: "
+                            f"Entry=${entry_price:.8f}, Exit=${exit_price:.8f}, "
+                            f"Change={price_change_pct*100:.4f}%, "
+                            f"Gross PnL=${gross_pnl:.2f}, Net PnL=${net_pnl:.2f}"
+                        )
+
+                        # Record in trade history
+                        try:
+                            await db.close_position_in_db(
+                                position_id=ghost['id'],
+                                exit_price=exit_price,
+                                close_reason='ghost_position_reconciled',
+                                gross_pnl=gross_pnl,
+                                net_pnl=net_pnl
+                            )
+                            logger.info(f"✅ Ghost {symbol} recorded in trade history with PnL: ${net_pnl:.2f}")
+                            results['actions_taken'].append(
+                                f"📊 Recorded ghost {symbol} exit @ ${exit_price:.8f}, PnL: ${net_pnl:.2f}"
+                            )
+                        except Exception as db_err:
+                            logger.error(f"❌ Failed to record ghost {symbol} in trade history: {db_err}")
+                            # Still remove from active positions
+                            await db.remove_active_position(ghost['id'])
+                    else:
+                        # No valid prices, just remove
+                        await db.remove_active_position(ghost['id'])
+
                     logger.info(f"🗑️ Removed ghost position: {symbol} from database")
                     results['actions_taken'].append(
                         f"🗑️ Removed ghost {symbol} from database"

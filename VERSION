@@ -1,89 +1,70 @@
-5.0.13-CRITICAL-PROTECTION
-🛡️ Three Critical Protection Filters + Tighter Stop-Loss
+5.0.14-GHOST-EXIT-FIX
+🔥 Ghost Position Exit Price Bug Fix + Protection Filters
 Deployed: 2025-12-08
 
 ═══════════════════════════════════════════════════════════
-🔥 v5.0.13 CRITICAL FIX: 6 CONSECUTIVE LOSING TRADES!
+🔥 v5.0.14 CRITICAL FIX: ENTRY=EXIT PRICE BUG!
 ═══════════════════════════════════════════════════════════
 
-PROBLEM: User had 6 losing trades in a row:
-- SEI: -$7.74
-- BAND: -$6.47
-- BCH: -$6.37
-- ATOM: -$5.65
-- ONT: -$7.81
-- WLD: -$1.41
+PROBLEM: CELO/DENT trades showing Entry = Exit = $0 PnL
+- Position opened successfully
+- Profit target hit, position closed
+- But PnL recorded as $0.00!
 
-ROOT CAUSES IDENTIFIED:
-1. No TREND FILTER - entered against strong trends!
-2. No ADX FILTER - traded when momentum broke S/R levels
-3. 2/3 Confirmation Rule too lenient
-4. Stop-loss too wide (2% = $20 loss, not $6!)
+ROOT CAUSE:
+- When Binance's SL/TP order closes position → "ghost" detected
+- Ghost positions were just DELETED from database
+- NO exit price was ever fetched or recorded!
+- Result: Entry = Exit because exit price never updated
+
+FIX:
+- Before removing ghost position from database:
+  1. Fetch recent trades from Binance (fetch_my_trades)
+  2. Find the actual closing trade (SELL for LONG, BUY for SHORT)
+  3. Get real exit price from trade history
+  4. Calculate proper PnL
+  5. Record in trade_history with correct exit price
+  6. THEN remove from active_position
 
 ═══════════════════════════════════════════════════════════
-FIXES APPLIED:
+INCLUDES v5.0.13 PROTECTION FILTERS:
 ═══════════════════════════════════════════════════════════
 
 FIX 1: TREND DIRECTION FILTER
-- Detects trend using ADX + EMA20/EMA50
 - BLOCKS LONG in STRONG_DOWNTREND
 - BLOCKS SHORT in STRONG_UPTREND
-- Only trades WITH the trend!
 
 FIX 2: ADX MOMENTUM FILTER
-- When ADX > 50, momentum is EXTREME
-- S/R levels typically get BROKEN
 - SKIP all trades when ADX > 50
 
-FIX 3: ALL 3 CONFIRMATIONS REQUIRED
-- OLD: 2/3 confirmations (too lenient!)
-- NEW: ALL 3 required (candlestick + volume + RSI)
-- Higher quality entries only
+FIX 3: ALL 3 Confirmations Required
+- Candlestick + Volume + RSI (was 2/3)
 
-FIX 4: TIGHTER STOP-LOSS
-- OLD: MIN_PRICE_MOVE_PERCENT = 2% (= $20 loss!)
-- NEW: MIN_PRICE_MOVE_PERCENT = 0.8% (= $8 max loss)
-- Exchange-level stop-loss now limits to ~$6-8
-
-═══════════════════════════════════════════════════════════
-ENTRY VALIDATION CHAIN (NEW):
-═══════════════════════════════════════════════════════════
-
-1. ✅ Price at S/R level (within 0.5%)
-2. ✅ ALL 3 confirmations: Candle + Volume + RSI
-3. ✅ RSI Direction Filter (no SHORT when oversold)
-4. 🆕 TREND DIRECTION FILTER (no counter-trend!)
-5. 🆕 ADX MOMENTUM FILTER (skip if ADX > 50)
-6. ✅ R/R Ratio check (min 1.5)
-7. ✅ Entry approved → Exchange stop @ 0.8%
-
-═══════════════════════════════════════════════════════════
-EXPECTED RESULTS:
-═══════════════════════════════════════════════════════════
-
-- FEWER trades (more selective)
-- HIGHER win rate (trend-aligned entries)
-- MAX $8 loss per trade (was $20!)
-- No counter-trend trades
+FIX 4: Tighter Stop-Loss
+- MIN_PRICE_MOVE_PERCENT = 0.8% (was 2%)
 
 ═══════════════════════════════════════════════════════════
 FILES MODIFIED:
 ═══════════════════════════════════════════════════════════
 
+src/position_reconciliation.py:
+- Ghost position now fetches real exit price from Binance trades
+- Proper PnL calculation before removing position
+- Records trade history with correct exit price
+
 src/price_action_analyzer.py:
-- Added STEP 5.6: TREND DIRECTION FILTER
-- Added STEP 5.7: ADX MOMENTUM FILTER
-- Changed confirmation from 2/3 to 3/3
+- TREND DIRECTION FILTER
+- ADX MOMENTUM FILTER
+- 3/3 confirmations required
 
 src/utils.py:
 - MIN_PRICE_MOVE_PERCENT: 2% → 0.8%
-- Tighter exchange stop-loss
 
 ═══════════════════════════════════════════════════════════
 PREVIOUS VERSIONS:
 ═══════════════════════════════════════════════════════════
 
+v5.0.13: Critical Protection Filters
 v5.0.12: Bulletproof Exit Price (triple verification)
-v5.0.11: Reliable Exit Price (still buggy)
+v5.0.11: Reliable Exit Price
 v5.0.10: Async Portfolio Updates
-v5.0.9: Trendline Price Position Validation

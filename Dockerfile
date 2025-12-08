@@ -1,23 +1,22 @@
-# 🛡️ LEVEL-BASED TRADING v5.0.13 - Critical Protection Filters
+# 🔥 LEVEL-BASED TRADING v5.0.14 - Ghost Exit Price Fix
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251208_V5013_CRITICAL_PROTECTION
+ARG CACHE_BUST=20251208_V5014_GHOST_EXIT_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🛡️ v5.0.13: CRITICAL PROTECTION FILTERS!" && \
-    echo "   🔥 FIX: 6 consecutive losing trades!" && \
+    echo "🔥 v5.0.14: GHOST EXIT PRICE BUG FIX!" && \
+    echo "   🐛 FIX: CELO/DENT Entry=Exit $0 PnL bug!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.13 FEATURES:" && \
-    echo "      ✅ TREND DIRECTION FILTER (no counter-trend!)" && \
-    echo "      ✅ ADX MOMENTUM FILTER (skip if ADX > 50)" && \
-    echo "      ✅ ALL 3 confirmations required (was 2/3)" && \
-    echo "      ✅ Tighter stop-loss: 0.8% = ~$8 max loss" && \
+    echo "   🆕 v5.0.14 FEATURES:" && \
+    echo "      ✅ Ghost positions now fetch REAL exit price" && \
+    echo "      ✅ Proper PnL calculation from Binance trades" && \
+    echo "      ✅ + v5.0.13 protection filters included" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   📊 Previous versions:" && \
+    echo "      ✅ v5.0.13: Critical Protection Filters" && \
     echo "      ✅ v5.0.12: Bulletproof Exit Price" && \
-    echo "      ✅ v5.0.11: Reliable Exit Price" && \
-    echo "      ✅ v5.0.10: Async Portfolio Updates"
+    echo "      ✅ v5.0.11: Reliable Exit Price"
 
 # Set working directory
 WORKDIR /app
@@ -37,18 +36,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🛡️ CACHE BUST MARKER: v5.0.13 - Critical Protection Filters
-# Current deployment: 20251208_V5013_CRITICAL_PROTECTION
-# Changes: 6 consecutive losing trades - need protection filters!
-#   🛡️ v5.0.13: Critical Protection Filters
-#      ✅ TREND DIRECTION FILTER (no counter-trend trades!)
-#      ✅ ADX MOMENTUM FILTER (skip if ADX > 50)
-#      ✅ ALL 3 confirmations required (was 2/3)
-#      ✅ Tighter stop-loss: 0.8% = ~$8 max loss
+# 🔥 CACHE BUST MARKER: v5.0.14 - Ghost Exit Price Fix
+# Current deployment: 20251208_V5014_GHOST_EXIT_FIX
+# Changes: CELO/DENT Entry=Exit $0 PnL bug fixed!
+#   🔥 v5.0.14: Ghost Exit Price Bug Fix
+#      ✅ Ghost positions now fetch REAL exit price from Binance trades
+#      ✅ Proper PnL calculation before removing position
+#      ✅ Records trade history with correct exit price
+#      ✅ + Includes v5.0.13 protection filters
 #   📊 Previous versions:
+#      ✅ v5.0.13: Critical Protection Filters
 #      ✅ v5.0.12: Bulletproof Exit Price
 #      ✅ v5.0.11: Reliable Exit Price
-#      ✅ v5.0.10: Async Portfolio Updates
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

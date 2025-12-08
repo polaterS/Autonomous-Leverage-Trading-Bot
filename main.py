@@ -2,11 +2,10 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🛡️ VERSION: 5.0.13-CRITICAL-PROTECTION
-   - TREND DIRECTION FILTER (no counter-trend!)
-   - ADX MOMENTUM FILTER (skip if ADX > 50)
-   - ALL 3 confirmations required (was 2/3)
-   - Tighter stop-loss: 0.8% = ~$8 max loss
+🔥 VERSION: 5.0.14-GHOST-EXIT-FIX
+   - Ghost positions now fetch REAL exit price from Binance trades
+   - Proper PnL calculation before removing position
+   - + All v5.0.13 protection filters included
 """
 
 import asyncio
@@ -21,7 +20,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "5.0.13-CRITICAL-PROTECTION"
+BOT_VERSION = "5.0.14-GHOST-EXIT-FIX"
 
 # Log deployment version from VERSION file
 try:

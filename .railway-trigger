@@ -1,25 +1,33 @@
-# Force redeploy v5.0.13 - Critical Protection Filters - 8 Dec 2025 Sun
-# 🛡️ CRITICAL FIX: 6 consecutive losing trades!
+# Force redeploy v5.0.14 - Ghost Exit Price Fix - 8 Dec 2025 Sun
+# 🔥 CRITICAL FIX: CELO/DENT Entry=Exit $0 PnL bug!
 #
-# 🎯 v5.0.13 FEATURES:
-#   ✅ TREND DIRECTION FILTER - block counter-trend trades!
-#      - STRONG_DOWNTREND → block LONG
-#      - STRONG_UPTREND → block SHORT
-#   ✅ ADX MOMENTUM FILTER - skip when ADX > 50 (extreme momentum)
-#   ✅ ALL 3 confirmations required (was 2/3)
-#   ✅ Tighter stop-loss: 0.8% = ~$8 max loss (was 2% = $20!)
+# 🎯 v5.0.14 FEATURES:
+#   ✅ Ghost positions now fetch REAL exit price from Binance trades
+#   ✅ Proper PnL calculation before removing position
+#   ✅ Records trade history with correct exit price
 #
-# 🐛 BUG ANALYSIS (6 losses):
-#   ❌ SEI: -$7.74, BAND: -$6.47, BCH: -$6.37
-#   ❌ ATOM: -$5.65, ONT: -$7.81, WLD: -$1.41
+# 🐛 BUG ANALYSIS:
+#   ❌ CELO: Entry $0.169 = Exit $0.169 → $0 PnL (wrong!)
+#   ❌ DENT: Entry $0.000235 = Exit $0.000235 → $0 PnL (wrong!)
 #
-#   ROOT CAUSES:
-#   1. No trend filter → entered against strong trends!
-#   2. No ADX filter → momentum broke S/R levels
-#   3. 2/3 confirmation rule too lenient
-#   4. Stop-loss too wide (2% = $20 loss!)
+#   ROOT CAUSE:
+#   - When Binance SL/TP order closes position → "ghost" detected
+#   - Ghost was just DELETED from DB without recording exit price
+#   - Exit price was NEVER fetched from Binance trades!
+#
+#   FIX:
+#   - Fetch recent trades from Binance (fetch_my_trades)
+#   - Find actual closing trade (SELL for LONG, BUY for SHORT)
+#   - Get real exit price and calculate proper PnL
+#   - Record in trade_history BEFORE removing
+#
+# 📊 Includes v5.0.13 protection filters:
+#   ✅ TREND DIRECTION FILTER
+#   ✅ ADX MOMENTUM FILTER (skip if ADX > 50)
+#   ✅ ALL 3 confirmations required
+#   ✅ Tighter stop-loss: 0.8%
 #
 # 📊 Previous versions:
+#   - v5.0.13: Critical Protection Filters
 #   - v5.0.12: Bulletproof Exit Price
 #   - v5.0.11: Reliable Exit Price
-#   - v5.0.10: Async Portfolio Updates
