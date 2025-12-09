@@ -1,22 +1,21 @@
-# 🚫 LOW LIQUIDITY BLACKLIST v5.0.16
+# 🔧 INDICATOR FIX v5.0.17
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251208_V5016_BLACKLIST
+ARG CACHE_BUST=20251209_V5017_INDICATOR_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🚫 v5.0.16: LOW LIQUIDITY COIN BLACKLIST!" && \
-    echo "   📊 User request: Block HOT, SLP, ONT, FLOW etc." && \
+    echo "🔧 v5.0.17: CRITICAL INDICATOR FIX!" && \
+    echo "   📊 Level-Based Trading indicators were MISSING!" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.16 FEATURES:" && \
-    echo "      🚫 35+ low liquidity coins BLACKLISTED" && \
-    echo "      🚫 HOT, SLP, ONT, FLOW (user identified)" && \
-    echo "      🚫 SHIB, PEPE, FLOKI, BONK (meme coins)" && \
-    echo "      🚫 LUNC, BTTC, WIN, NFT (very low price)" && \
+    echo "   🆕 v5.0.17 FIXES:" && \
+    echo "      🔧 Added ema_20, ema_50 (trend filter was broken!)" && \
+    echo "      🔧 Added adx, plus_di, minus_di (ADX filter broken!)" && \
+    echo "      🔧 /analyze now shows ADX + EMA values" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   📊 Previous versions:" && \
-    echo "      ✅ v5.0.15: Balanced Settings" && \
-    echo "      ✅ v5.0.14: Ghost Exit Price Fix"
+    echo "      ✅ v5.0.16: Low Liquidity Blacklist" && \
+    echo "      ✅ v5.0.15: Balanced Settings"
 
 # Set working directory
 WORKDIR /app
@@ -36,18 +35,17 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🚫 CACHE BUST MARKER: v5.0.16 - Low Liquidity Blacklist
-# Current deployment: 20251208_V5016_BLACKLIST
-# Changes: User request - block HOT, SLP, ONT, FLOW and similar coins
-#   🚫 v5.0.16: Low Liquidity Coin Blacklist
-#      🚫 35+ coins blacklisted (unreliable candle patterns)
-#      🚫 HOT, SLP, ONT, FLOW (user identified after losses)
-#      🚫 SHIB, PEPE, FLOKI, BONK (meme coins)
-#      🚫 LUNC, BTTC, WIN, NFT (very low price < $0.01)
+# 🔧 CACHE BUST MARKER: v5.0.17 - Indicator Fix
+# Current deployment: 20251209_V5017_INDICATOR_FIX
+# Changes: CRITICAL fix - Level-Based Trading indicators were MISSING!
+#   🔧 v5.0.17: Indicator Fix
+#      🔧 Added ema_20, ema_50 (trend direction filter was BROKEN!)
+#      🔧 Added adx, plus_di, minus_di (trend strength filter BROKEN!)
+#      🔧 /analyze now shows ADX + EMA values for debugging
 #   📊 Previous versions:
+#      ✅ v5.0.16: Low Liquidity Blacklist
 #      ✅ v5.0.15: Balanced Settings
 #      ✅ v5.0.14: Ghost Exit Price Fix
-#      ✅ v5.0.13: Protection Filters
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy

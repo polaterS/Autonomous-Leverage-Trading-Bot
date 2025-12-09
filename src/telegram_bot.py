@@ -2100,6 +2100,13 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 {candle_box} Candlestick: {patterns_str}
 {volume_box} Volume: {vol_emoji} {vol_ratio:.1f}x (≥1.5x gerekli)
 {rsi_box} RSI: {rsi_emoji} {rsi_value:.0f} ({rsi_zone})
+
+<b>📊 TREND ANALİZİ:</b>
+  ADX: {indicators.get('adx', 25):.1f} ({('GÜÇLÜ TREND' if indicators.get('adx', 25) > 25 else 'ZAYIF/YOK')})
+  +DI: {indicators.get('plus_di', 25):.1f} | -DI: {indicators.get('minus_di', 25):.1f}
+  Yön: {('📈 YUKARI' if indicators.get('plus_di', 25) > indicators.get('minus_di', 25) else '📉 AŞAĞI')}
+  EMA20: {fmt_price(indicators.get('ema_20', current_price))}
+  EMA50: {fmt_price(indicators.get('ema_50', current_price))}
 """
 
             # Add LONG scenario

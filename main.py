@@ -2,11 +2,12 @@
 Main entry point for the Autonomous Leverage Trading Bot.
 Starts the trading engine and handles graceful shutdown.
 
-🚫 VERSION: 5.0.16-LOW-LIQUIDITY-BLACKLIST
-   - 35+ low liquidity coins BLACKLISTED
-   - HOT, SLP, ONT, FLOW (user identified)
-   - SHIB, PEPE, FLOKI, BONK (meme coins)
-   - + All v5.0.15 features included
+🔧 VERSION: 5.0.17-INDICATOR-FIX
+   - CRITICAL FIX: Added missing indicators for Level-Based Trading
+   - ema_20, ema_50 (trend direction filter was BROKEN!)
+   - adx, plus_di, minus_di (trend strength filter was BROKEN!)
+   - /analyze command now shows ADX + EMA values
+   - + All v5.0.16 blacklist features included
 """
 
 import asyncio
@@ -21,7 +22,7 @@ from src.config import get_settings
 logger = setup_logging()
 
 # Version marker for deployment verification
-BOT_VERSION = "5.0.16-LOW-LIQUIDITY-BLACKLIST"
+BOT_VERSION = "5.0.17-INDICATOR-FIX"
 
 # Log deployment version from VERSION file
 try:

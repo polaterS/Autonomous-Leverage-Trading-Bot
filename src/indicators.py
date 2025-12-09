@@ -69,6 +69,11 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
         indicators['ema_12'] = calculate_ema(df['close'], period=12)
         indicators['ema_26'] = calculate_ema(df['close'], period=26)
 
+        # 🔧 v5.0.17 FIX: Add EMA 20/50 for Level-Based Trading trend filter
+        # These were MISSING - causing trend detection to fail!
+        indicators['ema_20'] = calculate_ema(df['close'], period=20)
+        indicators['ema_50'] = calculate_ema(df['close'], period=50)
+
         # Volume indicators
         indicators['volume'] = float(df['volume'].iloc[-1])
         indicators['volume_sma'] = float(df['volume'].rolling(window=20).mean().iloc[-1])
@@ -117,6 +122,19 @@ def calculate_indicators(ohlcv_data: List[List]) -> Dict[str, Any]:
         # ATR as percentage of price (for volatility-adjusted stops)
         current_price = indicators['close']
         indicators['atr_percent'] = (indicators['atr'] / current_price) * 100 if current_price > 0 else 0
+
+        # 🔧 v5.0.17 FIX: Add ADX + DI for Level-Based Trading trend filter
+        # These were MISSING - causing ADX/trend filter to use default values (25)!
+        try:
+            adx_data = calculate_adx_simple(df)
+            indicators['adx'] = adx_data['adx']
+            indicators['plus_di'] = adx_data['plus_di']
+            indicators['minus_di'] = adx_data['minus_di']
+        except Exception as e:
+            logger.warning(f"ADX calculation failed, using defaults: {e}")
+            indicators['adx'] = 25.0
+            indicators['plus_di'] = 25.0
+            indicators['minus_di'] = 25.0
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # 🎯 TIER 2 CONSERVATIVE INDICATORS - New Professional Additions
@@ -286,6 +304,68 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> float:
         return float(atr.iloc[-1])
     except:
         return 0.0
+
+
+def calculate_adx_simple(df: pd.DataFrame, period: int = 14) -> Dict[str, float]:
+    """
+    🔧 v5.0.17: Simple ADX calculation for DataFrame input.
+
+    Returns ADX, +DI, -DI for trend strength and direction filtering.
+
+    ADX interpretation:
+    - ADX < 20: Weak/No trend (ranging market)
+    - ADX 20-25: Trend emerging
+    - ADX 25-50: Strong trend
+    - ADX > 50: Very strong trend (often exhaustion)
+
+    DI interpretation:
+    - +DI > -DI: Bullish trend
+    - -DI > +DI: Bearish trend
+    """
+    try:
+        if len(df) < period + 1:
+            return {'adx': 25.0, 'plus_di': 25.0, 'minus_di': 25.0}
+
+        high = df['high']
+        low = df['low']
+        close = df['close']
+
+        # Calculate True Range
+        high_low = high - low
+        high_close = np.abs(high - close.shift(1))
+        low_close = np.abs(low - close.shift(1))
+
+        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+
+        # Calculate Directional Movement
+        plus_dm = high.diff()
+        minus_dm = -low.diff()
+
+        # Only keep positive directional movement
+        plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
+        minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
+
+        # Smooth with EMA
+        tr_smooth = tr.ewm(span=period, adjust=False).mean()
+        plus_dm_smooth = plus_dm.ewm(span=period, adjust=False).mean()
+        minus_dm_smooth = minus_dm.ewm(span=period, adjust=False).mean()
+
+        # Calculate +DI and -DI
+        plus_di = 100 * (plus_dm_smooth / tr_smooth)
+        minus_di = 100 * (minus_dm_smooth / tr_smooth)
+
+        # Calculate DX and ADX
+        dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di + 0.0001)
+        adx = dx.ewm(span=period, adjust=False).mean()
+
+        return {
+            'adx': float(adx.iloc[-1]) if not np.isnan(adx.iloc[-1]) else 25.0,
+            'plus_di': float(plus_di.iloc[-1]) if not np.isnan(plus_di.iloc[-1]) else 25.0,
+            'minus_di': float(minus_di.iloc[-1]) if not np.isnan(minus_di.iloc[-1]) else 25.0
+        }
+    except Exception as e:
+        logger.warning(f"ADX simple calculation error: {e}")
+        return {'adx': 25.0, 'plus_di': 25.0, 'minus_di': 25.0}
 
 
 def determine_trend(prices: pd.Series) -> str:
