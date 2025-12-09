@@ -76,6 +76,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("ws", self.cmd_websocket_stats))
         self.application.add_handler(CommandHandler("sync", self.cmd_force_sync))
         self.application.add_handler(CommandHandler("analyze", self.cmd_analyze_trades))
+        self.application.add_handler(CommandHandler("scanrs", self.cmd_scan_sr_levels))
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -198,6 +199,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /sync - 🔄 Binance ↔ Database pozisyon senkronizasyonu (orphaned position fix)
 /analyze - 📊 Trade history analizi (PNL, win rate, rapid trades)
 /analyze [COIN] - 🎯 Level-Based S/R analizi (örn: /analyze BTC, /analyze ETH, /analyze SOL)
+/scanrs - 🔍 Tüm coinleri tara, S/R seviyelerine yakın olanları listele
 
 <b>Nasıl Çalışır?</b>
 
@@ -2246,6 +2248,222 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             logger.error(f"Error in analyze_symbol_levels: {e}", exc_info=True)
             await update.message.reply_text(
                 f"❌ <b>ANALİZ HATASI</b>\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_scan_sr_levels(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        🔍 /scanrs - Tüm coinleri tara, S/R seviyelerine yakın olanları listele.
+
+        Bu komut:
+        1. Tüm trade edilebilir coinleri tarar
+        2. Her coin için S/R seviyelerini hesaplar
+        3. Fiyatı S/R seviyesine yakın olanları listeler
+        4. Kullanıcı sonra /analyze COIN ile detay bakabilir
+        """
+        from src.exchange_client import get_exchange_client
+        from src.price_action_analyzer import PriceActionAnalyzer
+        from src.symbol_blacklist import get_symbol_blacklist
+        import asyncio
+
+        status_msg = await update.message.reply_text(
+            "🔍 <b>S/R Seviye Taraması Başlatılıyor...</b>\n\n"
+            "⏳ Tüm coinler taranıyor, lütfen bekleyin...",
+            parse_mode=ParseMode.HTML
+        )
+
+        try:
+            exchange = await get_exchange_client()
+            pa = PriceActionAnalyzer()
+            blacklist = get_symbol_blacklist()
+
+            # Get all USDT perpetual futures
+            markets = await exchange.fetch_markets()
+            usdt_perps = [
+                m['symbol'] for m in markets
+                if m.get('quote') == 'USDT'
+                and m.get('type') == 'swap'
+                and m.get('active', True)
+                and ':USDT' in m['symbol']
+            ]
+
+            # Filter out blacklisted
+            symbols_to_scan = []
+            for symbol in usdt_perps:
+                is_blocked, _ = blacklist.is_blacklisted(symbol)
+                if not is_blocked:
+                    symbols_to_scan.append(symbol)
+
+            await status_msg.edit_text(
+                f"🔍 <b>S/R Seviye Taraması</b>\n\n"
+                f"📊 Toplam: {len(usdt_perps)} coin\n"
+                f"🚫 Blacklist: {len(usdt_perps) - len(symbols_to_scan)} coin\n"
+                f"✅ Taranacak: {len(symbols_to_scan)} coin\n\n"
+                f"⏳ Tarama devam ediyor...",
+                parse_mode=ParseMode.HTML
+            )
+
+            # S/R proximity thresholds
+            AT_LEVEL_THRESHOLD = 0.5  # 0.5% = at level (çok yakın)
+            NEAR_LEVEL_THRESHOLD = 1.0  # 1.0% = near level (yaklaşıyor)
+
+            at_support = []  # Support seviyesinde
+            at_resistance = []  # Resistance seviyesinde
+            near_support = []  # Support'a yakın
+            near_resistance = []  # Resistance'a yakın
+            errors = 0
+            scanned = 0
+
+            # Scan in batches to avoid rate limits
+            batch_size = 10
+            for i in range(0, len(symbols_to_scan), batch_size):
+                batch = symbols_to_scan[i:i + batch_size]
+
+                async def check_symbol(symbol):
+                    nonlocal errors, scanned
+                    try:
+                        # Fetch minimal data for quick check
+                        ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='15m', limit=100)
+                        if not ohlcv or len(ohlcv) < 50:
+                            return None
+
+                        import pandas as pd
+                        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                        current_price = float(df['close'].iloc[-1])
+
+                        # Get S/R levels (simplified - just 15m for speed)
+                        sr = pa.analyze_support_resistance(df, current_price, include_psychological=True)
+
+                        supports = sr.get('support', [])
+                        resistances = sr.get('resistance', [])
+
+                        # Check proximity to supports
+                        coin_name = symbol.split('/')[0]
+
+                        for s in supports:
+                            s_price = s.get('price', 0)
+                            if s_price <= 0:
+                                continue
+                            dist_pct = abs(current_price - s_price) / current_price * 100
+                            # Support must be BELOW current price
+                            if s_price < current_price and dist_pct <= AT_LEVEL_THRESHOLD:
+                                return ('at_support', coin_name, dist_pct, current_price)
+                            elif s_price < current_price and dist_pct <= NEAR_LEVEL_THRESHOLD:
+                                return ('near_support', coin_name, dist_pct, current_price)
+
+                        # Check proximity to resistances
+                        for r in resistances:
+                            r_price = r.get('price', 0)
+                            if r_price <= 0:
+                                continue
+                            dist_pct = abs(current_price - r_price) / current_price * 100
+                            # Resistance must be ABOVE current price
+                            if r_price > current_price and dist_pct <= AT_LEVEL_THRESHOLD:
+                                return ('at_resistance', coin_name, dist_pct, current_price)
+                            elif r_price > current_price and dist_pct <= NEAR_LEVEL_THRESHOLD:
+                                return ('near_resistance', coin_name, dist_pct, current_price)
+
+                        scanned += 1
+                        return None
+
+                    except Exception as e:
+                        errors += 1
+                        return None
+
+                # Run batch in parallel
+                results = await asyncio.gather(*[check_symbol(s) for s in batch], return_exceptions=True)
+
+                for result in results:
+                    if result and not isinstance(result, Exception):
+                        level_type, coin, dist, price = result
+                        if level_type == 'at_support':
+                            at_support.append((coin, dist, price))
+                        elif level_type == 'at_resistance':
+                            at_resistance.append((coin, dist, price))
+                        elif level_type == 'near_support':
+                            near_support.append((coin, dist, price))
+                        elif level_type == 'near_resistance':
+                            near_resistance.append((coin, dist, price))
+                    else:
+                        scanned += 1
+
+                # Update progress every batch
+                if (i + batch_size) % 30 == 0:
+                    await status_msg.edit_text(
+                        f"🔍 <b>S/R Seviye Taraması</b>\n\n"
+                        f"⏳ İlerleme: {min(i + batch_size, len(symbols_to_scan))}/{len(symbols_to_scan)}\n"
+                        f"🟢 Support'ta: {len(at_support)}\n"
+                        f"🔴 Resistance'ta: {len(at_resistance)}\n"
+                        f"🟡 Yaklaşan: {len(near_support) + len(near_resistance)}",
+                        parse_mode=ParseMode.HTML
+                    )
+
+                # Small delay to avoid rate limits
+                await asyncio.sleep(0.2)
+
+            # Build final message
+            message = f"""
+🔍 <b>S/R SEVİYE TARAMASI TAMAMLANDI</b>
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Taranan: {len(symbols_to_scan)} coin
+⏱️ {get_turkey_time().strftime('%H:%M:%S')}
+
+"""
+
+            # At Support (LONG fırsatı)
+            if at_support:
+                message += f"🟢 <b>SUPPORT SEVİYESİNDE ({len(at_support)} coin)</b>\n"
+                message += "<i>→ LONG için hazır, /analyze ile detay bak</i>\n"
+                for coin, dist, price in sorted(at_support, key=lambda x: x[1]):
+                    message += f"  • <code>{coin}</code> ({dist:.2f}% uzakta)\n"
+                message += "\n"
+
+            # At Resistance (SHORT fırsatı)
+            if at_resistance:
+                message += f"🔴 <b>RESISTANCE SEVİYESİNDE ({len(at_resistance)} coin)</b>\n"
+                message += "<i>→ SHORT için hazır, /analyze ile detay bak</i>\n"
+                for coin, dist, price in sorted(at_resistance, key=lambda x: x[1]):
+                    message += f"  • <code>{coin}</code> ({dist:.2f}% uzakta)\n"
+                message += "\n"
+
+            # Near Support (yaklaşıyor)
+            if near_support:
+                message += f"🟡 <b>SUPPORT'A YAKLAŞIYOR ({len(near_support)} coin)</b>\n"
+                message += "<i>→ Biraz bekle, seviyeye gelince LONG</i>\n"
+                for coin, dist, price in sorted(near_support, key=lambda x: x[1])[:10]:  # Max 10
+                    message += f"  • <code>{coin}</code> ({dist:.2f}%)\n"
+                if len(near_support) > 10:
+                    message += f"  <i>...ve {len(near_support) - 10} coin daha</i>\n"
+                message += "\n"
+
+            # Near Resistance (yaklaşıyor)
+            if near_resistance:
+                message += f"🟠 <b>RESISTANCE'A YAKLAŞIYOR ({len(near_resistance)} coin)</b>\n"
+                message += "<i>→ Biraz bekle, seviyeye gelince SHORT</i>\n"
+                for coin, dist, price in sorted(near_resistance, key=lambda x: x[1])[:10]:  # Max 10
+                    message += f"  • <code>{coin}</code> ({dist:.2f}%)\n"
+                if len(near_resistance) > 10:
+                    message += f"  <i>...ve {len(near_resistance) - 10} coin daha</i>\n"
+                message += "\n"
+
+            if not at_support and not at_resistance and not near_support and not near_resistance:
+                message += "⚪ <b>Şu an hiçbir coin S/R seviyesinde değil.</b>\n"
+                message += "Biraz bekle ve tekrar tara.\n\n"
+
+            message += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<b>📌 Kullanım:</b>
+<code>/analyze COIN</code> ile detaylı analiz yap
+Örn: <code>/analyze BTC</code>, <code>/analyze ETH</code>
+"""
+
+            await status_msg.edit_text(message, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            logger.error(f"Error in cmd_scan_sr_levels: {e}", exc_info=True)
+            await status_msg.edit_text(
+                f"❌ <b>TARAMA HATASI</b>\n\n{str(e)}",
                 parse_mode=ParseMode.HTML
             )
 
