@@ -2276,28 +2276,23 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             exchange = await get_exchange_client()
             pa = PriceActionAnalyzer()
             blacklist = get_symbol_blacklist()
+            settings = get_settings()
 
-            # Get all USDT perpetual futures
-            markets = await exchange.fetch_markets()
-            usdt_perps = [
-                m['symbol'] for m in markets
-                if m.get('quote') == 'USDT'
-                and m.get('type') == 'swap'
-                and m.get('active', True)
-                and ':USDT' in m['symbol']
-            ]
+            # Get symbols from config (already filtered for liquidity)
+            all_symbols = settings.trading_symbols
+            total_coins = len(all_symbols)
 
             # Filter out blacklisted
             symbols_to_scan = []
-            for symbol in usdt_perps:
+            for symbol in all_symbols:
                 is_blocked, _ = blacklist.is_blacklisted(symbol)
                 if not is_blocked:
                     symbols_to_scan.append(symbol)
 
             await status_msg.edit_text(
                 f"🔍 <b>S/R Seviye Taraması</b>\n\n"
-                f"📊 Toplam: {len(usdt_perps)} coin\n"
-                f"🚫 Blacklist: {len(usdt_perps) - len(symbols_to_scan)} coin\n"
+                f"📊 Toplam: {total_coins} coin\n"
+                f"🚫 Blacklist: {total_coins - len(symbols_to_scan)} coin\n"
                 f"✅ Taranacak: {len(symbols_to_scan)} coin\n\n"
                 f"⏳ Tarama devam ediyor...",
                 parse_mode=ParseMode.HTML
