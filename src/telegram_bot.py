@@ -77,6 +77,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("sync", self.cmd_force_sync))
         self.application.add_handler(CommandHandler("analyze", self.cmd_analyze_trades))
         self.application.add_handler(CommandHandler("scanrs", self.cmd_scan_sr_levels))
+        self.application.add_handler(CommandHandler("predict", self.cmd_predict))
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -200,6 +201,7 @@ Aşağıdaki butonları kullanarak da kontrol edebilirsiniz:
 /analyze - 📊 Trade history analizi (PNL, win rate, rapid trades)
 /analyze [COIN] - 🎯 Level-Based S/R analizi (örn: /analyze BTC, /analyze ETH, /analyze SOL)
 /scanrs - 🔍 Tüm coinleri tara, S/R seviyelerine yakın olanları listele
+/predict [COIN] - 🎯 AI Prediction Chart (Entry/TP/SL + Trend) örn: /predict BTC
 
 <b>Nasıl Çalışır?</b>
 
@@ -2459,6 +2461,153 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             logger.error(f"Error in cmd_scan_sr_levels: {e}", exc_info=True)
             await status_msg.edit_text(
                 f"❌ <b>TARAMA HATASI</b>\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_predict(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        /predict [COIN] - Generate AI prediction chart with Entry/TP/SL.
+
+        Creates professional TradingView-style chart showing:
+        - Price prediction direction (LONG/SHORT)
+        - Entry point
+        - Take Profit levels (TP1, TP2, TP3)
+        - Stop Loss level
+        - Trend channel lines
+        - Risk/Reward ratio
+
+        Usage: /predict BTC, /predict ETH, /predict SOL
+        """
+        from src.exchange_client import get_exchange_client
+        from src.prediction_chart_generator import get_prediction_generator
+
+        # Check for symbol argument
+        if not context.args or len(context.args) < 1:
+            await update.message.reply_text(
+                "🎯 <b>PREDICTION CHART</b>\n\n"
+                "Kullanım: <code>/predict COIN</code>\n\n"
+                "Örnekler:\n"
+                "• <code>/predict BTC</code>\n"
+                "• <code>/predict ETH</code>\n"
+                "• <code>/predict SOL</code>\n\n"
+                "Bu komut profesyonel bir grafik oluşturur:\n"
+                "• 📈 Entry noktası\n"
+                "• 🎯 TP1, TP2, TP3 hedefleri\n"
+                "• 🛑 Stop Loss seviyesi\n"
+                "• 📊 Trend kanalı\n"
+                "• 💹 Risk/Reward oranı",
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        symbol_input = context.args[0].upper()
+
+        # Format symbol
+        if '/' not in symbol_input:
+            symbol = f"{symbol_input}/USDT:USDT"
+        else:
+            symbol = symbol_input
+
+        status_msg = await update.message.reply_text(
+            f"🎯 <b>{symbol_input} Prediction Chart oluşturuluyor...</b>\n\n"
+            f"⏳ Teknik analiz yapılıyor...",
+            parse_mode=ParseMode.HTML
+        )
+
+        try:
+            exchange = await get_exchange_client()
+            generator = get_prediction_generator()
+
+            # Fetch OHLCV data
+            ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='15m', limit=100)
+            if not ohlcv or len(ohlcv) < 50:
+                await status_msg.edit_text(
+                    f"❌ {symbol} için yeterli veri bulunamadı.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            await status_msg.edit_text(
+                f"🎯 <b>{symbol_input} Prediction Chart</b>\n\n"
+                f"📊 Grafik oluşturuluyor...",
+                parse_mode=ParseMode.HTML
+            )
+
+            # Generate prediction chart
+            chart_bytes, prediction_data = await generator.generate_prediction_chart(
+                symbol=symbol,
+                ohlcv_data=ohlcv,
+                timeframe='15m'
+            )
+
+            # Format price helper
+            def fmt_price(price):
+                if price >= 1000:
+                    return f"${price:,.2f}"
+                elif price >= 1:
+                    return f"${price:.4f}"
+                elif price >= 0.01:
+                    return f"${price:.5f}"
+                else:
+                    return f"${price:.6f}"
+
+            # Build prediction message
+            direction = prediction_data['direction']
+            confidence = prediction_data['confidence']
+
+            if direction == 'LONG':
+                direction_emoji = "🟢"
+                direction_text = "LONG (Yukarı)"
+            elif direction == 'SHORT':
+                direction_emoji = "🔴"
+                direction_text = "SHORT (Aşağı)"
+            else:
+                direction_emoji = "⚪"
+                direction_text = "NEUTRAL (Bekle)"
+
+            message = f"""
+🎯 <b>{symbol_input} AI PREDICTION</b>
+
+{direction_emoji} <b>Yön:</b> {direction_text}
+📊 <b>Güven:</b> {confidence}%
+
+<b>📍 Seviyeler:</b>
+• Entry: <code>{fmt_price(prediction_data['entry'])}</code>
+• 🛑 SL: <code>{fmt_price(prediction_data['sl'])}</code> ({prediction_data['risk_pct']:.2f}%)
+• 🎯 TP1: <code>{fmt_price(prediction_data['tp1'])}</code>
+• 🎯 TP2: <code>{fmt_price(prediction_data['tp2'])}</code>
+• 🎯 TP3: <code>{fmt_price(prediction_data['tp3'])}</code>
+
+<b>📈 Risk/Reward:</b> 1:{prediction_data['rr_ratio']:.1f}
+<b>📊 Kanal:</b> {prediction_data['channel_type'].upper()}
+
+<b>🔍 İndikatörler:</b>
+• RSI: {prediction_data['indicators']['rsi']:.1f}
+• SuperTrend: {prediction_data['indicators']['supertrend'].upper()}
+
+<b>📝 Sebepler:</b>
+"""
+            for reason in prediction_data['reasons'][:5]:
+                message += f"• {reason}\n"
+
+            message += f"\n⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}"
+
+            # Delete status message
+            await status_msg.delete()
+
+            # Send chart image with caption
+            await update.message.reply_photo(
+                photo=chart_bytes,
+                caption=message,
+                parse_mode=ParseMode.HTML
+            )
+
+            logger.info(f"✅ Prediction chart sent for {symbol}: {direction} ({confidence}%)")
+
+        except Exception as e:
+            logger.error(f"Error in cmd_predict: {e}", exc_info=True)
+            await status_msg.edit_text(
+                f"❌ <b>PREDICTION HATASI</b>\n\n{str(e)}",
                 parse_mode=ParseMode.HTML
             )
 
