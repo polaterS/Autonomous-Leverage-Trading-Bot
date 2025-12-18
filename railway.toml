@@ -1,5 +1,6 @@
 [build]
 builder = "NIXPACKS"
+# Cache bust: v5.0.18 - /predict command added
 
 [deploy]
 startCommand = "sh -c 'uvicorn health_server:app --host 0.0.0.0 --port ${PORT:-8000} & python -u main.py'"
