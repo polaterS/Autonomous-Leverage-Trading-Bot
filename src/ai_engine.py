@@ -18,8 +18,8 @@ import json
 logger = setup_logging()
 
 # Version marker for deployment verification
-PA_ONLY_VERSION = "6.3-PA-ONLY"  # PA-ONLY MODE: ML disabled, using only Support/Resistance + Trend + Volume
-logger.info(f"📊 AI Engine initialized - Mode: {PA_ONLY_VERSION} (PA-ONLY: ML disabled, S/R+Trend+Volume, 20x leverage, 4-5% SL)")
+PA_ONLY_VERSION = "6.4-PA-ONLY"  # PA-ONLY MODE: ML disabled, using only Support/Resistance + Trend + Volume
+logger.info(f"📊 AI Engine initialized - Mode: {PA_ONLY_VERSION} (PA-ONLY: ML disabled, S/R+Trend+Volume, uses Railway config for leverage/SL)")
 
 
 class AIConsensusEngine:
@@ -170,13 +170,14 @@ class AIConsensusEngine:
         current_price = float(market_data.get('current_price', market_data.get('price', 0)))
         if current_price == 0:
             logger.error(f"❌ No price data for {symbol}")
+            settings = get_settings()
             return {
                 'action': 'hold',
                 'side': None,
                 'confidence': 0.0,
                 'reasoning': 'No price data available',
-                'suggested_leverage': 20,
-                'stop_loss_percent': 4.0,
+                'suggested_leverage': settings.max_leverage,  # 🔧 FIX: Use config
+                'stop_loss_percent': float(settings.max_stop_loss_percent),  # 🔧 FIX: Use config
                 'models_used': ['PA-ONLY'],
                 'ensemble_method': 'pa_only',
                 'risk_reward_ratio': 0.0,
@@ -198,13 +199,14 @@ class AIConsensusEngine:
                 )
             else:
                 logger.warning(f"⚠️ Insufficient OHLCV data for {symbol} (need 50+ candles, got {len(ohlcv_15m)})")
+                settings = get_settings()
                 return {
                     'action': 'hold',
                     'side': None,
                     'confidence': 0.0,
                     'reasoning': 'Insufficient OHLCV data for PA analysis',
-                    'suggested_leverage': 20,
-                    'stop_loss_percent': 4.0,
+                    'suggested_leverage': settings.max_leverage,  # 🔧 FIX: Use config
+                    'stop_loss_percent': float(settings.max_stop_loss_percent),  # 🔧 FIX: Use config
                     'models_used': ['PA-ONLY'],
                     'ensemble_method': 'pa_only',
                     'risk_reward_ratio': 0.0,
@@ -216,13 +218,14 @@ class AIConsensusEngine:
         # We fetch 200 candles, indicators use ~50, leaving 150 usable candles
         if len(df) < 50:
             logger.warning(f"⚠️ Insufficient OHLCV data for {symbol} (need 50+ candles, got {len(df)})")
+            settings = get_settings()
             return {
                 'action': 'hold',
                 'side': None,
                 'confidence': 0.0,
                 'reasoning': f'Insufficient OHLCV data ({len(df)} candles, need 50+)',
-                'suggested_leverage': 20,
-                'stop_loss_percent': 4.0,
+                'suggested_leverage': settings.max_leverage,  # 🔧 FIX: Use config
+                'stop_loss_percent': float(settings.max_stop_loss_percent),  # 🔧 FIX: Use config
                 'models_used': ['PA-ONLY'],
                 'ensemble_method': 'pa_only',
                 'risk_reward_ratio': 0.0,
@@ -345,13 +348,17 @@ class AIConsensusEngine:
         trend_quality = min(adx / 50.0, 1.0) if adx > 0 else 0.0
 
         # Return PA-only result
+        # 🔧 FIX: Use config values instead of hardcoded (Railway env vars)
+        from src.config import get_settings
+        settings = get_settings()
+        
         return {
             'action': pa_action,
             'side': pa_side,
             'confidence': pa_confidence,
             'reasoning': f"PA-ONLY: {pa_reasoning}",
-            'suggested_leverage': 20,  # User wants 20x
-            'stop_loss_percent': 9.0,  # 🔧 FIX: 8-10% range (was 4-5%)
+            'suggested_leverage': settings.max_leverage,  # 🔧 FIX: Use Railway MAX_LEVERAGE (was hardcoded 20x)
+            'stop_loss_percent': float(settings.max_stop_loss_percent),  # 🔧 FIX: Use Railway MAX_STOP_LOSS_PERCENT (was hardcoded 9%)
             'model_name': 'PA-ONLY',  # 🔥 FIX: Add model_name field so market_scanner doesn't show "unknown"
             'models_used': ['PA-ONLY'],
             'ensemble_method': 'pa_only',

@@ -34,24 +34,24 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1)  # Required - no default (prevents localhost issues)
 
     # Trading Configuration
-    # 🔥 LIVE TRADING CONFIG: $20 balance, single position, full capital
-    initial_capital: Decimal = Field(default=Decimal("20.00"), gt=0)  # 🔥 ACTUAL: $20 Binance balance
-    min_leverage: int = Field(default=10, ge=1, le=50)  # 🎯 SAFER: 10x min leverage
-    max_leverage: int = Field(default=15, ge=1, le=50)  # 🎯 SAFER: 15x max leverage
-    max_concurrent_positions: int = Field(default=1, ge=1, le=30)  # 🎯 USER REQUEST: Max 1 position (single focus)
-    position_size_percent: Decimal = Field(default=Decimal("0.90"), gt=0, le=1)  # 🎯 90% = Use almost all capital per position
-    min_stop_loss_percent: Decimal = Field(default=Decimal("2.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 2% min for 25x leverage (tight stop = $37.5 loss on $1,875 position)
-    max_stop_loss_percent: Decimal = Field(default=Decimal("3.0"), gt=0, le=100)  # 🚀 AGGRESSIVE: 3% max for 25x leverage ($56.25 max loss = 37.5% of capital)
-    min_profit_usd: Decimal = Field(default=Decimal("5.0"), gt=0)  # 🎯 USER REQUEST: $5 min profit (realistic for $50 margin positions)
+    # 🔥 v6.5: PROFESSIONAL TRADER CONFIG - Tight entries, tight stops!
+    initial_capital: Decimal = Field(default=Decimal("1000.00"), gt=0)  # 🔧 v6.5: Default $1000
+    min_leverage: int = Field(default=10, ge=1, le=125)  # 🔧 v6.5: Allow up to 125x (Binance max)
+    max_leverage: int = Field(default=50, ge=1, le=125)  # 🔧 v6.5: Default 50x for professionals
+    max_concurrent_positions: int = Field(default=2, ge=1, le=30)  # 🎯 Max 2 positions
+    position_size_percent: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)  # 🔧 v6.5: 20% per position (conservative)
+    min_stop_loss_percent: Decimal = Field(default=Decimal("0.5"), gt=0, le=100)  # 🔧 v6.5: 0.5% min (TIGHT like professionals!)
+    max_stop_loss_percent: Decimal = Field(default=Decimal("1.5"), gt=0, le=100)  # 🔧 v6.5: 1.5% max (professionals use 0.5-1.5%)
+    min_profit_usd: Decimal = Field(default=Decimal("5.0"), gt=0)  # 🎯 $5 min profit
     max_position_hours: int = Field(default=8, ge=1, le=48)  # Auto-close after 8h
-    min_ai_confidence: Decimal = Field(default=Decimal("0.70"), ge=0, le=1)  # 🎯 QUALITY: 70% min confidence for higher win rate
-    scan_interval_seconds: int = Field(default=60, ge=10)  # 🚀 FAST ENTRY: 1 minute scan (catch trends early!)
-    position_check_seconds: int = Field(default=15, ge=1)  # 🔥 REAL-TIME: 15 seconds for profit/loss monitoring
+    min_ai_confidence: Decimal = Field(default=Decimal("0.65"), ge=0, le=1)  # 🔧 v6.5: 65% min (was 70% - more opportunities)
+    scan_interval_seconds: int = Field(default=30, ge=10)  # 🔧 v6.5: 30 seconds (was 60 - faster!)
+    position_check_seconds: int = Field(default=10, ge=1)  # 🔧 v6.5: 10 seconds (was 15 - faster monitoring)
 
     # Risk Management
     daily_loss_limit_percent: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
     max_consecutive_losses: int = Field(default=5, ge=1)  # Log warning after 5 losses (but continue trading for ML learning)
-    position_cooldown_minutes: int = Field(default=30, ge=0)  # 🚫 COOLDOWN: Wait X minutes before re-trading same symbol (prevents doubling down, 0=disabled)
+    position_cooldown_minutes: int = Field(default=15, ge=0)  # 🔧 v6.5: 15 min cooldown (was 30 - faster re-entry)
 
     # Feature Flags
     use_paper_trading: bool = Field(default=True)

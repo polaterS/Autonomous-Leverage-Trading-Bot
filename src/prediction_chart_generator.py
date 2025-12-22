@@ -164,8 +164,11 @@ class PredictionChartGenerator:
         atr = indicators.get('atr', current_price * 0.02)
         atr_pct = (atr / current_price) * 100
 
-        # Get S/R levels
-        sr_data = detect_support_resistance_levels(df.values.tolist(), current_price)
+        # Get S/R levels - reset index to include timestamp column
+        df_reset = df.reset_index()
+        # Convert timestamp to milliseconds for detect_support_resistance_levels
+        df_reset['timestamp'] = df_reset['timestamp'].astype('int64') // 10**6
+        sr_data = detect_support_resistance_levels(df_reset.values.tolist(), current_price)
         supports = sr_data.get('swing_lows', [current_price * 0.97])
         resistances = sr_data.get('swing_highs', [current_price * 1.03])
 

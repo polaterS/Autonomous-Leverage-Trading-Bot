@@ -586,28 +586,33 @@ class PriceActionAnalyzer:
     def __init__(self):
         # Support/Resistance parameters
         self.swing_window = 14  # Candles to look left/right for swing points
-        self.level_tolerance = 0.005  # 0.5% - cluster levels within this range
-        self.touch_min = 2  # Minimum touches to confirm S/R level
+        self.level_tolerance = 0.003  # 🔧 v6.5: 0.3% - tighter clustering for cleaner levels (was 0.5%)
+        self.touch_min = 3  # 🔧 v6.5: Minimum 3 touches for stronger S/R (was 2)
 
         # Trend parameters
         self.trend_lookback = 20  # Candles for trend detection
         self.adx_period = 14  # ADX calculation period
         self.strong_trend_threshold = 30  # 🔥 STRICT: ADX > 30 = strong trend
-        self.min_trend_threshold = 25  # 🎯 PROFESSIONAL: ADX 25+ for reliable trend confirmation
+        self.min_trend_threshold = 20  # 🔧 v6.5: Lowered to 20 for more opportunities (was 25)
 
         # Volume parameters
-        self.volume_surge_multiplier = 1.5  # 🔥 RELAXED: 1.5x average (was 2.0x, too strict!)
+        self.volume_surge_multiplier = 1.2  # 🔧 v6.5: 1.2x average (was 1.5x - too strict)
         self.volume_ma_period = 20  # Volume moving average
 
-        # 🎯 PROFESSIONAL S/R SETTINGS: Tighter for higher quality
-        # Trade ONLY near confirmed S/R levels
-        self.support_resistance_tolerance = 0.03  # 3% max distance to S/R (professional standard)
-        self.room_to_opposite_level = 0.01  # 1% min room to target (ensures R/R achievable)
+        # 🎯 PROFESSIONAL TRADER S/R SETTINGS - TIGHT ENTRIES!
+        # Trade AT or VERY NEAR S/R levels (like professionals do)
+        self.support_resistance_tolerance = 0.015  # 🔧 v6.5: 1.5% max distance (was 3% - too far!)
+        self.room_to_opposite_level = 0.02  # 🔧 v6.5: 2% min room to target (was 1%)
 
         # Risk/Reward parameters
-        # 🎯 PROFESSIONAL: Minimum 2:1 R/R for sustainable profitability
+        # 🎯 PROFESSIONAL: Tight stop-loss = better R/R
         self.min_rr_ratio = 2.0  # Minimum acceptable risk/reward (professional standard)
-        self.sl_buffer = 0.005  # 0.5% buffer beyond S/R (safer placement)
+        self.sl_buffer = 0.003  # 🔧 v6.5: 0.3% buffer beyond S/R (was 0.5% - tighter!)
+
+        # 🔥 v6.5: PROFESSIONAL ENTRY ZONE - Enter AT level, not after bounce!
+        # Professionals enter when price TOUCHES the level, not after confirmation
+        self.entry_at_level_threshold = 0.005  # 0.5% - price within this = AT LEVEL (enter!)
+        self.entry_max_distance = 0.02  # 2% - max distance from level to consider entry
 
         # Fibonacci levels
         self.fib_retracement = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
@@ -620,7 +625,7 @@ class PriceActionAnalyzer:
 
         # 🔥 NEW: Order flow parameters
         self.order_flow_lookback = 10  # Candles for buy/sell pressure
-        self.strong_pressure_threshold = 0.60  # 🎯 PROFESSIONAL: 60%+ = directional bias (balanced for quality)
+        self.strong_pressure_threshold = 0.55  # 🔧 v6.5: 55%+ = directional bias (was 60%)
 
         # 🔥 NEW: Market structure parameters
         self.structure_swing_window = 5  # Smaller window for structure breaks
@@ -628,33 +633,31 @@ class PriceActionAnalyzer:
 
         # 🛡️ v4.7.8: OVEREXTENDED & PULLBACK PROTECTION
         # Prevents entries when market is overextended or in counter-trend pullback
-        self.adx_overextended_threshold = 50  # ADX > 50 = overextended, expect pullback
-        self.sideways_low_volume_threshold = 0.7  # Sideways + volume < 0.7x = NO TRADE
+        self.adx_overextended_threshold = 60  # 🔧 v6.5: Raised to 60 (was 50 - too strict)
+        self.sideways_low_volume_threshold = 0.5  # 🔧 v6.5: Lowered to 0.5x (was 0.7x)
         self.pullback_detection_window = 5  # Candles to detect pullback
-        self.pullback_retracement_min = 0.236  # Min Fib retracement for pullback (23.6%)
-        self.pullback_retracement_max = 0.618  # Max Fib retracement for pullback (61.8%)
+        self.pullback_retracement_min = 0.382  # 🔧 v6.5: 38.2% min (was 23.6% - too sensitive)
+        self.pullback_retracement_max = 0.786  # 🔧 v6.5: 78.6% max (was 61.8%)
 
         # 🎯 v5.0: Level-Based Trading System
         self.level_registry = LevelRegistry(
             max_levels_per_symbol=30,
-            merge_threshold=0.005,  # 0.5% merge threshold
+            merge_threshold=0.003,  # 🔧 v6.5: 0.3% merge threshold (was 0.5%)
             at_level_threshold=0.005  # 0.5% proximity threshold
         )
         self.entry_confirmation = EntryConfirmation()
         self.level_proximity_threshold = 0.005  # 0.5% - price must be this close to level
 
         logger.info(
-            f"✅ PriceActionAnalyzer PROFESSIONAL v5.0 initialized:\n"
-            f"   - Min ADX threshold: {self.min_trend_threshold} (professional standard)\n"
-            f"   - S/R tolerance: {self.support_resistance_tolerance*100:.1f}% (tightened for quality)\n"
-            f"   - Room to target: {self.room_to_opposite_level*100:.1f}% (ensures R/R achievable)\n"
-            f"   - Min R/R ratio: {self.min_rr_ratio}:1 (professional standard)\n"
-            f"   - 🛡️ ADX Overextended Filter: >{self.adx_overextended_threshold} = SKIP\n"
-            f"   - 🛡️ Sideways Low Volume Filter: <{self.sideways_low_volume_threshold}x = SKIP\n"
-            f"   - 🛡️ Pullback Detection: {self.pullback_retracement_min*100:.1f}%-{self.pullback_retracement_max*100:.1f}% retracement\n"
-            f"   - 🎯 v5.0: LEVEL-BASED TRADING with 5 timeframes\n"
-            f"   - 🎯 Level Proximity: {self.level_proximity_threshold*100:.1f}%\n"
-            f"   - 🎯 Confirmations: Candlestick + Volume 1.5x + RSI Extreme"
+            f"✅ PriceActionAnalyzer PROFESSIONAL v6.5 initialized:\n"
+            f"   - 🎯 PROFESSIONAL MODE: Enter AT level (not after bounce!)\n"
+            f"   - Entry zone: within {self.entry_at_level_threshold*100:.1f}% of S/R level\n"
+            f"   - S/R tolerance: {self.support_resistance_tolerance*100:.1f}% (tightened)\n"
+            f"   - SL buffer: {self.sl_buffer*100:.1f}% beyond level (tight!)\n"
+            f"   - Min touches: {self.touch_min} (stronger levels)\n"
+            f"   - Min R/R ratio: {self.min_rr_ratio}:1\n"
+            f"   - 🛡️ ADX Overextended: >{self.adx_overextended_threshold} = SKIP\n"
+            f"   - 🛡️ Pullback Detection: {self.pullback_retracement_min*100:.1f}%-{self.pullback_retracement_max*100:.1f}%"
         )
 
     def calculate_atr(self, df: pd.DataFrame, period: int = 14) -> float:
@@ -3176,45 +3179,44 @@ class PriceActionAnalyzer:
             nearest_support = best_support_dict['price']
             nearest_resistance = best_resistance_dict['price']
 
-            # 🔥 PROFIT FIX #2: Confirmed Support BOUNCE Required (same logic as SHORT)
-            # OLD: Allowed entries AT support (0% away) or far above = premature/late entries
-            # NEW: Require price ABOVE support (confirmed bounce + continuation)
-            # IMPACT: Higher quality entries after bounce confirmation, not anticipation
-
+            # 🔥 v6.5: PROFESSIONAL ENTRY - Enter AT level, not after bounce!
+            # Professionals enter when price TOUCHES the level
+            # They don't wait for "confirmation" - that's too late!
+            
             # Step 1: Check if price is BELOW support (breakdown = bearish)
-            if current_price < nearest_support * 0.998:  # 0.2% buffer for noise
+            if current_price < nearest_support * 0.995:  # 0.5% buffer for noise
                 result['reason'] = f'Price below support (${current_price:.4f} < ${nearest_support:.4f}) - support broken (bearish)'
                 return result
 
-            # Step 2: Calculate distances for all checks
-            # Old variables (still used in SIDEWAYS/room checks below)
+            # Step 2: Calculate distances
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
-            # New variable for bounce confirmation (signed distance)
             distance_from_support = (current_price - nearest_support) / nearest_support
 
-            # Step 3: Require CONFIRMED BOUNCE (price must be ABOVE support)
-            # 🧪 TEST MODE: 0.1% confirmation (loosened from 0.03% for more opportunities)
-            # Perfect entry: Price bounced from support and moved up 0.1-5%
-            if distance_from_support < 0.001:  # Price too close to support (<0.1% above)
-                result['reason'] = (
-                    f'Waiting for support BOUNCE confirmation - '
-                    f'price at ${current_price:.4f}, support ${nearest_support:.4f} '
-                    f'({distance_from_support*100:.2f}% away) - '
-                    f'need 0.1-5% bounce above support for confirmed entry'
+            # 🎯 v6.5: PROFESSIONAL ENTRY ZONES
+            # Zone 1: AT LEVEL (0-0.5%) = PERFECT ENTRY! (highest confidence)
+            # Zone 2: NEAR LEVEL (0.5-1.5%) = GOOD ENTRY (normal confidence)
+            # Zone 3: FAR FROM LEVEL (>1.5%) = TOO LATE (skip)
+            
+            if dist_to_support <= self.entry_at_level_threshold:  # 0-0.5% = AT LEVEL
+                # 🎯 PERFECT! Price is AT support - enter immediately like professionals!
+                confidence_boost += 25  # Big bonus for perfect entry
+                trade_notes.append(f"🎯 PERFECT ENTRY: Price AT support ({dist_to_support*100:.2f}% away)")
+                logger.info(
+                    f"   🎯 PROFESSIONAL ENTRY: Price ${current_price:.4f} is AT support "
+                    f"${nearest_support:.4f} ({dist_to_support*100:.2f}% - PERFECT zone!)"
                 )
+            elif dist_to_support <= self.support_resistance_tolerance:  # 0.5-1.5% = NEAR LEVEL
+                # Good entry - still close enough
+                confidence_boost += 10
+                trade_notes.append(f"✅ GOOD ENTRY: Price near support ({dist_to_support*100:.2f}% away)")
+                logger.info(
+                    f"   ✅ GOOD ENTRY: Price ${current_price:.4f} is near support "
+                    f"${nearest_support:.4f} ({dist_to_support*100:.2f}%)"
+                )
+            else:  # >1.5% = TOO FAR
+                result['reason'] = f'Too far from support ({dist_to_support*100:.1f}% > {self.support_resistance_tolerance*100:.1f}%) - missed entry'
                 return result
-
-            if distance_from_support > 0.05:  # Price too far above support (>5% away)
-                result['reason'] = f'Missed support bounce ({distance_from_support*100:.1f}% above) - too late to enter'
-                return result
-
-            # ✅ Perfect zone: Price is 0.3-5% ABOVE support (confirmed bounce!)
-            logger.info(
-                f"   ✅ CONFIRMED support bounce: "
-                f"Price ${current_price:.4f} is {distance_from_support*100:.1f}% above "
-                f"support ${nearest_support:.4f} (perfect LONG entry zone)"
-            )
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to resistance (>1.5%)
             # Same tolerance as SHORT for fairness
@@ -3413,45 +3415,44 @@ class PriceActionAnalyzer:
             nearest_support = best_support_dict['price']
             nearest_resistance = best_resistance_dict['price']
 
-            # 🔥 PROFIT FIX #2: Confirmed Resistance REJECTION Required
-            # OLD: Allowed entries AT resistance (0% away) = premature entries
-            # NEW: Require price BELOW resistance (confirmed rejection + pullback)
-            # IMPACT: Higher quality entries after rejection confirmation, not anticipation
+            # 🔥 v6.5: PROFESSIONAL ENTRY - Enter AT level, not after rejection!
+            # Professionals enter when price TOUCHES resistance
+            # They don't wait for "confirmation" - that's too late!
 
             # Step 1: Check if price is ABOVE resistance (breakout = bullish)
-            if current_price > nearest_resistance * 1.002:  # 0.2% buffer for noise
+            if current_price > nearest_resistance * 1.005:  # 0.5% buffer for noise
                 result['reason'] = f'Price above resistance (${current_price:.4f} > ${nearest_resistance:.4f}) - resistance broken (bullish)'
                 return result
 
-            # Step 2: Calculate distances for all checks
-            # Old variables (still used in SIDEWAYS/room checks below)
+            # Step 2: Calculate distances
             dist_to_support = abs(current_price - nearest_support) / current_price
             dist_to_resistance = abs(current_price - nearest_resistance) / current_price
-            # New variable for rejection confirmation (signed distance)
             distance_from_resistance = (current_price - nearest_resistance) / nearest_resistance
 
-            # Step 3: Require CONFIRMED REJECTION (price must be BELOW resistance)
-            # 🧪 TEST MODE: 0.1% confirmation (loosened from 0.03% for more opportunities)
-            # Perfect entry: Price rejected from resistance and pulled back 0.1-5%
-            if distance_from_resistance > -0.001:  # Price too close to resistance (<0.1% below)
-                result['reason'] = (
-                    f'Waiting for resistance REJECTION confirmation - '
-                    f'price at ${current_price:.4f}, resistance ${nearest_resistance:.4f} '
-                    f'({abs(distance_from_resistance)*100:.2f}% away) - '
-                    f'need 0.1-5% pullback below resistance for confirmed rejection'
+            # 🎯 v6.5: PROFESSIONAL ENTRY ZONES
+            # Zone 1: AT LEVEL (0-0.5%) = PERFECT ENTRY! (highest confidence)
+            # Zone 2: NEAR LEVEL (0.5-1.5%) = GOOD ENTRY (normal confidence)
+            # Zone 3: FAR FROM LEVEL (>1.5%) = TOO LATE (skip)
+            
+            if dist_to_resistance <= self.entry_at_level_threshold:  # 0-0.5% = AT LEVEL
+                # 🎯 PERFECT! Price is AT resistance - enter immediately like professionals!
+                confidence_boost += 25  # Big bonus for perfect entry
+                trade_notes.append(f"🎯 PERFECT ENTRY: Price AT resistance ({dist_to_resistance*100:.2f}% away)")
+                logger.info(
+                    f"   🎯 PROFESSIONAL ENTRY: Price ${current_price:.4f} is AT resistance "
+                    f"${nearest_resistance:.4f} ({dist_to_resistance*100:.2f}% - PERFECT zone!)"
                 )
+            elif dist_to_resistance <= self.support_resistance_tolerance:  # 0.5-1.5% = NEAR LEVEL
+                # Good entry - still close enough
+                confidence_boost += 10
+                trade_notes.append(f"✅ GOOD ENTRY: Price near resistance ({dist_to_resistance*100:.2f}% away)")
+                logger.info(
+                    f"   ✅ GOOD ENTRY: Price ${current_price:.4f} is near resistance "
+                    f"${nearest_resistance:.4f} ({dist_to_resistance*100:.2f}%)"
+                )
+            else:  # >1.5% = TOO FAR
+                result['reason'] = f'Too far from resistance ({dist_to_resistance*100:.1f}% > {self.support_resistance_tolerance*100:.1f}%) - missed entry'
                 return result
-
-            if distance_from_resistance < -0.05:  # Price too far below resistance (>5% away)
-                result['reason'] = f'Missed resistance rejection ({abs(distance_from_resistance)*100:.1f}% below) - too late to enter'
-                return result
-
-            # ✅ Perfect zone: Price is 0.3-5% BELOW resistance (confirmed rejection!)
-            logger.info(
-                f"   ✅ CONFIRMED resistance rejection: "
-                f"Price ${current_price:.4f} is {abs(distance_from_resistance)*100:.1f}% below "
-                f"resistance ${nearest_resistance:.4f} (perfect SHORT entry zone)"
-            )
 
             # 🎯 ULTRA RELAXED: Check 2 - Should have room to support (>1.5%)
             # Same tolerance as LONG for fairness
