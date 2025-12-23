@@ -371,17 +371,17 @@ class UltraPremiumChart:
             axis_style = dict(
                 gridcolor=self.theme['grid'],
                 gridwidth=1,
-                showgrid=True,
                 zeroline=False,
                 linecolor=self.theme['border'],
                 tickfont=dict(color=self.theme['text_muted'], size=9)
             )
             
-            fig.update_xaxes(**axis_style, row=1, col=1)
+            fig.update_xaxes(**axis_style, showgrid=True, row=1, col=1)
             fig.update_xaxes(**axis_style, showgrid=False, row=2, col=1)
             
             fig.update_yaxes(
                 **axis_style,
+                showgrid=True,
                 side='right',
                 tickformat='$,.2f',
                 row=1, col=1

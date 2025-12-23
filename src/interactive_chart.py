@@ -326,17 +326,17 @@ async def generate_interactive_html_chart(
         axis_style = dict(
             gridcolor=THEME['grid'],
             gridwidth=1,
-            showgrid=True,
             zeroline=False,
             linecolor=THEME['border'],
             tickfont=dict(color=THEME['text_muted'], size=9)
         )
 
-        fig.update_xaxes(**axis_style, row=1, col=1)
+        fig.update_xaxes(**axis_style, showgrid=True, row=1, col=1)
         fig.update_xaxes(**axis_style, showgrid=False, row=2, col=1)
         
         fig.update_yaxes(
             **axis_style,
+            showgrid=True,
             side='right',
             tickformat='$,.2f',
             showspikes=True,
