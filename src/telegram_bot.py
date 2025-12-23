@@ -2632,8 +2632,11 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
         elif callback_data.startswith("chart_") and "_tf_" not in callback_data:
             # Coin selected, show timeframe selection
             await self.handle_chart_timeframe_selection(query, callback_data)
-        elif callback_data.startswith("chart_") and "_tf_" in callback_data:
-            # Timeframe selected, generate chart
+        elif callback_data.startswith("chart_") and "_tf_" in callback_data and "_cn_" not in callback_data:
+            # Timeframe selected, show candle count selection
+            await self.handle_chart_candle_selection(query, callback_data)
+        elif callback_data.startswith("chart_") and "_cn_" in callback_data:
+            # Candle count selected, generate chart
             await self.handle_chart_generation(query, callback_data)
         elif callback_data == "start_bot":
             await self.handle_start_bot_button(query)
@@ -2856,49 +2859,139 @@ Coin seçin:
             logger.error(f"Error in timeframe selection: {e}")
             await query.edit_message_text(f"❌ Hata: {str(e)[:100]}")
 
-    async def handle_chart_generation(self, query, callback_data: str):
-        """Handle chart generation for selected coin and timeframe - ULTRA PREMIUM VERSION."""
+    async def handle_chart_candle_selection(self, query, callback_data: str):
+        """Show candle count selection after timeframe is selected."""
         try:
-            # Extract symbol and timeframe from callback data
+            # Extract coin and timeframe from callback data
             # Format: chart_BTC_USDT_USDT_tf_15m
-            if "_tf_" in callback_data:
+            parts = callback_data.split("_tf_")
+            coin_code = parts[0].replace('chart_', '')
+            timeframe = parts[1]
+
+            coin_parts = coin_code.split('_')
+            if len(coin_parts) == 3:
+                symbol = f"{coin_parts[0]}/{coin_parts[1]}:{coin_parts[2]}"
+            else:
+                await query.edit_message_text("❌ Geçersiz format")
+                return
+
+            # Timeframe names
+            tf_names = {
+                '5m': '5 Dakika', '15m': '15 Dakika', '1h': '1 Saat',
+                '4h': '4 Saat', '1d': '1 Gün'
+            }
+            tf_name = tf_names.get(timeframe, timeframe)
+
+            # Candle count options
+            candle_options = [
+                (300, '300 Mum'),
+                (500, '500 Mum'),
+                (1000, '1000 Mum'),
+                (1500, '1500 Mum'),
+                (2000, '2000 Mum'),
+                (2500, '2500 Mum'),
+                (3000, '3000 Mum'),
+            ]
+
+            keyboard = []
+            row = []
+            for count, label in candle_options:
+                cb = f"chart_{coin_code}_tf_{timeframe}_cn_{count}"
+                row.append(InlineKeyboardButton(label, callback_data=cb))
+                if len(row) == 3:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+
+            # Back button
+            keyboard.append([InlineKeyboardButton("◀️ Geri", callback_data=f"chart_{coin_code}")])
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            display_name = symbol.replace('/USDT:USDT', '')
+            message = f"""
+✨ <b>{display_name}</b> • {tf_name}
+
+📊 Mum sayısı seçin:
+
+<i>Daha fazla mum = daha uzun geçmiş analizi</i>
+"""
+            await query.edit_message_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+        except Exception as e:
+            logger.error(f"Error in candle selection: {e}")
+            await query.edit_message_text(f"❌ Hata: {str(e)[:100]}")
+
+    async def handle_chart_generation(self, query, callback_data: str):
+        """Handle chart generation for selected coin, timeframe, and candle count."""
+        try:
+            # Extract symbol, timeframe, and candle count from callback data
+            # Format: chart_BTC_USDT_USDT_tf_15m_cn_1000
+            candle_limit = 300  # Default
+            
+            if "_cn_" in callback_data:
+                # Has candle count
+                cn_parts = callback_data.split("_cn_")
+                candle_limit = int(cn_parts[1])
+                tf_parts = cn_parts[0].split("_tf_")
+                coin_code = tf_parts[0].replace('chart_', '')
+                timeframe = tf_parts[1]
+            elif "_tf_" in callback_data:
+                # Only timeframe (fallback)
                 parts = callback_data.split("_tf_")
-                coin_part = parts[0].replace('chart_', '').split('_')
+                coin_code = parts[0].replace('chart_', '')
                 timeframe = parts[1]
             else:
-                coin_part = callback_data.replace('chart_', '').split('_')
+                coin_code = callback_data.replace('chart_', '')
                 timeframe = '15m'
 
+            coin_part = coin_code.split('_')
             if len(coin_part) == 3:
                 symbol = f"{coin_part[0]}/{coin_part[1]}:{coin_part[2]}"
             else:
                 await query.edit_message_text("❌ Geçersiz coin formatı")
                 return
 
-            # Timeframe display names and candle counts
-            tf_info = {
-                '5m': {'name': '5 Dakika', 'limit': 300, 'period': '~1 gün'},
-                '15m': {'name': '15 Dakika', 'limit': 300, 'period': '~3 gün'},
-                '1h': {'name': '1 Saat', 'limit': 300, 'period': '~12 gün'},
-                '4h': {'name': '4 Saat', 'limit': 300, 'period': '~50 gün'},
-                '1d': {'name': '1 Gün', 'limit': 300, 'period': '~300 gün'},
+            # Timeframe display names
+            tf_names = {
+                '5m': '5 Dakika', '15m': '15 Dakika', '1h': '1 Saat',
+                '4h': '4 Saat', '1d': '1 Gün'
             }
-            tf_data = tf_info.get(timeframe, tf_info['15m'])
+            tf_name = tf_names.get(timeframe, timeframe)
 
-            logger.info(f"📈 Generating PREMIUM chart for {symbol} ({timeframe})")
+            # Calculate period based on timeframe and candle count
+            period_calc = {
+                '5m': candle_limit * 5 / 60 / 24,      # days
+                '15m': candle_limit * 15 / 60 / 24,
+                '1h': candle_limit / 24,
+                '4h': candle_limit * 4 / 24,
+                '1d': candle_limit,
+            }
+            days = period_calc.get(timeframe, candle_limit)
+            if days < 1:
+                period_str = f"~{int(days * 24)} saat"
+            elif days < 30:
+                period_str = f"~{int(days)} gün"
+            elif days < 365:
+                period_str = f"~{int(days / 30)} ay"
+            else:
+                period_str = f"~{int(days / 365)} yıl"
+
+            logger.info(f"📈 Generating PREMIUM chart for {symbol} ({timeframe}, {candle_limit} candles)")
 
             # Show loading message with premium styling
             await query.edit_message_text(
-                f"✨ <b>{symbol}</b> • {tf_data['name']}\n\n"
+                f"✨ <b>{symbol}</b> • {tf_name} • {candle_limit} mum\n\n"
                 f"🎨 Ultra Premium grafik oluşturuluyor...\n"
-                f"⏳ Lütfen bekleyin (5-10 sn)",
+                f"⏳ Lütfen bekleyin (5-15 sn)",
                 parse_mode=ParseMode.HTML
             )
 
             # Fetch OHLCV data from exchange
             from src.exchange_client import get_exchange_client
             exchange = await get_exchange_client()
-            ohlcv_data = await exchange.fetch_ohlcv(symbol, timeframe, limit=tf_data['limit'])
+            ohlcv_data = await exchange.fetch_ohlcv(symbol, timeframe, limit=candle_limit)
 
             if not ohlcv_data or len(ohlcv_data) < 50:
                 await query.edit_message_text(
@@ -2906,6 +2999,8 @@ Coin seçin:
                     parse_mode=ParseMode.HTML
                 )
                 return
+
+            actual_candles = len(ohlcv_data)
 
             # Generate ULTRA PREMIUM chart (PNG)
             from src.ultra_premium_chart import get_ultra_premium_chart
@@ -2956,7 +3051,7 @@ Coin seçin:
 
 <b>💰 ${current_price:,.2f}</b>  <code>{price_change:+.2f}%</code>
 
-📊 {tf_data['name']} • {tf_data['limit']} mum • {tf_data['period']}
+📊 {tf_name} • {actual_candles} mum • {period_str}
 🕐 {get_turkey_time().strftime('%H:%M:%S')} UTC+3
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
