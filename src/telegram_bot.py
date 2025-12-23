@@ -2629,7 +2629,11 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             await self.handle_scan_button(query)
         elif callback_data == "chart":
             await self.handle_chart_button(query)
-        elif callback_data.startswith("chart_"):
+        elif callback_data.startswith("chart_") and "_tf_" not in callback_data:
+            # Coin selected, show timeframe selection
+            await self.handle_chart_timeframe_selection(query, callback_data)
+        elif callback_data.startswith("chart_") and "_tf_" in callback_data:
+            # Timeframe selected, generate chart
             await self.handle_chart_generation(query, callback_data)
         elif callback_data == "start_bot":
             await self.handle_start_bot_button(query)
@@ -2803,23 +2807,89 @@ Coin seçin:
 """
         await query.edit_message_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
 
-    async def handle_chart_generation(self, query, callback_data: str):
-        """Handle chart generation for selected coin - ULTRA PREMIUM VERSION."""
+    async def handle_chart_timeframe_selection(self, query, callback_data: str):
+        """Show timeframe selection after coin is selected."""
         try:
             # Extract symbol from callback data
-            # Format: chart_BTC_USDT_USDT -> BTC/USDT:USDT
             parts = callback_data.replace('chart_', '').split('_')
             if len(parts) == 3:
                 symbol = f"{parts[0]}/{parts[1]}:{parts[2]}"
+                coin_code = callback_data.replace('chart_', '')
             else:
                 await query.edit_message_text("❌ Geçersiz coin formatı")
                 return
 
-            logger.info(f"📈 Generating PREMIUM chart for {symbol}")
+            # Timeframe options
+            timeframes = [
+                ('5m', '5 Dakika'),
+                ('15m', '15 Dakika'),
+                ('1h', '1 Saat'),
+                ('4h', '4 Saat'),
+                ('1d', '1 Gün'),
+            ]
+
+            keyboard = []
+            row = []
+            for tf_code, tf_name in timeframes:
+                callback = f"chart_{coin_code}_tf_{tf_code}"
+                row.append(InlineKeyboardButton(tf_name, callback_data=callback))
+                if len(row) == 3:
+                    keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
+
+            # Back button
+            keyboard.append([InlineKeyboardButton("◀️ Geri", callback_data="chart")])
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            display_name = symbol.replace('/USDT:USDT', '')
+            message = f"""
+✨ <b>{display_name}</b> için grafik
+
+⏱️ Zaman dilimi seçin:
+"""
+            await query.edit_message_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+        except Exception as e:
+            logger.error(f"Error in timeframe selection: {e}")
+            await query.edit_message_text(f"❌ Hata: {str(e)[:100]}")
+
+    async def handle_chart_generation(self, query, callback_data: str):
+        """Handle chart generation for selected coin and timeframe - ULTRA PREMIUM VERSION."""
+        try:
+            # Extract symbol and timeframe from callback data
+            # Format: chart_BTC_USDT_USDT_tf_15m
+            if "_tf_" in callback_data:
+                parts = callback_data.split("_tf_")
+                coin_part = parts[0].replace('chart_', '').split('_')
+                timeframe = parts[1]
+            else:
+                coin_part = callback_data.replace('chart_', '').split('_')
+                timeframe = '15m'
+
+            if len(coin_part) == 3:
+                symbol = f"{coin_part[0]}/{coin_part[1]}:{coin_part[2]}"
+            else:
+                await query.edit_message_text("❌ Geçersiz coin formatı")
+                return
+
+            # Timeframe display names and candle counts
+            tf_info = {
+                '5m': {'name': '5 Dakika', 'limit': 300, 'period': '~1 gün'},
+                '15m': {'name': '15 Dakika', 'limit': 300, 'period': '~3 gün'},
+                '1h': {'name': '1 Saat', 'limit': 300, 'period': '~12 gün'},
+                '4h': {'name': '4 Saat', 'limit': 300, 'period': '~50 gün'},
+                '1d': {'name': '1 Gün', 'limit': 300, 'period': '~300 gün'},
+            }
+            tf_data = tf_info.get(timeframe, tf_info['15m'])
+
+            logger.info(f"📈 Generating PREMIUM chart for {symbol} ({timeframe})")
 
             # Show loading message with premium styling
             await query.edit_message_text(
-                f"✨ <b>{symbol}</b>\n\n"
+                f"✨ <b>{symbol}</b> • {tf_data['name']}\n\n"
                 f"🎨 Ultra Premium grafik oluşturuluyor...\n"
                 f"⏳ Lütfen bekleyin (5-10 sn)",
                 parse_mode=ParseMode.HTML
@@ -2828,7 +2898,7 @@ Coin seçin:
             # Fetch OHLCV data from exchange
             from src.exchange_client import get_exchange_client
             exchange = await get_exchange_client()
-            ohlcv_data = await exchange.fetch_ohlcv(symbol, '15m', limit=300)
+            ohlcv_data = await exchange.fetch_ohlcv(symbol, timeframe, limit=tf_data['limit'])
 
             if not ohlcv_data or len(ohlcv_data) < 50:
                 await query.edit_message_text(
@@ -2843,7 +2913,7 @@ Coin seçin:
             chart_bytes = await premium_chart.generate(
                 symbol=symbol,
                 ohlcv=ohlcv_data,
-                timeframe='15m',
+                timeframe=timeframe,
                 width=1600,
                 height=1000
             )
@@ -2879,7 +2949,6 @@ Coin seçin:
             # Calculate price metrics
             price_change = ((ohlcv_data[-1][4] - ohlcv_data[0][1]) / ohlcv_data[0][1]) * 100
             emoji = "🟢" if price_change >= 0 else "🔴"
-            trend = "Yükseliş" if price_change >= 0 else "Düşüş"
 
             # Premium caption
             caption = f"""
@@ -2887,7 +2956,7 @@ Coin seçin:
 
 <b>💰 ${current_price:,.2f}</b>  <code>{price_change:+.2f}%</code>
 
-📊 15m • 300 mum • ~3 gün
+📊 {tf_data['name']} • {tf_data['limit']} mum • {tf_data['period']}
 🕐 {get_turkey_time().strftime('%H:%M:%S')} UTC+3
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2913,7 +2982,7 @@ Coin seçin:
                 parse_mode=ParseMode.HTML
             )
 
-            logger.info(f"✅ Premium chart sent for {symbol} (ID: {chart_id})")
+            logger.info(f"✅ Premium chart sent for {symbol} ({timeframe}) (ID: {chart_id})")
 
         except Exception as e:
             logger.error(f"❌ Error generating chart: {e}")

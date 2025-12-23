@@ -16,6 +16,54 @@ from src.indicators import detect_support_resistance_levels
 logger = setup_logging()
 
 
+def detect_trend_lines(df: pd.DataFrame, lookback: int = 15) -> Dict[str, Optional[Tuple]]:
+    """Detect trend lines by connecting swing highs/lows."""
+    try:
+        highs = df['high'].values
+        lows = df['low'].values
+        n = len(df)
+
+        # Find swing highs
+        swing_highs = []
+        for i in range(lookback, n - lookback):
+            if highs[i] == max(highs[i-lookback:i+lookback+1]):
+                swing_highs.append((i, highs[i]))
+
+        # Find swing lows
+        swing_lows = []
+        for i in range(lookback, n - lookback):
+            if lows[i] == min(lows[i-lookback:i+lookback+1]):
+                swing_lows.append((i, lows[i]))
+
+        uptrend_line = None
+        downtrend_line = None
+
+        # Uptrend: connect rising lows
+        if len(swing_lows) >= 2:
+            recent = swing_lows[-3:] if len(swing_lows) >= 3 else swing_lows
+            x = [p[0] for p in recent]
+            y = [p[1] for p in recent]
+            if len(x) >= 2:
+                coeffs = np.polyfit(x, y, 1)
+                if coeffs[0] > 0:  # Positive slope
+                    uptrend_line = (coeffs[0], coeffs[1], x[0], x[-1])
+
+        # Downtrend: connect falling highs
+        if len(swing_highs) >= 2:
+            recent = swing_highs[-3:] if len(swing_highs) >= 3 else swing_highs
+            x = [p[0] for p in recent]
+            y = [p[1] for p in recent]
+            if len(x) >= 2:
+                coeffs = np.polyfit(x, y, 1)
+                if coeffs[0] < 0:  # Negative slope
+                    downtrend_line = (coeffs[0], coeffs[1], x[0], x[-1])
+
+        return {'uptrend': uptrend_line, 'downtrend': downtrend_line}
+    except Exception as e:
+        logger.error(f"Trend line error: {e}")
+        return {'uptrend': None, 'downtrend': None}
+
+
 class UltraPremiumChart:
     """
     Ultra-premium TradingView Pro+ style charts.
@@ -173,62 +221,101 @@ class UltraPremiumChart:
                 ), row=1, col=1)
             
             # ═══════════════════════════════════════
-            # SUPPORT LEVELS (with glow effect)
+            # SUPPORT LEVELS (with glow effect) - MORE VISIBLE
             # ═══════════════════════════════════════
             for lvl in supports:
                 # Glow (wider, transparent)
                 fig.add_hline(
                     y=lvl,
-                    line=dict(color=self.theme['support_glow'], width=8),
+                    line=dict(color=self.theme['support_glow'], width=12),
                     row=1, col=1
                 )
                 # Main line
                 fig.add_hline(
                     y=lvl,
-                    line=dict(color=self.theme['support'], width=1.5, dash='dot'),
+                    line=dict(color=self.theme['support'], width=2, dash='dot'),
                     row=1, col=1
                 )
-                # Label
+                # Label - BIGGER & MORE VISIBLE
                 fig.add_annotation(
                     x=df.index[-1], y=lvl,
-                    text=f"<b>S</b> ${lvl:,.2f}",
+                    text=f"  <b>SUPPORT</b>  ${lvl:,.2f}  ",
                     showarrow=False,
-                    font=dict(size=10, color=self.theme['support'], family='Arial'),
+                    font=dict(size=12, color='white', family='Arial Black'),
                     xanchor='left',
-                    bgcolor='rgba(0, 230, 118, 0.1)',
-                    bordercolor=self.theme['support'],
+                    bgcolor=self.theme['support'],
+                    bordercolor='white',
                     borderwidth=1,
-                    borderpad=3
+                    borderpad=6,
+                    opacity=0.95
                 )
             
             # ═══════════════════════════════════════
-            # RESISTANCE LEVELS (with glow effect)
+            # RESISTANCE LEVELS (with glow effect) - MORE VISIBLE
             # ═══════════════════════════════════════
             for lvl in resistances:
                 # Glow
                 fig.add_hline(
                     y=lvl,
-                    line=dict(color=self.theme['resistance_glow'], width=8),
+                    line=dict(color=self.theme['resistance_glow'], width=12),
                     row=1, col=1
                 )
                 # Main line
                 fig.add_hline(
                     y=lvl,
-                    line=dict(color=self.theme['resistance'], width=1.5, dash='dot'),
+                    line=dict(color=self.theme['resistance'], width=2, dash='dot'),
                     row=1, col=1
                 )
-                # Label
+                # Label - BIGGER & MORE VISIBLE
                 fig.add_annotation(
                     x=df.index[-1], y=lvl,
-                    text=f"<b>R</b> ${lvl:,.2f}",
+                    text=f"  <b>RESISTANCE</b>  ${lvl:,.2f}  ",
                     showarrow=False,
-                    font=dict(size=10, color=self.theme['resistance'], family='Arial'),
+                    font=dict(size=12, color='white', family='Arial Black'),
                     xanchor='left',
-                    bgcolor='rgba(255, 82, 82, 0.1)',
-                    bordercolor=self.theme['resistance'],
+                    bgcolor=self.theme['resistance'],
+                    bordercolor='white',
                     borderwidth=1,
-                    borderpad=3
+                    borderpad=6,
+                    opacity=0.95
                 )
+            
+            # ═══════════════════════════════════════
+            # TREND LINES
+            # ═══════════════════════════════════════
+            trend_lines = detect_trend_lines(df)
+            
+            if trend_lines['uptrend']:
+                slope, intercept, x_start, x_end = trend_lines['uptrend']
+                # Extend line to current
+                x_range = list(range(x_start, len(df)))
+                y_values = [slope * x + intercept for x in x_range]
+                
+                fig.add_trace(go.Scatter(
+                    x=[df.index[i] for i in x_range],
+                    y=y_values,
+                    mode='lines',
+                    name='📈 Uptrend',
+                    line=dict(color='#00e676', width=2.5, dash='solid'),
+                    opacity=0.8
+                ), row=1, col=1)
+                logger.info("✅ Uptrend line added")
+            
+            if trend_lines['downtrend']:
+                slope, intercept, x_start, x_end = trend_lines['downtrend']
+                # Extend line to current
+                x_range = list(range(x_start, len(df)))
+                y_values = [slope * x + intercept for x in x_range]
+                
+                fig.add_trace(go.Scatter(
+                    x=[df.index[i] for i in x_range],
+                    y=y_values,
+                    mode='lines',
+                    name='📉 Downtrend',
+                    line=dict(color='#ff5252', width=2.5, dash='solid'),
+                    opacity=0.8
+                ), row=1, col=1)
+                logger.info("✅ Downtrend line added")
             
             # ═══════════════════════════════════════
             # POSITION LEVELS (if trading)
