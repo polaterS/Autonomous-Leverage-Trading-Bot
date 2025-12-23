@@ -156,7 +156,7 @@ Hoş geldiniz! Bot komutları:
 /history - Kapalı pozisyonlar
 
 <b>📈 Analiz Araçları:</b>
-/chart - TradingView benzeri grafik oluştur
+/chart - ✨ Ultra Premium grafik oluştur
 /scan - Manuel market tarama
 /daily - 📊 Günlük performans raporu (00:00'dan itibaren)
 /mlstats - ML öğrenme istatistikleri
@@ -1198,15 +1198,14 @@ Sorularınız için: @your_support
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         message = """
-📈 <b>GRAFİK OLUŞTURUCU</b>
+✨ <b>ULTRA PREMIUM GRAFİK</b>
 
-Ultra profesyonel TradingView benzeri grafik:
-• 📊 Candlestick chart (15m timeframe)
-• 📍 Destek/Direnç seviyeleri
-• 📈 Trend çizgileri (otomatik tespit)
-• 📉 EMA 12, 26, 50
-• 📊 RSI & MACD indikatörleri
-• 💹 Volume analizi
+TradingView Pro+ kalitesinde grafik:
+• 🕯️ Premium candlestick tasarımı
+• 📍 Glow efektli S/R seviyeleri
+• 📈 Smooth EMA çizgileri (12/26/50)
+• 📊 Profesyonel volume analizi
+• 🎨 Dark theme premium renk paleti
 
 Coin seçin:
 """
@@ -2756,7 +2755,7 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
 /status - Bot durumu
 /positions - Aktif pozisyonlar
 /history - Geçmiş
-/chart - TradingView grafik
+/chart - ✨ Premium grafik
 /scan - Market tara
 /startbot - Başlat
 /stopbot - Durdur
@@ -2791,22 +2790,21 @@ Detaylı bilgi için /help yazın.
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         message = """
-📈 <b>GRAFİK OLUŞTURUCU</b>
+✨ <b>ULTRA PREMIUM GRAFİK</b>
 
-Ultra profesyonel TradingView benzeri grafik:
-• 📊 Candlestick chart (15m timeframe)
-• 📍 Destek/Direnç seviyeleri
-• 📈 Trend çizgileri (otomatik tespit)
-• 📉 EMA 12, 26, 50
-• 📊 RSI & MACD indikatörleri
-• 💹 Volume analizi
+TradingView Pro+ kalitesinde grafik:
+• 🕯️ Premium candlestick tasarımı
+• 📍 Glow efektli S/R seviyeleri
+• 📈 Smooth EMA çizgileri (12/26/50)
+• 📊 Profesyonel volume analizi
+• 🎨 Dark theme premium renk paleti
 
 Coin seçin:
 """
         await query.edit_message_text(message, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
 
     async def handle_chart_generation(self, query, callback_data: str):
-        """Handle chart generation for selected coin."""
+        """Handle chart generation for selected coin - ULTRA PREMIUM VERSION."""
         try:
             # Extract symbol from callback data
             # Format: chart_BTC_USDT_USDT -> BTC/USDT:USDT
@@ -2817,19 +2815,20 @@ Coin seçin:
                 await query.edit_message_text("❌ Geçersiz coin formatı")
                 return
 
-            logger.info(f"📈 Generating chart for {symbol}")
+            logger.info(f"📈 Generating PREMIUM chart for {symbol}")
 
-            # Show loading message
+            # Show loading message with premium styling
             await query.edit_message_text(
-                f"📊 <b>{symbol}</b> için grafik oluşturuluyor...\n\n"
-                f"⏳ Bu işlem 10-15 saniye sürebilir...",
+                f"✨ <b>{symbol}</b>\n\n"
+                f"🎨 Ultra Premium grafik oluşturuluyor...\n"
+                f"⏳ Lütfen bekleyin (5-10 sn)",
                 parse_mode=ParseMode.HTML
             )
 
             # Fetch OHLCV data from exchange
             from src.exchange_client import get_exchange_client
             exchange = await get_exchange_client()
-            ohlcv_data = await exchange.fetch_ohlcv(symbol, '15m', limit=500)
+            ohlcv_data = await exchange.fetch_ohlcv(symbol, '15m', limit=300)
 
             if not ohlcv_data or len(ohlcv_data) < 50:
                 await query.edit_message_text(
@@ -2838,15 +2837,15 @@ Coin seçin:
                 )
                 return
 
-            # Generate static chart (PNG)
-            chart_generator = get_chart_generator()
-            chart_bytes = await chart_generator.generate_chart(
+            # Generate ULTRA PREMIUM chart (PNG)
+            from src.ultra_premium_chart import get_ultra_premium_chart
+            premium_chart = get_ultra_premium_chart()
+            chart_bytes = await premium_chart.generate(
                 symbol=symbol,
-                ohlcv_data=ohlcv_data,
+                ohlcv=ohlcv_data,
                 timeframe='15m',
-                show_indicators=True,
-                width=16,
-                height=12
+                width=1600,
+                height=1000
             )
 
             # Generate interactive HTML chart
@@ -2866,50 +2865,47 @@ Coin seçin:
             # Store HTML and get chart ID
             chart_id = store_chart(html_content, symbol)
 
-            # Get Railway URL from environment
-            # Railway provides RAILWAY_PUBLIC_DOMAIN or we can construct from RAILWAY_STATIC_URL
+            # Get Railway URL
             railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
-
             if railway_domain:
-                # Clean up domain (remove protocol if present)
                 railway_domain = railway_domain.replace('https://', '').replace('http://', '')
                 base_url = f"https://{railway_domain}"
             else:
-                # Fallback: use current Railway domain
                 base_url = "https://worker-production-0db8.up.railway.app"
 
             interactive_url = f"{base_url}/chart/{chart_id}"
-
             logger.info(f"🔗 Interactive chart URL: {interactive_url}")
 
-            # Prepare caption
+            # Calculate price metrics
             price_change = ((ohlcv_data[-1][4] - ohlcv_data[0][1]) / ohlcv_data[0][1]) * 100
-            emoji = "📈" if price_change >= 0 else "📉"
+            emoji = "🟢" if price_change >= 0 else "🔴"
+            trend = "Yükseliş" if price_change >= 0 else "Düşüş"
 
+            # Premium caption
             caption = f"""
 {emoji} <b>{symbol}</b>
 
-💵 <b>Fiyat:</b> ${current_price:.2f} ({price_change:+.2f}%)
-📊 <b>Timeframe:</b> 15 dakika (500 mum - ~5 gün geçmiş)
-⏰ <b>Zaman:</b> {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}
+<b>💰 ${current_price:,.2f}</b>  <code>{price_change:+.2f}%</code>
 
-🎨 <b>TradingView benzeri ultra profesyonel grafik</b>
-📈 <b>Destek/Direnç Seviyeleri:</b> Yeşil ve kırmızı kesikli çizgiler
+📊 15m • 300 mum • ~3 gün
+🕐 {get_turkey_time().strftime('%H:%M:%S')} UTC+3
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-🖱️ <b>İNTERAKTİF GRAFİK:</b>
-<a href="{interactive_url}">📊 Tıkla ve İnteraktif Grafiği Aç</a>
+<b>📈 S/R Seviyeleri</b>
+🟢 Destek: {', '.join([f'${s:,.2f}' for s in support_levels[:2]]) if support_levels else 'N/A'}
+🔴 Direnç: {', '.join([f'${r:,.2f}' for r in resistance_levels[:2]]) if resistance_levels else 'N/A'}
 
-✨ Zoom, pan, hover tooltips ile detaylı analiz
-✨ Geçmişe doğru kaydırarak 5 günlük veriyi incele
-✨ 24 saat aktif kalacak
+<b>📉 EMA Çizgileri</b>
+🔵 EMA 12 • 🟠 EMA 26 • 🟣 EMA 50
 ━━━━━━━━━━━━━━━━━━━━━━━━
+
+🖱️ <a href="{interactive_url}">İnteraktif Grafiği Aç</a>
 """
 
             # Delete loading message
             await query.message.delete()
 
-            # Send photo with interactive link
+            # Send premium photo
             await self.application.bot.send_photo(
                 chat_id=query.message.chat_id,
                 photo=chart_bytes,
@@ -2917,7 +2913,7 @@ Coin seçin:
                 parse_mode=ParseMode.HTML
             )
 
-            logger.info(f"✅ Chart sent successfully for {symbol} (ID: {chart_id})")
+            logger.info(f"✅ Premium chart sent for {symbol} (ID: {chart_id})")
 
         except Exception as e:
             logger.error(f"❌ Error generating chart: {e}")

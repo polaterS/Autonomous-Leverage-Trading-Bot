@@ -16,7 +16,16 @@
       "Bash(py -m pip install:*)",
       "Bash(py:*)",
       "Bash(git rm:*)",
-      "Bash(5-6 dolar zarar olduğunda kapansın istiyorum\"\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(5-6 dolar zarar olduğunda kapansın istiyorum\"\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(for file in \"C:\\Users\\Doğan.DESKTOP-NLO4MFD\\Desktop\\Github\\Autonomous-Leverage-Trading-Bot\\src\\*.py\")",
+      "Bash(done)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:tradingview.github.io)",
+      "Bash(python -m py_compile:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\n🎯 Add /predict command - AI Prediction Charts with Entry/TP/SL\n\nNew Features:\n- /predict [COIN] command generates professional TradingView-style charts\n- Entry point, TP1/TP2/TP3 targets, Stop Loss levels\n- Trend channel detection (ascending/descending)\n- Risk/Reward ratio calculation\n- AI-powered direction prediction (LONG/SHORT/NEUTRAL)\n\nTechnical Analysis:\n- RSI oversold/overbought detection\n- MACD crossover signals\n- SuperTrend indicator\n- EMA 20/50 trend analysis\n- Channel pattern recognition\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

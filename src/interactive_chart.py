@@ -1,6 +1,6 @@
 """
-Interactive HTML Chart Generator using Plotly
-Creates browser-viewable interactive charts with zoom, pan, hover tooltips
+Ultra Premium Interactive HTML Chart Generator
+TradingView Pro+ style with full interactivity
 """
 
 import plotly.graph_objects as go
@@ -8,31 +8,48 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from src.utils import setup_logging
 from src.indicators import detect_support_resistance_levels
 
 logger = setup_logging()
 
 
-def detect_trend_lines(df: pd.DataFrame, lookback: int = 20) -> Dict[str, Optional[Tuple[float, float]]]:
-    """
-    Detect trend lines by connecting swing highs/lows.
+# Premium Theme Colors
+THEME = {
+    'bg_dark': '#0a0e17',
+    'bg_chart': '#0f1318',
+    'bg_panel': '#141920',
+    'grid': 'rgba(42, 46, 57, 0.4)',
+    'border': '#2a2e39',
+    'text_bright': '#d1d4dc',
+    'text_dim': '#787b86',
+    'text_muted': '#4a4e59',
+    'candle_up': '#089981',
+    'candle_down': '#f23645',
+    'support': '#00e676',
+    'support_bg': 'rgba(0, 230, 118, 0.1)',
+    'resistance': '#ff5252',
+    'resistance_bg': 'rgba(255, 82, 82, 0.1)',
+    'ema_12': '#2962ff',
+    'ema_26': '#ff6d00',
+    'ema_50': '#ab47bc',
+    'vol_up': 'rgba(8, 153, 129, 0.5)',
+    'vol_down': 'rgba(242, 54, 69, 0.5)',
+}
 
-    Returns:
-        Dict with 'uptrend' and 'downtrend' line parameters (slope, intercept)
-    """
+
+def detect_trend_lines(df: pd.DataFrame, lookback: int = 20) -> Dict[str, Optional[Tuple[float, float]]]:
+    """Detect trend lines by connecting swing highs/lows."""
     try:
         highs = df['high'].values
         lows = df['low'].values
 
-        # Find swing highs
         swing_highs = []
         for i in range(lookback, len(highs) - lookback):
             if highs[i] == max(highs[i-lookback:i+lookback+1]):
                 swing_highs.append((i, highs[i]))
 
-        # Find swing lows
         swing_lows = []
         for i in range(lookback, len(lows) - lookback):
             if lows[i] == min(lows[i-lookback:i+lookback+1]):
@@ -41,34 +58,27 @@ def detect_trend_lines(df: pd.DataFrame, lookback: int = 20) -> Dict[str, Option
         uptrend_line = None
         downtrend_line = None
 
-        # Uptrend line
         if len(swing_lows) >= 2:
             recent_lows = swing_lows[-3:] if len(swing_lows) >= 3 else swing_lows
-            x_coords = [point[0] for point in recent_lows]
-            y_coords = [point[1] for point in recent_lows]
-
+            x_coords = [p[0] for p in recent_lows]
+            y_coords = [p[1] for p in recent_lows]
             if len(x_coords) >= 2:
                 coeffs = np.polyfit(x_coords, y_coords, 1)
-                slope, intercept = coeffs[0], coeffs[1]
-                if slope > 0:
-                    uptrend_line = (slope, intercept)
+                if coeffs[0] > 0:
+                    uptrend_line = (coeffs[0], coeffs[1])
 
-        # Downtrend line
         if len(swing_highs) >= 2:
             recent_highs = swing_highs[-3:] if len(swing_highs) >= 3 else swing_highs
-            x_coords = [point[0] for point in recent_highs]
-            y_coords = [point[1] for point in recent_highs]
-
+            x_coords = [p[0] for p in recent_highs]
+            y_coords = [p[1] for p in recent_highs]
             if len(x_coords) >= 2:
                 coeffs = np.polyfit(x_coords, y_coords, 1)
-                slope, intercept = coeffs[0], coeffs[1]
-                if slope < 0:
-                    downtrend_line = (slope, intercept)
+                if coeffs[0] < 0:
+                    downtrend_line = (coeffs[0], coeffs[1])
 
         return {'uptrend': uptrend_line, 'downtrend': downtrend_line}
-
     except Exception as e:
-        logger.error(f"Error detecting trend lines: {e}")
+        logger.error(f"Trend line detection error: {e}")
         return {'uptrend': None, 'downtrend': None}
 
 
@@ -79,58 +89,42 @@ async def generate_interactive_html_chart(
     resistance_levels: List[float]
 ) -> str:
     """
-    Generate interactive HTML chart using Plotly.
-
-    Args:
-        symbol: Trading symbol
-        ohlcv_data: OHLCV data
-        support_levels: Support price levels
-        resistance_levels: Resistance price levels
-
-    Returns:
-        HTML string of interactive chart
+    Generate ultra-premium interactive HTML chart.
+    
+    Features:
+    - TradingView Pro+ dark theme
+    - Smooth candlesticks with glow
+    - Interactive zoom/pan
+    - Crosshair on hover
+    - Premium S/R levels
     """
     try:
-        logger.info(f"📊 Generating interactive HTML chart for {symbol}")
+        logger.info(f"📊 Generating PREMIUM interactive chart: {symbol}")
 
-        # Convert to DataFrame
+        # Prepare DataFrame
         df = pd.DataFrame(
             ohlcv_data,
             columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
         )
-        # Convert to Turkey time (UTC+3)
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
         df['timestamp'] = df['timestamp'].dt.tz_convert('Europe/Istanbul')
 
-        # Calculate indicators
-        df['EMA12'] = df['close'].ewm(span=12, adjust=False).mean()
-        df['EMA26'] = df['close'].ewm(span=26, adjust=False).mean()
-        df['EMA50'] = df['close'].ewm(span=50, adjust=False).mean()
+        # Calculate EMAs
+        df['EMA12'] = df['close'].ewm(span=12).mean()
+        df['EMA26'] = df['close'].ewm(span=26).mean()
+        df['EMA50'] = df['close'].ewm(span=50).mean()
 
-        # RSI
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        df['RSI'] = 100 - (100 / (1 + rs))
-
-        # MACD
-        ema_fast = df['close'].ewm(span=12, adjust=False).mean()
-        ema_slow = df['close'].ewm(span=26, adjust=False).mean()
-        df['MACD'] = ema_fast - ema_slow
-        df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
-        df['MACD_hist'] = df['MACD'] - df['MACD_signal']
-
-        # Create subplots - MINIMALIST TRADINGVIEW STYLE (Price + Volume only)
+        # Create figure
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.02,
-            subplot_titles=(f'{symbol} - 15m (Turkey Time UTC+3)', 'Volume'),
-            row_heights=[0.7, 0.3]
+            row_heights=[0.8, 0.2]
         )
 
-        # Candlestick chart
+        # ═══════════════════════════════════════
+        # CANDLESTICKS
+        # ═══════════════════════════════════════
         fig.add_trace(
             go.Candlestick(
                 x=df['timestamp'],
@@ -139,212 +133,282 @@ async def generate_interactive_html_chart(
                 low=df['low'],
                 close=df['close'],
                 name='Price',
-                increasing_line_color='#26A69A',
-                decreasing_line_color='#EF5350'
+                increasing=dict(line=dict(color=THEME['candle_up'], width=1), fillcolor=THEME['candle_up']),
+                decreasing=dict(line=dict(color=THEME['candle_down'], width=1), fillcolor=THEME['candle_down']),
+                showlegend=False
             ),
             row=1, col=1
         )
 
-        # EMAs - TradingView style (thinner lines)
-        fig.add_trace(
-            go.Scatter(
-                x=df['timestamp'], y=df['EMA12'],
-                name='EMA 12',
-                line=dict(color='#2962FF', width=1.2),
-                opacity=0.8
-            ),
-            row=1, col=1
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=df['timestamp'], y=df['EMA26'],
-                name='EMA 26',
-                line=dict(color='#FF6D00', width=1.2),
-                opacity=0.8
-            ),
-            row=1, col=1
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=df['timestamp'], y=df['EMA50'],
-                name='EMA 50',
-                line=dict(color='#FFD600', width=1.2),
-                opacity=0.8
-            ),
-            row=1, col=1
-        )
-
-        # Support levels - TradingView style (clean and subtle)
-        for i, level in enumerate(support_levels[:3]):
-            fig.add_hline(
-                y=level,
-                line_dash="dot",
-                line_color="#4CAF50",  # TradingView green
-                line_width=1.5,
-                annotation_text=f"S: ${level:.2f}",
-                annotation_position="right",
-                annotation=dict(
-                    font=dict(size=10, color="#4CAF50"),
-                    bgcolor="rgba(76, 175, 80, 0.1)",
-                    borderpad=2
+        # ═══════════════════════════════════════
+        # EMAs (Smooth lines)
+        # ═══════════════════════════════════════
+        emas = [
+            ('EMA12', THEME['ema_12'], 'EMA 12'),
+            ('EMA26', THEME['ema_26'], 'EMA 26'),
+            ('EMA50', THEME['ema_50'], 'EMA 50'),
+        ]
+        for col, color, name in emas:
+            fig.add_trace(
+                go.Scatter(
+                    x=df['timestamp'], y=df[col],
+                    name=name,
+                    line=dict(color=color, width=1.5, shape='spline'),
+                    opacity=0.85,
+                    hoverinfo='skip'
                 ),
                 row=1, col=1
             )
 
-        # Resistance levels - TradingView style (clean and subtle)
-        for i, level in enumerate(resistance_levels[:3]):
+        # ═══════════════════════════════════════
+        # SUPPORT LEVELS (Premium glow effect)
+        # ═══════════════════════════════════════
+        for level in support_levels[:3]:
+            # Glow effect (wider transparent line)
             fig.add_hline(
                 y=level,
-                line_dash="dot",
-                line_color="#F44336",  # TradingView red
-                line_width=1.5,
-                annotation_text=f"R: ${level:.2f}",
-                annotation_position="right",
+                line=dict(color='rgba(0, 230, 118, 0.2)', width=6),
+                row=1, col=1
+            )
+            # Main line
+            fig.add_hline(
+                y=level,
+                line=dict(color=THEME['support'], width=1.5, dash='dot'),
                 annotation=dict(
-                    font=dict(size=10, color="#F44336"),
-                    bgcolor="rgba(244, 67, 54, 0.1)",
-                    borderpad=2
+                    text=f"<b>S</b> ${level:,.2f}",
+                    font=dict(size=10, color=THEME['support']),
+                    bgcolor=THEME['support_bg'],
+                    bordercolor=THEME['support'],
+                    borderwidth=1,
+                    borderpad=3
                 ),
+                annotation_position="right",
                 row=1, col=1
             )
 
-        # Detect and draw trend lines
+        # ═══════════════════════════════════════
+        # RESISTANCE LEVELS (Premium glow effect)
+        # ═══════════════════════════════════════
+        for level in resistance_levels[:3]:
+            # Glow effect
+            fig.add_hline(
+                y=level,
+                line=dict(color='rgba(255, 82, 82, 0.2)', width=6),
+                row=1, col=1
+            )
+            # Main line
+            fig.add_hline(
+                y=level,
+                line=dict(color=THEME['resistance'], width=1.5, dash='dot'),
+                annotation=dict(
+                    text=f"<b>R</b> ${level:,.2f}",
+                    font=dict(size=10, color=THEME['resistance']),
+                    bgcolor=THEME['resistance_bg'],
+                    bordercolor=THEME['resistance'],
+                    borderwidth=1,
+                    borderpad=3
+                ),
+                annotation_position="right",
+                row=1, col=1
+            )
+
+        # ═══════════════════════════════════════
+        # TREND LINES
+        # ═══════════════════════════════════════
         trend_lines = detect_trend_lines(df)
-
-        # Uptrend line - TradingView style (subtle and professional)
+        
         if trend_lines['uptrend']:
             slope, intercept = trend_lines['uptrend']
-            x_range = list(range(len(df)))
-            y_values = [slope * x + intercept for x in x_range]
-
+            y_values = [slope * x + intercept for x in range(len(df))]
             fig.add_trace(
                 go.Scatter(
-                    x=df['timestamp'],
-                    y=y_values,
+                    x=df['timestamp'], y=y_values,
                     name='Uptrend',
-                    line=dict(color='#26A69A', width=2, dash='solid'),
-                    mode='lines',
-                    showlegend=True,
-                    opacity=0.7
+                    line=dict(color=THEME['candle_up'], width=2),
+                    opacity=0.7,
+                    hoverinfo='skip'
                 ),
                 row=1, col=1
             )
-            logger.info("✅ Uptrend line added to interactive chart")
 
-        # Downtrend line - TradingView style (subtle and professional)
         if trend_lines['downtrend']:
             slope, intercept = trend_lines['downtrend']
-            x_range = list(range(len(df)))
-            y_values = [slope * x + intercept for x in x_range]
-
+            y_values = [slope * x + intercept for x in range(len(df))]
             fig.add_trace(
                 go.Scatter(
-                    x=df['timestamp'],
-                    y=y_values,
+                    x=df['timestamp'], y=y_values,
                     name='Downtrend',
-                    line=dict(color='#EF5350', width=2, dash='solid'),
-                    mode='lines',
-                    showlegend=True,
-                    opacity=0.7
+                    line=dict(color=THEME['candle_down'], width=2),
+                    opacity=0.7,
+                    hoverinfo='skip'
                 ),
                 row=1, col=1
             )
-            logger.info("✅ Downtrend line added to interactive chart")
 
-        # Volume - TradingView style
-        colors = ['#26A69A' if row['close'] >= row['open'] else '#EF5350' for _, row in df.iterrows()]
+        # ═══════════════════════════════════════
+        # VOLUME BARS
+        # ═══════════════════════════════════════
+        vol_colors = [
+            THEME['vol_up'] if c >= o else THEME['vol_down']
+            for c, o in zip(df['close'], df['open'])
+        ]
         fig.add_trace(
             go.Bar(
                 x=df['timestamp'], y=df['volume'],
                 name='Volume',
-                marker_color=colors,
-                opacity=0.5
+                marker=dict(color=vol_colors, line=dict(width=0)),
+                showlegend=False,
+                hoverinfo='skip'
             ),
             row=2, col=1
         )
 
-        # Update layout - TRADINGVIEW MINIMALIST STYLE
+        # ═══════════════════════════════════════
+        # CURRENT PRICE ANNOTATION
+        # ═══════════════════════════════════════
+        current_price = df['close'].iloc[-1]
+        price_change = (current_price - df['open'].iloc[0]) / df['open'].iloc[0] * 100
+        price_color = THEME['candle_up'] if price_change >= 0 else THEME['candle_down']
+        
+        fig.add_annotation(
+            x=0.01, y=0.98,
+            xref='paper', yref='paper',
+            text=f"<b>${current_price:,.2f}</b>  <span style='color:{price_color}'>{price_change:+.2f}%</span>",
+            showarrow=False,
+            font=dict(size=18, color=THEME['text_bright'], family='Arial Black'),
+            xanchor='left', yanchor='top',
+            bgcolor=THEME['bg_panel'],
+            bordercolor=price_color,
+            borderwidth=2,
+            borderpad=8
+        )
+
+        # ═══════════════════════════════════════
+        # LAYOUT (Ultra Premium)
+        # ═══════════════════════════════════════
         fig.update_layout(
-            template='plotly_dark',
             title=dict(
-                text=f"{symbol} - 15m Chart (Turkey Time UTC+3)",
-                font=dict(size=16, color='#D1D4DC'),
-                x=0.5,
-                xanchor='center'
+                text=f"<b>{symbol}</b> <span style='color:{THEME['text_dim']}'>15m</span>",
+                font=dict(size=20, color=THEME['text_bright'], family='Arial Black'),
+                x=0.5, xanchor='center', y=0.98
             ),
-            height=800,
-            hovermode='x unified',
-            dragmode='pan',  # Default to pan mode (TradingView style)
-            font=dict(family="Trebuchet MS", size=11, color="#D1D4DC"),
-            paper_bgcolor='#131722',
-            plot_bgcolor='#131722',
-            showlegend=True,
+            
+            paper_bgcolor=THEME['bg_dark'],
+            plot_bgcolor=THEME['bg_chart'],
+            
+            font=dict(family='Arial', color=THEME['text_dim']),
+            
             legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01,
-                bgcolor="rgba(19, 23, 34, 0.8)",
-                bordercolor="#1E222D",
-                borderwidth=1
+                orientation='h',
+                yanchor='bottom', y=1.01,
+                xanchor='center', x=0.5,
+                bgcolor='rgba(0,0,0,0)',
+                font=dict(size=10, color=THEME['text_dim'])
             ),
-            margin=dict(l=10, r=10, t=50, b=10)
+            
+            height=800,
+            margin=dict(l=10, r=80, t=60, b=10),
+            
+            hovermode='x unified',
+            hoverlabel=dict(
+                bgcolor=THEME['bg_panel'],
+                font_size=11,
+                font_family='Arial',
+                bordercolor=THEME['border']
+            ),
+            
+            dragmode='pan',
+            xaxis_rangeslider_visible=True,
+            xaxis_rangeslider_thickness=0.04
         )
 
-        # Update axes - Clean TradingView style with Y-axis zoom
-        fig.update_xaxes(
+        # Axis styling
+        axis_style = dict(
+            gridcolor=THEME['grid'],
+            gridwidth=1,
             showgrid=True,
-            gridwidth=0.5,
-            gridcolor='#1E222D',
-            showline=True,
-            linewidth=1,
-            linecolor='#1E222D',
-            rangeslider_visible=True,  # TradingView-style range slider!
-            rangeslider_thickness=0.05,
-            fixedrange=False,  # Allow X-axis zoom
-            row=2, col=1
+            zeroline=False,
+            linecolor=THEME['border'],
+            tickfont=dict(color=THEME['text_muted'], size=9)
         )
 
+        fig.update_xaxes(**axis_style, row=1, col=1)
+        fig.update_xaxes(**axis_style, showgrid=False, row=2, col=1)
+        
         fig.update_yaxes(
-            showgrid=True,
-            gridwidth=0.5,
-            gridcolor='#1E222D',
-            showline=True,
-            linewidth=1,
-            linecolor='#1E222D',
-            fixedrange=False,  # Allow Y-axis zoom (TradingView-style!)
-            side='right',  # Price scale on right side
-            showspikes=True,  # Show crosshair on hover
+            **axis_style,
+            side='right',
+            tickformat='$,.2f',
+            showspikes=True,
             spikemode='across',
             spikesnap='cursor',
-            spikecolor='#666',
-            spikethickness=1
+            spikecolor=THEME['text_muted'],
+            spikethickness=1,
+            row=1, col=1
+        )
+        fig.update_yaxes(
+            showgrid=False,
+            zeroline=False,
+            side='right',
+            tickfont=dict(color=THEME['text_muted'], size=8),
+            row=2, col=1
         )
 
-        # Generate HTML - TradingView-style interactions
+        # Timestamp watermark
+        tz = timezone(timedelta(hours=3))
+        now = datetime.now(tz)
+        fig.add_annotation(
+            x=0.99, y=0.01,
+            xref='paper', yref='paper',
+            text=f"🕐 {now.strftime('%H:%M:%S')} UTC+3",
+            showarrow=False,
+            font=dict(size=9, color=THEME['text_muted']),
+            xanchor='right', yanchor='bottom',
+            opacity=0.7
+        )
+
+        # ═══════════════════════════════════════
+        # GENERATE HTML
+        # ═══════════════════════════════════════
         html_content = fig.to_html(
             include_plotlyjs='cdn',
             config={
                 'displayModeBar': True,
                 'displaylogo': False,
-                'scrollZoom': True,  # Mouse wheel zoom (both X and Y axis)
+                'scrollZoom': True,
                 'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
                 'doubleClick': 'reset',
                 'responsive': True,
                 'toImageButtonOptions': {
                     'format': 'png',
-                    'filename': f'{symbol}_chart',
-                    'height': 800,
-                    'width': 1400,
+                    'filename': f'{symbol.replace("/", "_")}_chart',
+                    'height': 1000,
+                    'width': 1600,
                     'scale': 2
                 }
             }
         )
 
-        logger.info(f"✅ Interactive HTML chart generated for {symbol}")
+        # Add custom CSS for premium feel
+        custom_css = """
+        <style>
+            body {
+                background: linear-gradient(135deg, #0a0e17 0%, #0f1318 50%, #141920 100%);
+                margin: 0;
+                padding: 10px;
+                font-family: 'Arial', sans-serif;
+            }
+            .js-plotly-plot {
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            }
+        </style>
+        """
+        html_content = html_content.replace('<head>', f'<head>{custom_css}')
+
+        logger.info(f"✅ Premium interactive chart ready: {symbol}")
         return html_content
 
     except Exception as e:
-        logger.error(f"❌ Error generating interactive chart: {e}")
+        logger.error(f"❌ Interactive chart error: {e}")
         raise
