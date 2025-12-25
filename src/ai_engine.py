@@ -247,13 +247,23 @@ class AIConsensusEngine:
         # OLD: Basic PA logic here (only S/R + trend + volume)
         # NEW: Advanced PA analyzer with full confluence system
 
+        # 🔥 v6.5: GET EXCHANGE FOR MULTI-TIMEFRAME S/R ANALYSIS!
+        # Without exchange, only 15m S/R levels are used (missing 1w, 1d, 4h, 1h)
+        from src.exchange_client import get_exchange_client
+        try:
+            exchange = await get_exchange_client()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not get exchange client: {e} - using 15m S/R only")
+            exchange = None
+
         # Call should_enter_trade_v4_20251122() for professional PA analysis
-        pa_result = pa_analyzer.should_enter_trade_v4_20251122(
+        pa_result = await pa_analyzer.should_enter_trade_v4_20251122(
             symbol=symbol,
             df=df,
             ml_signal='BUY',  # Check both LONG and SHORT
             ml_confidence=0.75,  # Base confidence
-            current_price=current_price
+            current_price=current_price,
+            exchange=exchange  # 🔥 v6.5: Pass exchange for multi-TF S/R!
         )
 
         # Check LONG first
@@ -265,12 +275,13 @@ class AIConsensusEngine:
             logger.info(f"✅ LONG setup found: {pa_reasoning}")
         else:
             # Check SHORT
-            pa_result_short = pa_analyzer.should_enter_trade_v4_20251122(
+            pa_result_short = await pa_analyzer.should_enter_trade_v4_20251122(
                 symbol=symbol,
                 df=df,
                 ml_signal='SELL',  # Check SHORT
                 ml_confidence=0.75,
-                current_price=current_price
+                current_price=current_price,
+                exchange=exchange  # 🔥 v6.5: Pass exchange for multi-TF S/R!
             )
 
             if pa_result_short['should_enter']:
