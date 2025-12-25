@@ -2821,7 +2821,7 @@ class PriceActionAnalyzer:
         logger.info("=" * 80)
 
         # 🔥 FORCE BYTECODE RECOMPILE: Unique marker with timestamp
-        _v4_sr_enhancements_deployment_20251122_141904 = True
+        _v6_5_professional_mode_20251225 = True
 
         # 🎯 NEW v4.0: Multi-timeframe S/R analysis with adaptive window & psychological levels
         # 🔥 CRITICAL FIX: await async analyze_multi_timeframe_sr()
@@ -2844,6 +2844,24 @@ class PriceActionAnalyzer:
         liquidity_sweep = self.detect_liquidity_sweep(df)
         premium_discount = self.calculate_premium_discount_zone(df)
 
+        # 🔥 v6.5: TREND LINES - Diagonal S/R (professionals use this!)
+        trend_lines = self.detect_trend_lines(df, min_touches=2)
+        ascending_lines = trend_lines.get('ascending', [])
+        descending_lines = trend_lines.get('descending', [])
+        
+        # Update trend line prices to current candle
+        for tl in ascending_lines + descending_lines:
+            tl.update_current_price(len(df) - 1)
+
+        # 🔥 v6.5: EMA LEVELS - Dynamic S/R (institutional levels!)
+        ema_20 = float(df['close'].ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(df['close'].ewm(span=50, adjust=False).mean().iloc[-1])
+        ema_200 = float(df['close'].ewm(span=200, adjust=False).mean().iloc[-1]) if len(df) >= 200 else None
+        
+        # EMA Stack analysis (trend strength)
+        ema_bullish_stack = ema_20 > ema_50 and (ema_200 is None or ema_50 > ema_200)
+        ema_bearish_stack = ema_20 < ema_50 and (ema_200 is None or ema_50 < ema_200)
+
         # Log enhanced analysis
         logger.info(
             f"   📊 Trend: {trend['direction']} ({trend['strength']}, ADX {trend.get('adx', 0):.1f})\n"
@@ -2852,7 +2870,9 @@ class PriceActionAnalyzer:
             f"   💹 Order Flow: {order_flow['bias']} ({order_flow['buy_pressure']:.0%} buy / {order_flow['sell_pressure']:.0%} sell)\n"
             f"   🏗️ Structure: {market_structure['structure']}\n"
             f"   🔲 FVG Count: {len(fair_value_gaps)} | Sweep: {liquidity_sweep['sweep_type'] or 'None'}\n"
-            f"   💰 Zone: {premium_discount['zone']} ({premium_discount['position_pct']:.0f}%) → {premium_discount['recommendation']}"
+            f"   💰 Zone: {premium_discount['zone']} ({premium_discount['position_pct']:.0f}%) → {premium_discount['recommendation']}\n"
+            f"   📈 Trend Lines: {len(ascending_lines)} ascending, {len(descending_lines)} descending\n"
+            f"   📊 EMA Stack: {'BULLISH' if ema_bullish_stack else 'BEARISH' if ema_bearish_stack else 'MIXED'} (20:{ema_20:.2f}, 50:{ema_50:.2f})"
         )
 
         # Default: don't enter
@@ -2868,6 +2888,17 @@ class PriceActionAnalyzer:
                 'trend': trend,
                 'volume': volume,
                 'support_resistance': sr_analysis,
+                'trend_lines': {
+                    'ascending': [tl.to_sr_level(current_price).to_dict() for tl in ascending_lines],
+                    'descending': [tl.to_sr_level(current_price).to_dict() for tl in descending_lines]
+                },
+                'ema_levels': {
+                    'ema_20': ema_20,
+                    'ema_50': ema_50,
+                    'ema_200': ema_200,
+                    'bullish_stack': ema_bullish_stack,
+                    'bearish_stack': ema_bearish_stack
+                },
                 'candle_patterns': candle_patterns,
                 'order_flow': order_flow,
                 'market_structure': market_structure,
@@ -3256,6 +3287,47 @@ class PriceActionAnalyzer:
                 confidence_penalty += 10
                 trade_notes.append(f"⚠️ WEAK trend - needs confirmation")
 
+            # 🔥 v6.5: TREND LINE PROXIMITY CHECK (Diagonal S/R)
+            # Professionals trade at trend lines - they're dynamic S/R!
+            for tl in ascending_lines:
+                tl_price = tl.current_line_price
+                tl_distance = abs(current_price - tl_price) / current_price
+                if tl_distance <= 0.01:  # Within 1% of ascending trendline
+                    confidence_boost += 20
+                    trade_notes.append(f"📈 Price AT ascending trendline (${tl_price:.2f}) - STRONG support!")
+                    logger.info(f"   📈 TRENDLINE SUPPORT: Price at ascending line ${tl_price:.2f}")
+                    break
+
+            # 🔥 v6.5: EMA LEVEL CHECK (Dynamic S/R)
+            # EMA 20/50/200 act as dynamic support/resistance
+            ema_support_found = False
+            
+            # Check EMA 20 (scalping support)
+            if abs(current_price - ema_20) / current_price <= 0.005:  # Within 0.5%
+                confidence_boost += 10
+                trade_notes.append(f"📊 Price at EMA 20 (${ema_20:.2f}) - short-term support")
+                ema_support_found = True
+            
+            # Check EMA 50 (medium-term support)
+            if abs(current_price - ema_50) / current_price <= 0.008:  # Within 0.8%
+                confidence_boost += 15
+                trade_notes.append(f"📊 Price at EMA 50 (${ema_50:.2f}) - medium-term support")
+                ema_support_found = True
+            
+            # Check EMA 200 (institutional support - strongest!)
+            if ema_200 and abs(current_price - ema_200) / current_price <= 0.01:  # Within 1%
+                confidence_boost += 25
+                trade_notes.append(f"🏛️ Price at EMA 200 (${ema_200:.2f}) - INSTITUTIONAL support!")
+                ema_support_found = True
+            
+            # EMA Stack confirmation
+            if ema_bullish_stack:
+                confidence_boost += 10
+                trade_notes.append(f"📊 EMA BULLISH STACK (20>50>200) - Strong uptrend structure")
+            elif ema_bearish_stack:
+                confidence_penalty += 15
+                trade_notes.append(f"⚠️ EMA BEARISH STACK - Counter-trend LONG")
+
             # 🎯 v4.2: VOLUME as CONFIDENCE ADJUSTMENT (not hard block!)
             vol_ratio = volume.get('surge_ratio', 1.0)
             if vol_ratio >= 2.0:  # Strong surge
@@ -3490,6 +3562,47 @@ class PriceActionAnalyzer:
             elif trend['strength'] == 'WEAK':
                 confidence_penalty += 10
                 trade_notes.append(f"⚠️ WEAK trend - needs confirmation")
+
+            # 🔥 v6.5: TREND LINE PROXIMITY CHECK (Diagonal S/R)
+            # Professionals trade at trend lines - they're dynamic S/R!
+            for tl in descending_lines:
+                tl_price = tl.current_line_price
+                tl_distance = abs(current_price - tl_price) / current_price
+                if tl_distance <= 0.01:  # Within 1% of descending trendline
+                    confidence_boost += 20
+                    trade_notes.append(f"📉 Price AT descending trendline (${tl_price:.2f}) - STRONG resistance!")
+                    logger.info(f"   📉 TRENDLINE RESISTANCE: Price at descending line ${tl_price:.2f}")
+                    break
+
+            # 🔥 v6.5: EMA LEVEL CHECK (Dynamic S/R)
+            # EMA 20/50/200 act as dynamic support/resistance
+            ema_resistance_found = False
+            
+            # Check EMA 20 (scalping resistance)
+            if abs(current_price - ema_20) / current_price <= 0.005:  # Within 0.5%
+                confidence_boost += 10
+                trade_notes.append(f"📊 Price at EMA 20 (${ema_20:.2f}) - short-term resistance")
+                ema_resistance_found = True
+            
+            # Check EMA 50 (medium-term resistance)
+            if abs(current_price - ema_50) / current_price <= 0.008:  # Within 0.8%
+                confidence_boost += 15
+                trade_notes.append(f"📊 Price at EMA 50 (${ema_50:.2f}) - medium-term resistance")
+                ema_resistance_found = True
+            
+            # Check EMA 200 (institutional resistance - strongest!)
+            if ema_200 and abs(current_price - ema_200) / current_price <= 0.01:  # Within 1%
+                confidence_boost += 25
+                trade_notes.append(f"🏛️ Price at EMA 200 (${ema_200:.2f}) - INSTITUTIONAL resistance!")
+                ema_resistance_found = True
+            
+            # EMA Stack confirmation
+            if ema_bearish_stack:
+                confidence_boost += 10
+                trade_notes.append(f"📊 EMA BEARISH STACK (20<50<200) - Strong downtrend structure")
+            elif ema_bullish_stack:
+                confidence_penalty += 15
+                trade_notes.append(f"⚠️ EMA BULLISH STACK - Counter-trend SHORT")
 
             # 🎯 v4.2: VOLUME as CONFIDENCE ADJUSTMENT (not hard block!)
             vol_ratio = volume.get('surge_ratio', 1.0)
