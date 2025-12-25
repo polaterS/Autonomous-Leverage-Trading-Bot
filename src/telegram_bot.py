@@ -1163,10 +1163,39 @@ Sorularınız için: @your_support
             )
 
     async def cmd_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /chart command - show coin selection menu."""
+        """
+        Handle /chart command - Generate premium chart for a coin.
+        
+        Usage:
+        - /chart → Show coin selection menu
+        - /chart BTC → Generate chart for BTC/USDT directly
+        - /chart ETHUSDT → Generate chart for ETH/USDT
+        """
         logger.info("📈 /chart command called")
 
-        # Popular coins (top 20 from settings)
+        # Check if symbol argument provided (like /analyze)
+        if context.args and len(context.args) >= 1:
+            symbol_input = context.args[0].upper()
+            
+            # Normalize symbol format
+            # Handle: BTC, BTCUSDT, BTC/USDT, BTC/USDT:USDT
+            symbol_input = symbol_input.replace('USDT', '').replace('/', '').replace(':', '')
+            symbol = f"{symbol_input}/USDT:USDT"
+            
+            logger.info(f"📈 Generating chart for {symbol} (from argument)")
+            
+            # Send loading message
+            loading_msg = await update.message.reply_text(
+                f"📊 <b>{symbol_input}</b> için grafik oluşturuluyor...\n\n"
+                "⏳ Bu işlem 5-10 saniye sürebilir.",
+                parse_mode=ParseMode.HTML
+            )
+            
+            # Generate chart directly
+            await self._generate_and_send_chart(update, symbol, loading_msg, timeframe='4h', candle_limit=1500)
+            return
+
+        # No arguments - show coin selection menu (original behavior)
         popular_coins = [
             'BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT', 'BNB/USDT:USDT',
             'XRP/USDT:USDT', 'DOGE/USDT:USDT', 'ADA/USDT:USDT', 'AVAX/USDT:USDT',
@@ -1207,6 +1236,11 @@ TradingView Pro+ kalitesinde grafik:
 • 📊 Profesyonel volume analizi
 • 🎨 Dark theme premium renk paleti
 
+<b>📌 Kullanım:</b>
+• Aşağıdan coin seçin VEYA
+• <code>/chart BTC</code> yazarak direkt grafik alın
+• Örn: <code>/chart ETH</code>, <code>/chart SOL</code>
+
 Coin seçin:
 """
 
@@ -1215,6 +1249,150 @@ Coin seçin:
             parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
+
+    async def _generate_and_send_chart(self, update: Update, symbol: str, loading_msg, timeframe: str = '4h', candle_limit: int = 1500):
+        """
+        Helper method to generate and send chart directly.
+        Used by /chart [coin] command.
+        """
+        try:
+            # Timeframe display names
+            tf_names = {
+                '5m': '5 Dakika', '15m': '15 Dakika', '1h': '1 Saat',
+                '4h': '4 Saat', '1d': '1 Gün'
+            }
+            tf_name = tf_names.get(timeframe, timeframe)
+
+            # Calculate period based on timeframe and candle count
+            period_calc = {
+                '5m': candle_limit * 5 / 60 / 24,
+                '15m': candle_limit * 15 / 60 / 24,
+                '1h': candle_limit / 24,
+                '4h': candle_limit * 4 / 24,
+                '1d': candle_limit,
+            }
+            days = period_calc.get(timeframe, candle_limit)
+            if days < 1:
+                period_str = f"~{int(days * 24)} saat"
+            elif days < 30:
+                period_str = f"~{int(days)} gün"
+            elif days < 365:
+                period_str = f"~{int(days / 30)} ay"
+            else:
+                period_str = f"~{int(days / 365)} yıl"
+
+            logger.info(f"📈 Generating PREMIUM chart for {symbol} ({timeframe}, {candle_limit} candles)")
+
+            # Fetch OHLCV data from exchange
+            from src.exchange_client import get_exchange_client
+            exchange = await get_exchange_client()
+            ohlcv_data = await exchange.fetch_ohlcv(symbol, timeframe, limit=candle_limit)
+
+            if not ohlcv_data or len(ohlcv_data) < 50:
+                await loading_msg.edit_text(
+                    f"❌ {symbol} için yeterli veri bulunamadı",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            actual_candles = len(ohlcv_data)
+
+            # Update loading message
+            await loading_msg.edit_text(
+                f"✨ <b>{symbol}</b> • {tf_name} • {actual_candles} mum\n\n"
+                f"🎨 Ultra Premium grafik oluşturuluyor...\n"
+                f"⏳ Lütfen bekleyin (5-15 sn)",
+                parse_mode=ParseMode.HTML
+            )
+
+            # Generate ULTRA PREMIUM chart (PNG)
+            from src.ultra_premium_chart import get_ultra_premium_chart
+            premium_chart = get_ultra_premium_chart()
+            chart_bytes = await premium_chart.generate(
+                symbol=symbol,
+                ohlcv=ohlcv_data,
+                timeframe=timeframe,
+                width=1600,
+                height=1000
+            )
+
+            # Generate interactive HTML chart
+            from src.indicators import detect_support_resistance_levels
+            current_price = float(ohlcv_data[-1][4])
+            support_resistance = detect_support_resistance_levels(ohlcv_data, current_price)
+            support_levels = support_resistance.get('swing_lows', [])
+            resistance_levels = support_resistance.get('swing_highs', [])
+
+            html_content = await generate_interactive_html_chart(
+                symbol=symbol,
+                ohlcv_data=ohlcv_data,
+                support_levels=support_levels,
+                resistance_levels=resistance_levels
+            )
+
+            # Store HTML and get chart ID
+            chart_id = store_chart(html_content, symbol)
+
+            # Get Railway URL
+            railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+            if railway_domain:
+                railway_domain = railway_domain.replace('https://', '').replace('http://', '')
+                base_url = f"https://{railway_domain}"
+            else:
+                base_url = "https://worker-production-0db8.up.railway.app"
+
+            interactive_url = f"{base_url}/chart/{chart_id}"
+            logger.info(f"🔗 Interactive chart URL: {interactive_url}")
+
+            # Calculate price metrics
+            price_change = ((ohlcv_data[-1][4] - ohlcv_data[0][1]) / ohlcv_data[0][1]) * 100
+            emoji = "🟢" if price_change >= 0 else "🔴"
+
+            # Premium caption
+            caption = f"""
+{emoji} <b>{symbol}</b>
+
+<b>💰 ${current_price:,.2f}</b>  <code>{price_change:+.2f}%</code>
+
+📊 {tf_name} • {actual_candles} mum • {period_str}
+🕐 {get_turkey_time().strftime('%H:%M:%S')} UTC+3
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+<b>📈 S/R Seviyeleri</b>
+🟢 Destek: {', '.join([f'${s:,.2f}' for s in support_levels[:2]]) if support_levels else 'N/A'}
+🔴 Direnç: {', '.join([f'${r:,.2f}' for r in resistance_levels[:2]]) if resistance_levels else 'N/A'}
+
+<b>📉 EMA Çizgileri</b>
+🔵 EMA 12 • 🟠 EMA 26 • 🟣 EMA 50
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🖱️ <a href="{interactive_url}">İnteraktif Grafiği Aç</a>
+"""
+
+            # Delete loading message
+            await loading_msg.delete()
+
+            # Send premium photo
+            await update.message.reply_photo(
+                photo=chart_bytes,
+                caption=caption,
+                parse_mode=ParseMode.HTML
+            )
+
+            logger.info(f"✅ Premium chart sent for {symbol} ({timeframe}) (ID: {chart_id})")
+
+        except Exception as e:
+            logger.error(f"❌ Error generating chart: {e}")
+            try:
+                await loading_msg.edit_text(
+                    f"❌ Grafik oluşturulurken hata oluştu:\n\n{str(e)[:200]}",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                await update.message.reply_text(
+                    f"❌ Grafik oluşturulurken hata oluştu:\n\n{str(e)[:200]}",
+                    parse_mode=ParseMode.HTML
+                )
 
     async def cmd_scan(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /scan command - triggers immediate market scan."""
