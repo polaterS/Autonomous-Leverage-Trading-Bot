@@ -351,17 +351,18 @@ def calculate_profit_targets(
     market_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Decimal]:
     """
-    Calculate scaled profit targets based on RISK/REWARD RATIO.
+    Calculate DYNAMIC profit targets based on S/R levels and market conditions.
 
-    🎯 NEW STRATEGY (R/R-BASED):
-    - Calculate risk distance from entry to stop-loss
-    - Target 1: 1.5x risk distance (minimum R/R 1.5:1)
-    - Target 2: 2.0x risk distance (minimum R/R 2.0:1)
-    - Ensures profitable trading even with 60% win rate
+    🎯 v6.5 DYNAMIC TP SYSTEM:
+    - Uses actual S/R levels from PA analysis as targets
+    - Falls back to R/R-based targets if no S/R data
+    - Adjusts targets based on volatility (ATR)
+    - Ensures minimum R/R ratio for profitability
 
-    🔥 CRITICAL FIX:
-    - OLD: Fixed $2.50 profit targets (caused R/R 0.04 for large positions!)
-    - NEW: R/R-based targets (ensures minimum 1.5:1 R/R for all positions)
+    PROFESSIONAL APPROACH:
+    - LONG: TP at nearest resistance levels
+    - SHORT: TP at nearest support levels
+    - Dynamic min_profit based on position size and volatility
 
     Args:
         entry_price: Entry price of position
@@ -369,68 +370,238 @@ def calculate_profit_targets(
         position_value: Position value in USD
         leverage: Leverage used
         stop_loss_price: Actual stop-loss price (leverage-adjusted)
-        market_data: Optional market data with S/R levels and ATR
+        market_data: Market data with S/R levels, ATR, and PA analysis
 
     Returns:
-        Dict with profit_target_1, profit_target_2, target_1_profit_usd, target_2_profit_usd
+        Dict with profit_target_1, profit_target_2, target_1_profit_usd, target_2_profit_usd,
+        dynamic_min_profit_usd, target_source
     """
-
-    # 🔥 NEW: Calculate risk distance (entry to stop-loss)
-    risk_distance = abs(entry_price - stop_loss_price)
-
     logger = logging.getLogger('trading_bot')
+    leverage_decimal = Decimal(str(leverage))
+    
+    # 🔥 Calculate risk distance (entry to stop-loss)
+    risk_distance = abs(entry_price - stop_loss_price)
+    risk_percent = float(risk_distance / entry_price * 100)
+    
     logger.info(
-        f"💰 Calculating R/R-based profit targets:\n"
+        f"💰 Calculating DYNAMIC profit targets:\n"
         f"   Entry: ${float(entry_price):.4f}\n"
         f"   Stop: ${float(stop_loss_price):.4f}\n"
-        f"   Risk Distance: ${float(risk_distance):.4f} ({float(risk_distance/entry_price*100):.2f}%)"
+        f"   Risk Distance: ${float(risk_distance):.4f} ({risk_percent:.2f}%)"
     )
-
-    leverage_decimal = Decimal(str(leverage))
-
-    if side == 'LONG':
-        # For LONG: profit from price increase
-        # TARGET 1: 1.5x risk distance (conservative, lock in profit early)
-        reward_distance_1 = risk_distance * Decimal("1.5")
-        profit_target_1 = entry_price + reward_distance_1
-
-        # TARGET 2: 2.0x risk distance (aggressive, let winners run)
-        reward_distance_2 = risk_distance * Decimal("2.0")
-        profit_target_2 = entry_price + reward_distance_2
-
-    else:  # SHORT
-        # For SHORT: profit from price decrease
-        # TARGET 1: 1.5x risk distance (conservative, lock in profit early)
-        reward_distance_1 = risk_distance * Decimal("1.5")
-        profit_target_1 = entry_price - reward_distance_1
-
-        # TARGET 2: 2.0x risk distance (aggressive, let winners run)
-        reward_distance_2 = risk_distance * Decimal("2.0")
-        profit_target_2 = entry_price - reward_distance_2
-
-    # Calculate expected profit in USD for each target
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 🎯 STEP 1: Try to use S/R levels from PA analysis (PROFESSIONAL APPROACH)
+    # ═══════════════════════════════════════════════════════════════════════════
+    target_source = "R/R-based"  # Default
+    profit_target_1 = None
+    profit_target_2 = None
+    
+    if market_data:
+        pa_analysis = market_data.get('pa_analysis', {})
+        
+        # Get S/R levels from PA analysis
+        resistance_levels = []
+        support_levels = []
+        
+        # Try different data formats
+        if pa_analysis:
+            # Format 1: Direct from should_enter_trade result
+            if 'targets' in pa_analysis:
+                targets = pa_analysis['targets']
+                if side == 'LONG' and len(targets) >= 2:
+                    profit_target_1 = Decimal(str(targets[0]))
+                    profit_target_2 = Decimal(str(targets[1]))
+                    target_source = "PA-targets"
+                elif side == 'SHORT' and len(targets) >= 2:
+                    profit_target_1 = Decimal(str(targets[0]))
+                    profit_target_2 = Decimal(str(targets[1]))
+                    target_source = "PA-targets"
+            
+            # Format 2: S/R levels from analysis
+            if not profit_target_1:
+                sr_data = pa_analysis.get('sr_analysis', {})
+                resistance_levels = sr_data.get('resistance', [])
+                support_levels = sr_data.get('support', [])
+        
+        # Format 3: Direct S/R from market_data
+        if not profit_target_1:
+            if 'resistance_levels' in market_data:
+                resistance_levels = market_data.get('resistance_levels', [])
+            if 'support_levels' in market_data:
+                support_levels = market_data.get('support_levels', [])
+        
+        # 🎯 LONG: Target resistance levels
+        if side == 'LONG' and resistance_levels and not profit_target_1:
+            # Sort resistance levels by price (ascending)
+            if isinstance(resistance_levels[0], dict):
+                sorted_res = sorted([r['price'] for r in resistance_levels if r['price'] > float(entry_price)])
+            else:
+                sorted_res = sorted([r for r in resistance_levels if r > float(entry_price)])
+            
+            if len(sorted_res) >= 2:
+                profit_target_1 = Decimal(str(sorted_res[0]))  # First resistance
+                profit_target_2 = Decimal(str(sorted_res[1]))  # Second resistance
+                target_source = "S/R-levels"
+                logger.info(f"   🎯 Using RESISTANCE levels as targets: T1=${float(profit_target_1):.4f}, T2=${float(profit_target_2):.4f}")
+            elif len(sorted_res) == 1:
+                profit_target_1 = Decimal(str(sorted_res[0]))
+                # T2 = T1 + risk distance (extend beyond first resistance)
+                profit_target_2 = profit_target_1 + risk_distance
+                target_source = "S/R-extended"
+        
+        # 🎯 SHORT: Target support levels
+        elif side == 'SHORT' and support_levels and not profit_target_1:
+            # Sort support levels by price (descending - closest first)
+            if isinstance(support_levels[0], dict):
+                sorted_sup = sorted([s['price'] for s in support_levels if s['price'] < float(entry_price)], reverse=True)
+            else:
+                sorted_sup = sorted([s for s in support_levels if s < float(entry_price)], reverse=True)
+            
+            if len(sorted_sup) >= 2:
+                profit_target_1 = Decimal(str(sorted_sup[0]))  # First support
+                profit_target_2 = Decimal(str(sorted_sup[1]))  # Second support
+                target_source = "S/R-levels"
+                logger.info(f"   🎯 Using SUPPORT levels as targets: T1=${float(profit_target_1):.4f}, T2=${float(profit_target_2):.4f}")
+            elif len(sorted_sup) == 1:
+                profit_target_1 = Decimal(str(sorted_sup[0]))
+                # T2 = T1 - risk distance (extend beyond first support)
+                profit_target_2 = profit_target_1 - risk_distance
+                target_source = "S/R-extended"
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 🎯 STEP 2: Fallback to R/R-based targets if no S/R data
+    # ═══════════════════════════════════════════════════════════════════════════
+    if not profit_target_1 or not profit_target_2:
+        logger.info("   ⚠️ No S/R levels found, using R/R-based targets")
+        target_source = "R/R-based"
+        
+        if side == 'LONG':
+            # TARGET 1: 1.5x risk distance
+            reward_distance_1 = risk_distance * Decimal("1.5")
+            profit_target_1 = entry_price + reward_distance_1
+            
+            # TARGET 2: 2.5x risk distance (more aggressive for dynamic system)
+            reward_distance_2 = risk_distance * Decimal("2.5")
+            profit_target_2 = entry_price + reward_distance_2
+        else:  # SHORT
+            reward_distance_1 = risk_distance * Decimal("1.5")
+            profit_target_1 = entry_price - reward_distance_1
+            
+            reward_distance_2 = risk_distance * Decimal("2.5")
+            profit_target_2 = entry_price - reward_distance_2
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 🎯 STEP 3: Validate targets meet minimum R/R requirements
+    # ═══════════════════════════════════════════════════════════════════════════
+    MIN_RR_T1 = Decimal("1.2")  # Minimum 1.2:1 for T1
+    MIN_RR_T2 = Decimal("2.0")  # Minimum 2.0:1 for T2
+    
+    # Calculate actual R/R for each target
+    t1_reward = abs(profit_target_1 - entry_price)
+    t2_reward = abs(profit_target_2 - entry_price)
+    
+    t1_rr = t1_reward / risk_distance if risk_distance > 0 else Decimal("0")
+    t2_rr = t2_reward / risk_distance if risk_distance > 0 else Decimal("0")
+    
+    # Adjust T1 if R/R too low
+    if t1_rr < MIN_RR_T1:
+        logger.info(f"   ⚠️ T1 R/R {float(t1_rr):.2f} < {float(MIN_RR_T1)}, adjusting...")
+        if side == 'LONG':
+            profit_target_1 = entry_price + (risk_distance * MIN_RR_T1)
+        else:
+            profit_target_1 = entry_price - (risk_distance * MIN_RR_T1)
+        t1_rr = MIN_RR_T1
+    
+    # Adjust T2 if R/R too low
+    if t2_rr < MIN_RR_T2:
+        logger.info(f"   ⚠️ T2 R/R {float(t2_rr):.2f} < {float(MIN_RR_T2)}, adjusting...")
+        if side == 'LONG':
+            profit_target_2 = entry_price + (risk_distance * MIN_RR_T2)
+        else:
+            profit_target_2 = entry_price - (risk_distance * MIN_RR_T2)
+        t2_rr = MIN_RR_T2
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 🎯 STEP 4: Calculate DYNAMIC minimum profit based on conditions
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Base minimum profit (from config, typically $5)
+    from src.config import get_settings
+    settings = get_settings()
+    base_min_profit = settings.min_profit_usd
+    
+    # Get ATR for volatility adjustment
+    atr_percent = Decimal("2.5")  # Default medium volatility
+    if market_data:
+        indicators = market_data.get('indicators', {})
+        if isinstance(indicators, dict):
+            atr_percent = Decimal(str(indicators.get('atr_percent', 2.5)))
+    
+    # 🎯 DYNAMIC MIN PROFIT CALCULATION
+    # Higher volatility = higher potential profit = higher min target
+    # Larger position = higher absolute profit potential
+    
+    # Volatility multiplier (1.0 - 2.0 based on ATR)
+    if atr_percent < Decimal("1.5"):
+        volatility_mult = Decimal("0.8")  # Low vol = lower target
+    elif atr_percent < Decimal("3.0"):
+        volatility_mult = Decimal("1.0")  # Medium vol = base target
+    elif atr_percent < Decimal("5.0"):
+        volatility_mult = Decimal("1.5")  # High vol = higher target
+    else:
+        volatility_mult = Decimal("2.0")  # Very high vol = much higher target
+    
+    # Position size multiplier (larger positions can target more)
+    # $100 position = 1.0x, $500 position = 1.5x, $1000+ = 2.0x
+    if position_value < Decimal("100"):
+        size_mult = Decimal("0.8")
+    elif position_value < Decimal("300"):
+        size_mult = Decimal("1.0")
+    elif position_value < Decimal("500"):
+        size_mult = Decimal("1.3")
+    elif position_value < Decimal("1000"):
+        size_mult = Decimal("1.6")
+    else:
+        size_mult = Decimal("2.0")
+    
+    # Calculate dynamic min profit
+    dynamic_min_profit = base_min_profit * volatility_mult * size_mult
+    
+    # Cap at reasonable levels
+    dynamic_min_profit = max(dynamic_min_profit, Decimal("3.0"))  # Minimum $3
+    dynamic_min_profit = min(dynamic_min_profit, Decimal("50.0"))  # Maximum $50
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 🎯 STEP 5: Calculate expected profits
+    # ═══════════════════════════════════════════════════════════════════════════
     # Target 1: 50% of position
     price_change_1 = abs(profit_target_1 - entry_price) / entry_price
     target_1_profit_usd = (position_value * Decimal("0.5")) * price_change_1 * leverage_decimal
-
+    
     # Target 2: Remaining 50% (total profit if both hit)
     price_change_2 = abs(profit_target_2 - entry_price) / entry_price
     target_2_total_profit_usd = (
-        target_1_profit_usd +  # Profit from T1 (already closed)
-        (position_value * Decimal("0.5")) * price_change_2 * leverage_decimal  # Profit from T2
+        target_1_profit_usd +
+        (position_value * Decimal("0.5")) * price_change_2 * leverage_decimal
     )
-
+    
     logger.info(
-        f"✅ Profit targets calculated:\n"
-        f"   Target 1: ${float(profit_target_1):.4f} (R/R 1.5:1) → ${float(target_1_profit_usd):.2f} profit\n"
-        f"   Target 2: ${float(profit_target_2):.4f} (R/R 2.0:1) → ${float(target_2_total_profit_usd):.2f} total profit"
+        f"✅ DYNAMIC Profit targets calculated ({target_source}):\n"
+        f"   Target 1: ${float(profit_target_1):.4f} (R/R {float(t1_rr):.1f}:1) → ${float(target_1_profit_usd):.2f} profit\n"
+        f"   Target 2: ${float(profit_target_2):.4f} (R/R {float(t2_rr):.1f}:1) → ${float(target_2_total_profit_usd):.2f} total\n"
+        f"   Dynamic Min Profit: ${float(dynamic_min_profit):.2f} (base ${float(base_min_profit):.2f} × vol {float(volatility_mult):.1f} × size {float(size_mult):.1f})\n"
+        f"   ATR: {float(atr_percent):.2f}% | Position: ${float(position_value):.2f}"
     )
-
+    
     return {
-        'profit_target_1': profit_target_1,  # First target (close 50%)
-        'profit_target_2': profit_target_2,  # Second target (close remaining 50%)
-        'target_1_profit_usd': target_1_profit_usd,  # Expected profit at T1
-        'target_2_profit_usd': target_2_total_profit_usd,  # Total profit if T2 hit
+        'profit_target_1': profit_target_1,
+        'profit_target_2': profit_target_2,
+        'target_1_profit_usd': target_1_profit_usd,
+        'target_2_profit_usd': target_2_total_profit_usd,
+        'dynamic_min_profit_usd': dynamic_min_profit,
+        'target_source': target_source,
+        't1_rr_ratio': float(t1_rr),
+        't2_rr_ratio': float(t2_rr),
     }
 
 

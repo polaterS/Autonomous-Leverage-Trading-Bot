@@ -147,10 +147,25 @@ Sit back and monitor your portfolio! 💰
             f"🛑 Stop-Loss: <b>${float(stop_loss_price):.4f}</b>",
             f"   ├ Price Move: <b>{float(price_move_pct):.2f}%</b>",
             f"   └ Max Loss: <b>${float(usd_loss_at_sl):.2f}</b> (with {leverage}x leverage)\n",
-            f"🎯 Profit Target: <b>${float(PROFIT_TARGET_USD):.2f}</b> ({TARGET_LEVEL})",
-            f"💎 Min Profit Target: <b>${float(position['min_profit_target_usd']):.2f}</b>",
-            f"⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>\n",
         ]
+        
+        # 🎯 v6.5: Show DYNAMIC profit targets
+        profit_target_1 = position.get('profit_target_1')
+        profit_target_2 = position.get('profit_target_2')
+        target_source = position.get('target_source', 'R/R-based')
+        
+        message_parts.append(f"🎯 <b>DYNAMIC PROFIT TARGETS</b> ({target_source})")
+        message_parts.append(f"   💎 Min Profit: <b>${float(PROFIT_TARGET_USD):.2f}</b> ({TARGET_LEVEL})")
+        
+        if profit_target_1:
+            t1_dist = abs(float(profit_target_1) - float(entry_price)) / float(entry_price) * 100
+            message_parts.append(f"   🎯 TP1 (50%): <b>${float(profit_target_1):.4f}</b> (+{t1_dist:.2f}%)")
+        
+        if profit_target_2:
+            t2_dist = abs(float(profit_target_2) - float(entry_price)) / float(entry_price) * 100
+            message_parts.append(f"   🎯 TP2 (50%): <b>${float(profit_target_2):.4f}</b> (+{t2_dist:.2f}%)")
+        
+        message_parts.append(f"⚠️ Liquidation: <b>${float(position['liquidation_price']):.4f}</b>\n")
 
         # 🎯 ALWAYS SHOW: Price Action analysis (even when no signals found)
         message_parts.append("\n📈 <b>PRICE ACTION ANALYSIS</b>")

@@ -436,6 +436,13 @@ class TradeExecutor:
             profit_target_2 = profit_targets['profit_target_2']
             target_1_profit = profit_targets['target_1_profit_usd']
             target_2_profit = profit_targets['target_2_profit_usd']
+            
+            # 🎯 v6.5: Use DYNAMIC min profit from analysis
+            dynamic_min_profit = profit_targets.get('dynamic_min_profit_usd', self.settings.min_profit_usd)
+            target_source = profit_targets.get('target_source', 'R/R-based')
+            
+            logger.info(f"🎯 Dynamic TP System: {target_source}")
+            logger.info(f"   Dynamic Min Profit: ${float(dynamic_min_profit):.2f} (config: ${float(self.settings.min_profit_usd):.2f})")
 
             # BINANCE MINIMUM ORDER SIZE CHECK ($20 minimum)
             BINANCE_MIN_NOTIONAL = Decimal("20.0")
@@ -757,7 +764,7 @@ class TradeExecutor:
                 'position_value_usd': position_value,
                 'stop_loss_price': stop_loss_price,
                 'stop_loss_percent': Decimal(str(stop_loss_percent)),
-                'min_profit_target_usd': self.settings.min_profit_usd,
+                'min_profit_target_usd': dynamic_min_profit,  # 🎯 v6.5: DYNAMIC min profit
                 'min_profit_price': min_profit_price,
                 'liquidation_price': liquidation_price,
                 'exchange_order_id': exchange_order_id,
@@ -784,6 +791,7 @@ class TradeExecutor:
                 # 🎯 PARTIAL EXIT TARGETS (NEW!)
                 'profit_target_1': profit_target_1,
                 'profit_target_2': profit_target_2,
+                'target_source': target_source,  # 🎯 v6.5: Track target source
                 'partial_exit_done': False,
                 'partial_exit_profit': Decimal("0")
             }
