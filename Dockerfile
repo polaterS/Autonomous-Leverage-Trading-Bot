@@ -1,22 +1,23 @@
-# 🔧 v6.5 PA-ONLY + News Sentiment + Dynamic TP
+# 🔧 v6.5.1 PA-ONLY + News Sentiment + Dynamic TP + CLOSEALL FIX
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251226_V65_NEWS_DYNAMIC_TP
+ARG CACHE_BUST=20251226_V651_CLOSEALL_NEWS_FIX
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🔧 v6.5: NEWS SENTIMENT + DYNAMIC TP!" && \
+    echo "🔧 v6.5.1: CLOSEALL + NEWS COMMAND FIX!" && \
     echo "   📊 Major Updates:" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v6.5 FEATURES:" && \
-    echo "      🗞️ /news command - Crypto news sentiment analysis" && \
+    echo "   🆕 v6.5.1 FIXES:" && \
+    echo "      ✅ /closeall command working" && \
+    echo "      ✅ /news command working" && \
+    echo "      🗞️ News sentiment analysis" && \
     echo "      🎯 Dynamic TP based on S/R levels" && \
     echo "      🔧 Fixed hardcoded 20% stop-loss bug" && \
-    echo "      📊 Now uses config: MAX_STOP_LOSS_PERCENT" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   📊 Previous versions:" && \
-    echo "      ✅ v6.4: Professional Entry at S/R levels" && \
-    echo "      ✅ v6.3: Multi-TF S/R analysis"
+    echo "      ✅ v6.5: News + Dynamic TP" && \
+    echo "      ✅ v6.4: Professional Entry at S/R levels"
 
 # Set working directory
 WORKDIR /app
@@ -36,17 +37,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 🔧 CACHE BUST MARKER: v5.0.17 - Indicator Fix
-# Current deployment: 20251209_V5017_INDICATOR_FIX
-# Changes: CRITICAL fix - Level-Based Trading indicators were MISSING!
-#   🔧 v5.0.17: Indicator Fix
-#      🔧 Added ema_20, ema_50 (trend direction filter was BROKEN!)
-#      🔧 Added adx, plus_di, minus_di (trend strength filter BROKEN!)
-#      🔧 /analyze now shows ADX + EMA values for debugging
+# 🔧 CACHE BUST MARKER: v6.5.1 - Closeall + News Fix
+# Current deployment: 20251226_V651_CLOSEALL_NEWS_FIX
+# Changes: Commands /closeall and /news now working!
+#   🔧 v6.5.1: Command Fix
+#      ✅ /closeall - Close all positions
+#      ✅ /news [COIN] - News sentiment analysis
 #   📊 Previous versions:
-#      ✅ v5.0.16: Low Liquidity Blacklist
-#      ✅ v5.0.15: Balanced Settings
-#      ✅ v5.0.14: Ghost Exit Price Fix
+#      ✅ v6.5: News + Dynamic TP
+#      ✅ v5.0.17: Indicator Fix
 COPY . .
 
 # 🔥 NUCLEAR OPTION: Delete ALL Python cache IMMEDIATELY after copy
