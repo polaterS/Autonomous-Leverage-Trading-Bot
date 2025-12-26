@@ -965,10 +965,10 @@ class MarketScanner:
                     else:
                         # Only strategy has a signal (AI/ML silent) - use strategy signal
                         # Convert strategy to individual analysis format
-                        # 🔧 Calculate leverage and stop loss based on strategy confidence
+                        # 🔧 v6.5: Use config values for leverage and stop-loss
                         strategy_confidence = strategy_analysis['confidence']
-                        suggested_leverage = 5 if strategy_confidence < 0.80 else 7 if strategy_confidence < 0.90 else 10
-                        stop_loss_percent = 20.0 if strategy_confidence < 0.80 else 16.0 if strategy_confidence < 0.90 else 12.0
+                        suggested_leverage = self.settings.max_leverage  # Use config
+                        stop_loss_percent = float(self.settings.max_stop_loss_percent)  # Use config
 
                         individual_analyses = [{
                             'action': strategy_analysis['action'].lower(),
@@ -1018,19 +1018,9 @@ class MarketScanner:
                             # PA setup is STRONG (≥15% boost) - override ML HOLD
                             synthetic_confidence = (50 + best_pa['confidence_boost']) / 100
 
-                            # Calculate leverage and stop-loss based on confidence (same logic as AI engine)
-                            if synthetic_confidence >= 0.85:  # 85%+ = Ultra high confidence
-                                suggested_leverage = 10  # Max 10x
-                                stop_loss_percent = 20.0  # Widest stop
-                            elif synthetic_confidence >= 0.75:  # 75-84% = High confidence
-                                suggested_leverage = 7
-                                stop_loss_percent = 16.0
-                            elif synthetic_confidence >= 0.70:  # 70-74% = Acceptable
-                                suggested_leverage = 5
-                                stop_loss_percent = 14.0
-                            else:  # <70% (typical for PA override: 65-70%)
-                                suggested_leverage = 3
-                                stop_loss_percent = 12.0
+                            # 🔧 v6.5: Use config values for leverage and stop-loss
+                            suggested_leverage = self.settings.max_leverage
+                            stop_loss_percent = float(self.settings.max_stop_loss_percent)
 
                             logger.info(
                                 f"🎯 {symbol} PA OVERRIDE: ML said HOLD but PA found {suggested_side.upper()} setup! "
