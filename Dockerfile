@@ -1,21 +1,22 @@
-# 🔧 INDICATOR FIX v5.0.17
+# 🔧 v6.5 PA-ONLY + News Sentiment + Dynamic TP
 FROM python:3.11-slim
 
 # Cache bust argument to force rebuild when needed
-ARG CACHE_BUST=20251209_V5017_INDICATOR_FIX
+ARG CACHE_BUST=20251226_V65_NEWS_DYNAMIC_TP
 RUN echo "🔥🔥🔥 CACHE BUST: ${CACHE_BUST}" && \
     echo "Build timestamp: $(date)" && \
-    echo "🔧 v5.0.17: CRITICAL INDICATOR FIX!" && \
-    echo "   📊 Level-Based Trading indicators were MISSING!" && \
+    echo "🔧 v6.5: NEWS SENTIMENT + DYNAMIC TP!" && \
+    echo "   📊 Major Updates:" && \
     echo "   ═══════════════════════════════════════════════════" && \
-    echo "   🆕 v5.0.17 FIXES:" && \
-    echo "      🔧 Added ema_20, ema_50 (trend filter was broken!)" && \
-    echo "      🔧 Added adx, plus_di, minus_di (ADX filter broken!)" && \
-    echo "      🔧 /analyze now shows ADX + EMA values" && \
+    echo "   🆕 v6.5 FEATURES:" && \
+    echo "      🗞️ /news command - Crypto news sentiment analysis" && \
+    echo "      🎯 Dynamic TP based on S/R levels" && \
+    echo "      🔧 Fixed hardcoded 20% stop-loss bug" && \
+    echo "      📊 Now uses config: MAX_STOP_LOSS_PERCENT" && \
     echo "   ═══════════════════════════════════════════════════" && \
     echo "   📊 Previous versions:" && \
-    echo "      ✅ v5.0.16: Low Liquidity Blacklist" && \
-    echo "      ✅ v5.0.15: Balanced Settings"
+    echo "      ✅ v6.4: Professional Entry at S/R levels" && \
+    echo "      ✅ v6.3: Multi-TF S/R analysis"
 
 # Set working directory
 WORKDIR /app
