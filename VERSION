@@ -1,68 +1,15 @@
-5.0.16-LOW-LIQUIDITY-BLACKLIST
-🚫 Blacklisted 35+ Low Liquidity Coins
-Deployed: 2025-12-08
+6.5.1-PA-ONLY Build: 20251226_V651_CLOSEALL_NEWS_FIX
 
-═══════════════════════════════════════════════════════════
-🚫 v5.0.16: LOW LIQUIDITY COIN BLACKLIST
-═══════════════════════════════════════════════════════════
+CHANGELOG:
+- v6.5.1: Fixed /closeall and /news commands (Railway Dockerfile build)
+- v6.5: News sentiment analyzer + Dynamic TP based on S/R levels
+- v6.4: Professional entry at S/R levels
+- v6.3: Multi-timeframe S/R analysis
+- v5.0.17: Indicator fix (EMA, ADX)
 
-USER REQUEST:
-- HOT caused -$5.41 loss (unreliable candles)
-- SLP, ONT, FLOW also problematic
-- "Bu coinlerden zarar etmek istemiyorum!"
-
-═══════════════════════════════════════════════════════════
-BLACKLISTED COINS (35+):
-═══════════════════════════════════════════════════════════
-
-User-identified:
-  🚫 HOT  - Holo ($0.0005, gürültülü mumlar)
-  🚫 SLP  - Smooth Love Potion ($0.0009)
-  🚫 ONT  - Ontology (düşük likidite)
-  🚫 FLOW - Flow (düşük likidite)
-
-Meme coins (manipulation risk):
-  🚫 SHIB, PEPE, FLOKI, BONK, DOGS, NOT, NEIRO
-
-Very low price (< $0.01):
-  🚫 LUNC, BTTC, WIN, NFT, 1000SATS
-
-Low liquidity / manipulation prone:
-  🚫 SPELL, REEF, DENT, SC, ANKR, PEOPLE, JASMY
-  🚫 ACH, CTXC, KEY, STMX, OGN, CELR, CKB, BICO
-
-Dead / unreliable:
-  🚫 LUNA, UST, USTC
-
-═══════════════════════════════════════════════════════════
-WHY BLACKLIST?
-═══════════════════════════════════════════════════════════
-
-1. Very low prices = noisy candle patterns
-2. Low liquidity = easy manipulation by whales
-3. Technical analysis unreliable
-4. Wide spreads = worse fills
-5. Today's HOT loss proves the point
-
-═══════════════════════════════════════════════════════════
-TODAY'S PERFORMANCE (before blacklist):
-═══════════════════════════════════════════════════════════
-
-Win Rate: 80% (8/10 trades)
-Net Profit: +$14.32
-
-Losses:
-  ❌ GMX: -$4.99 (normal loss)
-  ❌ HOT: -$5.41 (low liquidity coin!)
-
-After blacklist: These coins will NEVER be traded again.
-
-═══════════════════════════════════════════════════════════
-PREVIOUS VERSIONS:
-═══════════════════════════════════════════════════════════
-
-v5.0.15: Balanced Settings (1.2% SL, 2/3 confirmations)
-v5.0.14: Ghost Exit Price Fix
-v5.0.13: Protection Filters (Trend + ADX)
-v5.0.12: Bulletproof Exit Price
-
+FEATURES:
+- PA-ONLY mode (ML disabled by user request)
+- /news [COIN] - News sentiment analysis
+- /closeall - Close all positions
+- Dynamic TP based on S/R levels
+- Stop-loss from config (not hardcoded)
