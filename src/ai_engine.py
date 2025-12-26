@@ -363,6 +363,46 @@ class AIConsensusEngine:
         from src.config import get_settings
         settings = get_settings()
         
+        # 🗞️ v6.5: NEWS SENTIMENT INTEGRATION
+        # Analyze news/social sentiment and adjust confidence
+        news_sentiment = None
+        news_adjustment = 0
+        news_skip_reason = None
+        
+        if settings.enable_news_filter:
+            try:
+                from src.news_sentiment_analyzer import get_news_analyzer
+                news_analyzer = get_news_analyzer()
+                news_sentiment = await news_analyzer.analyze_sentiment(symbol)
+                
+                if news_sentiment:
+                    news_adjustment = news_sentiment.confidence_adjustment
+                    
+                    # Check if we should skip trade due to very bearish news
+                    if news_sentiment.should_skip_trade and pa_action != 'hold':
+                        logger.warning(
+                            f"🗞️ NEWS FILTER: Skipping {symbol} {pa_action.upper()} - "
+                            f"{news_sentiment.skip_reason}"
+                        )
+                        news_skip_reason = news_sentiment.skip_reason
+                        pa_action = 'hold'
+                        pa_side = None
+                        pa_confidence = 0.0
+                        pa_reasoning = f"Skipped due to news: {news_sentiment.skip_reason}"
+                    else:
+                        # Apply confidence adjustment
+                        original_confidence = pa_confidence
+                        pa_confidence = max(0.0, min(0.95, pa_confidence + (news_adjustment / 100)))
+                        
+                        logger.info(
+                            f"🗞️ News Sentiment: {news_sentiment.overall_sentiment.value} | "
+                            f"F&G: {news_sentiment.fear_greed_index} | "
+                            f"Adjustment: {news_adjustment:+d}% | "
+                            f"Confidence: {original_confidence:.1%} → {pa_confidence:.1%}"
+                        )
+            except Exception as e:
+                logger.warning(f"⚠️ News sentiment analysis failed: {e}")
+        
         return {
             'action': pa_action,
             'side': pa_side,
@@ -374,6 +414,18 @@ class AIConsensusEngine:
             'models_used': ['PA-ONLY'],
             'ensemble_method': 'pa_only',
             'risk_reward_ratio': 0.0,
+            
+            # 🗞️ v6.5: News sentiment data
+            'news_sentiment': {
+                'sentiment': news_sentiment.overall_sentiment.value if news_sentiment else 'neutral',
+                'score': news_sentiment.sentiment_score if news_sentiment else 0.0,
+                'fear_greed': news_sentiment.fear_greed_index if news_sentiment else 50,
+                'adjustment': news_adjustment,
+                'news_count': news_sentiment.news_count if news_sentiment else 0,
+                'recommendation': news_sentiment.recommendation if news_sentiment else 'N/A',
+                'skip_reason': news_skip_reason,
+            } if settings.enable_news_filter else None,
+            
             'price_action': {
                 # Original fields
                 'trend': trend,

@@ -78,6 +78,7 @@ class TradingTelegramBot:
         self.application.add_handler(CommandHandler("analyze", self.cmd_analyze_trades))
         self.application.add_handler(CommandHandler("scanrs", self.cmd_scan_sr_levels))
         self.application.add_handler(CommandHandler("predict", self.cmd_predict))
+        self.application.add_handler(CommandHandler("news", self.cmd_news))  # 🗞️ v6.5: News sentiment
 
         # Register callback query handler for buttons
         self.application.add_handler(CallbackQueryHandler(self.button_callback))
@@ -2785,6 +2786,116 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
             logger.error(f"Error in cmd_predict: {e}", exc_info=True)
             await status_msg.edit_text(
                 f"❌ <b>PREDICTION HATASI</b>\n\n{str(e)}",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def cmd_news(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        /news [COIN] - Analyze news sentiment for a cryptocurrency.
+        
+        Shows:
+        - Overall sentiment (bullish/bearish/neutral)
+        - Fear & Greed Index
+        - Recent news headlines
+        - Trading recommendation
+        
+        Usage: /news BTC, /news ETH, /news SOL
+        """
+        from src.news_sentiment_analyzer import get_news_analyzer
+        
+        # Check for symbol argument
+        if not context.args or len(context.args) < 1:
+            await update.message.reply_text(
+                "🗞️ <b>NEWS SENTIMENT ANALYZER</b>\n\n"
+                "Kullanım: <code>/news COIN</code>\n\n"
+                "Örnekler:\n"
+                "• <code>/news BTC</code>\n"
+                "• <code>/news ETH</code>\n"
+                "• <code>/news SOL</code>\n\n"
+                "Bu komut şunları gösterir:\n"
+                "• 📰 Son haberler\n"
+                "• 😱 Fear & Greed Index\n"
+                "• 📊 Genel sentiment\n"
+                "• 💡 Trading önerisi",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        symbol_input = context.args[0].upper()
+        
+        status_msg = await update.message.reply_text(
+            f"🗞️ <b>{symbol_input} haberleri analiz ediliyor...</b>\n\n"
+            f"⏳ Lütfen bekleyin...",
+            parse_mode=ParseMode.HTML
+        )
+        
+        try:
+            news_analyzer = get_news_analyzer()
+            result = await news_analyzer.analyze_sentiment(symbol_input)
+            
+            # Sentiment emoji
+            sentiment_emoji = news_analyzer.get_sentiment_emoji(result.overall_sentiment)
+            
+            # Fear & Greed emoji
+            if result.fear_greed_index <= 25:
+                fg_emoji = "😱"
+                fg_text = "Extreme Fear"
+            elif result.fear_greed_index <= 45:
+                fg_emoji = "😰"
+                fg_text = "Fear"
+            elif result.fear_greed_index <= 55:
+                fg_emoji = "😐"
+                fg_text = "Neutral"
+            elif result.fear_greed_index <= 75:
+                fg_emoji = "🤑"
+                fg_text = "Greed"
+            else:
+                fg_emoji = "🚀"
+                fg_text = "Extreme Greed"
+            
+            message = f"""
+🗞️ <b>{symbol_input} NEWS SENTIMENT</b>
+
+{sentiment_emoji} <b>Genel Sentiment:</b> {result.overall_sentiment.value.upper()}
+📊 <b>Sentiment Score:</b> {result.sentiment_score:+.2f}
+🎯 <b>Güven:</b> {result.confidence:.0%}
+
+{fg_emoji} <b>Fear & Greed Index:</b> {result.fear_greed_index}/100 ({fg_text})
+
+📰 <b>Haber Sayısı:</b> {result.news_count}
+   🟢 Bullish: {result.bullish_count}
+   🔴 Bearish: {result.bearish_count}
+   ⚪ Neutral: {result.neutral_count}
+
+💡 <b>Öneri:</b> {result.recommendation}
+"""
+            
+            # Add confidence adjustment info
+            if result.confidence_adjustment != 0:
+                adj_emoji = "📈" if result.confidence_adjustment > 0 else "📉"
+                message += f"\n{adj_emoji} <b>Confidence Adjustment:</b> {result.confidence_adjustment:+d}%"
+            
+            # Add skip warning if applicable
+            if result.should_skip_trade:
+                message += f"\n\n⚠️ <b>UYARI:</b> {result.skip_reason}"
+            
+            # Add recent news headlines
+            if result.recent_news:
+                message += "\n\n📰 <b>Son Haberler:</b>"
+                for i, news in enumerate(result.recent_news[:5], 1):
+                    sentiment_icon = "🟢" if news.sentiment.value in ['bullish', 'very_bullish'] else "🔴" if news.sentiment.value in ['bearish', 'very_bearish'] else "⚪"
+                    title_short = news.title[:60] + "..." if len(news.title) > 60 else news.title
+                    message += f"\n{i}. {sentiment_icon} {title_short}"
+            
+            message += f"\n\n⏰ {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}"
+            
+            await status_msg.edit_text(message, parse_mode=ParseMode.HTML)
+            logger.info(f"✅ News sentiment sent for {symbol_input}: {result.overall_sentiment.value}")
+            
+        except Exception as e:
+            logger.error(f"Error in cmd_news: {e}", exc_info=True)
+            await status_msg.edit_text(
+                f"❌ <b>NEWS HATASI</b>\n\n{str(e)}",
                 parse_mode=ParseMode.HTML
             )
 
