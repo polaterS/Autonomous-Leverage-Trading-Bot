@@ -2801,27 +2801,26 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
         
         Usage: /news BTC, /news ETH, /news SOL
         """
-        from src.news_sentiment_analyzer import get_news_analyzer
+        logger.info("🗞️ /news command called")
         
-        # Check for symbol argument
-        if not context.args or len(context.args) < 1:
+        try:
+            from src.news_sentiment_analyzer import get_news_analyzer
+        except ImportError as e:
+            logger.error(f"Failed to import news_sentiment_analyzer: {e}")
             await update.message.reply_text(
-                "🗞️ <b>NEWS SENTIMENT ANALYZER</b>\n\n"
-                "Kullanım: <code>/news COIN</code>\n\n"
-                "Örnekler:\n"
-                "• <code>/news BTC</code>\n"
-                "• <code>/news ETH</code>\n"
-                "• <code>/news SOL</code>\n\n"
-                "Bu komut şunları gösterir:\n"
-                "• 📰 Son haberler\n"
-                "• 😱 Fear & Greed Index\n"
-                "• 📊 Genel sentiment\n"
-                "• 💡 Trading önerisi",
+                f"❌ News modülü yüklenemedi: {str(e)}",
                 parse_mode=ParseMode.HTML
             )
             return
         
-        symbol_input = context.args[0].upper()
+        # Check for symbol argument - default to BTC if none provided
+        if not context.args or len(context.args) < 1:
+            symbol_input = "BTC"  # Default to BTC
+            logger.info("🗞️ No symbol provided, using default: BTC")
+        else:
+            symbol_input = context.args[0].upper()
+        
+        logger.info(f"🗞️ Analyzing news for: {symbol_input}")
         
         status_msg = await update.message.reply_text(
             f"🗞️ <b>{symbol_input} haberleri analiz ediliyor...</b>\n\n"
@@ -2832,6 +2831,8 @@ Bu tradeler çok hızlı kapandı - stop-loss hemen tetiklendi!
         try:
             news_analyzer = get_news_analyzer()
             result = await news_analyzer.analyze_sentiment(symbol_input)
+            
+            logger.info(f"🗞️ News analysis complete: {result.overall_sentiment.value}")
             
             # Sentiment emoji
             sentiment_emoji = news_analyzer.get_sentiment_emoji(result.overall_sentiment)
