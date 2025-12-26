@@ -1,9 +1,10 @@
 [build]
-builder = "DOCKERFILE"
+builder = "NIXPACKS"
 # Cache bust: v6.5.1 - closeall + news commands fix
-# Timestamp: 2025-12-26 14:35
+# Timestamp: 2025-12-26 14:25
 
 [deploy]
+startCommand = "sh -c 'uvicorn health_server:app --host 0.0.0.0 --port ${PORT:-8000} & sleep 3 && python -u -B main.py'"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
