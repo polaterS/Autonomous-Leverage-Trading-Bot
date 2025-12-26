@@ -4,7 +4,6 @@ builder = "DOCKERFILE"
 # Timestamp: 2025-12-26 14:35
 
 [deploy]
-startCommand = "python -u -B main.py"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

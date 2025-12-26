@@ -69,12 +69,4 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the trading bot with health server
-CMD echo "🔥 DELETING PYTHON CACHE BEFORE STARTUP..." && \
-    find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
-    find /app -type f -name "*.pyc" -delete 2>/dev/null || true && \
-    find /app -type f -name "*.pyo" -delete 2>/dev/null || true && \
-    echo "✅ Cache deletion complete, verifying..." && \
-    echo "Remaining .pyc files: $(find /app -type f -name '*.pyc' | wc -l)" && \
-    echo "🚀 Starting health server and bot..." && \
-    uvicorn health_server:app --host 0.0.0.0 --port ${PORT:-8000} & \
-    python -u -B main.py
+CMD ["sh", "-c", "echo '🔥 Clearing Python cache...' && find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && find /app -type f -name '*.pyc' -delete 2>/dev/null || true && echo '🚀 Starting health server on port $PORT...' && uvicorn health_server:app --host 0.0.0.0 --port ${PORT:-8000} & sleep 2 && echo '🤖 Starting trading bot...' && python -u -B main.py"]
